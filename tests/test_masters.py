@@ -9418,6 +9418,58 @@ class TestAddRepeatingValues(unittest.TestCase):
             slot1.inner_text(), "Центр оздоровления и китайской гимнастики!"
         )
 
+    def test_skips_a_trailing_slot_that_yandex_collapsed_away(self):
+        """Issue #744 live recon: the slot list SHRINKS as it is emptied.
+
+        Confirmed live on the create page — clearing the last pre-filled
+        headline slot drops the rendered set from 5 slots to 1 in a single
+        re-render, so the trailing testids are gone from the DOM by the time
+        the loop reaches them. Aborting there (the pre-#744 behaviour) made
+        `masters add` fail outright on a form that was in fact filled
+        correctly. A slot that does not exist cannot be holding Yandex's AI
+        copy, so with no value to write it is safe to skip — which is
+        materially different from the obstructed-but-present slot in the
+        test above, and that distinction is the whole fix.
+        """
+        slot0 = _FakeContentEditableHandle(text="Старый заголовок")
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([slot0]),
+                # slot1 registered as genuinely ABSENT (zero matches), the
+                # way a collapsed slot resolves on the real page.
+                '[data-testid="fake1.textarea"]': _FakeLocator([]),
+            }
+        )
+
+        browser_masters._add_repeating_values(
+            page, "fake{index}.textarea", 2, ["Мой заголовок"]
+        )  # must not raise
+
+        self.assertEqual(slot0.inner_text(), "Мой заголовок")
+
+    def test_still_aborts_when_a_slot_with_a_value_is_absent(self):
+        """The collapse skip must never swallow a caller's OWN value.
+
+        Skipping an absent slot is only safe when there is nothing to write
+        into it. If the caller supplied a value for a slot that is gone,
+        that value would be silently dropped — the exact "never silently
+        drop a caller's value" guarantee issue #655 established — so this
+        still has to fail loudly.
+        """
+        slot0 = _FakeContentEditableHandle(text="")
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([slot0]),
+                '[data-testid="fake1.textarea"]': _FakeLocator([]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_repeating_values(
+                page, "fake{index}.textarea", 2, ["Первый", "Второй"]
+            )
+        self.assertIn("Второй", str(ctx.exception))
+
 
 class TestReadRepeatingValues(unittest.TestCase):
     """``_read_repeating_values`` (issue #632, re-recon #653) — post-add

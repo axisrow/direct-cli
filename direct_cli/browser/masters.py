@@ -5755,6 +5755,15 @@ def _add_repeating_values(
       leftover AI-written ones they never reviewed — precisely what
       ``create_master``'s contract refuses to do.
 
+    The slot list is fixed-size only while it is POPULATED: confirmed live
+    (issue #744 recon) Yandex collapses it as it empties — clearing the last
+    pre-filled headline slot drops the rendered set from 5 slots to 1 in one
+    re-render, so the trailing testids vanish mid-loop. A slot that is
+    absent AND has no caller value is therefore skipped rather than treated
+    as an unclickable slot (it cannot be holding AI copy if it does not
+    exist); an absent slot the caller DID supply a value for still raises,
+    since that value would otherwise be silently dropped.
+
     A slot that cannot even be clicked, or cannot be cleared, is fatal for
     EVERY slot — including one with no caller-supplied value. A click
     failure does not distinguish "not rendered" from "obstructed but still
@@ -5784,8 +5793,29 @@ def _add_repeating_values(
     # no sandbox and no rollback (issue #655 review).
     for index in range(slot_count):
         selector = f'[data-testid="{testid_template.format(index=index)}"]'
-        field = page.locator(selector).first
+        locator = page.locator(selector)
+        field = locator.first
         value = values[index] if index < len(values) else None
+
+        # Yandex COLLAPSES the slot list as it empties (confirmed live,
+        # issue #744 recon): clearing the last populated headline slot drops
+        # the rendered set from 5 slots straight to 1, so by the time this
+        # loop reaches index 4 that testid is gone from the DOM entirely.
+        # The old code read that as a click failure on a slot that "may be
+        # obstructed but still holding AI copy" and aborted — but a slot
+        # that does not exist cannot be holding anything, and the read-back
+        # below (_repeating_values_mismatches, run before the terminal
+        # click) still independently proves no unreviewed copy survived.
+        #
+        # Deliberately narrow: this only skips when the slot is ABSENT and
+        # there is no value to write into it. An absent slot that the caller
+        # DID supply a value for is a real failure — the value would be
+        # silently dropped — so that still falls through to the click below
+        # and raises, preserving issue #655's "never silently drop a
+        # caller's value" guarantee.
+        if value is None and not locator.count():
+            continue
+
         try:
             field.click()
             # The slot arrives pre-filled with Yandex's AI-generated copy and
@@ -7341,13 +7371,25 @@ def _repeating_values_mismatches(
 def _wait_for_created_campaign_id(page: "Page", *, button_label: str) -> int:
     """Read the new campaign's ID off Yandex's post-click redirect.
 
-    Issue #744, confirmed live: clicking either terminal button on the
-    create form redirects ``page.url`` to ``WIZARD_OVERVIEW_URL`` carrying
-    the newly created campaign's ID. This is the SAME redirect
-    ``copy_master`` already relies on (live-verified in issue #659) — the
-    clone flow lands on the very same step-2 form and terminates through the
-    same ``_click_terminal_button``, so this is one behaviour, observed
-    twice, not two independent guesses.
+    Modelled on ``copy_master``'s redirect, which IS live-verified (issue
+    #659): the clone flow lands on the very same step-2 form and terminates
+    through the same ``_click_terminal_button``, then redirects ``page.url``
+    to ``WIZARD_OVERVIEW_URL`` carrying the new campaign's ID.
+
+    **Not yet observed on the create path** (issue #744 live recon,
+    2026-08-06). Every create attempt available during that pass was
+    rejected before any redirect could happen: Yandex's create form requires
+    at least one conversion goal ("Добавьте хотя бы одну цель для сайта,
+    чтобы создать и запустить кампанию") and ``create_master`` has no way to
+    set one yet, so the terminal click was silently swallowed — ``page.url``
+    stayed on ``WIZARD_CREATE_URL`` for 48s and no campaign was created.
+    Notably both terminal buttons still report ``visible``/``enabled`` with
+    no ``aria-disabled`` in that state, so the DOM offers no signal to
+    distinguish "rejected" from "still working" — which is exactly why this
+    function must raise on timeout rather than assume success. The clone
+    path does not hit this because a clone inherits the source campaign's
+    goals. Once goal support exists, this needs re-confirming on a create
+    that Yandex actually accepts.
 
     The predicate differs from ``copy_master``'s in one way that matters.
     ``copy_master`` starts from the SOURCE campaign's own overview URL, so
@@ -7537,14 +7579,20 @@ def create_master(
     alone — mirrors ``update_master``'s ``_verify_saved`` convention (issue
     #631 review).
 
-    Both buttons' post-click destination is now live-verified (issue #744,
-    closing the gap issue #632 step 0's read-only recon left open): Yandex
-    redirects ``page.url`` to ``WIZARD_OVERVIEW_URL`` carrying the new
-    campaign's ID — the same redirect ``copy_master`` has relied on since
-    issue #659, since the clone flow terminates through the very same form
-    and button. That ID is returned as ``CampaignId`` (previously omitted
-    because the source was undetermined) and is what lets ``_verify_created``
-    verify the display region through a real reload rather than skipping it.
+    Returns the created campaign's ``CampaignId``, read from the post-click
+    redirect (``_wait_for_created_campaign_id``), which also gives
+    ``_verify_created`` a page to reload for the display-region check.
+
+    **Caveat — the create path's redirect is still unconfirmed** (issue
+    #744 live recon, 2026-08-06). It is modelled on ``copy_master``'s
+    live-verified redirect through the identical form and button, but no
+    create attempt has yet been accepted by Yandex to observe it directly:
+    the form requires at least one conversion goal, which this function
+    cannot set, so the terminal click is silently rejected and no campaign
+    is created (see ``_wait_for_created_campaign_id``). That failure mode is
+    reported as an error, not as success — but until goal support lands,
+    treat the ID/region-verification path here as designed-and-unit-tested
+    rather than field-proven.
     """
     if not headlines:
         raise ValueError("create_master requires at least one headline.")

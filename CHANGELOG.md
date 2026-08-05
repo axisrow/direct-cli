@@ -2,16 +2,33 @@
 
 ## Unreleased
 
+**Fixed — `masters add` aborted on a form it had filled correctly (#744 live recon):**
+
+- Live recon found Yandex **collapses** the headline/text slot list as it is
+  emptied: clearing the last pre-filled headline slot drops the rendered set
+  from 5 slots to 1 in a single re-render, so `CampaignTitles4.textarea` is
+  gone from the DOM by the time `_add_repeating_values` reaches it. That was
+  read as a click failure on a possibly-still-populated slot and aborted the
+  whole command — `masters add` could not get past form-filling at all.
+- A slot that is **absent** and has **no caller value** is now skipped; a
+  slot that is absent but *was* given a value still raises, preserving
+  #655's "never silently drop a caller's value" guarantee. The
+  obstructed-but-present case #655 hardened against is unchanged.
+
 **Added — `masters add` now returns `CampaignId` and verifies the display region (#744):**
 
-- Live recon confirmed both terminal buttons ("Запустить кампанию" /
-  "Сохранить как черновик") redirect `page.url` to the new campaign's
-  overview URL (`/wizard/campaigns/{id}/`) — the same redirect `copy_master`
-  has relied on since #659, since the clone flow lands on the very same
-  step-2 form and terminates through the same `_click_terminal_button`.
-  This closes the gap #632's read-only step-0 recon left open, where the
-  post-click destination (and therefore the created campaign's ID) was
-  undetermined.
+- `create_master` reads the new campaign's ID from the post-click redirect
+  and uses it to verify the display region through a real page reload.
+- **The create path's redirect is not yet field-proven.** It is modelled on
+  `copy_master`'s live-verified redirect (#659) through the identical form
+  and button, but the #744 recon could not observe it on a create: Yandex's
+  create form requires at least one conversion goal ("Добавьте хотя бы одну
+  цель для сайта, чтобы создать и запустить кампанию"), which this command
+  cannot set, so the terminal click is silently rejected — `page.url` stayed
+  on the create page for 48s and no campaign was created. Both buttons still
+  report `visible`/`enabled` with no `aria-disabled` in that state, so there
+  is no DOM signal to distinguish rejection from success; the timeout now
+  surfaces it as an error instead. Re-confirm once goal support exists.
 - `create_master` now returns `CampaignId` (previously omitted for exactly
   that reason), so callers can find what they just created — which matters
   because this operation is irreversible and not idempotent.
