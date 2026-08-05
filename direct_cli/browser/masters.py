@@ -404,6 +404,26 @@ _STATUS_CHANGE_TIMEOUT_MS = 60_000
 # Title">` with no explicit `role` attribute), this selector is exact.
 _OVERVIEW_TITLE_SELECTOR = '[data-testid="CampaignHeader.Title"]'
 
+# Overview page's landing-page link, confirmed live 2026-08-06 (issue #763).
+# The previous selector, `a[href*='utm_source=']`, targeted the *content* of
+# an href rather than a stable element identity, and that content is not
+# unique to the campaign's own link: the page always also renders a Yandex
+# promo banner ("Yandex Neuro Ads") whose href is itself UTM-tagged
+# (`ya.ru/project/yna/?utm_source=yandex&utm_medium=direct&...`). When the
+# campaign's own LandingUrl carries no UTM tail (e.g. right after `update
+# --landing-url` with UTMInput left untouched, per #761), that banner becomes
+# the *only* href-based match and `.first` silently returns it instead of the
+# campaign's link — this is the exact "stale LandingUrl" symptom reported in
+# #763 (it isn't a cache: the selector was simply reading the wrong anchor).
+# When the campaign's LandingUrl does carry a UTM tail, both anchors match
+# and the campaign's own link happens to win only by DOM order, i.e. the old
+# selector was correct by accident in that case.
+# `[data-testid="Link"]` alone is not unique either (8 matches on a typical
+# overview page: sidebar entries, footer links, the campaign-id caption,
+# etc.) — scoping to the `CampaignHeader` container is required and yields
+# exactly 1 match in both cases confirmed live above.
+_OVERVIEW_LANDING_LINK_SELECTOR = '[data-testid="CampaignHeader"] a[data-testid="Link"]'
+
 # How long to wait for `_OVERVIEW_TITLE_SELECTOR` to render after navigating
 # to WIZARD_OVERVIEW_URL (issue #683). Confirmed live: the overview page can
 # take several seconds after `wait_until="commit"` returns before its React
@@ -1648,8 +1668,9 @@ def _extract_status(page: "Page", result: Dict[str, Any]) -> None:
 
 def _extract_landing_url(page: "Page", result: Dict[str, Any]) -> None:
     # The landing-page link's visible text is the bare domain, but its href
-    # carries the full UTM-templated URL — see the confirmed fixture example.
-    link = page.locator("a[href*='utm_source=']").first
+    # carries the full URL, including any UTM tail. See
+    # _OVERVIEW_LANDING_LINK_SELECTOR above for why this selector is required.
+    link = page.locator(_OVERVIEW_LANDING_LINK_SELECTOR).first
     try:
         href = link.get_attribute("href")
         if href:
