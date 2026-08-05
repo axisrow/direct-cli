@@ -2698,6 +2698,64 @@ class TestSuspendResumeMaster(unittest.TestCase):
         self.assertIn("Разархивировать", str(ctx.exception))
         self.assertIn("did not change to any of ('SUSPENDED',)", str(ctx.exception))
 
+    def test_resume_from_archived_waits_for_status_to_hydrate(self):
+        # issue #758 follow-up: _goto_overview_page only guarantees the
+        # title rendered (issue #683) -- the separate status-text element
+        # can still read as unrecognised (None) on the very first call right
+        # after navigation. resume_master must not silently skip the
+        # ARCHIVED/unarchive branch just because that first read raced the
+        # page's own hydration -- it must poll for a recognised status
+        # before branching, then take the unarchive-then-resume path once
+        # the true ARCHIVED status is observed, never falling straight
+        # through to a doomed search for a resume button that an ARCHIVED
+        # page does not have.
+        calls = {"n": 0, "unarchive_clicks": 0}
+
+        def _unarchive():
+            calls["unarchive_clicks"] += 1
+            calls["status"] = "Кампания остановлена"
+
+        def _resume():
+            calls["status"] = "Кампания активна"
+
+        page = FakePage(
+            locators={
+                browser_masters._MENU_TRIGGER_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._UNARCHIVE_MENU_ITEM_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_unarchive)]
+                ),
+            },
+            text_buttons={
+                "Возобновить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_resume)]
+                )
+            },
+        )
+        calls["status"] = "Кампания в\xa0архиве"
+
+        def fake_inner_text(selector=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                # The overview title has rendered but the status element
+                # has not hydrated yet -- no recognised marker in the body.
+                return ""
+            return calls["status"]
+
+        page.inner_text = fake_inner_text
+
+        result = browser_masters.resume_master(page, 713277109)
+
+        self.assertEqual(result, {"CampaignId": 713277109, "Status": "ACTIVE"})
+        self.assertEqual(
+            calls["unarchive_clicks"],
+            1,
+            "resume_master must click 'Разархивировать' even when the "
+            "first status read after navigation raced the page's own "
+            "hydration and came back unrecognised",
+        )
+
 
 class TestMastersSuspendResumeCommand(unittest.TestCase):
     """CLI wiring for `masters suspend`/`masters resume`."""

@@ -2034,7 +2034,20 @@ def resume_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     archive path below.
     """
     _goto_overview_page(page, campaign_id)
+    # _goto_overview_page only guarantees the title rendered (issue #683) --
+    # the separate status-text element can still read as unrecognised
+    # (None) on the very first call right after navigation. Poll briefly
+    # for a recognised status before branching on it, so a hydration race
+    # here doesn't silently skip the ARCHIVED/unarchive branch and fall
+    # through to a doomed search for a resume button that an ARCHIVED page
+    # does not have (issue #758 follow-up). _suspend_or_resume's own
+    # ``current_status is None`` check below remains the final safety net
+    # for a genuinely unrecognised status that never hydrates.
+    deadline = time.monotonic() + _STATUS_CHANGE_TIMEOUT_MS / 1000
     current_status = _read_status_text(page)
+    while current_status is None and time.monotonic() < deadline:
+        page.wait_for_timeout(250)
+        current_status = _read_status_text(page)
     if current_status == "ARCHIVED":
         _click_menu_item(
             page,
