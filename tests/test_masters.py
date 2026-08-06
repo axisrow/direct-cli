@@ -18,8 +18,10 @@ GridCampaigns response these tests replay, and FakePage's ``request``/``on``
 additions below for how that replay is faked.
 """
 
+import ast
 import contextlib
 import json
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -28,6 +30,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
+from direct_cli.browser import _clock
 from direct_cli.browser import masters as browser_masters
 from direct_cli.browser.masters import PlaywrightError
 from direct_cli.browser.session import (
@@ -48,12 +51,44 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 # many, across several classes) would pay the real production grace period.
 _images_ghost_grace_patch = patch.object(browser_masters, "_IMAGES_GHOST_GRACE_S", 0.0)
 
+# Issue #767: every poll loop in `direct_cli/browser/` has two time sources —
+# the deadline (`_clock.now()`) and the tick (`page.wait_for_timeout`, a real
+# in-browser sleep in production). `FakePage.wait_for_timeout` is a no-op, so
+# with a REAL deadline clock any test whose awaited condition never becomes
+# true busy-spun for the full production timeout: `_STAT_TILES_TIMEOUT_MS`
+# (30s), `_OVERVIEW_LOAD_TIMEOUT_MS` (30s), `_DRAFT_OVERVIEW_DETECT_TIMEOUT_MS`
+# (15s)... five such tests in this file alone burned 135s of wall clock.
+#
+# Installing a module-wide fake clock that ONLY advances inside
+# `wait_for_timeout` makes each loop run exactly `timeout_ms // tick_ms` ticks
+# — the same iteration count as before, so no coverage is lost — but in
+# microseconds instead of seconds, and deterministically rather than as a race
+# against host CPU speed (the CPU-dependence issue #715 patched per-call).
+_FAKE_CLOCK = {"now": 0.0}
+
+
+def _fake_now():
+    return _FAKE_CLOCK["now"]
+
+
+def _advance_fake_clock(timeout_ms):
+    """Advance the module-wide fake clock by a `wait_for_timeout` tick.
+
+    Every `FakePage`-like stand-in in this module routes its
+    `wait_for_timeout` here (directly, or via `super()`), so a subclass that
+    overrides `wait_for_timeout` purely to count ticks must still call this —
+    otherwise its loop's deadline never arrives and the test hangs.
+    """
+    _FAKE_CLOCK["now"] += (timeout_ms or 0) / 1000
+
 
 def setUpModule():
     _images_ghost_grace_patch.start()
+    _clock.set_clock(_fake_now)
 
 
 def tearDownModule():
+    _clock.set_clock(time.monotonic)
     _images_ghost_grace_patch.stop()
 
 
@@ -582,7 +617,9 @@ class FakePage:
         return self._html
 
     def wait_for_timeout(self, timeout):
-        pass
+        # Advances the module-wide fake clock instead of really sleeping —
+        # see `_advance_fake_clock` (issue #767).
+        _advance_fake_clock(timeout)
 
     @property
     def mouse(self):
@@ -1731,6 +1768,333 @@ class TestPollUntil(unittest.TestCase):
         # wall-clock race against however fast the host CPU spins the loop.
         self.assertEqual(page.tick_count, 4)
 
+    def test_poll_until_honours_the_package_clock_without_an_explicit_argument(self):
+        # Issue #767: `_poll_until`'s `clock` parameter used to default to
+        # `time.monotonic` bound at DEFINITION time, so the ~30 call sites
+        # that don't pass `clock` explicitly kept a real wall-clock deadline
+        # regardless of what the harness installed. It must resolve
+        # `_clock.now` at CALL time instead, or the module-wide fake clock
+        # this file installs in `setUpModule` silently stops applying and the
+        # whole suite goes back to burning real timeout budgets.
+        fake_time = {"now": 0.0}
+
+        class _TickCountingPage(FakePage):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.tick_count = 0
+
+            def wait_for_timeout(self, timeout):
+                self.tick_count += 1
+                fake_time["now"] += timeout / 1000
+
+        page = _TickCountingPage(locators={})
+        with patch.object(_clock, "_clock", lambda: fake_time["now"]):
+            # No `clock=` argument — the deadline must still come from the
+            # installed package clock.
+            result = browser_masters._poll_until(page, lambda: False, 1_000)
+        self.assertFalse(result)
+        self.assertEqual(page.tick_count, 4)
+
+    def test_poll_until_terminal_honours_the_package_clock_without_an_argument(self):
+        # Same contract as above for the sibling helper (`_edit_form_terminal_state`
+        # and friends go through this one).
+        fake_time = {"now": 0.0}
+
+        class _TickCountingPage(FakePage):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.tick_count = 0
+
+            def wait_for_timeout(self, timeout):
+                self.tick_count += 1
+                fake_time["now"] += timeout / 1000
+
+        page = _TickCountingPage(locators={})
+        with patch.object(_clock, "_clock", lambda: fake_time["now"]):
+            result = browser_masters._poll_until_terminal(page, lambda: None, 1_000)
+        self.assertIsNone(result)
+        self.assertEqual(page.tick_count, 4)
+
+
+# Modules whose callables read a real clock. `_clock.now()` is the package's
+# only sanctioned source for a POLL DEADLINE, so rather than denylisting
+# individual functions this bans the modules wholesale (see
+# `_raw_clock_calls`).
+_REAL_CLOCK_MODULES = frozenset({"time", "datetime"})
+
+# Per-module carve-outs for readings that legitimately are NOT deadlines.
+# `store.py` stamps `created_at` into the persisted session envelope and
+# measures its age: that is calendar time, which must survive a reboot and be
+# comparable across processes, so `time.time()` is correct there while
+# `_clock.now()` (monotonic, arbitrary epoch) would be actively wrong.
+#
+# Scoped PER FILE, not package-wide. A blanket `{time, time_ns}` allowance
+# reopened the whole bug: `time.time()` is a real clock that a no-op
+# `wait_for_timeout` tick cannot advance either, so `deadline = time.time() +
+# …` busy-spins exactly like `monotonic` did — measured at 61.89s on this file
+# with the guard still reporting clean. No module that owns a poll loop
+# appears here, so that spelling stays banned everywhere it could do harm.
+_WALL_CLOCK_CARVE_OUTS = {"store.py": frozenset({"time", "time_ns"})}
+
+
+def _raw_clock_calls(source, allowed=frozenset()):
+    """Yield ``(lineno, rendered_call)`` for every real-clock read in `source`.
+
+    Parses rather than greps: the original substring check only recognised the
+    literal ``time.monotonic()``, so an aliased import (``import time as _t``
+    → ``_t.monotonic()``) or a from-import (``from time import monotonic`` →
+    ``monotonic()``) reintroduced a busy-spinning deadline that the guard
+    reported as clean — verified at 1.4s → 64s on this file. Because only
+    ``ast.Call`` nodes are considered, prose in a docstring is structurally
+    excluded rather than filtered by a backtick heuristic (which had also
+    exempted any real call sharing a line with a ``…`` comment).
+
+    Bans the clock modules WHOLESALE instead of naming individual functions.
+    A ``{monotonic, perf_counter}`` denylist still let every sibling through —
+    ``monotonic_ns``, ``perf_counter_ns``, ``time``, ``time_ns``,
+    ``process_time``, ``datetime.now()`` — each just as unreachable by a no-op
+    ``wait_for_timeout`` tick, and one of them (``time.monotonic_ns()``) was
+    measured reintroducing the full regression (1.0s → 62s) while the guard
+    reported clean. Enumerating banned functions is a losing game; enumerating
+    the two sanctioned ways to read time is not, since a poll deadline in this
+    package has exactly one legitimate source.
+
+    Also resolves single-name assignment aliasing (``_t = time`` /
+    ``_m = time.monotonic``), which otherwise smuggles a deadline past any
+    import-only analysis.
+
+    ``allowed`` names attributes this particular module may still call — see
+    ``_WALL_CLOCK_CARVE_OUTS``. It is deliberately per-file: allowing
+    ``time.time`` package-wide reopened the original bug, since a wall clock
+    is no more tickable by a no-op ``wait_for_timeout`` than a monotonic one.
+    """
+    tree = ast.parse(source)
+
+    module_aliases = set()  # names bound to a real-clock module
+    bare_names = set()  # names bound directly to one of its callables
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".")[0]
+                if root in _REAL_CLOCK_MODULES:
+                    module_aliases.add(alias.asname or root)
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and node.module.split(".")[0] in _REAL_CLOCK_MODULES
+        ):
+            for alias in node.names:
+                # `from datetime import datetime` binds the class, whose
+                # `.now()` is caught by the attribute branch below.
+                if alias.name in _REAL_CLOCK_MODULES:
+                    module_aliases.add(alias.asname or alias.name)
+                else:
+                    bare_names.add(alias.asname or alias.name)
+
+    # Second pass: `_t = time` / `_m = time.monotonic` rebind the same source
+    # under a new name, so fold those in before inspecting calls.
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target, value = node.targets[0], node.value
+        if not isinstance(target, ast.Name):
+            continue
+        if isinstance(value, ast.Name):
+            if value.id in module_aliases:
+                module_aliases.add(target.id)
+            elif value.id in bare_names:
+                bare_names.add(target.id)
+        elif (
+            isinstance(value, ast.Attribute)
+            and isinstance(value.value, ast.Name)
+            and value.value.id in module_aliases
+        ):
+            bare_names.add(target.id)
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        # `getattr(time, "monotonic")()` — the indirection is the call target.
+        if (
+            isinstance(func, ast.Call)
+            and isinstance(func.func, ast.Name)
+            and func.func.id == "getattr"
+            and func.args
+            and isinstance(func.args[0], ast.Name)
+            and func.args[0].id in module_aliases
+        ):
+            yield node.lineno, f"getattr({func.args[0].id}, …)()"
+        elif isinstance(func, ast.Attribute) and func.attr not in allowed:
+            # A nested chain (`datetime.datetime.now()`) still bottoms out at
+            # the module. Reported once, at the module attribute, so a
+            # trailing `.timestamp()` does not double-count.
+            root = func.value
+            while isinstance(root, ast.Attribute):
+                root = root.value
+            if isinstance(root, ast.Name) and root.id in module_aliases:
+                yield node.lineno, f"{root.id}.{func.attr}()"
+        elif isinstance(func, ast.Name) and func.id in bare_names:
+            yield node.lineno, f"{func.id}()"
+
+
+class TestBrowserPackageClock(unittest.TestCase):
+    """Issue #767: every poll deadline in ``direct_cli/browser/`` must go
+    through ``_clock.now()``.
+
+    These loops pair a deadline with ``page.wait_for_timeout`` as their tick.
+    In production the tick is a real in-browser sleep; under this file's fake
+    ``Page`` it is a no-op that advances only the fake clock. A deadline read
+    from ``time.monotonic()`` directly therefore cannot be reached by ticking
+    — the loop busy-spins for the full production timeout in REAL wall-clock
+    seconds. Before this guard existed, five such tests in this file burned
+    135s between them and the whole file took ~880s sequentially (~1s after
+    the fix), so a single reintroduced ``time.monotonic()`` is a multi-minute
+    regression that no assertion would otherwise catch.
+    """
+
+    def test_no_raw_monotonic_deadlines_in_the_browser_package(self):
+        package_dir = Path(browser_masters.__file__).parent
+        offenders = []
+        for module_path in sorted(package_dir.glob("*.py")):
+            if module_path.name == "_clock.py":
+                continue  # the one legitimate `time.monotonic` reference
+            allowed = _WALL_CLOCK_CARVE_OUTS.get(module_path.name, frozenset())
+            offenders.extend(
+                f"{module_path.name}:{lineno}: {call}"
+                for lineno, call in _raw_clock_calls(
+                    module_path.read_text(), allowed=allowed
+                )
+            )
+
+        self.assertEqual(
+            offenders,
+            [],
+            "These poll deadlines read the real clock instead of "
+            "`_clock.now()`, so the offline test harness cannot tick them "
+            "past their timeout and each one costs its full production "
+            "timeout in real seconds (issue #767):\n" + "\n".join(offenders),
+        )
+
+    # The detector needs its own coverage: the guard above passes both when
+    # the package is clean and when the detector is blind, so without these
+    # the bypasses below could be reintroduced by a "simplification" of
+    # `_raw_clock_calls` and nothing would go red.
+
+    def test_detects_a_plain_time_monotonic_deadline(self):
+        source = "import time\ndeadline = time.monotonic() + 1\n"
+        self.assertEqual([(2, "time.monotonic()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_deadline_read_through_an_aliased_time_import(self):
+        # The substring guard this replaced missed exactly this spelling; a
+        # live reintroduction in `session.py::_wait_for_marker` took this file
+        # from 1.4s to 64.12s while the guard still reported clean.
+        source = "import time as _t\ndeadline = _t.monotonic() + 1\n"
+        self.assertEqual([(2, "_t.monotonic()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_deadline_read_through_a_from_import(self):
+        source = "from time import monotonic\ndeadline = monotonic() + 1\n"
+        self.assertEqual([(2, "monotonic()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_renamed_from_import(self):
+        source = "from time import monotonic as _m\ndeadline = _m() + 1\n"
+        self.assertEqual([(2, "_m()")], list(_raw_clock_calls(source)))
+
+    def test_detects_perf_counter_as_well_as_monotonic(self):
+        # Just as unreachable by a no-op `wait_for_timeout` tick, so it is the
+        # obvious drop-in once `monotonic` is guarded.
+        source = "import time\ndeadline = time.perf_counter() + 1\n"
+        self.assertEqual([(2, "time.perf_counter()")], list(_raw_clock_calls(source)))
+
+    def test_detects_every_sibling_of_the_originally_banned_pair(self):
+        # A `{monotonic, perf_counter}` denylist let all of these through, and
+        # `time.monotonic_ns()` was measured reintroducing the full regression
+        # (1.0s -> 62.19s) with the guard still reporting clean. Banning the
+        # module wholesale is what closes the family, not a longer denylist.
+        for call in (
+            "monotonic_ns",
+            "perf_counter_ns",
+            "process_time",
+            "process_time_ns",
+            "gmtime",
+        ):
+            with self.subTest(call=call):
+                source = f"import time\ndeadline = time.{call}() + 1\n"
+                self.assertEqual(
+                    [(2, f"time.{call}()")], list(_raw_clock_calls(source))
+                )
+
+    def test_allows_wall_clock_time_only_for_the_carved_out_module(self):
+        # `store.py` stamps `created_at` into the persisted session envelope
+        # and measures its age. That is calendar time — it must survive a
+        # reboot and compare across processes — so `time.time()` is correct
+        # and `_clock.now()` (monotonic, arbitrary epoch) would be wrong.
+        # Banning it outright would make this guard un-satisfiable for real
+        # code, so the allowance exists — but only for that module.
+        source = "import time\nenvelope = {'created_at': time.time()}\n"
+        self.assertEqual(
+            [],
+            list(_raw_clock_calls(source, allowed=_WALL_CLOCK_CARVE_OUTS["store.py"])),
+        )
+
+    def test_wall_clock_carve_out_does_not_leak_to_other_modules(self):
+        # The carve-out was package-wide for one commit, and that reopened the
+        # entire bug: `time.time()` is a real clock a no-op `wait_for_timeout`
+        # tick cannot advance either, so it backs a busy-spin deadline exactly
+        # like `monotonic` — measured at 61.89s on this file with the guard
+        # reporting clean. Only modules in _WALL_CLOCK_CARVE_OUTS get the
+        # allowance, and no module owning a poll loop is in it.
+        source = (
+            "import time\n"
+            "deadline = time.time() + timeout_ms / 1000\n"
+            "while time.time() < deadline:\n"
+            "    page.wait_for_timeout(250)\n"
+        )
+        self.assertEqual(
+            [(2, "time.time()"), (3, "time.time()")], list(_raw_clock_calls(source))
+        )
+        self.assertNotIn("masters.py", _WALL_CLOCK_CARVE_OUTS)
+        self.assertNotIn("session.py", _WALL_CLOCK_CARVE_OUTS)
+
+    def test_detects_a_datetime_based_clock_read(self):
+        source = "import datetime\nd = datetime.datetime.now().timestamp() + 1\n"
+        self.assertEqual([(2, "datetime.now()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_module_rebound_by_assignment(self):
+        source = "import time\n_t = time\ndeadline = _t.monotonic() + 1\n"
+        self.assertEqual([(3, "_t.monotonic()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_function_rebound_by_assignment(self):
+        source = "import time\n_m = time.monotonic\ndeadline = _m() + 1\n"
+        self.assertEqual([(3, "_m()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_getattr_indirection(self):
+        source = "import time\ndeadline = getattr(time, 'monotonic')() + 1\n"
+        self.assertEqual([(2, "getattr(time, …)()")], list(_raw_clock_calls(source)))
+
+    def test_ignores_prose_mentioning_the_banned_call(self):
+        # Structurally excluded (not a Call node) rather than filtered by the
+        # old backtick heuristic, which also exempted any REAL call that
+        # happened to share its line with a ``…`` comment.
+        source = '"""Docstring naming ``time.monotonic()`` in prose."""\n'
+        self.assertEqual([], list(_raw_clock_calls(source)))
+
+    def test_ignores_a_real_call_sharing_a_line_with_backtick_prose(self):
+        source = (
+            "import time\n"
+            "deadline = time.monotonic() + 1  # unlike ``_clock.now()``\n"
+        )
+        self.assertEqual([(2, "time.monotonic()")], list(_raw_clock_calls(source)))
+
+    def test_ignores_an_unrelated_monotonic_attribute(self):
+        # `self.monotonic()` / `counter.monotonic()` are not the time module.
+        source = "import time\nvalue = self.monotonic()\n"
+        self.assertEqual([], list(_raw_clock_calls(source)))
+
+    def test_ignores_the_sanctioned_package_clock(self):
+        source = "from . import _clock\ndeadline = _clock.now() + 1\n"
+        self.assertEqual([], list(_raw_clock_calls(source)))
+
 
 class TestFetchMastersList(unittest.TestCase):
     """`list` reads the grid's GridCampaigns JSON call, not its DOM (#639):
@@ -2395,6 +2759,7 @@ class TestFetchMasterDraft(unittest.TestCase):
 
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedStatusPage(
             locators={
@@ -2422,6 +2787,7 @@ class TestFetchMasterDraft(unittest.TestCase):
 
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedBodyPage()
 
@@ -2448,6 +2814,7 @@ class TestFetchMasterDraft(unittest.TestCase):
 
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _EmptyThenFilledStatusPage()
 
@@ -3366,9 +3733,7 @@ class TestClickDraftTerminalButton(unittest.TestCase):
                 page, click_count, clock = self._edit_page_with_delayed_redirect(
                     redirect_at_s=redirect_at_s
                 )
-                with patch.object(
-                    browser_masters.time, "monotonic", lambda clock=clock: clock["now"]
-                ):
+                with patch.object(_clock, "_clock", lambda clock=clock: clock["now"]):
                     browser_masters._click_draft_terminal_button(
                         page, 713231614, launch=False
                     )
@@ -3383,7 +3748,7 @@ class TestClickDraftTerminalButton(unittest.TestCase):
             redirect_at_s=1_000_000.0
         )
 
-        with patch.object(browser_masters.time, "monotonic", lambda: clock["now"]):
+        with patch.object(_clock, "_clock", lambda: clock["now"]):
             with self.assertRaises(BrowserSessionError) as ctx:
                 browser_masters._click_draft_terminal_button(
                     page, 713231614, launch=False
@@ -3957,6 +4322,7 @@ class TestSetDirectsHelps(unittest.TestCase):
         class _DelayedHydrationPage(FakePage):
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedHydrationPage(
             locators={
@@ -4031,17 +4397,18 @@ class TestSetDirectsHelps(unittest.TestCase):
 
         # Keeps the test fast: _read_until_matches's timeout_ms default is
         # bound to _VERIFY_FIELD_READ_TIMEOUT_MS at function-definition time,
-        # so patching the module constant alone would not shrink it —
-        # advancing the monotonic clock it polls against does.
+        # so patching the module constant alone would not shrink it — jumping
+        # the clock it polls against past that budget on every read does.
+        # (Overrides the module-wide fake clock of issue #767, which advances
+        # only per `wait_for_timeout` tick; this test wants the deadline blown
+        # on the FIRST read, so it drives the hook itself.)
         fake_now = {"value": 0.0}
 
         def _fake_monotonic():
             fake_now["value"] += browser_masters._VERIFY_FIELD_READ_TIMEOUT_MS
             return fake_now["value"]
 
-        with patch.object(
-            browser_masters.time, "monotonic", side_effect=_fake_monotonic
-        ):
+        with patch.object(_clock, "_clock", _fake_monotonic):
             with self.assertRaises(BrowserSessionError):
                 browser_masters._set_directs_helps(page, True)
 
@@ -4892,6 +5259,7 @@ class TestWaitForDraftStatus(unittest.TestCase):
 
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedDraftMarkerPage(
             locators={
@@ -4917,6 +5285,7 @@ class TestWaitForDraftStatus(unittest.TestCase):
 
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedSaveButtonPage(
             locators={},
@@ -5580,6 +5949,7 @@ class TestUpdateMaster(unittest.TestCase):
         class _DelayedBudgetPage(FakePage):
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedBudgetPage(
             locators={
@@ -5622,6 +5992,7 @@ class TestUpdateMaster(unittest.TestCase):
         class _DelayedPricePage(FakePage):
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedPricePage(
             locators={
@@ -5671,6 +6042,7 @@ class TestUpdateMaster(unittest.TestCase):
         class _DelayedTargetActionPage(FakePage):
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedTargetActionPage(
             locators={

@@ -264,7 +264,6 @@ side effect on the campaign itself.
 import contextlib
 import json
 import re
-import time
 from urllib.parse import urlsplit
 from typing import (
     TYPE_CHECKING,
@@ -279,6 +278,7 @@ from typing import (
     Union,
 )
 
+from . import _clock
 from .._captcha import find_captcha_marker, find_marker
 from ..output import print_warning
 from .session import (
@@ -1938,9 +1938,9 @@ def _wait_for_status(
     strategy (see ``_STATUS_CHANGE_TIMEOUT_MS``'s own comment about a
     possible rework, issue #764) only needs to happen once.
     """
-    deadline = time.monotonic() + _STATUS_CHANGE_TIMEOUT_MS / 1000
+    deadline = _clock.now() + _STATUS_CHANGE_TIMEOUT_MS / 1000
     new_status = current_status
-    while time.monotonic() < deadline:
+    while _clock.now() < deadline:
         new_status = _read_status_text(page)
         if new_status in target_statuses:
             break
@@ -2064,9 +2064,9 @@ def resume_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     # does not have (issue #758 follow-up). _suspend_or_resume's own
     # ``current_status is None`` check below remains the final safety net
     # for a genuinely unrecognised status that never hydrates.
-    deadline = time.monotonic() + _STATUS_CHANGE_TIMEOUT_MS / 1000
+    deadline = _clock.now() + _STATUS_CHANGE_TIMEOUT_MS / 1000
     current_status = _read_status_text(page)
-    while current_status is None and time.monotonic() < deadline:
+    while current_status is None and _clock.now() < deadline:
         page.wait_for_timeout(250)
         current_status = _read_status_text(page)
     if current_status == "ARCHIVED":
@@ -2195,9 +2195,9 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         item_label="Архивировать",
     )
 
-    deadline = time.monotonic() + _ARCHIVE_VERIFY_TIMEOUT_MS / 1000
+    deadline = _clock.now() + _ARCHIVE_VERIFY_TIMEOUT_MS / 1000
     updated = existing
-    while time.monotonic() < deadline:
+    while _clock.now() < deadline:
         updated = _find_master_row(page, campaign_id)
         if updated is not None and updated["Status"] == "ARCHIVED":
             break
@@ -2241,9 +2241,9 @@ def _verify_launched_to_moderation(page: "Page", campaign_id: int) -> str:
     visibly change the status is a hard error, not a silent success, per
     this module's dominant convention (see ``_suspend_or_resume``).
     """
-    deadline = time.monotonic() + _LAUNCH_VERIFY_TIMEOUT_MS / 1000
+    deadline = _clock.now() + _LAUNCH_VERIFY_TIMEOUT_MS / 1000
     new_status = None
-    while time.monotonic() < deadline:
+    while _clock.now() < deadline:
         new_status = _read_status_text(page)
         if new_status == "MODERATION":
             break
@@ -2396,9 +2396,9 @@ def copy_master(
         page, _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
     )
 
-    deadline = time.monotonic() + _CLONE_VERIFY_TIMEOUT_MS / 1000
+    deadline = _clock.now() + _CLONE_VERIFY_TIMEOUT_MS / 1000
     new_id: Optional[int] = None
-    while time.monotonic() < deadline:
+    while _clock.now() < deadline:
         match = _WIZARD_OVERVIEW_URL_ID_RE.search(page.url)
         # Must be a DIFFERENT campaign ID than the source: page.url still
         # holds the source's own overview URL from the goto() above until
@@ -2429,9 +2429,9 @@ def copy_master(
     # the caller can check the clone that already exists instead of losing
     # track of it.
     updated = None
-    deadline = time.monotonic() + _CLONE_VERIFY_TIMEOUT_MS / 1000
+    deadline = _clock.now() + _CLONE_VERIFY_TIMEOUT_MS / 1000
     try:
-        while time.monotonic() < deadline:
+        while _clock.now() < deadline:
             updated = _find_master_row(page, new_id, status="all")
             if updated is not None:
                 break
@@ -3531,9 +3531,9 @@ def _add_audience_tag(page: "Page", text: str) -> None:
                 return option
         return None
 
-    deadline = time.monotonic() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
+    deadline = _clock.now() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
     match = None
-    while time.monotonic() < deadline:
+    while _clock.now() < deadline:
         match = _find_matching_option()
         if match is not None:
             break
@@ -3865,8 +3865,8 @@ def _click_draft_terminal_button(
             "the page's markup. Re-run with --headful to inspect the page."
         ) from exc
 
-    deadline = time.monotonic() + _DRAFT_SAVE_REDIRECT_TIMEOUT_MS / 1000
-    while time.monotonic() < deadline:
+    deadline = _clock.now() + _DRAFT_SAVE_REDIRECT_TIMEOUT_MS / 1000
+    while _clock.now() < deadline:
         if "/edit/" not in page.url:
             return
         page.wait_for_timeout(250)
@@ -4040,8 +4040,8 @@ def _click_save(
                 continue
         return None
 
-    deadline = time.monotonic() + _AUDIENCE_SECTION_READY_TIMEOUT_MS / 1000
-    while time.monotonic() < deadline:
+    deadline = _clock.now() + _AUDIENCE_SECTION_READY_TIMEOUT_MS / 1000
+    while _clock.now() < deadline:
         handle = _find_visible_save_button()
         if handle is not None:
             try:
@@ -4231,10 +4231,10 @@ def _read_until_matches(
     """
     is_match = matches or (lambda actual, exp: actual == exp)
     last: Any = None
-    deadline = time.monotonic() + timeout_ms / 1000
+    deadline = _clock.now() + timeout_ms / 1000
     while True:
         last = reader(page)
-        if is_match(last, expected) or time.monotonic() >= deadline:
+        if is_match(last, expected) or _clock.now() >= deadline:
             return last
         page.wait_for_timeout(250)
 
@@ -4900,9 +4900,9 @@ def update_master(
         # close-button click that hadn't actually committed to the DOM yet
         # reloaded with the tag still present.
         _running_tag_count -= 1
-        deadline = time.monotonic() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
+        deadline = _clock.now() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
         actual_count = len(_read_audience_tags(page))
-        while actual_count != _running_tag_count and time.monotonic() < deadline:
+        while actual_count != _running_tag_count and _clock.now() < deadline:
             page.wait_for_timeout(250)
             actual_count = len(_read_audience_tags(page))
         if actual_count != _running_tag_count:
@@ -4922,9 +4922,9 @@ def update_master(
         # that hadn't actually committed to the DOM yet reloaded with the
         # tag missing, even though the click itself raised no error.
         _running_tag_count += 1
-        deadline = time.monotonic() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
+        deadline = _clock.now() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
         actual_count = len(_read_audience_tags(page))
-        while actual_count != _running_tag_count and time.monotonic() < deadline:
+        while actual_count != _running_tag_count and _clock.now() < deadline:
             page.wait_for_timeout(250)
             actual_count = len(_read_audience_tags(page))
         if actual_count != _running_tag_count:
@@ -5969,7 +5969,7 @@ def _poll_until(
     timeout_ms: int,
     *,
     tick_ms: int = 250,
-    clock: "Callable[[], float]" = time.monotonic,
+    clock: "Optional[Callable[[], float]]" = None,
 ) -> bool:
     """Poll ``predicate`` until it is true or ``timeout_ms`` elapses.
 
@@ -5981,8 +5981,9 @@ def _poll_until(
     "not yet" — a locator query racing a mid-render DOM is the normal case
     these loops exist to absorb.
 
-    ``clock`` defaults to ``time.monotonic`` (unchanged production
-    behaviour) but can be swapped for a fake clock in tests (issue #715):
+    ``clock`` defaults to ``None``, meaning the package-wide clock
+    (``_clock.now``, itself ``time.monotonic`` in production — issue #767),
+    but can be swapped per-call for a fake clock in tests (issue #715):
     the previous hard-coded ``time.monotonic()`` measured real wall-clock
     time, so a test mocking ``page.wait_for_timeout`` as a no-op tick
     counter got a tick count purely determined by how many iterations the
@@ -5991,8 +5992,9 @@ def _poll_until(
     ``wait_for_timeout`` makes the deadline (and therefore the tick count)
     deterministic instead.
     """
-    deadline = clock() + timeout_ms / 1000
-    while clock() < deadline:
+    _now = clock or _clock.now
+    deadline = _now() + timeout_ms / 1000
+    while _now() < deadline:
         with contextlib.suppress(PlaywrightError):
             if predicate():
                 return True
@@ -6120,7 +6122,7 @@ def _poll_until_terminal(
     timeout_ms: int,
     *,
     tick_ms: int = 250,
-    clock: "Callable[[], float]" = time.monotonic,
+    clock: "Optional[Callable[[], float]]" = None,
 ) -> "Optional[str]":
     """Like ``_poll_until``, but for a predicate returning a terminal-state
     string (truthy, non-``None``) instead of a bare bool.
@@ -6131,11 +6133,13 @@ def _poll_until_terminal(
     suppressed the same way ``_poll_until`` does, for the same reason (a
     locator query racing a mid-render DOM is expected, not a failure).
 
-    ``clock`` defaults to ``time.monotonic`` — see ``_poll_until``'s
-    docstring (issue #715) for why this is injectable.
+    ``clock`` defaults to the package-wide clock (``_clock.now``) — see
+    ``_poll_until``'s docstring (issues #715/#767) for why this is
+    injectable.
     """
-    deadline = clock() + timeout_ms / 1000
-    while clock() < deadline:
+    _now = clock or _clock.now
+    deadline = _now() + timeout_ms / 1000
+    while _now() < deadline:
         with contextlib.suppress(PlaywrightError):
             state = predicate()
             if state is not None:
@@ -6302,7 +6306,7 @@ def _wait_for_images_editor(page: "Page") -> None:
         # continuously for `_IMAGES_GHOST_GRACE_S` before trusting it — long
         # enough to outlast the ghost pass, short enough not to matter for a
         # page that is genuinely already settled.
-        now = time.monotonic()
+        now = _clock.now()
         if empty_since is None:
             empty_since = now
             return False
@@ -7087,9 +7091,9 @@ def _set_region(
             # so an immediate count() can race the filter and see zero
             # matches even for a region that does exist — poll briefly
             # instead of checking once.
-            deadline = time.monotonic() + _REGION_FILTER_TIMEOUT_MS / 1000
+            deadline = _clock.now() + _REGION_FILTER_TIMEOUT_MS / 1000
             count = 0
-            while time.monotonic() < deadline:
+            while _clock.now() < deadline:
                 try:
                     count = label.count()
                 except PlaywrightError:

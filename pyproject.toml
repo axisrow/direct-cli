@@ -40,6 +40,7 @@ dev = [
     "pytest>=6.2",
     "pytest-cov>=2.0",
     "pytest-recording>=0.13",
+    "pytest-timeout>=2.0",
     "pytest-xdist>=3.0",
     "vcrpy>=8.3.0",
     "black>=22.0",
@@ -141,7 +142,24 @@ python_functions = "test_*"
 # filesystem writes use tmp_path, and the only shared-file writer — the orphan
 # store — lives in the excluded live tiers). Disable for debugging / pdb / -s
 # with `pytest -n0`.
-addopts = "-n auto -m 'not integration and not v4_live_read and not integration_live_write'"
+#
+# `--timeout=60` is a hang backstop, not a performance budget (issue #767). The
+# offline tier runs in ~20s in total and its slowest single test is ~10s, so a
+# test reaching 60s is stuck, not slow — most plausibly a `direct_cli/browser/`
+# poll loop whose deadline stopped being reachable, which spins forever rather
+# than raising (a frozen fake clock did exactly this: 15.8M iterations in 8s,
+# no termination). Without it such a test hangs an xdist worker indefinitely;
+# `tests/conftest.py` already documents an unguarded hang taking the whole
+# suite with it.
+#
+# It lives in `addopts`, NOT in a top-level `timeout =` ini key, because that
+# key is GLOBAL: it would also cap the live tiers, which legitimately run long
+# against the real API. Those tests create draft resources their own cleanup
+# must delete, and a mid-test kill skips that cleanup and orphans them on a
+# production account. An explicit `pytest -m integration_live_write` overrides
+# `addopts`' marker filter but still inherits its flags, so pass
+# `--timeout=0` alongside it to lift the ceiling for a genuinely slow live run.
+addopts = "-n auto --timeout=60 -m 'not integration and not v4_live_read and not integration_live_write'"
 markers = [
     "integration: marks tests as integration tests requiring a real API token (deselect with '-m \"not integration\"')",
     "integration_write: sandbox integration tests for write commands (replays VCR cassettes offline; --record-mode=rewrite needs YANDEX_DIRECT_TOKEN)",
