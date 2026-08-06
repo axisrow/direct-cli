@@ -224,16 +224,28 @@ def _restore_baseline(page, baseline: Optional[str], *, saved: bool) -> None:
         _goto_edit(page)
         _expand(page)
     except Exception as exc:  # noqa: PIE786 - see the contained-restore note
-        print(
-            f"  ERROR: could not reopen the edit page ({exc!r}). "
-            + (
-                f"The campaign may still hold the probe value; check it "
+        # `baseline is None` must be checked BEFORE offering a paste-able
+        # command: `_read` returns None on any locator failure and `saved`
+        # is independent of it, so the two combine. `--tracking-params` is
+        # a plain string option, so a formatted None would be pasted as the
+        # LITERAL 'None' and written to the campaign — corrupting the field
+        # instead of restoring it. Mirrors the `baseline is None` guard
+        # below.
+        if not saved:
+            detail = "Nothing was saved, so nothing needs restoring."
+        elif baseline is None:
+            detail = (
+                "The campaign may still hold the probe value, and the "
+                "baseline was never readable, so it cannot be restored "
+                "automatically — recover it by hand."
+            )
+        else:
+            detail = (
+                f"The campaign may still hold the probe value; restore it "
                 f"manually:\n    direct masters update {CAMPAIGN_ID} "
                 f"--tracking-params {baseline!r}"
-                if saved
-                else "Nothing was saved, so nothing needs restoring."
             )
-        )
+        print(f"  ERROR: could not reopen the edit page ({exc!r}). {detail}")
         return
     if not saved:
         # Nothing was committed: the re-navigation above already dropped
