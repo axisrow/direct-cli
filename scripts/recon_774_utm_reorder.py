@@ -163,12 +163,16 @@ def _save_latency(page, value: str) -> None:
     value."""
     from direct_cli.browser.masters import (
         _click_save,
-        _is_draft_edit_page,
         _set_tracking_params,
+        _wait_for_draft_status,
     )
 
     print("\n=== [5] save -> reload -> convergence latency ===")
-    is_draft = _is_draft_edit_page(page)
+    # `_wait_for_draft_status`, not `_is_draft_edit_page`: issue #726
+    # replaced the point-in-time read precisely because the DRAFT marker
+    # can transiently vanish mid-hydration, and misclassifying a DRAFT
+    # campaign makes `_click_save` hunt for a button that isn't there.
+    is_draft = _wait_for_draft_status(page, CAMPAIGN_ID)
     _set_tracking_params(page, value)
     typed = _read(page)
     print(f"  typed into field: {typed!r} (match={typed == value})")
@@ -211,8 +215,8 @@ def _restore_baseline(page, baseline: Optional[str], *, saved: bool) -> None:
     """
     from direct_cli.browser.masters import (
         _click_save,
-        _is_draft_edit_page,
         _set_tracking_params,
+        _wait_for_draft_status,
     )
 
     print("\n=== restoring baseline ===")
@@ -231,7 +235,9 @@ def _restore_baseline(page, baseline: Optional[str], *, saved: bool) -> None:
         )
         return
 
-    is_draft = _is_draft_edit_page(page)
+    # Same #726 hardening as the probe save above — a misclassified DRAFT
+    # here would silently leave the campaign holding the probe value.
+    is_draft = _wait_for_draft_status(page, CAMPAIGN_ID)
     _set_tracking_params(page, baseline)
     _click_save(page, CAMPAIGN_ID, is_draft=is_draft)
     _goto_edit(page)

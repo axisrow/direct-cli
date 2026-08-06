@@ -4965,13 +4965,20 @@ def _verify_saved(
         ),
     ]
 
-    mismatches = []
-    for label, expected, reader in checks:
-        if expected is None:
-            continue
-        actual = _read_until_matches(page, reader, expected)
-        if actual != expected:
-            mismatches.append(_format_value_mismatch(label, expected, actual))
+    def _run_checks() -> "List[str]":
+        found = []
+        for label, expected, reader in checks:
+            if expected is None:
+                continue
+            actual = _read_until_matches(page, reader, expected)
+            if actual != expected:
+                found.append(_format_value_mismatch(label, expected, actual))
+        return found
+
+    mismatches = _run_checks()
+    # Set when the tracking_params block below re-navigates, so these checks
+    # can be re-run against the page that navigation actually fetched.
+    _re_navigated = False
 
     if tracking_params is not None:
         # Wait for the section to be READABLE before judging it (issue
@@ -5022,6 +5029,7 @@ def _verify_saved(
             assert_not_captcha(page.content())
             assert_authenticated(page.content())
             _wait_for_edit_form(page, campaign_id)
+            _re_navigated = True
             # A stale render is PAGE-level, not field-specific, so this
             # re-navigation resets the whole form — including the audience
             # section, whose checks all run BELOW this block. Skipping the
@@ -5033,6 +5041,18 @@ def _verify_saved(
             # expectation) and a false failure for devices/age bounds.
             if _audience_touched:
                 _wait_for_audience_section(page)
+        # Re-run the earlier checks against the page the re-navigation
+        # actually fetched. A stale render is PAGE-level, so those fields
+        # were read from the same possibly-stale load that made
+        # tracking_params stale — and `_read_until_matches`' budget cannot
+        # see past it, for exactly the reason tracking_params needed a
+        # navigation rather than more polling. Leaving them on the first
+        # load meant a combined `--name X --tracking-params Y` could still
+        # report a false `name` mismatch while tracking_params recovered on
+        # the very reload that would have confirmed `name` too.
+        if _re_navigated:
+            mismatches = _run_checks()
+
         if actual != tracking_params:
             mismatches.append(
                 _format_value_mismatch("tracking_params", tracking_params, actual)

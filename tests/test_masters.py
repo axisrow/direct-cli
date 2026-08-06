@@ -11660,6 +11660,55 @@ class TestVerifyTrackingParamsReloadRetry(unittest.TestCase):
         # Once for the initial post-save reload, once for the re-navigation.
         self.assertEqual(calls["gate"], 2)
 
+    def test_other_fields_are_re_verified_on_the_re_navigated_page(self):
+        # Cycle-review round 2 of PR #780: a stale render is PAGE-level, so
+        # the fields checked BEFORE the tracking_params block are stale on
+        # the same initial load that made tracking_params stale. They were
+        # read once and never re-read on the page the re-navigation just
+        # fetched, so a combined update could still false-fail on `name`
+        # while tracking_params recovered — the exact false "did not save"
+        # this PR exists to remove.
+        loads = {"n": -2}
+        names = ["stale name", "new name"]
+
+        def _current_name():
+            return names[min(max(loads["n"], 0), len(names) - 1)]
+
+        class _NameHandle(_FakeLocatorHandle):
+            def inner_text(self, timeout=None):
+                return _current_name()
+
+        class _NameLocator:
+            @property
+            def first(self):
+                return _NameHandle()
+
+            def count(self):
+                return 1
+
+        page = self._page([self.STALE, self.NEW])
+        original_goto = page.goto
+
+        def _tracking_goto(url, **kwargs):
+            loads["n"] += 1
+            return original_goto(url, **kwargs)
+
+        page.goto = _tracking_goto
+        page._locators[browser_masters._NAME_HEADER_SELECTOR] = _NameLocator()
+        page.goto(browser_masters.WIZARD_EDIT_URL.format(campaign_id=42))
+
+        # `name` is stale on the first post-save load and correct on the
+        # re-navigated one, exactly like tracking_params.
+        browser_masters._verify_saved(
+            page,
+            42,
+            weekly_budget=None,
+            promotion_goal=None,
+            directs_helps=None,
+            name="new name",
+            tracking_params=self.NEW,
+        )
+
     def test_the_writer_tolerates_a_late_mounting_spoiler(self):
         # Cycle-review of PR #780: this PR's central finding is that the
         # "Дополнительные параметры" section can stay unmounted long after
