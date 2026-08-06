@@ -2,6 +2,75 @@
 
 ## Unreleased
 
+**Fixed — `masters suspend`/`resume` never changed the status, and a batch stopped at the first failing ID (#766, #764):**
+
+- Root cause, confirmed live 2026-08-06 against campaign 713277109: **the
+  first click on a freshly rendered overview page is frequently a silent
+  no-op.** Playwright's actionability checks pass, `.click()` returns
+  without raising, and — verified by capturing every request after the
+  click — *no network request is issued at all*; React's own click handler
+  was not yet attached. Waiting longer cannot fix that state, which is why
+  #766's reporter saw a permanent failure across repeated runs, and why the
+  60s timeout #758 introduced only made each failure slower. The click is
+  now retried (up to `_STATUS_CLICK_MAX_ATTEMPTS`, 4), re-checking the
+  status before each attempt so an already-effective click is never
+  repeated — the same treatment `_click_and_wait_for_popup` already gave
+  the "⋮" menu and the rename modal (#723/#725). The unarchive→SUSPENDED
+  leg of `resume` gets the identical loop.
+- `_STATUS_CHANGE_TIMEOUT_MS` lowered 60s → **8s**, now a *measured* value
+  (#764): across 12 real transitions in two runs, the lag between an
+  effective click and the overview page's status text reporting the new
+  status was 1.64s–2.28s (mean 1.8s), with no long tail. The old 60s was
+  never measuring that latency — it was masking the no-op bug above.
+- That measured 8s applies **only after a click**. The separate wait for the
+  status element to render at all after navigating — which `resume_master`
+  branches on to decide whether to unarchive — keeps the previous 60s under
+  its own constant, `_STATUS_HYDRATION_TIMEOUT_MS`. The two are different
+  quantities and only the first was measured; sharing one constant would
+  have cut the unmeasured wait to 8s, and a slow page could then read an
+  archived campaign as "no status yet", skip the unarchive step, and hunt
+  for a resume button an archived page never renders — leaving the campaign
+  archived behind a misleading "could not find the button" error.
+- The retry loop now re-reads the status *immediately before* every retry,
+  and treats a vanished button as success when the status already reached
+  its target. Both close the same gap: the poll has a deadline, so a click
+  that lands but whose status update arrives late used to be followed by a
+  second click — which for `suspend` toggles the campaign straight back, and
+  for `resume` finds the page has already swapped `.resume` for `.stop` and
+  reports "could not find an action button" for a mutation that in fact
+  succeeded. The module docstring claimed this check existed; now it does.
+- Temporary, off by default: setting `DIRECT_MASTERS_DEBUG_TIMING=1` prints
+  to stderr how long each of these waits actually took and how many clicks a
+  status change needed, so the remaining unmeasured budget can be set from
+  real runs instead of guessed again. A deliberate scaffold — no CLI flag,
+  no logging config, one env var read in one place — to be deleted once the
+  numbers are in.
+- Both action buttons now resolve via live-confirmed stable `data-testid`s
+  — `CampaignHeader.ActionButton.stop` ("Остановить кампанию") and
+  `CampaignHeader.ActionButton.resume` ("Возобновить кампанию") — instead
+  of guessing at Russian labels. The suspend side had been an unverified
+  candidate list since #630; both its testid and its label are now
+  confirmed. The label candidates are retained only as a fallback, and now
+  resolve the enclosing `<button>` before clicking (`get_by_text` matches
+  the `<span class="dc-Button__text">` inside it, so `disabled`/
+  `aria-disabled` checks were previously being made against the wrong
+  element).
+- The current status is now polled rather than read once before branching.
+  `_goto_overview_page` only guarantees the *title* rendered (#683); the
+  status element is a separate render pass, and a single read live-aborted
+  a real `masters suspend` with "unrecognised status text" on a campaign
+  whose status was readable a second later.
+- `masters suspend`/`resume` no longer abort the whole batch on the first
+  failing ID (#766): every ID is attempted, each ID's outcome (its row, or
+  an `Error` entry) is reported, and the command exits non-zero only after
+  printing every outcome. This is the behaviour `launch`/`archive` already
+  had (#645); all four now share one `_run_per_id` helper.
+- "Could not find an action button" now names both the testid and the
+  labels it searched for, and lists the action buttons the page actually
+  renders plus the status it reads — so a markup drift, an unexpected
+  status, and a half-loaded page are distinguishable without a `--headful`
+  re-run.
+
 **Fixed — `masters add` aborted on a form it had filled correctly (#744 live recon):**
 
 - Live recon found Yandex **collapses** the headline/text slot list as it is

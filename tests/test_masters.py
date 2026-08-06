@@ -463,6 +463,24 @@ class _FakeExpectResponseExitRaises(_FakeExpectResponse):
         return False
 
 
+class _FakeAncestorLocator:
+    """Result of ``handle.locator("xpath=ancestor-or-self::button[1]")``.
+
+    ``count()`` is 0 when the matched node has no enclosing ``<button>``,
+    in which case ``_click_action_button`` clicks the node itself.
+    """
+
+    def __init__(self, button):
+        self._button = button
+
+    def count(self):
+        return 1 if self._button is not None else 0
+
+    @property
+    def first(self):
+        return self._button
+
+
 class _FakeTextLocatorHandle:
     """One matched element for ``get_by_text`` — supports ``is_visible``/``click``.
 
@@ -478,12 +496,24 @@ class _FakeTextLocatorHandle:
         raises=False,
         disabled=False,
         aria_disabled=None,
+        button_ancestor=None,
     ):
         self._visible = visible
         self._on_click = on_click
         self._raises = raises
         self._disabled = disabled
         self._aria_disabled = aria_disabled
+        # Models the `xpath=ancestor-or-self::button[1]` resolution
+        # `_click_action_button` performs (issue #766): real Yandex markup
+        # matches the <span> inside the button, so the module walks up to the
+        # <button> before clicking. `None` models a match with no button
+        # ancestor, where the module clicks the matched node itself.
+        self._button_ancestor = button_ancestor
+
+    def locator(self, selector):
+        if "ancestor-or-self::button" not in selector:
+            raise AssertionError(f"unexpected locator selector: {selector!r}")
+        return _FakeAncestorLocator(self._button_ancestor)
 
     def is_visible(self):
         if self._raises:
@@ -2874,10 +2904,10 @@ class TestFetchMasterDraft(unittest.TestCase):
 class TestSuspendResumeMaster(unittest.TestCase):
     """suspend_master/resume_master (issue #630): click + verify, idempotent.
 
-    See direct_cli/browser/masters.py module docstring: the suspend-side
-    button text is NOT live-confirmed, only a best-effort candidate list --
-    these tests exercise the click/verify/idempotency mechanics against that
-    candidate list, not a live-verified button text.
+    Both button labels AND their `data-testid`s are live-confirmed as of
+    issue #766 (2026-08-06). These tests drive the text-fallback path
+    (`FakePage` has no testid-matching locator), which is exactly the
+    degradation path the module keeps for a future Yandex testid rename.
     """
 
     def _page_with_button(
@@ -2966,7 +2996,303 @@ class TestSuspendResumeMaster(unittest.TestCase):
 
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.suspend_master(page, 42)
-        self.assertIn("did not change", str(ctx.exception))
+        self.assertIn("never changed", str(ctx.exception))
+
+    def test_suspend_retries_click_when_first_one_is_a_no_op(self):
+        """Issue #766: the first click on a freshly rendered overview page
+        is frequently a silent no-op — Playwright's actionability checks all
+        pass, `.click()` returns without raising, and no request is issued at
+        all (React's handler was not yet attached). Confirmed live
+        2026-08-06 against campaign 713277109 by capturing every request
+        after the click. Waiting longer cannot fix that state; only a second
+        click can, which is why the pre-#766 code failed permanently no
+        matter how large `_STATUS_CHANGE_TIMEOUT_MS` was set.
+        """
+        state = {"status": "Кампания активна", "clicks": 0}
+
+        def _click():
+            state["clicks"] += 1
+            # First click does nothing at all — the no-op.
+            if state["clicks"] >= 2:
+                state["status"] = "Кампания остановлена"
+
+        page = FakePage(
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_click)]
+                )
+            },
+        )
+        page.inner_text = lambda selector=None: state["status"]
+
+        result = browser_masters.suspend_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+        self.assertEqual(state["clicks"], 2)
+
+    def test_suspend_does_not_click_again_once_status_changed(self):
+        """The retry loop must stop as soon as the status changes — a second
+        click on an already-effective suspend would toggle it back.
+        """
+        state = {"status": "Кампания активна", "clicks": 0}
+
+        def _click():
+            state["clicks"] += 1
+            state["status"] = (
+                "Кампания остановлена"
+                if state["status"] == "Кампания активна"
+                else "Кампания активна"
+            )
+
+        page = FakePage(
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_click)]
+                )
+            },
+        )
+        page.inner_text = lambda selector=None: state["status"]
+
+        result = browser_masters.suspend_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+        self.assertEqual(state["clicks"], 1)
+
+    def test_no_second_click_when_the_first_lands_after_the_poll_deadline(self):
+        """A click whose status update arrives only after the poll gave up
+        must not be clicked again — the retry loop re-reads the status
+        immediately before every retry, so the late-but-successful click is
+        recognised instead of being undone.
+
+        Without that pre-click re-read the loop would click a second time and
+        toggle the campaign straight back to ACTIVE, reporting a failure for
+        a mutation that had in fact succeeded.
+        """
+        state = {"status": "Кампания активна", "clicks": 0, "poll_done": False}
+
+        def _click():
+            state["clicks"] += 1
+            # Each click toggles: a second one would undo the first.
+            state["status"] = (
+                "Кампания остановлена"
+                if state["status"] == "Кампания активна"
+                else "Кампания активна"
+            )
+
+        page = FakePage(
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_click)]
+                )
+            },
+        )
+
+        # Model "the update landed just after the poll's deadline": every read
+        # the first attempt's poll makes still reports the OLD status, so the
+        # poll times out and the loop goes around for a second attempt. Only
+        # then does the real (already-changed) status become visible -- which
+        # is exactly what the pre-click re-read must catch.
+        # Hide the change for exactly as many reads as the first attempt's
+        # poll makes (its full budget, since it never sees a target status),
+        # so the poll times out and the loop goes around. The very next read
+        # is attempt 2's pre-click re-read -- the one under test.
+        poll_reads = int(browser_masters._STATUS_CHANGE_TIMEOUT_MS / 250) + 1
+        reads = {"n": 0}
+
+        def _inner_text(selector=None):
+            if not state["clicks"]:
+                return "Кампания активна"
+            reads["n"] += 1
+            if reads["n"] <= poll_reads:
+                return "Кампания активна"
+            return state["status"]
+
+        page.inner_text = _inner_text
+
+        result = browser_masters.suspend_master(page, 42)
+
+        # The button stays present throughout, so the ONLY thing that can stop
+        # a second (toggling) click is the pre-click re-read -- this test does
+        # not share the vanished-button escape hatch the next one covers.
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+        self.assertEqual(
+            state["clicks"],
+            1,
+            "the late-landing first click must be detected by the pre-retry "
+            "re-read, not followed by a second click that toggles it back",
+        )
+
+    def test_vanished_button_is_success_when_status_already_changed(self):
+        """Once the status flips, the page swaps `.resume` for `.stop` — so a
+        button that disappeared between the status read and the click is
+        proof the mutation succeeded, not a markup change. It must not be
+        reported as "could not find an action button".
+        """
+        state = {"status": "Кампания активна", "clicks": 0}
+
+        def _click():
+            state["clicks"] += 1
+            state["status"] = "Кампания остановлена"
+
+        # Visible for the first click, gone afterwards (as the real page does
+        # once the status flips and it re-renders the opposite action).
+        class _VanishingLocator:
+            def count(self):
+                return 0 if state["clicks"] else 1
+
+            def nth(self, i):
+                return _FakeTextLocatorHandle(visible=True, on_click=_click)
+
+        page = FakePage(
+            text_buttons={"Остановить кампанию": _VanishingLocator()},
+        )
+
+        # Same late-landing shape as the test above, but here the pre-click
+        # re-read is deliberately starved: the status stays hidden until AFTER
+        # that read, so the loop reaches `_click_action_button` and finds the
+        # button gone. That must resolve to success, not "could not find".
+        # Hide the change through the first attempt's whole poll AND through
+        # attempt 2's pre-click re-read, so the loop actually reaches
+        # `_click_action_button` and hits the vanished button. Only the read
+        # inside the resulting rescue path sees the true status -- which is
+        # precisely the branch under test.
+        poll_reads = int(browser_masters._STATUS_CHANGE_TIMEOUT_MS / 250) + 1
+        reads = {"n": 0}
+
+        def _inner_text(selector=None):
+            if not state["clicks"]:
+                return "Кампания активна"
+            reads["n"] += 1
+            # +1 for attempt 2's pre-click re-read, which must NOT be the one
+            # that rescues this case.
+            if reads["n"] <= poll_reads + 1:
+                return "Кампания активна"
+            return state["status"]
+
+        page.inner_text = _inner_text
+
+        result = browser_masters.suspend_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+        self.assertEqual(state["clicks"], 1)
+
+    def test_suspend_prefers_the_stable_testid_over_the_text_fallback(self):
+        """Issue #766: the action buttons carry live-confirmed testids
+        (`CampaignHeader.ActionButton.stop`/`.resume`); the Russian-label
+        candidates are only a fallback. A page offering BOTH must be clicked
+        via the testid.
+        """
+        state = {"status": "Кампания активна", "clicked": []}
+
+        def _by_testid():
+            state["clicked"].append("testid")
+            state["status"] = "Кампания остановлена"
+
+        def _by_text():
+            state["clicked"].append("text")
+            state["status"] = "Кампания остановлена"
+
+        page = FakePage(
+            locators={
+                browser_masters._SUSPEND_BUTTON_SELECTOR: _FakeLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_by_testid)]
+                )
+            },
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_by_text)]
+                )
+            },
+        )
+        page.inner_text = lambda selector=None: state["status"]
+
+        result = browser_masters.suspend_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+        self.assertEqual(state["clicked"], ["testid"])
+
+    def test_text_fallback_clicks_the_enclosing_button_not_the_span(self):
+        """Issue #766: `get_by_text` matches the `<span class=
+        "dc-Button__text">` INSIDE the button, not the button (confirmed
+        live). `_is_button_disabled`'s checks only mean anything against the
+        `<button>`, so the fallback resolves the ancestor before clicking.
+        """
+        state = {"status": "Кампания активна", "clicked": []}
+
+        button = _FakeTextLocatorHandle(
+            visible=True,
+            on_click=lambda: (
+                state["clicked"].append("button"),
+                state.__setitem__("status", "Кампания остановлена"),
+            ),
+        )
+        span = _FakeTextLocatorHandle(
+            visible=True,
+            on_click=lambda: state["clicked"].append("span"),
+            button_ancestor=button,
+        )
+
+        page = FakePage(
+            text_buttons={"Остановить кампанию": _FakeGetByTextLocator([span])},
+        )
+        page.inner_text = lambda selector=None: state["status"]
+
+        result = browser_masters.suspend_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+        self.assertEqual(state["clicked"], ["button"])
+
+    def test_not_found_error_reports_selector_and_what_the_page_has(self):
+        """Issue #766 asked for an error that distinguishes "Yandex renamed
+        the button" from "the page rendered a different status" — so it
+        names the selector AND the labels searched for, and lists the action
+        buttons the page actually has.
+        """
+        page = FakePage(body_text="Кампания активна")
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.suspend_master(page, 42)
+
+        message = str(ctx.exception)
+        self.assertIn(browser_masters._SUSPEND_BUTTON_SELECTOR, message)
+        self.assertIn("Остановить кампанию", message)
+        self.assertIn("action buttons on the page: none", message)
+        self.assertIn("page status reads as 'ACTIVE'", message)
+
+    def test_status_read_is_polled_not_read_once(self):
+        """Issue #766: `_goto_overview_page` only guarantees the *title*
+        rendered (#683); the status element is a separate render pass that
+        routinely still reads as None right after it. A single read here
+        live-aborted a real `masters suspend` with "unrecognised status
+        text" on a campaign whose status was readable a moment later.
+        """
+        state = {"reads": 0, "status": "Кампания активна"}
+
+        def _inner_text(selector=None):
+            state["reads"] += 1
+            # Status element not yet rendered for the first few reads.
+            return "" if state["reads"] <= 3 else state["status"]
+
+        page = FakePage(
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [
+                        _FakeTextLocatorHandle(
+                            visible=True,
+                            on_click=lambda: state.__setitem__(
+                                "status", "Кампания остановлена"
+                            ),
+                        )
+                    ]
+                )
+            },
+        )
+        page.inner_text = _inner_text
+
+        result = browser_masters.suspend_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
 
     def test_resume_raises_when_current_status_unrecognised(self):
         page = FakePage(body_text="something Yandex changed the markup to")
@@ -3182,7 +3508,7 @@ class TestSuspendResumeMaster(unittest.TestCase):
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.resume_master(page, 713277109)
         self.assertIn("Разархивировать", str(ctx.exception))
-        self.assertIn("did not change to any of ('SUSPENDED',)", str(ctx.exception))
+        self.assertIn("never changed to any of ('SUSPENDED',)", str(ctx.exception))
 
     def test_resume_from_archived_waits_for_status_to_hydrate(self):
         # issue #758 follow-up: _goto_overview_page only guarantees the
@@ -3242,6 +3568,47 @@ class TestSuspendResumeMaster(unittest.TestCase):
             "hydration and came back unrecognised",
         )
 
+    def test_initial_hydration_uses_its_own_budget_not_the_post_click_one(self):
+        """The pre-click hydration wait and the post-click status wait are
+        two different quantities and must not share a constant.
+
+        Only the post-click latency was ever measured (1.6-2.3s, issue #764);
+        `_STATUS_CHANGE_TIMEOUT_MS` was set to 8s from it. The initial
+        hydration wait has no measurement behind it, and before #766 it ran
+        on the then-current 60s budget. Collapsing the two would silently cut
+        it to 8s and, on a slow page, make `resume_master` miss an ARCHIVED
+        status, skip the unarchive step and hunt for a resume button that an
+        archived page never renders.
+
+        The test above only proves hydration is polled *at all* — it passes
+        under any sufficient budget, including a shared one. This asserts the
+        separation itself, so a well-meaning "dedupe these two constants"
+        change fails here instead of live.
+        """
+        self.assertGreater(
+            browser_masters._STATUS_HYDRATION_TIMEOUT_MS,
+            browser_masters._STATUS_CHANGE_TIMEOUT_MS,
+            "initial status hydration must keep its own, larger budget — the "
+            "8s post-click figure was measured for a different quantity",
+        )
+
+        # And the wait must actually poll past a slow first read rather than
+        # give up on it -- the behaviour the larger budget buys.
+        reads = {"n": 0}
+
+        def fake_read_status_text(page):
+            reads["n"] += 1
+            return None if reads["n"] < 3 else "ARCHIVED"
+
+        page = FakePage()
+        with patch.object(
+            browser_masters, "_read_status_text", side_effect=fake_read_status_text
+        ):
+            status = browser_masters._wait_for_recognised_status(page)
+
+        self.assertEqual(status, "ARCHIVED")
+        self.assertEqual(reads["n"], 3)
+
 
 class TestMastersSuspendResumeCommand(unittest.TestCase):
     """CLI wiring for `masters suspend`/`masters resume`."""
@@ -3286,6 +3653,51 @@ class TestMastersSuspendResumeCommand(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(mock_resume.call_count, 1)
+
+    def test_suspend_continues_batch_past_a_failing_id(self):
+        """Issue #766: a real 8-ID `masters suspend` aborted on the first ID,
+        leaving the caller with no idea whether the other seven had even
+        been attempted. Every ID must be tried, and every outcome reported.
+        """
+
+        def _suspend(page, campaign_id):
+            if campaign_id == 2:
+                raise BrowserSessionError("boom for 2")
+            return {"CampaignId": campaign_id, "Status": "SUSPENDED"}
+
+        with (
+            patch("direct_cli.browser.masters.suspend_master", side_effect=_suspend),
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["masters", "suspend", "1,2,3"])
+
+        # Non-zero exit, but only AFTER every ID was attempted and reported.
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn('"CampaignId": 1', result.output)
+        self.assertIn('"CampaignId": 3', result.output)
+        self.assertIn("boom for 2", result.output)
+        self.assertIn("Failed to suspend 1 of 3 campaign(s)", result.output)
+
+    def test_resume_continues_batch_past_a_failing_id(self):
+        def _resume(page, campaign_id):
+            if campaign_id == 1:
+                raise BrowserSessionError("boom for 1")
+            return {"CampaignId": campaign_id, "Status": "ACTIVE"}
+
+        with (
+            patch("direct_cli.browser.masters.resume_master", side_effect=_resume),
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["masters", "resume", "1,2"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        # The FIRST id failing must not stop the second one (issue #766's
+        # exact reported shape: the error was always about the first ID).
+        self.assertIn('"CampaignId": 2', result.output)
+        self.assertIn("boom for 1", result.output)
+        self.assertIn("Failed to resume 1 of 2 campaign(s)", result.output)
 
 
 class _FakeHydratingPopupHandle(_FakeLocatorHandle):

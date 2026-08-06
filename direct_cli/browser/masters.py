@@ -25,19 +25,45 @@ identical between a Мастер campaign and an ordinary one of the same type).
 The one field that does distinguish them, confirmed live against a real
 account, is ``source == "UAC"``.
 
-``suspend_master``/``resume_master`` (issue #630) — **not live-verified**.
-The overview page's "Возобновить кампанию" (resume) button text is confirmed
-live (see the fixture). The suspend-side button text is NOT confirmed live —
-this module tries a short list of plausible Russian labels
-(``_SUSPEND_BUTTON_TEXTS``) via Playwright's text-based locator matching
-(case-insensitive substring), and either action re-reads the page's status
-text after clicking to verify the change actually happened (never trusting
-the click alone — see ``_click_action_button``). If Yandex's real button text
-isn't in that list, both functions raise ``BrowserSessionError`` with a
-message asking the caller to re-run with ``--headful`` and report the actual
-text, rather than clicking the wrong element. Re-confirm the exact button
-text/behaviour against a live account before relying on this in production;
-update ``_SUSPEND_BUTTON_TEXTS``/``_RESUME_BUTTON_TEXTS`` accordingly.
+``suspend_master``/``resume_master`` (issue #630) — **live-verified
+2026-08-06** against campaign 713277109 over 12 real transitions (issues
+#766/#764). Both action buttons carry a stable ``data-testid``, read
+directly off the live DOM rather than guessed:
+``CampaignHeader.ActionButton.stop`` ("Остановить кампанию", rendered while
+ACTIVE/MODERATION) and ``CampaignHeader.ActionButton.resume``
+("Возобновить кампанию", rendered while SUSPENDED). Note the suspend side's
+testid is ``.stop``, named after the Russian label rather than after this
+module's own verb. ``_SUSPEND_BUTTON_TEXTS``/``_RESUME_BUTTON_TEXTS`` are
+retained only as a fallback (and as the vocabulary the "could not find the
+button" error reports), no longer the primary locator.
+
+**The first click on a freshly rendered overview page is frequently a
+silent no-op** — this was issue #766's root cause, and it also explains the
+symptom #758 misattributed to a too-small timeout. Confirmed live by
+capturing every network request after the click: ``.click()`` returns
+without raising, Playwright's actionability checks all pass, and NO request
+is issued at all — React's own click handler was not yet attached. Waiting
+longer cannot help in that state, which is why #766's reporter saw a
+permanent failure that repeated CLI runs never fixed, while ``masters
+update``'s "always works on the second try" behaviour comes from the same
+race resolving itself between runs. ``_click_and_wait_for_status_change``
+therefore re-clicks (up to ``_STATUS_CLICK_MAX_ATTEMPTS``) instead of
+waiting longer, re-reading the status immediately before every retry so an
+already-effective click is never repeated — the same treatment
+``_click_and_wait_for_popup`` already gives the "⋮" menu and the rename
+modal (issues #723/#725). Once a click does land, the status text follows
+within 1.6–2.3s (measured, n=12 — see ``_STATUS_CHANGE_TIMEOUT_MS``).
+Either action still re-reads the page's status to verify the change really
+happened, never trusting the click alone.
+
+That pre-retry re-read matters because the poll has a deadline: a click
+whose status update arrives after it must not be clicked again, or suspend
+would toggle straight back and unarchive would re-archive. For the same
+reason a button that has *vanished* between the read and the click is
+checked against the status before being reported as missing — for
+``resume`` the page swaps ``.resume`` for ``.stop`` the moment the status
+flips, so "the button is gone" is usually proof the mutation succeeded, not
+evidence of a markup change.
 
 ``archive_master`` (issue #633, live-recon confirmed no separate "delete"
 exists for Мастер кампаний — only archive; see the issue comment). Both
@@ -263,7 +289,9 @@ side effect on the campaign itself.
 
 import contextlib
 import json
+import os
 import re
+import sys
 from urllib.parse import urlsplit
 from typing import (
     TYPE_CHECKING,
@@ -376,24 +404,90 @@ _STAT_TILE_TESTID_KEYS = {
     "cost": "cost",
 }
 
-# Overview-page action button text for resume/suspend (see module docstring:
-# resume is confirmed live via the fixture, suspend is NOT — this is a
-# best-effort candidate list of plausible Russian labels, matched
-# case-insensitively as a substring against every button's text).
+# Overview-page action buttons for resume/suspend. Confirmed live 2026-08-06
+# (issue #766) against campaign 713277109: BOTH buttons carry a stable
+# `data-testid` — `CampaignHeader.ActionButton.resume` (label "Возобновить
+# кампанию", rendered while SUSPENDED) and `CampaignHeader.ActionButton.stop`
+# (label "Остановить кампанию", rendered while ACTIVE/MODERATION). The
+# suspend-side testid is `.stop`, NOT `.suspend` — named after the Russian
+# label, not after this module's own verb.
+#
+# These replace text matching as the PRIMARY locator, the same way
+# `_MENU_TRIGGER_SELECTOR`/`_ARCHIVE_MENU_ITEM_SELECTOR` already do for the
+# "⋮" menu: a testid read off a live DOM does not depend on Russian button
+# copy. The text candidates below are kept only as a fallback for the case
+# where Yandex renames a testid, and — separately — because they are what
+# lets `_click_action_button` report what it actually saw on the page when
+# neither locator matches (issue #766 asked for exactly that).
+_RESUME_BUTTON_SELECTOR = '[data-testid="CampaignHeader.ActionButton.resume"]'
+_SUSPEND_BUTTON_SELECTOR = '[data-testid="CampaignHeader.ActionButton.stop"]'
+
+# Fallback label candidates, matched case-insensitively as a substring. Both
+# "Возобновить кампанию" and "Остановить кампанию" are now confirmed live
+# (issue #766) — the suspend side was previously an unverified guess (#630).
+# Note `get_by_text` matches the <span class="dc-Button__text"> INSIDE the
+# button, not the <button> itself, which is why the fallback path resolves
+# `.locator("xpath=ancestor-or-self::button[1]")` before clicking.
 _RESUME_BUTTON_TEXTS = ("Возобновить кампанию", "Возобновить")
 _SUSPEND_BUTTON_TEXTS = ("Остановить кампанию", "Приостановить кампанию", "Остановить")
 
-# How long to wait, after clicking the action button, for the status text to
-# actually change before giving up and reporting a possible false success.
-# Raised from 10s to 60s (issue #758 live verification, 2026-08-05): both a
-# plain suspend and the unarchive->SUSPENDED leg of resume_master timed out
-# at 10s against campaign 713277109 despite the click having genuinely
-# landed (a later `masters get` confirmed the status had in fact changed) --
-# Yandex's own status-text update lagged past the old budget under real
-# conditions. 60s is a practical safety margin, not a measured p99; see
-# follow-up issue for a precise measurement and a possible rework of this
-# whole polling budget.
-_STATUS_CHANGE_TIMEOUT_MS = 60_000
+# How long to wait, after an action-button click, for the status text to
+# actually change before treating that click as a no-op and retrying.
+#
+# Measured live 2026-08-06 (issue #764) against campaign 713277109 over 12
+# real transitions across two runs (suspend and resume, alternating):
+# latency from the *effective* click to the overview page's status text
+# reporting the new status was 1.64s..2.28s (mean 1.8s) — every single
+# sample, with no long tail. The 60s from #758 was never measuring that
+# latency: it was masking the no-op-first-click bug below (issue #766), where
+# the status never changes at all no matter how long you wait. 8s is ~3.5x
+# the observed max, generous for a figure this tightly clustered, and small
+# enough that a genuinely dead click is retried in seconds instead of after a
+# full minute.
+_STATUS_CHANGE_TIMEOUT_MS = 8_000
+
+# How long to wait for the status element to render *at all* after navigating,
+# BEFORE any click — a different quantity from the post-click budget above,
+# and deliberately a separate constant.
+#
+# `_goto_overview_page` only guarantees the title rendered (issue #683); the
+# status element is a later render pass. The 1.6-2.3s measurement above is the
+# lag from an *effective click* to the status text updating — it says nothing
+# about how long a freshly navigated page takes to render that element in the
+# first place, which was never measured. Before #766 this wait was inline in
+# `resume_master` with the then-current 60s budget; folding it into
+# `_STATUS_CHANGE_TIMEOUT_MS` would have silently cut it to 8s.
+#
+# That matters because `resume_master` branches on this read: a campaign whose
+# ARCHIVED status has not hydrated yet reads as None, skips the unarchive step,
+# and then hunts for a resume button an archived page never renders — leaving
+# the campaign archived and reporting a misleading "could not find" error. So
+# this keeps the pre-#766 value until real numbers replace it; see
+# `_log_timing` for how those numbers are being collected.
+_STATUS_HYDRATION_TIMEOUT_MS = 60_000
+
+# How many times to click the action button before giving up (issue #766).
+#
+# Live-confirmed 2026-08-06 against campaign 713277109: the FIRST click on a
+# freshly navigated overview page is frequently a silent no-op — Playwright's
+# actionability checks pass, `.click()` returns without raising, and NO
+# network request is issued at all (verified by capturing every request after
+# the click: only unrelated telemetry). React's own click handler was not yet
+# attached. A second click, a few seconds later, lands and mutates. Over 12
+# measured transitions this needed at most 2 clicks, non-deterministically —
+# it is a hydration race, not a property of a particular action or status.
+#
+# This is the same failure mode `_click_and_wait_for_popup` already handles
+# for the "⋮" menu and the rename modal (issues #723/#725); suspend/resume
+# was simply never given the equivalent retry, so #766's reporter saw a
+# permanent failure that no amount of waiting or re-running could fix.
+#
+# Retrying is safe HERE specifically because suspend/resume is idempotent
+# and reversible, and because each attempt re-checks the status first: if an
+# earlier click did land, the loop exits before clicking again. Contrast
+# `_click_draft_terminal_button`, which deliberately never retries — a
+# duplicated launch is not reversible.
+_STATUS_CLICK_MAX_ATTEMPTS = 4
 
 # Overview page's header title, confirmed live (issue #683) as the earliest
 # stable marker of a rendered wizard overview page — present on BOTH a
@@ -1732,6 +1826,27 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
         )
 
 
+def _log_timing(what: str, started: float, outcome: object) -> None:
+    """TEMPORARY (issue #764 follow-up): print how long a status wait took.
+
+    Silent unless ``DIRECT_MASTERS_DEBUG_TIMING`` is set to a non-empty value,
+    so ordinary runs are unaffected. Deliberately a scaffold, not a feature:
+    no CLI flag, no logger config, no plumbing through call signatures — the
+    env var is read here and nowhere else, so removing this function plus its
+    three call sites removes the whole thing.
+
+    It exists because two of the three waits in this module have never been
+    measured (see ``_STATUS_HYDRATION_TIMEOUT_MS``): the constants were picked
+    from a measurement of a *different* quantity. Rather than guess again,
+    collect real numbers from real runs, then set the constants from them and
+    delete this.
+    """
+    if not os.environ.get("DIRECT_MASTERS_DEBUG_TIMING"):
+        return
+    elapsed = _clock.now() - started
+    print(f"[masters timing] {what}: {elapsed:.2f}s -> {outcome!r}", file=sys.stderr)
+
+
 def _read_status_text(page: "Page") -> Optional[str]:
     """Return ``"SUSPENDED"``/``"ACTIVE"``/``"MODERATION"``/``"ARCHIVED"``/
     ``None`` from the current page body.
@@ -1798,14 +1913,72 @@ def _is_button_disabled(handle: Any) -> bool:
     return False
 
 
-def _click_action_button(page: "Page", candidate_texts: Tuple[str, ...]) -> None:
-    """Click the first visible, enabled button matching one of
-    ``candidate_texts``.
+def _describe_page_buttons(page: "Page") -> str:
+    """Return a short human-readable inventory of the overview page's own
+    action buttons, for inclusion in a "could not find the button" error.
 
-    Raises :class:`BrowserSessionError` if none of the candidates match any
-    visible button — this deliberately does NOT fall back to clicking an
-    unrelated element, since suspend/resume is a real account mutation (see
-    module docstring: the suspend-side button text is not live-confirmed).
+    Issue #766 asked for exactly this: the previous error named only the
+    candidate labels it had searched for, so a reader could not tell whether
+    Yandex had renamed the button, whether the page had rendered a different
+    status than expected, or whether the page had not finished loading at
+    all. Listing what IS on the page turns all three into a one-glance
+    diagnosis without a ``--headful`` re-run.
+
+    Deliberately scoped to ``CampaignHeader.ActionButton*`` plus the header's
+    own status text rather than every button on the page — the sidebar alone
+    contributes a dozen irrelevant ones (Обзор/Кампании/Статистика/…), which
+    would bury the signal.
+    """
+    parts = []
+    with contextlib.suppress(PlaywrightError):
+        buttons = page.locator('[data-testid^="CampaignHeader.ActionButton"]')
+        found = []
+        for i in range(buttons.count()):
+            handle = buttons.nth(i)
+            with contextlib.suppress(PlaywrightError):
+                testid = handle.get_attribute("data-testid")
+                label = (handle.inner_text() or "").strip()
+                state = "disabled" if _is_button_disabled(handle) else "enabled"
+                if not handle.is_visible():
+                    state = "hidden"
+                found.append(f"{testid!r} ({label!r}, {state})")
+        parts.append(
+            "action buttons on the page: " + (", ".join(found) if found else "none")
+        )
+    status = _read_status_text(page)
+    parts.append(f"page status reads as {status!r}")
+    return "; ".join(parts)
+
+
+def _click_action_button(
+    page: "Page",
+    candidate_texts: Tuple[str, ...],
+    *,
+    selector: Optional[str] = None,
+) -> None:
+    """Click the overview page's suspend/resume action button.
+
+    Prefers ``selector`` — a stable ``data-testid``, confirmed live for both
+    actions (issue #766, see ``_RESUME_BUTTON_SELECTOR``/
+    ``_SUSPEND_BUTTON_SELECTOR``) — and falls back to matching
+    ``candidate_texts`` as a case-insensitive substring only if the testid
+    matches nothing, so a future Yandex testid rename degrades to the old
+    behaviour instead of breaking outright.
+
+    The text fallback resolves the matched node's enclosing ``<button>``
+    before clicking. ``get_by_text`` matches the ``<span class=
+    "dc-Button__text">`` *inside* the button, not the button itself
+    (confirmed live, issue #766) — clicking the span happens to work here
+    because the click is dispatched at its coordinates and React's listener
+    sits on an ancestor, but resolving the real button first makes
+    ``_is_button_disabled``'s check meaningful, since ``disabled``/
+    ``aria-disabled`` live on the ``<button>``, never on the inner span.
+
+    Raises :class:`BrowserSessionError` if nothing matches — this
+    deliberately does NOT fall back to clicking an unrelated element, since
+    suspend/resume is a real account mutation. The error names both the
+    selector and the labels that were searched for, and lists what the page
+    actually renders (``_describe_page_buttons``), per issue #766.
 
     A matching button that is visible but disabled (issue #728) is treated
     as a distinct case from "not found": Yandex renders "Остановить
@@ -1816,8 +1989,20 @@ def _click_action_button(page: "Page", candidate_texts: Tuple[str, ...]) -> None
     chasing a markup change that never happened. Raise a specific error
     naming the real cause instead, and keep scanning remaining candidates
     in case a different, enabled match exists.
+
+    NOTE: a click that lands is NOT proof the action ran — see
+    ``_STATUS_CLICK_MAX_ATTEMPTS``. Callers must verify the status actually
+    changed and re-click if it did not; that loop lives in
+    ``_click_and_wait_for_status_change``.
     """
     saw_disabled_match = False
+
+    candidates = []
+    if selector:
+        with contextlib.suppress(PlaywrightError):
+            locator = page.locator(selector)
+            candidates.extend(locator.nth(i) for i in range(locator.count()))
+
     for text in candidate_texts:
         locator = page.get_by_text(text, exact=False)
         try:
@@ -1825,17 +2010,29 @@ def _click_action_button(page: "Page", candidate_texts: Tuple[str, ...]) -> None
         except PlaywrightError:
             continue
         for i in range(count):
-            handle = locator.nth(i)
-            try:
-                if not handle.is_visible():
-                    continue
-                if _is_button_disabled(handle):
-                    saw_disabled_match = True
-                    continue
-                handle.click()
-                return
-            except PlaywrightError:
+            node = locator.nth(i)
+            # Resolve the enclosing <button> (see docstring); fall back to
+            # the matched node itself if it has no button ancestor, which is
+            # what the pre-#766 code always clicked.
+            handle = node
+            with contextlib.suppress(PlaywrightError):
+                enclosing = node.locator("xpath=ancestor-or-self::button[1]")
+                if enclosing.count():
+                    handle = enclosing.first
+            candidates.append(handle)
+
+    for handle in candidates:
+        try:
+            if not handle.is_visible():
                 continue
+            if _is_button_disabled(handle):
+                saw_disabled_match = True
+                continue
+            handle.click()
+            return
+        except PlaywrightError:
+            continue
+
     if saw_disabled_match:
         raise BrowserSessionError(
             "The action button is currently disabled — this happens while "
@@ -1843,10 +2040,89 @@ def _click_action_button(page: "Page", candidate_texts: Tuple[str, ...]) -> None
             "have been rejected. Try again once moderation finishes."
         )
     raise BrowserSessionError(
-        "Could not find an action button matching any of "
-        f"{candidate_texts!r} on the campaign overview page. Yandex may "
-        "have changed the button's text — re-run with --headful to "
-        "inspect the page and report the actual text."
+        "Could not find an action button on the campaign overview page. "
+        f"Searched for selector {selector!r} and, as a fallback, any element "
+        f"whose text contains one of {candidate_texts!r}. What the page "
+        f"actually has — {_describe_page_buttons(page)}. Yandex may have "
+        "changed the button's testid and text — re-run with --headful to "
+        "inspect the page and report what you see."
+    )
+
+
+def _click_and_wait_for_status_change(
+    page: "Page",
+    campaign_id: int,
+    *,
+    current_status: str,
+    target_statuses: Tuple[str, ...],
+    button_texts: Tuple[str, ...],
+    selector: Optional[str] = None,
+    action_description: str,
+) -> str:
+    """Click the action button and confirm the status really changed,
+    re-clicking if it did not (issue #766).
+
+    The overview page's first click after navigation is frequently a silent
+    no-op — see ``_STATUS_CLICK_MAX_ATTEMPTS`` for the live evidence (no
+    network request is issued at all; React's handler was not yet attached).
+    Waiting longer never helps in that state, which is why #766's reporter
+    saw a permanent failure across repeated CLI runs while the pre-existing
+    60s budget (#758/#764) merely made each failure slower.
+
+    Each attempt re-reads the status BEFORE clicking, then clicks once, then
+    polls for ``_STATUS_CHANGE_TIMEOUT_MS`` (calibrated to the measured
+    1.6–2.3s real latency, see that constant).
+
+    The pre-click re-read is what makes re-clicking safe. The poll alone is
+    not enough: it gives up at the 8s deadline, so a click that lands but
+    whose status update arrives late would otherwise be followed by a second
+    click that undoes it. Worse for ``resume`` — once the status flips, the
+    DOM swaps ``CampaignHeader.ActionButton.resume`` for ``.stop``, so the
+    re-click finds neither the testid nor the fallback labels and raises
+    "could not find an action button" for a mutation that actually
+    succeeded. Reading first turns both cases into a plain success.
+    """
+    last_seen: Optional[str] = current_status
+    started = _clock.now()
+    for attempt in range(1, _STATUS_CLICK_MAX_ATTEMPTS + 1):
+        if attempt > 1:
+            # A previous attempt's click may have landed after its poll gave
+            # up (see docstring) -- check before clicking again, never after.
+            seen = _read_status_text(page)
+            if seen is not None:
+                last_seen = seen
+            if last_seen in target_statuses:
+                _log_timing(f"landed late, before click x{attempt}", started, last_seen)
+                return last_seen  # type: ignore[return-value]
+
+        try:
+            _click_action_button(page, button_texts, selector=selector)
+        except BrowserSessionError:
+            # The button can legitimately vanish between the read above and
+            # this click: the status flipped in that window, and the page
+            # re-rendered the opposite action (resume -> stop). Re-read once
+            # before surfacing this -- "button gone because we already
+            # succeeded" must not be reported as a failure.
+            seen = _read_status_text(page)
+            if seen in target_statuses:
+                _log_timing(f"button gone, already {seen}", started, seen)
+                return seen  # type: ignore[return-value]
+            raise
+
+        last_seen = _poll_status(
+            page, current_status=current_status, target_statuses=target_statuses
+        )
+        if last_seen in target_statuses:
+            _log_timing(f"action-button click x{attempt}", started, last_seen)
+            return last_seen  # type: ignore[return-value]
+
+    raise BrowserSessionError(
+        f"{action_description} for campaign {campaign_id} "
+        f"{_STATUS_CLICK_MAX_ATTEMPTS} times, but its status never changed to "
+        f"any of {target_statuses!r} (still {last_seen!r}) — each click was "
+        f"given {_STATUS_CHANGE_TIMEOUT_MS / 1000:.0f}s to take effect. The "
+        f"page reports: {_describe_page_buttons(page)}. Verify manually "
+        "before retrying."
     )
 
 
@@ -1927,43 +2203,139 @@ def _click_and_wait_for_popup(
     ) from last_exc
 
 
-def _wait_for_status(
+def _poll_status(
+    page: "Page",
+    *,
+    current_status: Optional[str],
+    target_statuses: Tuple[str, ...],
+) -> Optional[str]:
+    """Poll ``_read_status_text`` for up to ``_STATUS_CHANGE_TIMEOUT_MS``,
+    returning the last status read — one of ``target_statuses`` if it got
+    there, otherwise whatever it still says.
+
+    Unlike the pre-#766 ``_wait_for_status`` this does NOT raise on timeout:
+    a status that has not changed is a normal, expected outcome of the
+    no-op first click (see ``_STATUS_CLICK_MAX_ATTEMPTS``), and the decision
+    to retry or give up belongs to the caller's click loop, not here.
+
+    The measured latency this budget covers is 1.6–2.3s (issue #764, see
+    ``_STATUS_CHANGE_TIMEOUT_MS``); reads that come back ``None`` (the
+    status element momentarily unrendered mid-transition — observed live)
+    are simply polled again rather than treated as a distinct state.
+    """
+    started = _clock.now()
+    deadline = started + _STATUS_CHANGE_TIMEOUT_MS / 1000
+    new_status = current_status
+    while True:
+        seen = _read_status_text(page)
+        if seen is not None:
+            new_status = seen
+        if new_status in target_statuses:
+            _log_timing("post-click status change", started, new_status)
+            return new_status
+        if _clock.now() >= deadline:
+            _log_timing("post-click status change (TIMED OUT)", started, new_status)
+            return new_status
+        page.wait_for_timeout(250)
+
+
+def _wait_for_recognised_status(page: "Page") -> Optional[str]:
+    """Poll ``_read_status_text`` until it returns a recognised status, or
+    ``_STATUS_CHANGE_TIMEOUT_MS`` elapses; return ``None`` if it never does.
+
+    ``_goto_overview_page`` only guarantees the *title* has rendered (issue
+    #683); the status element is a separate render pass and routinely reads
+    as ``None`` for a moment after it. Every caller that branches on the
+    current status needs this wait first — ``resume_master`` had it inline
+    (issue #758 follow-up) but ``_suspend_or_resume`` did not, which
+    live-aborted a real ``masters suspend`` with "unrecognised status text"
+    (issue #766).
+
+    Budgeted by ``_STATUS_HYDRATION_TIMEOUT_MS``, NOT the post-click
+    ``_STATUS_CHANGE_TIMEOUT_MS`` — see that constant for why the two are
+    deliberately separate.
+    """
+    started = _clock.now()
+    deadline = started + _STATUS_HYDRATION_TIMEOUT_MS / 1000
+    status = _read_status_text(page)
+    while status is None and _clock.now() < deadline:
+        page.wait_for_timeout(250)
+        status = _read_status_text(page)
+    _log_timing("initial status hydration", started, status)
+    return status
+
+
+def _click_menu_item_and_wait_for_status(
     page: "Page",
     campaign_id: int,
     *,
+    item_selector: str,
+    item_label: str,
     current_status: str,
     target_statuses: Tuple[str, ...],
-    action_description: str,
 ) -> str:
-    """Poll ``_read_status_text`` until it matches one of ``target_statuses``
-    or ``_STATUS_CHANGE_TIMEOUT_MS`` elapses; raise ``BrowserSessionError``
-    on timeout.
+    """``_click_menu_item`` plus the same click-really-landed retry loop
+    ``_click_and_wait_for_status_change`` applies to the action buttons
+    (issue #766).
 
-    Shared by ``_suspend_or_resume`` (the ordinary one-click suspend/resume)
-    and ``resume_master``'s unarchive->SUSPENDED step (issue #758) — both
-    need the identical "click already happened, now confirm the status text
-    actually caught up" loop, just against a different click and a
-    different target. Factored out so a future change to the polling
-    strategy (see ``_STATUS_CHANGE_TIMEOUT_MS``'s own comment about a
-    possible rework, issue #764) only needs to happen once.
+    ``_click_and_wait_for_popup`` already retries opening the "⋮" menu, but
+    nothing previously retried the click on the menu *item* itself — and
+    that click is subject to the identical hydration no-op (the menu item is
+    rendered by the same React tree). ``resume_master``'s unarchive step is
+    the only caller; before #766 it clicked once and then waited out the
+    full status budget, which is exactly the failure shape #764 recorded for
+    the unarchive leg.
+
+    Safe to retry for the same reason the action-button loop is: re-opening
+    the menu has no side effect, the status is re-checked before each
+    attempt, and unarchive is reversible.
     """
-    deadline = _clock.now() + _STATUS_CHANGE_TIMEOUT_MS / 1000
-    new_status = current_status
-    while _clock.now() < deadline:
-        new_status = _read_status_text(page)
-        if new_status in target_statuses:
-            break
-        page.wait_for_timeout(250)
+    last_seen: Optional[str] = current_status
+    started = _clock.now()
+    for attempt in range(1, _STATUS_CLICK_MAX_ATTEMPTS + 1):
+        if attempt > 1:
+            # Same pre-click re-read as the action-button loop: a click whose
+            # status update arrived after its poll gave up must not be
+            # followed by another one (unarchive is reversible, but a
+            # re-archive would be a real, unwanted mutation).
+            seen = _read_status_text(page)
+            if seen is not None:
+                last_seen = seen
+            if last_seen in target_statuses:
+                _log_timing(f"landed late, before click x{attempt}", started, last_seen)
+                return last_seen  # type: ignore[return-value]
 
-    if new_status not in target_statuses:
-        raise BrowserSessionError(
-            f"{action_description} for campaign {campaign_id}, but its "
-            f"status did not change to any of {target_statuses!r} within "
-            f"{_STATUS_CHANGE_TIMEOUT_MS / 1000:.0f}s (still {new_status!r}). "
-            "The click may not have hit the right element, or Yandex is "
-            "slow to apply it — verify manually before retrying."
+        try:
+            _click_menu_item(
+                page,
+                campaign_id,
+                item_selector=item_selector,
+                item_label=item_label,
+            )
+        except BrowserSessionError:
+            # The menu item disappears once the campaign leaves ARCHIVED --
+            # "gone because it worked" is a success, not a failure.
+            seen = _read_status_text(page)
+            if seen in target_statuses:
+                _log_timing(f"menu item gone, already {seen}", started, seen)
+                return seen  # type: ignore[return-value]
+            raise
+
+        last_seen = _poll_status(
+            page, current_status=current_status, target_statuses=target_statuses
         )
-    return new_status
+        if last_seen in target_statuses:
+            _log_timing(f"menu-item click x{attempt}", started, last_seen)
+            return last_seen  # type: ignore[return-value]
+
+    raise BrowserSessionError(
+        f"Clicked {item_label!r} for campaign {campaign_id} "
+        f"{_STATUS_CLICK_MAX_ATTEMPTS} times, but its status never changed to "
+        f"any of {target_statuses!r} (still {last_seen!r}) — each click was "
+        f"given {_STATUS_CHANGE_TIMEOUT_MS / 1000:.0f}s to take effect. The "
+        f"page reports: {_describe_page_buttons(page)}. Verify manually "
+        "before retrying."
+    )
 
 
 def _suspend_or_resume(
@@ -1972,6 +2344,7 @@ def _suspend_or_resume(
     *,
     target_statuses: Tuple[str, ...],
     button_texts: Tuple[str, ...],
+    button_selector: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Shared body for ``suspend_master``/``resume_master``.
 
@@ -1980,7 +2353,10 @@ def _suspend_or_resume(
     (mirrors the rest of the CLI's suspend/resume convention). Otherwise
     clicks the matching action button and re-reads the status to confirm the
     mutation actually took effect — a click that doesn't visibly change the
-    status is reported as a hard error, not a silent success.
+    status is retried up to ``_STATUS_CLICK_MAX_ATTEMPTS`` times (issue
+    #766: the first click on a freshly-rendered page is often a silent
+    no-op) and only then reported as a hard error, never as a silent
+    success.
 
     ``target_statuses`` is a tuple, not a single status, because resuming a
     SUSPENDED campaign can land in either ACTIVE or MODERATION depending on
@@ -2003,11 +2379,22 @@ def _suspend_or_resume(
             "state to suspend/resume. Launch it first (masters launch)."
         )
 
-    current_status = _read_status_text(page)
+    # Poll rather than read once: _goto_overview_page only guarantees the
+    # title rendered (issue #683), and the status element is a separate
+    # render pass that routinely still reads as None immediately after it.
+    # Live-confirmed 2026-08-06 (issue #766) — a bare single read here
+    # aborted a real `masters suspend` with "unrecognised status text" on a
+    # campaign whose status was perfectly readable a second later.
+    # resume_master already had this poll on its own pre-branch read; this
+    # is the same wait, now also covering the suspend path and resume's
+    # second leg. _read_status_text returning None forever (a genuinely
+    # unrecognised status) still raises below.
+    current_status = _wait_for_recognised_status(page)
     if current_status is None:
         raise BrowserSessionError(
             f"Could not determine current status for campaign {campaign_id} "
-            "(unrecognised status text) — refusing to click blind."
+            "(unrecognised status text) — refusing to click blind. The page "
+            f"reports: {_describe_page_buttons(page)}."
         )
     if current_status in target_statuses:
         print_warning(
@@ -2015,13 +2402,13 @@ def _suspend_or_resume(
         )
         return {"CampaignId": campaign_id, "Status": current_status}
 
-    _click_action_button(page, button_texts)
-
-    new_status = _wait_for_status(
+    new_status = _click_and_wait_for_status_change(
         page,
         campaign_id,
         current_status=current_status,
         target_statuses=target_statuses,
+        button_texts=button_texts,
+        selector=button_selector,
         action_description="Clicked the action button",
     )
 
@@ -2031,14 +2418,17 @@ def _suspend_or_resume(
 def suspend_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     """Stop (suspend) a Мастер кампаний, verifying the status actually changed.
 
-    See module docstring: the "stop" button's exact text is NOT confirmed
-    live — ``_SUSPEND_BUTTON_TEXTS`` is a best-effort candidate list.
+    Live-verified 2026-08-06 (issue #766) against campaign 713277109: the
+    button is ``CampaignHeader.ActionButton.stop``, labelled "Остановить
+    кампанию" — both the testid and the label are now confirmed, replacing
+    #630's unverified guess.
     """
     return _suspend_or_resume(
         page,
         campaign_id,
         target_statuses=("SUSPENDED",),
         button_texts=_SUSPEND_BUTTON_TEXTS,
+        button_selector=_SUSPEND_BUTTON_SELECTOR,
     )
 
 
@@ -2073,24 +2463,15 @@ def resume_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     # does not have (issue #758 follow-up). _suspend_or_resume's own
     # ``current_status is None`` check below remains the final safety net
     # for a genuinely unrecognised status that never hydrates.
-    deadline = _clock.now() + _STATUS_CHANGE_TIMEOUT_MS / 1000
-    current_status = _read_status_text(page)
-    while current_status is None and _clock.now() < deadline:
-        page.wait_for_timeout(250)
-        current_status = _read_status_text(page)
+    current_status = _wait_for_recognised_status(page)
     if current_status == "ARCHIVED":
-        _click_menu_item(
+        _click_menu_item_and_wait_for_status(
             page,
             campaign_id,
             item_selector=_UNARCHIVE_MENU_ITEM_SELECTOR,
             item_label="Разархивировать",
-        )
-        _wait_for_status(
-            page,
-            campaign_id,
             current_status=current_status,
             target_statuses=("SUSPENDED",),
-            action_description="Clicked 'Разархивировать'",
         )
 
     return _suspend_or_resume(
@@ -2098,6 +2479,7 @@ def resume_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         campaign_id,
         target_statuses=("ACTIVE", "MODERATION"),
         button_texts=_RESUME_BUTTON_TEXTS,
+        button_selector=_RESUME_BUTTON_SELECTOR,
     )
 
 
