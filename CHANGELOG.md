@@ -71,6 +71,73 @@
   status, and a half-loaded page are distinguishable without a `--headful`
   re-run.
 
+**Fixed — `masters add` aborted on a form it had filled correctly (#744 live recon):**
+
+- Live recon found Yandex **collapses** the headline/text slot list as it is
+  emptied: clearing the last pre-filled headline slot drops the rendered set
+  from 5 slots to 1 in a single re-render, so `CampaignTitles4.textarea` is
+  gone from the DOM by the time `_add_repeating_values` reaches it. That was
+  read as a click failure on a possibly-still-populated slot and aborted the
+  whole command — `masters add` could not get past form-filling at all.
+- A slot that is **absent** and has **no caller value** is now skipped; a
+  slot that is absent but *was* given a value still raises, preserving
+  #655's "never silently drop a caller's value" guarantee. The
+  obstructed-but-present case #655 hardened against is unchanged.
+
+**Added — `masters add` now returns `CampaignId` and verifies the display region (#744):**
+
+- `create_master` reads the new campaign's ID from the post-click redirect
+  and uses it to verify the display region through a real page reload.
+- **The create path's redirect is not yet field-proven.** It is modelled on
+  `copy_master`'s live-verified redirect (#659) through the identical form
+  and button, but the #744 recon could not observe it on a create: Yandex's
+  create form requires at least one conversion goal ("Добавьте хотя бы одну
+  цель для сайта, чтобы создать и запустить кампанию"), which this command
+  cannot set, so the terminal click is silently rejected — `page.url` stayed
+  on the create page for 48s and no campaign was created. Both buttons still
+  report `visible`/`enabled` with no `aria-disabled` in that state, so there
+  is no DOM signal to distinguish rejection from success; the timeout now
+  surfaces it as an error instead. Re-confirm once goal support exists.
+- `create_master` now returns `CampaignId` (previously omitted for exactly
+  that reason), so callers can find what they just created — which matters
+  because this operation is irreversible and not idempotent.
+- The redirect poll's deadline goes through the injectable `_clock.now()`
+  (#767, landed in #770) rather than a raw `time.monotonic()`. #770 merged
+  first and removed this module's `import time`, so the collision the two
+  PRs flagged for each other resolved here — `TestBrowserPackageClock`
+  guards against it recurring.
+- `_verify_created` now verifies the display region through a **real
+  reload** (`page.goto(WIZARD_EDIT_URL...)` + `_read_until_matches` over
+  `_read_region_tags`), mirroring `update_master`'s `_verify_saved`. Region
+  was previously not verified at all — a region silently dropped by Yandex
+  was reported as a clean success. Headlines/texts/budget deliberately stay
+  on the pre-navigation read: they are the backstop for divergences caused
+  by the click itself, which a reload would discard.
+- The reload targets the **edit** page, not the overview page the click
+  redirects to: a launched campaign's overview is the stats dashboard and
+  renders no region widget at all. That the **edit** page does render it for
+  a LAUNCHED (non-DRAFT) campaign is an assumption, not a live-verified
+  fact — `_read_region_tags` was verified on the create page only (#653),
+  and no existing command reads region from the edit page. Tracked in #776,
+  gated on goal support; if wrong, `masters add --launch` with a region
+  fails *after* the campaign is live (a false failure, not data loss).
+  Region tags are compared as a subset
+  (selecting a region can pull in implied parent/child nodes), and a click
+  that never redirects now raises — naming the campaign that may already
+  exist — instead of reporting success without an ID.
+- The headline/text/budget read-back moved into its own
+  `_read_created_form_mismatches`, called BETWEEN the terminal click and
+  the redirect wait. Waiting for the redirect first would have read those
+  fields off the page the campaign lands on — the stats dashboard, which
+  renders no wizard slots and no budget input (only a DRAFT overview
+  re-renders the form, #660) — and `_read_repeating_values` degrades an
+  absent slot to `""` rather than raising, so every successful `--launch`
+  would have been reported as "did not take effect as requested" on a
+  campaign that was in fact created and live. Found in this issue's
+  cycle-review; `FakePage` now models a navigation replacing the DOM
+  (`locators_after_navigation`), which is what the earlier fake could not
+  express — it kept serving the create form's fields after the redirect.
+
 **Fixed — `masters get` returned the URL of a Yandex promo banner instead of the campaign's landing page (#763):**
 
 - `_extract_landing_url` picked the first anchor whose `href` contained
