@@ -175,12 +175,12 @@ single status field. Not yet covered: an inline validation-error TEXT is
 not itself surfaced to the caller (only the resulting mismatch is) — a
 follow-up could read and report Yandex's actual rejection reason.
 
-``create_master`` (issue #632) — live recon only, NOT live-verified end to end
-(no campaign has ever actually been launched/saved during recon — see
-``tests/fixtures/masters_wizard_create.html``; the individual form fields,
-including the conversion-goal widget re-reconned for #777, have each been
-driven live, but no terminal click has yet been accepted by
-Yandex). Covers exactly the "Конверсии
+``create_master`` (issue #632) — **live-verified end to end for the DRAFT
+leg** (#777, 2026-08-06): a full ``--draft`` create was accepted by Yandex
+and produced campaign 713337891, confirmed by a grid diff (79 → 80 rows).
+The ``--launch`` leg remains unexercised on purpose — it publishes live
+advertising with no rollback. See ``tests/fixtures/masters_wizard_create.html``
+for the form recon. Covers exactly the "Конверсии
 и трафик" Мастер кампаний type (the other five tile types on the create
 modal — Товарная кампания, Продажи на маркетплейсах, Подписчики в
 телеграм-канал, Продвижение бизнеса без сайта, Продвижение специалистов — are
@@ -8146,14 +8146,23 @@ def create_master(
     redirect (``_wait_for_created_campaign_id``), which also gives
     ``_verify_created`` a page to reload for the display-region check.
 
-    **Caveat — the create path's redirect is still unconfirmed** (issue
-    #744 live recon, 2026-08-06). It is modelled on ``copy_master``'s
-    live-verified redirect through the identical form and button. Issue
-    #777 removed the blocker that made it unobservable (the form could not
-    be given a goal, so the terminal click was always rejected), but until
-    a create is actually accepted and observed live, treat the ID/region-
-    verification path here as designed-and-unit-tested rather than
-    field-proven.
+    **The create path's redirect is now live-verified** (issue #744, closed
+    by #777's live pass 2026-08-06). Once the goal requirement above was
+    satisfied, a ``launch=False`` create was accepted by Yandex end to end
+    and produced campaign 713337891: the terminal click DID redirect, and
+    ``_wait_for_created_campaign_id`` read the id straight off it — exactly
+    the shape modelled on ``copy_master``. The id was cross-checked against
+    a ``fetch_masters_list`` grid diff (79 rows → 80, the one new row being
+    713337891, status ``DRAFT``), so it is a real campaign id rather than
+    an artefact of URL parsing, and the goal was confirmed to have persisted
+    server-side by re-reading it from a separate page
+    (``fetch_master_target_actions``: goal 236386933 at price 150).
+
+    Not verified: the ``launch=True`` leg. Both buttons share
+    ``_click_terminal_button`` and the same redirect, but "Запустить
+    кампанию" publishes live advertising with no rollback, so it was
+    deliberately not exercised — see ``archive_master``'s DRAFT limitation
+    below for why that decision also left the test campaign in place.
     """
     if not headlines:
         raise ValueError("create_master requires at least one headline.")

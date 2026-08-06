@@ -56,10 +56,32 @@ button is clicked, and a missing row or a price that did not stick aborts
 punishes by silently swallowing the click, so there is no "afterwards" in
 which to observe it. The returned result now includes `TargetActions`.
 
-**Still not field-proven:** #744's post-click redirect and #776's region
-widget on a launched campaign remain unverified — this change removes the
-blocker that made them unobservable, but no create has yet been accepted by
-Yandex and observed end to end.
+**Live-verified end to end (2026-08-06).** With the goal requirement
+satisfied, a `--draft` create was accepted by Yandex and produced campaign
+713337891 — the first create this CLI has ever completed. That settles
+**#744**: the terminal click *does* redirect, and the id is read straight
+off it, exactly as modelled on `copy_master`. The id was cross-checked
+against a grid diff (79 rows → 80, the single new row being 713337891,
+status `DRAFT`) so it is a real campaign id rather than a URL-parsing
+artefact, and the goal was confirmed to have persisted server-side by
+re-reading it from a separate page (goal 236386933 at price 150).
+
+**Still open — deliberately not exercised:**
+
+- The `--launch` leg. It shares `_click_terminal_button` and the same
+  redirect with `--draft`, but it publishes live advertising with no
+  rollback, so it was not run to tick a box.
+- **#776** (region widget on a LAUNCHED campaign) consequently stays
+  blocked: checking it requires a launched campaign, which is the same
+  irreversible publish.
+- The test campaign 713337891 **could not be archived** and remains a
+  DRAFT on the account. `masters archive` refuses it correctly: a DRAFT's
+  overview page has no "⋮" menu (#660), and Мастер кампаний has no delete
+  anywhere in the UI — the only route to archiving is to *launch* the
+  campaign first. Spending real money to tidy up a test was the worse
+  trade. A DRAFT does not serve, does not spend, and does not appear to
+  users. Worth tracking as its own issue: creating a draft via this CLI is
+  currently a one-way door.
 
 **Fixed — `masters add --region-id` crashed with a bare `KeyError: 'GeoRegions'` (#775):**
 
