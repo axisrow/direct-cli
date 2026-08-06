@@ -4835,18 +4835,35 @@ def _add_metrika_counter(page: "Page", text: str) -> None:
     ``text`` into the counter search input and clicking the suggestion row
     whose FIRST LINE exactly matches it.
 
-    NOT LIVE-VERIFIED (issue #648 recon, 2026-08-06, campaign 713277109):
-    the recon this module is based on confirmed the DOM shape before and
-    immediately after opening the editor, but never actually typed into the
-    input or clicked a suggestion — so the exact text a caller must pass
-    (a domain? a numeric counter id? something else Yandex's own suggestion
-    label shows?) is unconfirmed. This follows ``_add_audience_tag``'s
-    matching convention (first line of the option's full text, not a
-    constructed testid — see that function's docstring and the module
-    comment above ``_METRIKA_COUNTER_LISTBOX_TESTID`` for why) as the most
-    conservative choice available without a live browser, but the semantics
-    of what to pass as ``text`` need live confirmation before this is relied
-    on.
+    ``text`` FORMAT CONFIRMED LIVE (issue #648, 2026-08-06, campaign
+    713277109, via ``mcp__claude-in-chrome`` — real Chrome, not the
+    Playwright session): typing a partial query (e.g. just the counter's
+    label, "Ксамата") still surfaces the SAME suggestion as typing the full
+    string, but the suggestion's accessible text is exactly ONE line —
+    ``"{label} • {domain/path} • {numeric counter id}"`` (confirmed:
+    ``"Ксамата • yandex.ru/maps • 88834924"``), no newline anywhere in it.
+    Since ``_find_matching_option`` below splits on the first ``"\n"`` and
+    compares for EQUALITY against the whole (single-line) result, the
+    caller-supplied ``text`` must be that ENTIRE string verbatim — passing
+    only the label (e.g. ``"Ксамата"``) will NOT match, even though it's
+    enough to surface the right suggestion while typing interactively.
+    ``masters update``'s own help text/docstring should say this plainly
+    rather than describe it as "an autocomplete suggestion's text" in the
+    abstract.
+
+    Still NOT LIVE-VERIFIED: whether ``match.click()`` actually commits the
+    counter into the "tags-wrapper" list and whether that persists through
+    the campaign's save — the recon session closed the popup with Escape
+    and reloaded the page without saving, precisely to avoid mutating this
+    live campaign's counter set. Also unconfirmed: whether ``Escape`` alone
+    (with no fill-clear afterwards) can leave the search input holding
+    stale, non-committed text the way ``_set_target_action_price`` was
+    found to leave its own popup open in issue #796 — the live recon here
+    hit the SAME visual symptom (Escape closed the suggestion list but left
+    the typed text sitting in the input) and had to explicitly clear the
+    field before navigating away. Worth revisiting whether ``_add_metrika_
+    counter``'s error path below needs the same explicit-clear treatment,
+    not just an ``Escape`` press, once this is exercised end to end.
 
     Unlike ``_add_audience_tag``, this clicks the dedicated
     ``_METRIKA_COUNTER_LAUNCHER_TESTID`` button to open the editor rather

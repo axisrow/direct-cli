@@ -1556,13 +1556,16 @@ def audience_get(
     multiple=True,
     help=(
         "Add a Yandex Metrika counter to 'Счетчики Яндекс Метрики' — the "
-        "exact text of one of Yandex's own autocomplete suggestions for "
-        "that text (repeat for multiple). NOT LIVE-VERIFIED: the exact "
-        "expected input (a domain, a numeric counter ID, or something "
-        "else) has not been confirmed against a real Yandex session — see "
-        "`direct_cli/browser/masters.py`'s module comment above "
-        "`_METRIKA_COUNTER_WRAPPER_TESTID`. A value with no matching "
-        "suggestion is refused."
+        "exact, full text of one of Yandex's own autocomplete suggestions "
+        "(repeat for multiple), confirmed live (issue #648, 2026-08-06) to "
+        "be a single line shaped '{label} • {domain/path} • {numeric "
+        "counter id}' (e.g. 'Ксамата • yandex.ru/maps • 88834924') — "
+        "typing just the label is enough to surface the suggestion "
+        "interactively, but this flag needs the WHOLE string, not just "
+        "the label. Adding/removing itself is NOT LIVE-VERIFIED (only the "
+        "suggestion text format was confirmed) — see "
+        "`direct_cli/browser/masters.py`'s `_add_metrika_counter` "
+        "docstring. A value with no matching suggestion is refused."
     ),
 )
 @click.option(
