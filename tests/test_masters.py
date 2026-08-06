@@ -11576,7 +11576,17 @@ class TestClearRepeatingValue(unittest.TestCase):
                 page, "fake{index}.textarea", "fake{index}.clear", 5, 0
             )
 
-        self.assertNotIsInstance(ctx.exception, PlaywrightError)
+        # `assertRaises(BrowserSessionError)` above already proves the raised
+        # exception IS a BrowserSessionError. The stronger claim this test
+        # exists to make is that it is EXACTLY that (not some subclass, and
+        # not the raw detach propagating unconverted) — checked by exact
+        # type rather than `assertNotIsInstance(..., PlaywrightError)`,
+        # since `PlaywrightError` itself falls back to bare `Exception` when
+        # the `playwright` package isn't installed (masters.py's ImportError
+        # guard), which would make that assertion vacuously true/false
+        # depending on the test environment rather than on this function's
+        # actual behavior — exactly what broke CI (playwright absent there).
+        self.assertIs(type(ctx.exception), BrowserSessionError)
 
 
 class _FakeImagesPage(FakePage):
