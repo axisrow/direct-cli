@@ -11575,6 +11575,565 @@ class TestApplyImageOperations(unittest.TestCase):
         self.assertEqual(page.save_clicks, [])
 
 
+class TestUtmSectionReadability(unittest.TestCase):
+    """``_read_tracking_params`` / ``_wait_for_utm_section`` — issue
+    #769/#774's real root cause: a late-mounting "Дополнительные параметры"
+    section made a save that DID take effect look like a failed one.
+
+    Live recon against campaign 713234064 (2026-08-06): after a save whose
+    value was demonstrably correct on the next page load, the verifying run
+    read the UTM field as unmounted for a full 90s. ``_expand_utm_spoiler``
+    returned ``False`` (its trigger wasn't in the DOM yet), that return was
+    discarded, and ``text_content()`` on the unmounted field yielded
+    ``None`` — which ``_verify_saved`` then reported as a mismatch.
+    """
+
+    @staticmethod
+    def _page(*, spoiler_appears_after=0, value="utm_source=x"):
+        """An edit page whose UTM spoiler trigger only mounts after
+        ``spoiler_appears_after`` ``wait_for_timeout`` ticks."""
+        ticks = {"n": 0}
+        expanded = {"open": False}
+
+        class _LateSpoilerLocator:
+            def __init__(self, handles):
+                self._handles = handles
+
+            def _mounted(self):
+                return ticks["n"] >= spoiler_appears_after
+
+            def count(self):
+                return len(self._handles) if self._mounted() else 0
+
+            def nth(self, i):
+                return self._handles[i]
+
+            @property
+            def first(self):
+                if not self._mounted():
+                    return _FakeLocatorHandle(raises=True)
+                return self._handles[0]
+
+        spoiler_handle = _DynamicAttrsLocatorHandle(
+            get_attrs=lambda: {
+                "aria-expanded": "true" if expanded["open"] else "false"
+            },
+            on_click=lambda: expanded.__setitem__("open", True),
+        )
+
+        class _UtmFieldLocator:
+            @property
+            def first(self):
+                # Models Playwright's real behaviour for a locator matching
+                # nothing in a still-hydrating section: `.first` resolves,
+                # and `text_content()` returns an EMPTY STRING rather than
+                # raising. That is precisely why the pre-fix
+                # `_read_tracking_params` could not tell "not mounted yet"
+                # from "genuinely cleared" — a fake that raises here would
+                # hide the bug instead of reproducing it.
+                if not expanded["open"]:
+                    return _FakeContentEditableHandle(text="")
+                return _FakeContentEditableHandle(text=value)
+
+            def count(self):
+                return 1 if expanded["open"] else 0
+
+        class _TickingPage(FakePage):
+            def wait_for_timeout(self, timeout):
+                ticks["n"] += 1
+                super().wait_for_timeout(timeout)
+
+        return _TickingPage(
+            locators={
+                browser_masters._EDIT_UTM_SPOILER_BUTTON_TESTID: (
+                    _LateSpoilerLocator([spoiler_handle])
+                ),
+                browser_masters._EDIT_UTM_INPUT_TESTID: _UtmFieldLocator(),
+            }
+        )
+
+    def test_unmountable_spoiler_reads_as_none_not_empty_string(self):
+        # THE bug: an absent spoiler must be "I could not read this"
+        # (None), never "the field is empty" ("") — the latter is
+        # indistinguishable from a genuinely cleared field and is what made
+        # #774's investigation point 3 look like data loss.
+        page = self._page(spoiler_appears_after=10**9)
+
+        self.assertIsNone(browser_masters._read_tracking_params(page))
+
+    def test_wait_retries_the_expansion_until_the_trigger_mounts(self):
+        # Retrying the READ alone never recovers — the spoiler has to be
+        # clicked once its trigger finally exists.
+        page = self._page(spoiler_appears_after=3, value="utm_source=late")
+
+        self.assertTrue(browser_masters._wait_for_utm_section(page))
+        self.assertEqual(browser_masters._read_tracking_params(page), "utm_source=late")
+
+    def test_wait_returns_false_on_timeout_without_raising(self):
+        # Degradation contract (mirrors _wait_for_target_actions_settled):
+        # a timeout is reported to the caller, not raised, so the caller's
+        # own mismatch reporting stays the single place failures surface.
+        page = self._page(spoiler_appears_after=10**9)
+
+        self.assertFalse(browser_masters._wait_for_utm_section(page))
+
+    def test_an_already_open_section_is_readable_immediately(self):
+        page = self._page(spoiler_appears_after=0, value="utm_source=ready")
+
+        self.assertTrue(browser_masters._wait_for_utm_section(page))
+        self.assertEqual(
+            browser_masters._read_tracking_params(page), "utm_source=ready"
+        )
+
+
+class TestVerifyTrackingParamsReloadRetry(unittest.TestCase):
+    """``_verify_saved`` re-NAVIGATES before failing a tracking_params check
+    (issue #769).
+
+    Live-reproduced 2026-08-06 against campaign 713234064: two
+    ``masters update --tracking-params`` runs back to back had the second
+    run's verify read back the FIRST run's value. Re-opening the campaign in
+    a fresh page load 6.6s later showed the second value correctly saved —
+    the save was fine, the post-save reload served a stale render. Polling
+    the already-loaded page harder cannot fix that; only a new navigation
+    re-fetches the section.
+    """
+
+    NEW = "utm_source=new&utm_medium=cpc&utm_campaign={campaign_id}&utm_term={gbid}"
+    STALE = "utm_source=old&utm_medium=cpc&utm_campaign={campaign_id}&utm_term={gbid}"
+
+    @staticmethod
+    def _page(values_by_load):
+        """Edit page whose UTM field yields ``values_by_load[n]`` on the
+        n-th POST-SAVE load — the last entry repeats for further loads.
+
+        ``update_master`` navigates once to open the form before saving;
+        that load is not counted, so ``values_by_load[0]`` is what
+        ``_verify_saved``'s own post-save reload sees (the stale render in
+        the #769 scenario) and ``[1]`` is what a re-navigation gets.
+        """
+        loads = {"n": -2}
+        expanded = {"open": False}
+
+        def _current():
+            i = min(loads["n"], len(values_by_load) - 1)
+            return values_by_load[i]
+
+        spoiler_handle = _DynamicAttrsLocatorHandle(
+            get_attrs=lambda: {
+                "aria-expanded": "true" if expanded["open"] else "false"
+            },
+            on_click=lambda: expanded.__setitem__("open", True),
+        )
+
+        class _UtmFieldLocator:
+            @property
+            def first(self):
+                return _FakeContentEditableHandle(text=_current())
+
+            def count(self):
+                return 1
+
+        class _ReloadingPage(FakePage):
+            def goto(self, url, **kwargs):
+                loads["n"] += 1
+                # A real navigation re-collapses the lazily-mounted spoiler.
+                expanded["open"] = False
+                return super().goto(url, **kwargs)
+
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        edit_form_ready = f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        return _ReloadingPage(
+            locators={
+                browser_masters._EDIT_UTM_SPOILER_BUTTON_TESTID: _FakeLocator(
+                    [spoiler_handle]
+                ),
+                browser_masters._EDIT_UTM_INPUT_TESTID: _UtmFieldLocator(),
+                edit_form_ready: _FakeLocator([_FakeLocatorHandle()]),
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+    def test_a_stale_first_read_is_recovered_by_re_navigating(self):
+        # First post-save load serves the PREVIOUS value; the next load has
+        # the real one. Must succeed, not raise.
+        page = self._page([self.STALE, self.NEW])
+
+        result = browser_masters.update_master(page, 42, tracking_params=self.NEW)
+
+        self.assertEqual(result["TrackingParams"], self.NEW)
+
+    def test_a_persistently_wrong_value_still_fails(self):
+        # The retry must not paper over a genuine save failure: a value that
+        # never converges is still reported.
+        page = self._page([self.STALE])
+
+        with self.assertRaises(browser_masters.BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, tracking_params=self.NEW)
+
+        self.assertIn("tracking_params", str(ctx.exception))
+
+    def test_a_genuine_failure_message_carries_the_readable_diff(self):
+        # Issue #774's second ask: the failure a user actually sees must
+        # explain WHAT differs, not just print two long strings.
+        page = self._page([self.STALE])
+
+        with self.assertRaises(browser_masters.BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, tracking_params=self.NEW)
+
+        self.assertIn("missing", str(ctx.exception))
+
+    def test_an_unmountable_section_fails_without_burning_the_read_budget(self):
+        # Cycle-review of PR #780: `_wait_for_utm_section` returns False when
+        # the section never mounts, but that verdict was discarded — so the
+        # caller went on to spend the FULL `_read_until_matches` budget
+        # re-reading a field that returns None instantly, ~50s per attempt
+        # (30s wait + 20s read) instead of failing fast on the wait alone.
+        # Driven through `_verify_saved` directly: the WRITE path expands the
+        # same spoiler, so an always-absent trigger would fail there first and
+        # never reach the read budget this test is about.
+        class _NeverMountingSpoiler:
+            @property
+            def first(self):
+                # `_expand_utm_spoiler` resolves `.first` before probing
+                # `.count()`; the handle is never actually used because the
+                # count is 0.
+                return _FakeLocatorHandle()
+
+            def count(self):
+                return 0
+
+        page = self._page([self.NEW])
+        page.goto(browser_masters.WIZARD_EDIT_URL.format(campaign_id=42))
+        page._locators[browser_masters._EDIT_UTM_SPOILER_BUTTON_TESTID] = (
+            _NeverMountingSpoiler()
+        )
+
+        # Counting `_read_until_matches` entries is what actually
+        # discriminates the two code paths. Counting field reads does NOT:
+        # `_read_tracking_params` short-circuits on the same absent spoiler,
+        # so the field locator is untouched whether or not the caller
+        # honours the readability verdict — an assertion on field reads
+        # passes against the unfixed code too.
+        real_read_until = browser_masters._read_until_matches
+        budget_entries = {"n": 0}
+
+        def _counting_read_until(page_, reader, expected, **kwargs):
+            if reader is browser_masters._read_tracking_params:
+                budget_entries["n"] += 1
+            return real_read_until(page_, reader, expected, **kwargs)
+
+        with patch.object(browser_masters, "_read_until_matches", _counting_read_until):
+            with self.assertRaises(browser_masters.BrowserSessionError) as ctx:
+                browser_masters._verify_saved(
+                    page,
+                    42,
+                    weekly_budget=None,
+                    promotion_goal=None,
+                    directs_helps=None,
+                    tracking_params=self.NEW,
+                )
+
+        # Reported as unreadable, not as an empty field (issue #774 point 3).
+        self.assertIn("could not be read", str(ctx.exception))
+        # The unreadable verdict short-circuits: not one read budget is
+        # opened on a field that cannot be mounted.
+        self.assertEqual(budget_entries["n"], 0)
+
+    def test_re_navigation_re_runs_the_audience_hydration_gate(self):
+        # Cycle-review of PR #780: the stale-render reload is page-level, but
+        # the retry loop re-navigated WITHOUT re-running
+        # `_wait_for_audience_section`. Every audience check runs after the
+        # tracking_params block, so on a combined update they then read a
+        # freshly-navigated, still-hydrating section — the exact race #681
+        # added that gate for.
+        # Driven through `_verify_saved` directly rather than
+        # `update_master`, so the fake page needs no device dropdown to
+        # write through — the gate's re-run on re-navigation is the whole
+        # subject here, not the setter.
+        calls = {"gate": 0}
+        page = self._page([self.STALE, self.NEW])
+        # `_verify_saved` navigates itself; `_page` counts post-save loads
+        # from -2 because `update_master` opens the form first.
+        page.goto(browser_masters.WIZARD_EDIT_URL.format(campaign_id=42))
+
+        def _counting_gate(_page):
+            calls["gate"] += 1
+
+        # The devices check itself has no fake dropdown to read and will
+        # therefore report a mismatch; irrelevant here — the subject is
+        # whether the gate ran again after the re-navigation.
+        with patch.object(
+            browser_masters, "_wait_for_audience_section", _counting_gate
+        ):
+            with contextlib.suppress(browser_masters.BrowserSessionError):
+                browser_masters._verify_saved(
+                    page,
+                    42,
+                    weekly_budget=None,
+                    promotion_goal=None,
+                    directs_helps=None,
+                    tracking_params=self.NEW,
+                    devices={"desktop"},
+                )
+
+        # Once for the initial post-save reload, once for the re-navigation.
+        self.assertEqual(calls["gate"], 2)
+
+    def test_other_fields_are_re_verified_on_the_re_navigated_page(self):
+        # Cycle-review round 2 of PR #780: a stale render is PAGE-level, so
+        # the fields checked BEFORE the tracking_params block are stale on
+        # the same initial load that made tracking_params stale. They were
+        # read once and never re-read on the page the re-navigation just
+        # fetched, so a combined update could still false-fail on `name`
+        # while tracking_params recovered — the exact false "did not save"
+        # this PR exists to remove.
+        loads = {"n": -2}
+        names = ["stale name", "new name"]
+
+        def _current_name():
+            return names[min(max(loads["n"], 0), len(names) - 1)]
+
+        class _NameHandle(_FakeLocatorHandle):
+            def inner_text(self, timeout=None):
+                return _current_name()
+
+        class _NameLocator:
+            @property
+            def first(self):
+                return _NameHandle()
+
+            def count(self):
+                return 1
+
+        page = self._page([self.STALE, self.NEW])
+        original_goto = page.goto
+
+        def _tracking_goto(url, **kwargs):
+            loads["n"] += 1
+            return original_goto(url, **kwargs)
+
+        page.goto = _tracking_goto
+        page._locators[browser_masters._NAME_HEADER_SELECTOR] = _NameLocator()
+        page.goto(browser_masters.WIZARD_EDIT_URL.format(campaign_id=42))
+
+        # `name` is stale on the first post-save load and correct on the
+        # re-navigated one, exactly like tracking_params.
+        browser_masters._verify_saved(
+            page,
+            42,
+            weekly_budget=None,
+            promotion_goal=None,
+            directs_helps=None,
+            name="new name",
+            tracking_params=self.NEW,
+        )
+
+    def test_the_writer_tolerates_a_late_mounting_spoiler(self):
+        # Cycle-review of PR #780: this PR's central finding is that the
+        # "Дополнительные параметры" section can stay unmounted long after
+        # `_wait_for_edit_form` returns (90s measured live). The READ path
+        # now waits that out; the WRITE path still raised on the first
+        # missing trigger, so the same slow load hard-fails the update with
+        # a "Yandex may have changed the page's markup" message that is
+        # wrong for a transient hydration delay.
+        # Driven straight at `_set_tracking_params`, so the late-mounting
+        # trigger is consumed by the WRITE path alone. Going through
+        # `update_master` would let the verify path's own probes exhaust the
+        # unmounted window first, and the test would pass either way.
+        # Must exceed `_SPOILER_EXPAND_MAX_ATTEMPTS`: `_expand_utm_spoiler`
+        # already retries its own click that many times, so a shorter delay
+        # is absorbed there and the test passes without the outer wait.
+        mounts = {"left": browser_masters._SPOILER_EXPAND_MAX_ATTEMPTS + 2}
+        expanded = {"open": False}
+        field = _FakeContentEditableHandle(text="")
+
+        class _LateMountingHandle(_DynamicAttrsLocatorHandle):
+            # `_expand_utm_spoiler` probes `count()` on the HANDLE, not on
+            # the locator — putting the counter on the locator leaves it
+            # never called and the "late mount" never happens.
+            def count(self):
+                if mounts["left"] > 0:
+                    mounts["left"] -= 1
+                    return 0
+                return 1
+
+        spoiler_handle = _LateMountingHandle(
+            get_attrs=lambda: {
+                "aria-expanded": "true" if expanded["open"] else "false"
+            },
+            on_click=lambda: expanded.__setitem__("open", True),
+        )
+
+        page = FakePage(
+            locators={
+                browser_masters._EDIT_UTM_SPOILER_BUTTON_TESTID: _FakeLocator(
+                    [spoiler_handle]
+                ),
+                browser_masters._EDIT_UTM_INPUT_TESTID: _FakeLocator([field]),
+            }
+        )
+
+        browser_masters._set_tracking_params(page, self.NEW)
+
+        self.assertEqual(field.text_content(), self.NEW)
+
+
+class TestDescribeValueMismatch(unittest.TestCase):
+    """``describe_value_mismatch`` — issue #774's readable diff for long
+    near-identical strings in ``_verify_saved``'s failure message."""
+
+    # The exact pair from issue #774: the reporter's requested value, and the
+    # value a screenshot of the UI showed after the "failed" save.
+    EXPECTED = (
+        "utm_source=yandex_alexey&utm_medium=cpc&utm_campaign={campaign_id}"
+        "&utm_term={gbid}|kw|{keyword}&utm_content={ad_id}"
+    )
+    REORDERED = (
+        "utm_source=yandex_alexey&utm_medium=cpc&utm_campaign={campaign_id}"
+        "&utm_term={gbid}&utm_content={ad_id}|kw|{keyword}"
+    )
+
+    def test_reports_a_relocated_fragment_as_a_single_moved_line(self):
+        # The whole point of the helper: #774's signature must collapse to
+        # ONE line naming the fragment and both positions, not two
+        # 110-character reprs the reader has to align by eye.
+        detail = browser_masters.describe_value_mismatch(self.EXPECTED, self.REORDERED)
+
+        self.assertEqual(len(detail.splitlines()), 1, detail)
+        self.assertIn("moved", detail)
+        self.assertIn("|kw|{keyword}", detail)
+        self.assertNotIn("missing", detail)
+        self.assertNotIn("extra", detail)
+
+    def test_moved_line_names_both_positions(self):
+        detail = browser_masters.describe_value_mismatch(self.EXPECTED, self.REORDERED)
+
+        self.assertIn(str(self.EXPECTED.index("|kw|{keyword}")), detail)
+        self.assertIn(str(self.REORDERED.index("|kw|{keyword}")), detail)
+
+    def test_reports_a_dropped_tail_as_missing_not_moved(self):
+        # #769's original hypothesis (Yandex truncating the tail) must read
+        # differently from #774's reorder — that distinction is the reason
+        # the helper exists.
+        truncated = self.EXPECTED.replace("|kw|{keyword}", "")
+
+        detail = browser_masters.describe_value_mismatch(self.EXPECTED, truncated)
+
+        self.assertIn("missing", detail)
+        self.assertIn("|kw|{keyword}", detail)
+        self.assertNotIn("moved", detail)
+
+    def test_reports_unrequested_text_as_extra(self):
+        detail = browser_masters.describe_value_mismatch(
+            self.EXPECTED, self.EXPECTED + "&utm_extra=1"
+        )
+
+        self.assertIn("extra", detail)
+        self.assertIn("utm_extra=1", detail)
+
+    def test_empty_page_value_is_called_out_in_words(self):
+        # Distinguishing "" from a reorder is #774's investigation point 3;
+        # a character diff against "" would be useless noise.
+        detail = browser_masters.describe_value_mismatch(self.EXPECTED, "")
+
+        self.assertEqual(detail.strip(), "- expected a value, but the field is empty")
+
+    def test_unreadable_field_is_distinguished_from_an_empty_one(self):
+        detail = browser_masters.describe_value_mismatch(self.EXPECTED, None)
+
+        self.assertIn("could not be read", detail)
+
+    def test_equal_values_produce_no_detail(self):
+        self.assertEqual(
+            browser_masters.describe_value_mismatch(self.EXPECTED, self.EXPECTED), ""
+        )
+
+    def test_short_values_produce_no_detail(self):
+        # A short pair is already readable as two reprs; adding a diff would
+        # only double the message.
+        self.assertEqual(browser_masters.describe_value_mismatch("abc", "abd"), "")
+
+    def test_a_one_sided_duplicate_reports_the_move_and_keeps_the_leftover(self):
+        # A fragment present twice in `actual` but once in `expected`. The
+        # relocation is reported as a move; the SECOND, unrequested copy is
+        # a genuine addition and must still show up rather than being
+        # absorbed by that pairing.
+        expected = "a" * 30 + "|kw|" + "b" * 30
+        actual = "a" * 30 + "b" * 30 + "|kw|" + "|kw|"
+
+        detail = browser_masters.describe_value_mismatch(expected, actual)
+
+        self.assertIn("moved", detail)
+        self.assertIn("|kw|", detail)
+        # Nothing silently vanishes: the extra copy is accounted for on its
+        # OWN line. The previous assertion here compared `detail.count(...)`
+        # to itself — a tautology that passed while the leftover was in fact
+        # being absorbed, because difflib emits the two adjacent copies as a
+        # single '|kw||kw|' insert that the move-pairing consumed whole.
+        extra_lines = [
+            line for line in detail.splitlines() if line.strip().startswith("- extra")
+        ]
+        self.assertEqual(len(extra_lines), 1, detail)
+        self.assertIn("|kw|", extra_lines[0])
+
+    def test_two_distinct_relocations_produce_two_moved_lines(self):
+        # The pairing bookkeeping itself: two DISTINCT relocated fragments
+        # must produce two distinct moved lines, not one fragment matched
+        # against both extras.
+        expected = "x" * 20 + "|aaaa|" + "y" * 20 + "|bbbb|" + "z" * 20
+        actual = "x" * 20 + "y" * 20 + "|aaaa|" + "z" * 20 + "|bbbb|"
+
+        detail = browser_masters.describe_value_mismatch(expected, actual)
+
+        self.assertEqual(detail.count("moved"), 2, detail)
+        self.assertIn("aaaa", detail)
+        self.assertIn("bbbb", detail)
+
+    def test_a_two_character_coincidence_is_not_called_a_move(self):
+        # _VALUE_DIFF_MIN_MOVE_LEN: a stray delimiter that happens to occur
+        # elsewhere is noise, and calling it "moved" would bury the real
+        # difference. Reported as plain missing/extra instead.
+        expected = "q" * 25 + "ab" + "r" * 25
+        actual = "q" * 25 + "r" * 25 + "ab"
+
+        detail = browser_masters.describe_value_mismatch(expected, actual)
+
+        self.assertNotIn("moved", detail)
+        self.assertIn("missing", detail)
+
+
+class TestFormatValueMismatch(unittest.TestCase):
+    """``_format_value_mismatch`` — the ``_verify_saved`` line wrapper that
+    appends ``describe_value_mismatch``'s breakdown (issue #774)."""
+
+    def test_long_string_mismatch_keeps_the_raw_pair_and_adds_the_diff(self):
+        expected = TestDescribeValueMismatch.EXPECTED
+        actual = TestDescribeValueMismatch.REORDERED
+
+        line = browser_masters._format_value_mismatch(
+            "tracking_params", expected, actual
+        )
+
+        # The raw pair stays — it is what a reader copies into a re-run.
+        self.assertIn(f"expected {expected!r}", line)
+        self.assertIn(f"page now shows {actual!r}", line)
+        self.assertIn("moved", line)
+
+    def test_non_string_values_keep_the_plain_form(self):
+        line = browser_masters._format_value_mismatch("weekly_budget", 95000, 80000)
+
+        self.assertEqual(line, "weekly_budget: expected 95000, page now shows 80000")
+        self.assertEqual(len(line.splitlines()), 1)
+
+    def test_unreadable_string_field_still_gets_a_worded_detail(self):
+        line = browser_masters._format_value_mismatch(
+            "tracking_params", TestDescribeValueMismatch.EXPECTED, None
+        )
+
+        self.assertIn("could not be read", line)
+
+
 class TestVerifyImageSetMismatches(unittest.TestCase):
     """``_verify_image_set_mismatches`` — absolute end-state verification
     generalizing ``_verify_image_mismatches``'s hardcoded "removed count ==
