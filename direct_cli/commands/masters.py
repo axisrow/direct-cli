@@ -893,6 +893,77 @@ def _parse_remove_audience_tag_options(values: "tuple[int, ...]") -> "list[int]"
     return list(values)
 
 
+def _parse_add_sitelink_options(
+    values: "tuple[str, ...]",
+) -> "list[dict[str, str]]":
+    """Parse repeated ``--add-sitelink "Title|Href|Description"`` CLI values.
+
+    Requires exactly 3 pipe-separated parts (2 pipes) — unlike the WSDL-API
+    ``direct sitelinks add --sitelink`` command's ``parse_sitelink_specs``
+    (``direct_cli/utils.py``), which accepts 2-4 parts and treats
+    Description/TurboPageId as optional. This is a DIFFERENT feature (see
+    module docstring: browser-driven Мастер кампаний sitelinks, not the WSDL
+    ``SitelinksSet`` resource) with no live confirmation that the edit
+    page's inline form tolerates an omitted field the way the WSDL request
+    does, so the format is deliberately stricter here: all three parts —
+    Title, Href, AND Description — must be non-empty. This may be loosened
+    once the inline form's actual behaviour with a blank description is
+    live-verified (see ``direct_cli/browser/masters.py``'s
+    ``_SITELINKS_EDITOR_TESTID`` module comment).
+
+    No escape syntax for a literal ``|`` (unlike ``parse_sitelink_specs``'s
+    ``\\|``) — added only if a real need for one shows up, to keep this
+    format as simple as possible for now.
+    """
+    parsed: "list[dict[str, str]]" = []
+    for raw in values:
+        parts = raw.split("|")
+        if len(parts) != 3:
+            raise click.UsageError(
+                f"--add-sitelink value {raw!r} must be in the form "
+                "\"Title|Href|Description\" (exactly 2 '|' separators, e.g. "
+                '"Об авторе|https://example.com/about|Узнайте больше").'
+            )
+        title, href, description = (part.strip() for part in parts)
+        if not title:
+            raise click.UsageError(
+                f"--add-sitelink value {raw!r} has an empty Title — Title "
+                "is required."
+            )
+        if not href:
+            raise click.UsageError(
+                f"--add-sitelink value {raw!r} has an empty Href — Href is " "required."
+            )
+        if not description:
+            raise click.UsageError(
+                f"--add-sitelink value {raw!r} has an empty Description — "
+                "Description is required (this may be relaxed once the "
+                "edit page's actual behaviour with a blank description is "
+                "confirmed; for now pass some text)."
+            )
+        parsed.append({"Title": title, "Href": href, "Description": description})
+    return parsed
+
+
+def _parse_remove_sitelink_options(values: "tuple[int, ...]") -> "list[int]":
+    """Parse repeated ``--remove-sitelink`` CLI values into a list of 0-based
+    positions, rejecting a duplicate — mirrors
+    ``_parse_remove_audience_tag_options``: positions are resolved against a
+    single pre-mutation snapshot (``update_master``'s ``sitelinks_before``),
+    so a repeated position would silently remove two DIFFERENT sitelinks
+    (the one originally at that position, then whatever shifted into it
+    after the first removal) instead of raising."""
+    seen: "set[int]" = set()
+    for position in values:
+        if position in seen:
+            raise click.UsageError(
+                f"--remove-sitelink position {position + 1} was specified "
+                "more than once."
+            )
+        seen.add(position)
+    return list(values)
+
+
 def _validate_image_path(raw_path: str, *, option_name: str, context: str) -> None:
     """Reject one image path that doesn't exist or that Yandex won't accept.
 
@@ -1535,6 +1606,32 @@ def audience_get(
     ),
 )
 @click.option(
+    "--add-sitelink",
+    "add_sitelinks",
+    multiple=True,
+    help=(
+        'Add a quick link to "Быстрые ссылки": "Title|Href|Description" '
+        "(repeat for multiple), e.g. "
+        '"Об авторе|https://example.com/about|Узнайте больше о нас". All '
+        "three parts are required and non-empty (NOT LIVE-VERIFIED whether "
+        "Yandex's inline form actually requires a non-empty description — "
+        "this CLI is conservative pending confirmation). Refused once the "
+        "campaign already has the UI-stated maximum of 5 sitelinks."
+    ),
+)
+@click.option(
+    "--remove-sitelink",
+    "remove_sitelinks",
+    multiple=True,
+    type=int,
+    help=(
+        "Remove a sitelink from 'Быстрые ссылки' by its CURRENT 0-based "
+        "position. Repeat for multiple positions; positions refer to the "
+        "list as it exists BEFORE this command runs, not after earlier "
+        "removals in the same call."
+    ),
+)
+@click.option(
     "--launch",
     is_flag=True,
     default=False,
@@ -1572,6 +1669,8 @@ def update(
     devices,
     add_audience_tags,
     remove_audience_tags,
+    add_sitelinks,
+    remove_sitelinks,
     launch,
     headful,
     profile_dir,
@@ -1639,9 +1738,9 @@ def update(
     rationale. ``--image`` additionally has NO in-place replacement at all
     on Yandex's side — see its own help text and
     ``direct_cli/browser/masters.py::_set_image`` for why the image set's
-    order changes as a result. Later fields (sitelinks, Metrika
-    counters/goals, budget adaptation) and video (a separate follow-up
-    issue) are tracked separately, see issue #648.
+    order changes as a result. Later fields (Metrika counters/goals, budget
+    adaptation) and video (a separate follow-up issue) are tracked
+    separately, see issue #648.
 
     ``--clear-headline``/``--clear-text`` (issue #786) DELETE an existing
     headline/ad-text variant by its 1-based slot number, the counterpart
@@ -1665,6 +1764,20 @@ def update(
     Yandex's own autocomplete suggestions — Yandex decides whether it
     resolves to a search-term keyword or an interest category, and a tag
     with no matching suggestion is refused rather than added as free text.
+
+    ``--add-sitelink``/``--remove-sitelink`` (issue #648, Этап C) cover the
+    "Быстрые ссылки" section. ``--add-sitelink "Title|Href|Description"``
+    appends a new card (repeat for multiple) — all three parts are
+    required and non-empty, see the option's own help text for why this is
+    stricter than the WSDL-API ``direct sitelinks add --sitelink`` command
+    (a different feature entirely — see
+    ``direct_cli/browser/masters.py`` module docstring). A significant
+    part of this section's behaviour is NOT LIVE-VERIFIED — see
+    ``direct_cli/browser/masters.py``'s ``_SITELINKS_EDITOR_TESTID`` module
+    comment for specifics (in particular: how the inline edit form closes,
+    and whether the real maximum is genuinely 5). ``--remove-sitelink``
+    takes a 0-based position into the card list as it exists BEFORE this
+    command runs, same convention as ``--remove-audience-tag``.
 
     A DRAFT campaign's edit page has no "Сохранить кампанию" button at all —
     only a save-as-draft/launch pair (issue #668). ``update`` saves it as a
@@ -1697,6 +1810,8 @@ def update(
         and not devices
         and not add_audience_tags
         and not remove_audience_tags
+        and not add_sitelinks
+        and not remove_sitelinks
     ):
         raise click.UsageError(
             "Provide at least one of --weekly-budget, --promotion-goal, "
@@ -1704,7 +1819,8 @@ def update(
             "--remove-target-action, --directs-helps/--no-directs-helps, "
             "--name, --landing-url, --tracking-params, --headline, --text, "
             "--clear-headline, --clear-text, --image, --gender, --age-from, "
-            "--age-to, --device, --add-audience-tag, --remove-audience-tag."
+            "--age-to, --device, --add-audience-tag, --remove-audience-tag, "
+            "--add-sitelink, --remove-sitelink."
         )
 
     if goal_price is not None and promotion_goal == "max-conversions":
@@ -1804,6 +1920,8 @@ def update(
     parsed_remove_audience_tags = _parse_remove_audience_tag_options(
         remove_audience_tags
     )
+    parsed_add_sitelinks = _parse_add_sitelink_options(add_sitelinks)
+    parsed_remove_sitelinks = _parse_remove_sitelink_options(remove_sitelinks)
 
     result = _with_session(
         ctx,
@@ -1836,6 +1954,8 @@ def update(
             devices=set(devices) if devices else None,
             add_audience_tags=list(add_audience_tags) or None,
             remove_audience_tags=parsed_remove_audience_tags or None,
+            add_sitelinks=parsed_add_sitelinks or None,
+            remove_sitelinks=parsed_remove_sitelinks or None,
             launch=launch,
         ),
     )

@@ -1481,6 +1481,91 @@ _AUDIENCE_TAG_STABLE_STREAK = 12
 _AUDIENCE_TAG_STABLE_TICK_MS = 500
 _AUDIENCE_TAG_STABLE_WINDOW_MS = 20_000
 
+# "Быстрые ссылки" (sitelinks) section, issue #648 Этап C. Confirmed live
+# 2026-08-06 against campaign 713277109 (an ACTIVE campaign on a real ad
+# account — see this module's own recon notes below for what was and was
+# NOT verified) via two READ-ONLY Playwright/claude-in-chrome recon passes.
+#
+# Recon #1 (Playwright, before opening any card): the section container, the
+# "Добавить" button that creates a new card, and per-card testids — but the
+# per-card testids (``Sitelink.overlay``/``CampaignSitelink``/
+# ``CampaignSitelink.title``/``Sitelink.remove``) are confirmed NOT
+# parameterized by index — the campaign's 4 existing sitelinks at recon time
+# each rendered the SAME four testid strings once per card, distinguishable
+# only by DOM ORDER (the Nth match of the selector = the Nth card), not by a
+# number embedded in the testid itself. This mirrors
+# ``_AUDIENCE_TAG_TESTID_TEMPLATE``'s "read/remove by position" convention,
+# except audience tags DO get an ``{index}``-parameterized testid — sitelinks
+# do not, so every reader/mutator below locates cards via ``.nth(position)``
+# rather than formatting an index into the selector (see
+# ``_SITELINK_REMOVE_TESTID``'s docstring for why removal in particular
+# differs from ``_AUDIENCE_TAG_CLOSE_TESTID_TEMPLATE``).
+#
+# Recon #2 (claude-in-chrome, after clicking the FIRST card's ``Sitelink.
+# overlay``): clicking a card mounts an INLINE edit form directly in the
+# card (not a modal) with its own three ``SitelinkRow.*`` field testids for
+# title/href/description. These are confirmed to belong to only the ONE
+# currently-open card, not parameterized by position either — there is
+# exactly one such triple in the DOM at a time (the currently-open card),
+# mirroring ``_AUDIENCE_TAG_INPUT_TESTID``'s "mounts on click, one instance
+# at a time" shape.
+#
+# NOT LIVE-VERIFIED (recon #2 stopped here deliberately, to avoid mutating a
+# real, live campaign):
+# * How the inline form CLOSES/commits after typing — no dedicated "Готово"/
+#   save testid appeared in the recon's accessibility-tree/DOM dump, so this
+#   module assumes closing happens via clicking away from the card (Escape
+#   is tried first, then a click on the section's own container) — same
+#   "best-effort, then verify by re-reading" posture as this module takes
+#   for every field with no confirmed native save action.
+# * Whether ``SitelinkRow.*.textarea`` is a plain ``<textarea>`` (``.fill()``
+#   works) or a ``contenteditable`` div like the headline/text slots
+#   (``.fill()`` does NOT work, ``_clear_text_field`` + ``.type()`` are
+#   required instead, see ``_add_repeating_values``'s docstring). This
+#   module conservatively assumes the WORSE case (contenteditable) and reuses
+#   ``_clear_text_field``, exactly as instructed by issue #648's Этап C task
+#   — if it turns out to be a plain textarea, ``.fill("")`` would have
+#   worked too and ``_clear_text_field`` degrades to a harmless no-op
+#   equivalent (select-all + Backspace clears a plain textarea just as well).
+# * Whether "Добавить" opens a new card with the SAME empty ``SitelinkRow.*``
+#   triple (assumed, by analogy with every other "click Добавить, fill,
+#   commit" flow in this module — target actions, audience tags — but not
+#   itself clicked in recon).
+# * The real maximum sitelink count. ``_SITELINKS_SLOT_COUNT`` below is
+#   taken from UI copy ("добавить до 5 штук", seen alongside the video
+#   section in the same recon) — nobody actually tried adding a 5th sitelink
+#   past the 4 the recon campaign already had.
+_SITELINKS_EDITOR_TESTID = '[data-testid="CampaignFormSitelinks.editor"]'
+_SITELINKS_ADD_BUTTON_TESTID = '[data-testid="CampaignFormSitelinks.button"]'
+_SITELINK_OVERLAY_TESTID = '[data-testid="Sitelink.overlay"]'
+_SITELINK_CARD_TESTID = '[data-testid="CampaignSitelink"]'
+_SITELINK_TITLE_TESTID = '[data-testid="CampaignSitelink.title"]'
+# NOT parameterized by index, unlike ``_AUDIENCE_TAG_CLOSE_TESTID_TEMPLATE``
+# (which embeds ``{index}`` directly in the testid string) — every card's
+# remove button shares this exact selector, so ``_remove_sitelink`` below
+# resolves a specific card via ``.nth(index)`` on this locator instead of
+# formatting a position into the selector. Confirmed live: no confirmation
+# modal appears, the click removes the card directly.
+_SITELINK_REMOVE_TESTID = '[data-testid="Sitelink.remove"]'
+# Also not parameterized — see the module comment above these constants.
+# Belongs to whichever ONE card is currently open for inline editing.
+_SITELINK_ROW_NAME_TESTID = '[data-testid="SitelinkRow.name.textarea"]'
+_SITELINK_ROW_HREF_TESTID = '[data-testid="SitelinkRow.href.textarea"]'
+_SITELINK_ROW_DESCRIPTION_TESTID = '[data-testid="SitelinkRow.description.textarea"]'
+# NOT LIVE-VERIFIED — see module comment above. UI copy says "до 5 штук" but
+# no attempt was made to add a 5th sitelink to the 4 the recon campaign
+# already had.
+_SITELINKS_SLOT_COUNT = 5
+
+# How long to wait for the inline sitelink-row form to mount after clicking
+# a card's overlay (or the section's "Добавить" button) — mirrors
+# ``_AUDIENCE_TAG_SUGGEST_TIMEOUT_MS``'s "give the SPA time to hydrate"
+# rationale for the sibling "click to mount an editor" flow. NOT tuned
+# against a live timing measurement (unlike the audience-tag constant,
+# which cites a specific observed popup latency) — this is a conservative
+# default pending live confirmation.
+_SITELINK_ROW_TIMEOUT_MS = 5_000
+
 # "Устройства пользователей" (DeviceEditor): a multi-select popup with
 # exactly three checkboxes, confirmed live all pre-checked by default
 # ("Любые" = all three checked, not a fourth distinct value) — mobile,
@@ -4725,6 +4810,216 @@ def _remove_audience_tag(page: "Page", index: int) -> None:
         ) from exc
 
 
+def _read_sitelinks(page: "Page") -> List[Dict[str, str]]:
+    """Read every current "Быстрые ссылки" card's title/URL, in on-page order.
+
+    Returns ``[{"Title": str, "Href": str}, ...]`` — NOT description: the
+    card list only renders each card's TITLE and a combined "title\\nurl"
+    text (confirmed live, recon #1 — see the module comment above
+    ``_SITELINKS_EDITOR_TESTID``), the description is only visible once a
+    card is opened for inline editing via ``Sitelink.overlay``, and this
+    reader deliberately does not open every card just to read its
+    description (that would mutate on-page focus/scroll state for a
+    read-only call, and NOT LIVE-VERIFIED whether opening a card has other
+    side effects). Callers that need a card's description must open it
+    individually — there is no bulk read for it.
+
+    Like ``_read_audience_tags``, walks cards by POSITION (the Nth match of
+    ``_SITELINK_CARD_TESTID``) rather than a per-card testid, since sitelink
+    card testids are not parameterized by index (see the module comment
+    above ``_SITELINKS_EDITOR_TESTID``). Unlike ``_read_audience_tags``,
+    the card COUNT is known ahead of time via ``.count()`` (Playwright can
+    report how many elements matched a selector without an index-by-index
+    probe), so this does not need a per-index existence check to know when
+    to stop.
+
+    The card's own ``inner_text()`` is documented (recon #1) to read as
+    ``"{title}\\n{url}"`` — this splits on the first newline to recover
+    both fields independently, rather than only reading the separate
+    ``CampaignSitelink.title`` sub-testid for the title and leaving the URL
+    unavailable from a bulk read. A card whose text has no newline (e.g. a
+    href-less card, if that is even a state Yandex allows — NOT
+    LIVE-VERIFIED) reports the whole text as ``Title`` and an empty
+    ``Href``, rather than raising, mirroring ``_read_repeating_values``'
+    "treat an unreadable/unexpected slot as an empty value, not a fatal
+    error" convention for a bulk read.
+
+    Returns ``[]`` both when the section can't be found (mirrors
+    ``_read_target_actions``' "absent/inconclusive" convention) and when the
+    campaign genuinely has zero sitelinks.
+    """
+    try:
+        page.locator(_SITELINKS_EDITOR_TESTID).first.wait_for(
+            state="attached", timeout=_SITELINK_ROW_TIMEOUT_MS
+        )
+    except PlaywrightError:
+        return []
+
+    cards = page.locator(_SITELINK_CARD_TESTID)
+    try:
+        count = cards.count()
+    except PlaywrightError:
+        return []
+
+    sitelinks: List[Dict[str, str]] = []
+    for i in range(count):
+        try:
+            text = cards.nth(i).inner_text(timeout=1_000)
+        except PlaywrightError:
+            continue
+        title, _, href = text.partition("\n")
+        sitelinks.append({"Title": title.strip(), "Href": href.strip()})
+    return sitelinks
+
+
+def _add_sitelink(page: "Page", title: str, href: str, description: str) -> None:
+    """Add ONE new sitelink card via the section's "Добавить" button.
+
+    Refuses up front if the section already has ``_SITELINKS_SLOT_COUNT``
+    cards — NOT LIVE-VERIFIED as the real Yandex-enforced maximum (see the
+    module comment above ``_SITELINKS_EDITOR_TESTID``), but a conservative
+    client-side guard matching the CLI's general "fail before touching the
+    page when a limit is already known to be exceeded" posture
+    (``_add_repeating_values``'s ``slot_count`` guard is the same shape).
+
+    NOT LIVE-VERIFIED: whether clicking "Добавить" mounts a new card whose
+    ``SitelinkRow.*`` fields are immediately present, or whether (like
+    ``_AUDIENCE_TAG_INPUT_TESTID``) there is a further click needed to
+    mount the actual input. This assumes the simpler case — the add button
+    itself opens the new card's inline form directly — since recon #2 only
+    observed the form appearing after clicking an EXISTING card's overlay,
+    not the add button (recon deliberately did not click "Добавить" to
+    avoid creating an unreviewed card on a live campaign).
+
+    Each of the three fields is treated as a ``contenteditable`` div, the
+    conservative assumption issue #648's task instructions call for (see
+    the module comment above ``_SITELINKS_EDITOR_TESTID``): clicked,
+    cleared via ``_clear_text_field``, then typed into via ``.type()`` —
+    exactly ``_add_repeating_values``' per-slot sequence. ``description``
+    may be an empty string (a sitelink with no description is a
+    legitimate, common shape — see ``direct_cli/commands/sitelinks.py``'s
+    WSDL sitelinks command, which treats description as optional); an
+    empty ``description`` still clears the field (in case "Добавить"
+    pre-fills it with something) but skips the ``.type()`` call.
+
+    The inline form's close/commit action is NOT LIVE-VERIFIED (see module
+    comment) — this presses Escape first, then clicks the section's own
+    editor container as a fallback, mirroring the "best-effort dismiss,
+    then let the caller's own re-read verification be the real proof of
+    success" posture the rest of this module takes whenever no confirmed
+    native save control exists for a field.
+    """
+    existing = page.locator(_SITELINK_CARD_TESTID)
+    try:
+        existing_count = existing.count()
+    except PlaywrightError:
+        existing_count = 0
+    if existing_count >= _SITELINKS_SLOT_COUNT:
+        raise BrowserSessionError(
+            f"Cannot add another sitelink — the campaign already has "
+            f"{existing_count} of the (UI-stated, not live-confirmed) "
+            f"maximum {_SITELINKS_SLOT_COUNT}. Remove one first with "
+            "--remove-sitelink, or edit the campaign with --headful."
+        )
+
+    try:
+        page.locator(_SITELINKS_ADD_BUTTON_TESTID).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not click the 'Добавить' button in the 'Быстрые "
+            "ссылки' section on the campaign edit page — Yandex may have "
+            "changed the page's markup. Re-run with --headful to inspect "
+            "the page."
+        ) from exc
+
+    def _fill_row_field(testid: str, value: str, field_label: str) -> None:
+        field = page.locator(testid).first
+        try:
+            field.wait_for(state="visible", timeout=_SITELINK_ROW_TIMEOUT_MS)
+            field.click()
+            cleared = _clear_text_field(field)
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                f"Could not open the new sitelink's {field_label} field "
+                f"via {testid!r} on the campaign edit page — Yandex may "
+                "have changed the page's markup, or the new card did not "
+                "mount as expected (NOT LIVE-VERIFIED: this module assumes "
+                "'Добавить' opens the new card's inline form directly). "
+                "Re-run with --headful to inspect the page."
+            ) from exc
+        if not cleared:
+            raise BrowserSessionError(
+                f"Could not clear the new sitelink's {field_label} field "
+                "before typing. This usually means Playwright is older "
+                "than 1.44 (the version that added the 'ControlOrMeta' "
+                "modifier) — upgrade with 'pip install -U playwright'."
+            )
+        if not value:
+            return
+        try:
+            field.type(value)
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                f"Could not type into the new sitelink's {field_label} "
+                f"field via {testid!r} — Yandex may have changed the "
+                "page's markup. Re-run with --headful to inspect the page."
+            ) from exc
+
+    _fill_row_field(_SITELINK_ROW_NAME_TESTID, title, "title")
+    _fill_row_field(_SITELINK_ROW_HREF_TESTID, href, "URL")
+    _fill_row_field(_SITELINK_ROW_DESCRIPTION_TESTID, description, "description")
+
+    # NOT LIVE-VERIFIED close/commit action — see this function's own
+    # docstring. Escape first (the least likely to have an unwanted side
+    # effect if it does nothing), then a click on the section's own
+    # container as a fallback dismiss. Both are best-effort: neither
+    # raising is treated as fatal here, since the caller (``update_master``)
+    # always re-reads the sitelink list afterward to confirm the add
+    # actually took effect, mirroring ``_add_audience_tag``'s "the click
+    # alone is not proof" posture.
+    with contextlib.suppress(PlaywrightError):
+        page.keyboard.press("Escape")
+    with contextlib.suppress(PlaywrightError):
+        page.locator(_SITELINKS_EDITOR_TESTID).first.click()
+
+
+def _remove_sitelink(page: "Page", index: int) -> None:
+    """Remove the sitelink card currently at position ``index``.
+
+    Unlike ``_remove_audience_tag`` (whose close-button testid embeds
+    ``{index}`` directly, ``_AUDIENCE_TAG_CLOSE_TESTID_TEMPLATE``), sitelink
+    remove buttons all share the exact same ``_SITELINK_REMOVE_TESTID``
+    selector — confirmed live, recon #1 (see the module comment above
+    ``_SITELINKS_EDITOR_TESTID``) — so this resolves the button for a
+    specific card via ``.nth(index)`` on that shared selector instead of
+    formatting a position into the testid string. ``index`` must reference
+    an EXISTING card (see ``_read_sitelinks``) — positions shift after each
+    removal, exactly like audience tags, so callers removing multiple
+    sitelinks in one ``update_master`` call must go high-to-low.
+
+    Confirmed live (recon #1): no confirmation modal appears — the click
+    removes the card directly.
+    """
+    try:
+        # ``IndexError`` is caught alongside ``PlaywrightError``: real
+        # Playwright's ``.nth()`` is lazy and never raises for an
+        # out-of-bounds index by itself (the failure only surfaces once an
+        # action like ``.click()`` is attempted against no matching
+        # element) — but this module's offline fake locator resolves
+        # ``.nth()`` eagerly against a plain Python list, so an
+        # out-of-range index raises ``IndexError`` immediately instead.
+        # Treating both as the same "could not remove" outcome keeps this
+        # function's contract identical against the fake and the real page.
+        page.locator(_SITELINK_REMOVE_TESTID).nth(index).click()
+    except (PlaywrightError, IndexError) as exc:
+        raise BrowserSessionError(
+            f"Could not remove the sitelink at position {index + 1} via "
+            f"{_SITELINK_REMOVE_TESTID!r} on the campaign edit page — "
+            "Yandex may have changed the page's markup, or that position "
+            "no longer exists. Re-run with --headful to inspect the page."
+        ) from exc
+
+
 def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
     """Read the "Целевые действия" table's current rows.
 
@@ -5646,6 +5941,9 @@ def _verify_saved(
     audience_tags_before: Optional[List[str]] = None,
     add_audience_tags: Optional[List[str]] = None,
     remove_audience_tag_indices: Optional[List[int]] = None,
+    sitelinks_before: Optional[List[Dict[str, str]]] = None,
+    add_sitelinks: Optional[List[Dict[str, str]]] = None,
+    remove_sitelink_indices: Optional[List[int]] = None,
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
@@ -5909,6 +6207,44 @@ def _verify_saved(
             mismatches.append(
                 f"audience_tags: expected {sorted(expected_tags.elements())!r}, "
                 f"page now shows {sorted(actual_tags)!r}"
+            )
+
+    if sitelinks_before is not None:
+        # Same "one expected multiset derived from the pre-mutation
+        # baseline" shape as ``audience_tags_before`` above, adapted for
+        # ``_read_sitelinks``' dict-per-card return value: dicts aren't
+        # hashable, so the multiset is keyed on ``(Title, Href)`` tuples —
+        # ``_read_sitelinks`` does not expose ``Description`` at all (see
+        # its own docstring for why), so a mismatch confined to
+        # ``Description`` alone cannot be detected by this check, only
+        # title/href presence and count.
+        def _sitelink_key(entry: Dict[str, str]) -> Tuple[str, str]:
+            return (entry.get("Title", ""), entry.get("Href", ""))
+
+        expected_sitelinks = Counter(_sitelink_key(s) for s in sitelinks_before)
+        for index in remove_sitelink_indices or []:
+            expected_sitelinks[_sitelink_key(sitelinks_before[index])] -= 1
+        expected_sitelinks += Counter(_sitelink_key(s) for s in (add_sitelinks or []))
+
+        def _sitelink_state_matches(
+            actual_sitelinks: List[Dict[str, str]], _expected: Any
+        ) -> bool:
+            return Counter(_sitelink_key(s) for s in actual_sitelinks) == (
+                expected_sitelinks
+            )
+
+        actual_sitelinks = _read_until_matches(
+            page,
+            _read_sitelinks,
+            None,
+            matches=_sitelink_state_matches,
+            timeout_ms=_SITELINK_ROW_TIMEOUT_MS * 3,
+        )
+        if not _sitelink_state_matches(actual_sitelinks, None):
+            mismatches.append(
+                "sitelinks: expected "
+                f"{sorted(expected_sitelinks.elements())!r}, page now shows "
+                f"{sorted(_sitelink_key(s) for s in actual_sitelinks)!r}"
             )
 
     if goal_price is not None:
@@ -6217,6 +6553,8 @@ def update_master(
     devices: Optional[Set[str]] = None,
     add_audience_tags: Optional[List[str]] = None,
     remove_audience_tags: Optional[List[int]] = None,
+    add_sitelinks: Optional[List[Dict[str, str]]] = None,
+    remove_sitelinks: Optional[List[int]] = None,
     launch: bool = False,
 ) -> Dict[str, Any]:
     """Update one or more Этап A/B/D fields (plus the campaign name) and save.
@@ -6320,9 +6658,25 @@ def update_master(
     positions) — removed low-to-high internally so earlier removals don't
     shift the position of a later one still pending.
 
-    Later Этап C fields — sitelinks, Metrika counters/goals, budget
-    adaptation — plus video (a separate follow-up issue, different upload
-    control/pipeline) are out of scope for this function; see issue #648.
+    ``add_sitelinks``/``remove_sitelinks`` (issue #648, Этап C) cover the
+    "Быстрые ссылки" section — see ``_add_sitelink``/``_remove_sitelink``
+    for the per-field mechanics, and the module comment above
+    ``_SITELINKS_EDITOR_TESTID`` for what is and is NOT live-verified about
+    this section (in particular: the inline form's close/commit action, and
+    whether its fields are plain textareas or contenteditable divs, are
+    both unconfirmed). ``add_sitelinks`` is a list of
+    ``{"Title": str, "Href": str, "Description": str}`` dicts, each
+    appended as a new card via the section's "Добавить" button —
+    ``Description`` may be an empty string (sitelinks without a
+    description are a normal shape, see ``direct_cli/commands/
+    sitelinks.py``). ``remove_sitelinks`` takes 0-based POSITIONS into the
+    card list as it exists BEFORE this call (see ``masters sitelinks get``,
+    if/when added, or re-read via ``_read_sitelinks``) — removed
+    high-to-low internally, same reasoning as ``remove_audience_tags``.
+
+    Later Этап C fields — Metrika counters/goals, budget adaptation — plus
+    video (a separate follow-up issue, different upload control/pipeline)
+    are out of scope for this function; see issue #648.
 
     ``launch`` (issue #668) matters only when ``campaign_id`` is currently a
     DRAFT: that edit page has no "Сохранить кампанию" button at all, only a
@@ -6395,6 +6749,8 @@ def update_master(
         and devices is None
         and not add_audience_tags
         and not remove_audience_tags
+        and not add_sitelinks
+        and not remove_sitelinks
     ):
         raise ValueError(
             "update_master requires at least one field to update "
@@ -6404,7 +6760,8 @@ def update_master(
             "landing_url, tracking_params, headlines, texts, "
             "clear_headlines, clear_texts, images, "
             "gender, age_from, age_to, devices, "
-            "add_audience_tags, remove_audience_tags)."
+            "add_audience_tags, remove_audience_tags, "
+            "add_sitelinks, remove_sitelinks)."
         )
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
@@ -6624,6 +6981,30 @@ def update_master(
                 "Verify manually before retrying."
             )
 
+    # Snapshotted BEFORE any sitelink mutation, same reasoning as
+    # ``audience_tags_before`` above — ``_verify_saved`` needs the
+    # pre-mutation list to compute the expected post-save state, and the
+    # removal loop below needs it to remove high-to-low without an earlier
+    # removal shifting a later requested position.
+    _sitelinks_requested = bool(add_sitelinks or remove_sitelinks)
+    sitelinks_before = _read_sitelinks(page) if _sitelinks_requested else None
+    _sitelinks_before_list = sitelinks_before or []
+    for index in sorted(remove_sitelinks or [], reverse=True):
+        if index >= len(_sitelinks_before_list):
+            raise BrowserSessionError(
+                f"Sitelink position {index + 1} is out of range — this "
+                f"campaign currently has {len(_sitelinks_before_list)} "
+                f"sitelink(s) (positions 1-{len(_sitelinks_before_list)})."
+            )
+        _remove_sitelink(page, index)
+    for sitelink in add_sitelinks or []:
+        _add_sitelink(
+            page,
+            sitelink["Title"],
+            sitelink["Href"],
+            sitelink.get("Description", ""),
+        )
+
     for index, value in (headlines or {}).items():
         _set_repeating_value(
             page, _HEADLINES_TESTID_TEMPLATE, _HEADLINES_SLOT_COUNT, index, value
@@ -6737,6 +7118,9 @@ def update_master(
             audience_tags_before=audience_tags_before,
             add_audience_tags=add_audience_tags,
             remove_audience_tag_indices=remove_audience_tags,
+            sitelinks_before=sitelinks_before,
+            add_sitelinks=add_sitelinks,
+            remove_sitelink_indices=remove_sitelinks,
             clicked_button_label=clicked_button_label,
         )
     except BrowserAuthError as exc:
@@ -6791,6 +7175,10 @@ def update_master(
         result["AddedAudienceTags"] = add_audience_tags
     if remove_audience_tags:
         result["RemovedAudienceTagPositions"] = sorted(remove_audience_tags)
+    if add_sitelinks:
+        result["AddedSitelinks"] = add_sitelinks
+    if remove_sitelinks:
+        result["RemovedSitelinkPositions"] = sorted(remove_sitelinks)
     if was_draft and launch:
         # Issue #721: the DRAFT edit page's launch click redirects away from
         # /edit/ (already awaited by _click_draft_terminal_button inside

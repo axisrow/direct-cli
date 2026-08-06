@@ -16926,5 +16926,471 @@ class TestMastersAudienceGetCommand(unittest.TestCase):
         self.assertEqual(args[1], 42)
 
 
+class TestReadSitelinks(unittest.TestCase):
+    """``_read_sitelinks`` (issue #648, Этап C) — reads "Быстрые ссылки"
+    cards by DOM position, since the card testids are not parameterized by
+    index (see the module comment above ``_SITELINKS_EDITOR_TESTID``)."""
+
+    def test_reads_title_and_href_from_each_card(self):
+        page = FakePage(
+            locators={
+                browser_masters._SITELINKS_EDITOR_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._SITELINK_CARD_TESTID: _FakeLocator(
+                    [
+                        _FakeLocatorHandle(text="Об Авторе\nhttps://example.com/about"),
+                        _FakeLocatorHandle(text="Бесплатно\nhttps://example.com/free"),
+                    ]
+                ),
+            }
+        )
+
+        result = browser_masters._read_sitelinks(page)
+
+        self.assertEqual(
+            result,
+            [
+                {"Title": "Об Авторе", "Href": "https://example.com/about"},
+                {"Title": "Бесплатно", "Href": "https://example.com/free"},
+            ],
+        )
+
+    def test_returns_empty_list_when_section_never_renders(self):
+        page = FakePage(locators={})
+
+        with patch.object(browser_masters, "_SITELINK_ROW_TIMEOUT_MS", 1):
+            result = browser_masters._read_sitelinks(page)
+
+        self.assertEqual(result, [])
+
+    def test_returns_empty_list_for_zero_sitelinks(self):
+        page = FakePage(
+            locators={
+                browser_masters._SITELINKS_EDITOR_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._SITELINK_CARD_TESTID: _FakeLocator([]),
+            }
+        )
+
+        self.assertEqual(browser_masters._read_sitelinks(page), [])
+
+    def test_card_with_no_newline_reports_empty_href(self):
+        """A card whose text has no newline (title only) reports the whole
+        text as Title and an empty Href, rather than raising — mirrors
+        ``_read_repeating_values``'s "unreadable slot -> empty value"
+        convention for a bulk read."""
+        page = FakePage(
+            locators={
+                browser_masters._SITELINKS_EDITOR_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._SITELINK_CARD_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(text="Только заголовок")]
+                ),
+            }
+        )
+
+        result = browser_masters._read_sitelinks(page)
+
+        self.assertEqual(result, [{"Title": "Только заголовок", "Href": ""}])
+
+
+class TestAddSitelink(unittest.TestCase):
+    """``_add_sitelink`` (issue #648, Этап C)."""
+
+    def _page_with_new_card_form(self, existing_count=0):
+        row_handles = {
+            browser_masters._SITELINK_ROW_NAME_TESTID: _FakeContentEditableHandle(),
+            browser_masters._SITELINK_ROW_HREF_TESTID: _FakeContentEditableHandle(),
+            browser_masters._SITELINK_ROW_DESCRIPTION_TESTID: (
+                _FakeContentEditableHandle()
+            ),
+        }
+        locators = {
+            browser_masters._SITELINKS_ADD_BUTTON_TESTID: _FakeLocator(
+                [_FakeLocatorHandle()]
+            ),
+            browser_masters._SITELINK_CARD_TESTID: _FakeLocator(
+                [_FakeLocatorHandle() for _ in range(existing_count)]
+            ),
+            browser_masters._SITELINKS_EDITOR_TESTID: _FakeLocator(
+                [_FakeLocatorHandle()]
+            ),
+        }
+        for testid, handle in row_handles.items():
+            locators[testid] = _FakeLocator([handle])
+        return FakePage(locators=locators), row_handles
+
+    def test_fills_all_three_fields(self):
+        page, row_handles = self._page_with_new_card_form()
+
+        browser_masters._add_sitelink(
+            page, "Об авторе", "https://example.com/about", "Узнайте больше"
+        )
+
+        self.assertEqual(
+            row_handles[browser_masters._SITELINK_ROW_NAME_TESTID]._text,
+            "Об авторе",
+        )
+        self.assertEqual(
+            row_handles[browser_masters._SITELINK_ROW_HREF_TESTID]._text,
+            "https://example.com/about",
+        )
+        self.assertEqual(
+            row_handles[browser_masters._SITELINK_ROW_DESCRIPTION_TESTID]._text,
+            "Узнайте больше",
+        )
+
+    def test_empty_description_still_clears_but_does_not_type(self):
+        page, row_handles = self._page_with_new_card_form()
+        # Pre-fill the description field the way a "Добавить" click might
+        # (NOT LIVE-VERIFIED whether it does) — an empty description
+        # request must still clear it.
+        row_handles[browser_masters._SITELINK_ROW_DESCRIPTION_TESTID]._text = "leftover"
+
+        browser_masters._add_sitelink(page, "Title", "https://example.com", "")
+
+        self.assertEqual(
+            row_handles[browser_masters._SITELINK_ROW_DESCRIPTION_TESTID]._text, ""
+        )
+
+    def test_refuses_when_slot_count_already_at_limit(self):
+        page, _ = self._page_with_new_card_form(
+            existing_count=browser_masters._SITELINKS_SLOT_COUNT
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_sitelink(
+                page, "Title", "https://example.com", "Description"
+            )
+
+        self.assertIn("already has", str(ctx.exception))
+
+    def test_raises_when_add_button_missing(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._add_sitelink(
+                page, "Title", "https://example.com", "Description"
+            )
+
+    def test_raises_when_row_field_never_mounts(self):
+        page, _ = self._page_with_new_card_form()
+        page._locators[browser_masters._SITELINK_ROW_NAME_TESTID] = _FakeLocator(
+            [_FakeLocatorHandle(raises=True)]
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_sitelink(
+                page, "Title", "https://example.com", "Description"
+            )
+
+        self.assertIn("title", str(ctx.exception))
+
+
+class TestRemoveSitelink(unittest.TestCase):
+    """``_remove_sitelink`` (issue #648, Этап C) — unlike
+    ``_remove_audience_tag``, the remove-button testid is NOT
+    parameterized by index, so this resolves the button via ``.nth(index)``
+    on the shared selector."""
+
+    def test_clicks_the_nth_remove_button(self):
+        handles = [_FakeLocatorHandle() for _ in range(3)]
+        page = FakePage(
+            locators={
+                browser_masters._SITELINK_REMOVE_TESTID: _FakeLocator(handles),
+            }
+        )
+
+        browser_masters._remove_sitelink(page, 1)
+
+        self.assertEqual(handles[1].click_timeouts, [None])
+        self.assertEqual(handles[0].click_timeouts, [])
+        self.assertEqual(handles[2].click_timeouts, [])
+
+    def test_raises_when_position_out_of_range(self):
+        page = FakePage(
+            locators={
+                browser_masters._SITELINK_REMOVE_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._remove_sitelink(page, 5)
+
+
+class TestVerifySavedSitelinks(unittest.TestCase):
+    """``_verify_saved``'s sitelinks check (issue #648, Этап C) — mirrors
+    the audience-tags multiset-derived-from-baseline verification
+    (``TestWaitForAudienceSection``'s removal/untouched tests)."""
+
+    def _page_with_sitelinks(self, sitelinks):
+        cards = [
+            _FakeLocatorHandle(text=f"{s['Title']}\n{s['Href']}") for s in sitelinks
+        ]
+        return FakePage(
+            locators={
+                browser_masters._SITELINKS_EDITOR_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._SITELINK_CARD_TESTID: _FakeLocator(cards),
+            }
+        )
+
+    def test_untouched_list_verifies_when_unchanged(self):
+        sitelinks = [
+            {"Title": "Об Авторе", "Href": "https://example.com/about"},
+            {"Title": "Бесплатно", "Href": "https://example.com/free"},
+        ]
+        page = self._page_with_sitelinks(sitelinks)
+
+        with patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None):
+            # Must not raise: the page still shows exactly the baseline.
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                sitelinks_before=sitelinks,
+            )
+
+    def test_removal_verified_by_identity_not_just_count(self):
+        """Baseline [a, b, c], remove position 0 (=a). The page comes back
+        with the right COUNT (2) but the WRONG sitelinks — 'a' survived and
+        'b' is gone instead. A count-only check would pass; the multiset
+        check derived from the baseline must not."""
+        baseline = [
+            {"Title": "a", "Href": "https://example.com/a"},
+            {"Title": "b", "Href": "https://example.com/b"},
+            {"Title": "c", "Href": "https://example.com/c"},
+        ]
+        # Page after "save": a survived, b vanished instead of a.
+        page = self._page_with_sitelinks([baseline[0], baseline[2]])
+
+        with (
+            patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
+            patch.object(browser_masters, "_SITELINK_ROW_TIMEOUT_MS", 1),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                sitelinks_before=baseline,
+                remove_sitelink_indices=[0],
+            )
+
+        self.assertIn("sitelinks", str(ctx.exception))
+
+    def test_add_is_verified_present(self):
+        baseline = [{"Title": "a", "Href": "https://example.com/a"}]
+        added = [{"Title": "new", "Href": "https://example.com/new"}]
+        page = self._page_with_sitelinks(baseline + added)
+
+        with patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None):
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                sitelinks_before=baseline,
+                add_sitelinks=[{**added[0], "Description": "desc"}],
+            )
+
+    def test_add_not_actually_saved_raises(self):
+        baseline = [{"Title": "a", "Href": "https://example.com/a"}]
+        page = self._page_with_sitelinks(baseline)  # add never took effect
+
+        with (
+            patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
+            patch.object(browser_masters, "_SITELINK_ROW_TIMEOUT_MS", 1),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                sitelinks_before=baseline,
+                add_sitelinks=[
+                    {
+                        "Title": "new",
+                        "Href": "https://example.com/new",
+                        "Description": "desc",
+                    }
+                ],
+            )
+
+        self.assertIn("sitelinks", str(ctx.exception))
+
+
+class TestParseAddSitelinkOptions(unittest.TestCase):
+    """``_parse_add_sitelink_options`` (issue #648, Этап C CLI layer)."""
+
+    def test_parses_title_href_description(self):
+        from direct_cli.commands.masters import _parse_add_sitelink_options
+
+        result = _parse_add_sitelink_options(
+            ("Об авторе|https://example.com/about|Узнайте больше",)
+        )
+
+        self.assertEqual(
+            result,
+            [
+                {
+                    "Title": "Об авторе",
+                    "Href": "https://example.com/about",
+                    "Description": "Узнайте больше",
+                }
+            ],
+        )
+
+    def test_strips_whitespace_around_parts(self):
+        from direct_cli.commands.masters import _parse_add_sitelink_options
+
+        result = _parse_add_sitelink_options(
+            (" Title | https://example.com | Description ",)
+        )
+
+        self.assertEqual(
+            result[0],
+            {
+                "Title": "Title",
+                "Href": "https://example.com",
+                "Description": "Description",
+            },
+        )
+
+    def test_rejects_wrong_number_of_parts(self):
+        from direct_cli.commands.masters import _parse_add_sitelink_options
+
+        with self.assertRaises(click.UsageError):
+            _parse_add_sitelink_options(("Title|https://example.com",))
+
+        with self.assertRaises(click.UsageError):
+            _parse_add_sitelink_options(
+                ("Title|https://example.com|Description|Extra",)
+            )
+
+    def test_rejects_empty_title(self):
+        from direct_cli.commands.masters import _parse_add_sitelink_options
+
+        with self.assertRaises(click.UsageError):
+            _parse_add_sitelink_options(("|https://example.com|Description",))
+
+    def test_rejects_empty_href(self):
+        from direct_cli.commands.masters import _parse_add_sitelink_options
+
+        with self.assertRaises(click.UsageError):
+            _parse_add_sitelink_options(("Title||Description",))
+
+    def test_rejects_empty_description(self):
+        from direct_cli.commands.masters import _parse_add_sitelink_options
+
+        with self.assertRaises(click.UsageError):
+            _parse_add_sitelink_options(("Title|https://example.com|",))
+
+
+class TestParseRemoveSitelinkOptions(unittest.TestCase):
+    """``_parse_remove_sitelink_options`` (issue #648, Этап C CLI layer) —
+    mirrors ``_parse_remove_audience_tag_options``."""
+
+    def test_rejects_duplicate_position(self):
+        from direct_cli.commands.masters import _parse_remove_sitelink_options
+
+        with self.assertRaises(click.UsageError):
+            _parse_remove_sitelink_options((1, 1))
+
+    def test_accepts_distinct_positions_in_order(self):
+        from direct_cli.commands.masters import _parse_remove_sitelink_options
+
+        self.assertEqual(_parse_remove_sitelink_options((3, 1, 2)), [3, 1, 2])
+
+
+class TestMastersUpdateSitelinkFlags(unittest.TestCase):
+    """CLI wiring for `masters update`'s "Быстрые ссылки" flags (issue #648,
+    Этап C)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_documents_sitelink_flags(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--add-sitelink", result.output)
+        self.assertIn("--remove-sitelink", result.output)
+
+    def test_rejects_duplicate_remove_sitelink_position(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--remove-sitelink",
+                "1",
+                "--remove-sitelink",
+                "1",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("more than once", result.output.lower())
+
+    def test_rejects_malformed_add_sitelink(self):
+        result = self.runner.invoke(
+            cli,
+            ["masters", "update", "42", "--add-sitelink", "OnlyTitle"],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_passes_add_and_remove_sitelinks(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--add-sitelink",
+                    "Об авторе|https://example.com/about|Узнайте больше",
+                    "--remove-sitelink",
+                    "3",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_update.assert_called_once()
+        _args, kwargs = mock_update.call_args
+        self.assertEqual(
+            kwargs["add_sitelinks"],
+            [
+                {
+                    "Title": "Об авторе",
+                    "Href": "https://example.com/about",
+                    "Description": "Узнайте больше",
+                }
+            ],
+        )
+        self.assertEqual(kwargs["remove_sitelinks"], [3])
+
+    def test_no_fields_still_rejected_with_sitelink_flags_absent(self):
+        result = self.runner.invoke(cli, ["masters", "update", "42"])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--add-sitelink", result.output)
+
+
 if __name__ == "__main__":
     unittest.main()
