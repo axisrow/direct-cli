@@ -1822,17 +1822,22 @@ class TestPollUntil(unittest.TestCase):
 # `_raw_clock_calls`).
 _REAL_CLOCK_MODULES = frozenset({"time", "datetime"})
 
-# ...except the wall-clock readings that legitimately are NOT deadlines.
+# Per-module carve-outs for readings that legitimately are NOT deadlines.
 # `store.py` stamps `created_at` into the persisted session envelope and
 # measures its age: that is calendar time, which must survive a reboot and be
-# comparable across processes, so `time.time()` is correct there and
-# `_clock.now()` (monotonic, arbitrary epoch) would be actively wrong. Only
-# the monotonic family — the one a poll deadline would reach for — stays
-# banned outright.
-_WALL_CLOCK_ALLOWED = frozenset({"time", "time_ns"})
+# comparable across processes, so `time.time()` is correct there while
+# `_clock.now()` (monotonic, arbitrary epoch) would be actively wrong.
+#
+# Scoped PER FILE, not package-wide. A blanket `{time, time_ns}` allowance
+# reopened the whole bug: `time.time()` is a real clock that a no-op
+# `wait_for_timeout` tick cannot advance either, so `deadline = time.time() +
+# …` busy-spins exactly like `monotonic` did — measured at 61.89s on this file
+# with the guard still reporting clean. No module that owns a poll loop
+# appears here, so that spelling stays banned everywhere it could do harm.
+_WALL_CLOCK_CARVE_OUTS = {"store.py": frozenset({"time", "time_ns"})}
 
 
-def _raw_clock_calls(source):
+def _raw_clock_calls(source, allowed=frozenset()):
     """Yield ``(lineno, rendered_call)`` for every real-clock read in `source`.
 
     Parses rather than greps: the original substring check only recognised the
@@ -1857,6 +1862,11 @@ def _raw_clock_calls(source):
     Also resolves single-name assignment aliasing (``_t = time`` /
     ``_m = time.monotonic``), which otherwise smuggles a deadline past any
     import-only analysis.
+
+    ``allowed`` names attributes this particular module may still call — see
+    ``_WALL_CLOCK_CARVE_OUTS``. It is deliberately per-file: allowing
+    ``time.time`` package-wide reopened the original bug, since a wall clock
+    is no more tickable by a no-op ``wait_for_timeout`` than a monotonic one.
     """
     tree = ast.parse(source)
 
@@ -1915,7 +1925,7 @@ def _raw_clock_calls(source):
             and func.args[0].id in module_aliases
         ):
             yield node.lineno, f"getattr({func.args[0].id}, …)()"
-        elif isinstance(func, ast.Attribute) and func.attr not in _WALL_CLOCK_ALLOWED:
+        elif isinstance(func, ast.Attribute) and func.attr not in allowed:
             # A nested chain (`datetime.datetime.now()`) still bottoms out at
             # the module. Reported once, at the module attribute, so a
             # trailing `.timestamp()` does not double-count.
@@ -1949,9 +1959,12 @@ class TestBrowserPackageClock(unittest.TestCase):
         for module_path in sorted(package_dir.glob("*.py")):
             if module_path.name == "_clock.py":
                 continue  # the one legitimate `time.monotonic` reference
+            allowed = _WALL_CLOCK_CARVE_OUTS.get(module_path.name, frozenset())
             offenders.extend(
                 f"{module_path.name}:{lineno}: {call}"
-                for lineno, call in _raw_clock_calls(module_path.read_text())
+                for lineno, call in _raw_clock_calls(
+                    module_path.read_text(), allowed=allowed
+                )
             )
 
         self.assertEqual(
@@ -2011,14 +2024,37 @@ class TestBrowserPackageClock(unittest.TestCase):
                     [(2, f"time.{call}()")], list(_raw_clock_calls(source))
                 )
 
-    def test_allows_wall_clock_time_for_non_deadline_use(self):
+    def test_allows_wall_clock_time_only_for_the_carved_out_module(self):
         # `store.py` stamps `created_at` into the persisted session envelope
         # and measures its age. That is calendar time — it must survive a
         # reboot and compare across processes — so `time.time()` is correct
         # and `_clock.now()` (monotonic, arbitrary epoch) would be wrong.
-        # Banning it would have made this guard un-satisfiable for real code.
+        # Banning it outright would make this guard un-satisfiable for real
+        # code, so the allowance exists — but only for that module.
         source = "import time\nenvelope = {'created_at': time.time()}\n"
-        self.assertEqual([], list(_raw_clock_calls(source)))
+        self.assertEqual(
+            [],
+            list(_raw_clock_calls(source, allowed=_WALL_CLOCK_CARVE_OUTS["store.py"])),
+        )
+
+    def test_wall_clock_carve_out_does_not_leak_to_other_modules(self):
+        # The carve-out was package-wide for one commit, and that reopened the
+        # entire bug: `time.time()` is a real clock a no-op `wait_for_timeout`
+        # tick cannot advance either, so it backs a busy-spin deadline exactly
+        # like `monotonic` — measured at 61.89s on this file with the guard
+        # reporting clean. Only modules in _WALL_CLOCK_CARVE_OUTS get the
+        # allowance, and no module owning a poll loop is in it.
+        source = (
+            "import time\n"
+            "deadline = time.time() + timeout_ms / 1000\n"
+            "while time.time() < deadline:\n"
+            "    page.wait_for_timeout(250)\n"
+        )
+        self.assertEqual(
+            [(2, "time.time()"), (3, "time.time()")], list(_raw_clock_calls(source))
+        )
+        self.assertNotIn("masters.py", _WALL_CLOCK_CARVE_OUTS)
+        self.assertNotIn("session.py", _WALL_CLOCK_CARVE_OUTS)
 
     def test_detects_a_datetime_based_clock_read(self):
         source = "import datetime\nd = datetime.datetime.now().timestamp() + 1\n"
