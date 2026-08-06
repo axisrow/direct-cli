@@ -159,6 +159,39 @@ re-reading it from a separate page (goal 236386933 at price 150).
   delete`, see the "Added" section above), which found and used the
   campaigns grid's own row menu to remove 713337891 for good instead.
 
+**Added — `masters update --clear-headline`/`--clear-text` (#786, Этап B follow-up):**
+
+`masters update --headline`/`--text` (#665) can only *replace* an existing
+headline/ad-text variant — an empty replacement is refused, since it is
+indistinguishable from a delete request to the post-save verification (both
+would re-read the slot as `""`). Deleting a variant was tracked as a
+separate follow-up rather than folded into that flag; this closes it.
+
+- New repeatable `--clear-headline`/`--clear-text` options, taking the
+  variant's 1-based slot number (same numbering as `--headline`/`--text`).
+  Clicks the slot's own `.clear` button (`CampaignTitles{N}.clear`/
+  `CampaignTexts{N}.clear`), confirmed live alongside the `.textarea`
+  markup #665 already documented (see
+  `tests/fixtures/masters_wizard_edit_stage_b.html`'s "BONUS FINDING").
+  Same "click alone isn't proof" post-click commit check as the
+  audience-tag add/remove loop (#681): the clear click polls the slot
+  until it reads empty and raises before the caller's irreversible save
+  if it never does, instead of only catching a non-committing click after
+  the fact via the post-save re-read verification (cycle-review finding).
+- A slot number passed to both a set flag (`--headline`/`--text`) and its
+  clear counterpart in the same call is refused as a `UsageError` — the two
+  operations are mutually exclusive per slot, and there is no "set then
+  clear" concept on Yandex's side to fall back on.
+- Clearing a slot that is already empty is refused too — there is nothing
+  there to delete.
+- **Still out of scope, and not merely unimplemented:** adding a brand-new
+  variant beyond the page's fixed slot count (5 headlines / 3 texts) —
+  Yandex's edit page has no "add another" control at all. Per-variant
+  *weights* are also out of scope for a different reason: confirmed live,
+  Мастер кампаний has no weight/priority UI next to these slots, unlike
+  ordinary text-campaign ad variants — there is nothing for a CLI flag to
+  set.
+
 **Fixed — `masters add --region-id` crashed with a bare `KeyError: 'GeoRegions'` (#775):**
 
 - `_resolve_region_ids`' ambiguity pre-flight (the second `getGeoRegions`

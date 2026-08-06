@@ -122,11 +122,23 @@ ONE existing headline/text slot at a time (``_set_repeating_value``), NOT
 the whole variant list — a deliberate departure from this CLI's usual
 "update replaces the whole array" list-field convention (see
 ``_set_repeating_value``'s own docstring for the rationale). Writing to an
-empty slot (adding a brand-new variant) is refused; deleting a variant and
-editing variant weights are both tracked as separate follow-ups, not
-implemented here. Later stages (sitelinks, audience, Metrika counters/goals,
-budget adaptation, media uploads) are tracked in issue #648 and are NOT
-implemented here.
+empty slot (adding a brand-new variant) is refused; deleting a variant was
+tracked as a separate follow-up, not implemented here.
+
+``update_master`` ``--clear-headline``/``--clear-text`` (issue #786, Этап B
+follow-up) — deletes ONE existing headline/text slot via its per-slot
+``.clear`` button (``_clear_repeating_value``), the delete counterpart
+#665 deferred. Adding a brand-new variant remains out of scope: Yandex's
+edit page has a fixed slot count (5 headlines / 3 texts) with no "add
+another" control at all — an empty slot can only be filled by
+``create_master``'s AI-generated pre-fill, never added to by the caller.
+Per-variant WEIGHTS are also out of scope, but for a different reason —
+confirmed live (``masters_wizard_edit_stage_b.html``'s "BONUS FINDING")
+that Мастер кампаний has no weight/priority UI control next to these slots
+at all, unlike ordinary text-campaign ad variants; there is nothing for a
+weight flag to set. Later stages (sitelinks, audience, Metrika
+counters/goals, budget adaptation, media uploads) are tracked in issue #648
+and are NOT implemented here.
 
 ``name`` (issue #663) — live-verified against campaigns 713231614 (DRAFT)
 and 107707079 (non-draft, read-only recon) — see
@@ -795,6 +807,21 @@ _HEADLINES_SLOT_COUNT = 5
 _TEXTS_SLOT_COUNT = 3
 _HEADLINES_TESTID_TEMPLATE = "CampaignTitles{index}.textarea"
 _TEXTS_TESTID_TEMPLATE = "CampaignTexts{index}.textarea"
+
+# Per-slot clear buttons (issue #786, Этап B follow-up). Confirmed live
+# (2026-08-02, campaign 107707079 — see the "BONUS FINDING" note in
+# ``tests/fixtures/masters_wizard_edit_stage_b.html``) alongside the
+# ``.textarea`` templates above: each slot on the EDIT page (not the create
+# page — create-page slots have no individual clear control, see
+# ``_add_repeating_values``) renders its own ``{prefix}{N}.clear`` button.
+# Derived from the ``.textarea`` templates rather than hand-duplicated, so
+# the two can never drift apart (``CampaignTitles{index}.textarea`` and
+# ``CampaignTitles{index}.clear`` share the same ``CampaignTitles{index}``
+# prefix by construction).
+_HEADLINES_CLEAR_TESTID_TEMPLATE = _HEADLINES_TESTID_TEMPLATE.replace(
+    ".textarea", ".clear"
+)
+_TEXTS_CLEAR_TESTID_TEMPLATE = _TEXTS_TESTID_TEMPLATE.replace(".textarea", ".clear")
 
 # Edit-page-ready marker (issue #684). ``goto(..., wait_until="commit")``
 # returns as soon as the response headers are received — before ANY of the
@@ -5991,6 +6018,8 @@ def update_master(
     tracking_params: Optional[str] = None,
     headlines: Optional[Dict[int, str]] = None,
     texts: Optional[Dict[int, str]] = None,
+    clear_headlines: Optional[List[int]] = None,
+    clear_texts: Optional[List[int]] = None,
     images: Optional[Dict[int, str]] = None,
     gender: Optional[str] = None,
     age_from: Optional[int] = None,
@@ -6036,6 +6065,27 @@ def update_master(
     full-array rewrite doesn't fit here. Writing to a slot that is currently
     empty raises ``BrowserSessionError`` — adding a brand-new variant is a
     different operation, not covered here (see issue #665's follow-ups).
+
+    ``clear_headlines``/``clear_texts`` (issue #786, Этап B follow-up) list
+    0-based slot indices to DELETE via that slot's own ``.clear`` button
+    (``_clear_repeating_value``) rather than replace. This is deliberately a
+    SEPARATE parameter from ``headlines``/``texts`` rather than an overload
+    accepting an empty string there — ``_set_repeating_value`` refuses an
+    empty replacement precisely because "type an empty string" and "delete
+    the variant" are indistinguishable to
+    ``_verify_repeating_value_mismatches``'s re-read-and-compare check (both
+    leave the slot reading as ``""``), so keeping them as distinct,
+    explicitly-named operations is what makes the CLI-level intent legible.
+    An index cannot appear in both a field's set and clear list in the same
+    call — the CLI boundary rejects that combination before this function is
+    reached (mirrors how ``target_action_prices``/``add_target_actions``/
+    ``remove_target_action_goal_ids`` divide up goal ids). Yandex has no
+    "add a new variant" primitive on the edit page's individual slots
+    either, so weights and additions remain genuinely out of scope here —
+    see ``tests/fixtures/masters_wizard_edit_stage_b.html``'s "BONUS
+    FINDING"/weight notes: Мастер кампаний has no per-variant weight
+    control in the UI at all (confirmed live, not merely unimplemented),
+    so there is nothing for a ``--headline-weight`` flag to set.
 
     After clicking save, reloads the edit page and re-reads every requested
     field to confirm it actually saved (see ``_verify_saved``) — a click
@@ -6148,6 +6198,8 @@ def update_master(
         and tracking_params is None
         and not headlines
         and not texts
+        and not clear_headlines
+        and not clear_texts
         and not images
         and gender is None
         and not age_from_requested
@@ -6161,7 +6213,8 @@ def update_master(
             "(weekly_budget, promotion_goal, goal_price, "
             "target_action_prices, add_target_actions, "
             "remove_target_action_goal_ids, directs_helps, name, "
-            "landing_url, tracking_params, headlines, texts, images, "
+            "landing_url, tracking_params, headlines, texts, "
+            "clear_headlines, clear_texts, images, "
             "gender, age_from, age_to, devices, "
             "add_audience_tags, remove_audience_tags)."
         )
@@ -6391,6 +6444,22 @@ def update_master(
         _set_repeating_value(
             page, _TEXTS_TESTID_TEMPLATE, _TEXTS_SLOT_COUNT, index, value
         )
+    for index in clear_headlines or []:
+        _clear_repeating_value(
+            page,
+            _HEADLINES_TESTID_TEMPLATE,
+            _HEADLINES_CLEAR_TESTID_TEMPLATE,
+            _HEADLINES_SLOT_COUNT,
+            index,
+        )
+    for index in clear_texts or []:
+        _clear_repeating_value(
+            page,
+            _TEXTS_TESTID_TEMPLATE,
+            _TEXTS_CLEAR_TESTID_TEMPLATE,
+            _TEXTS_SLOT_COUNT,
+            index,
+        )
 
     # Snapshotted BEFORE any image mutation — ``_verify_saved`` needs to know
     # which content IDs were replaced (to confirm they're gone) and which
@@ -6441,6 +6510,17 @@ def update_master(
     # this ENTIRE update_master call under a fresh session. Re-raise as a
     # plain BrowserSessionError so that retry does not trigger — mirrors
     # copy_master's identical guard around its own post-click verification.
+    # Merged into a single ``requested`` map for ``_verify_repeating_value_
+    # mismatches`` — a cleared slot must re-read as ``""``, exactly the
+    # expected value that map's plain equality check already compares
+    # against, so no separate verification path is needed for clear vs. set
+    # (see ``_clear_repeating_value``'s docstring for why they're still
+    # kept as distinct MUTATION operations up to this point).
+    verify_headlines = dict(headlines or {})
+    verify_headlines.update({index: "" for index in clear_headlines or []})
+    verify_texts = dict(texts or {})
+    verify_texts.update({index: "" for index in clear_texts or []})
+
     try:
         _verify_saved(
             page,
@@ -6451,8 +6531,8 @@ def update_master(
             name=name,
             landing_url=landing_url,
             tracking_params=tracking_params,
-            headlines=headlines,
-            texts=texts,
+            headlines=verify_headlines or None,
+            texts=verify_texts or None,
             images_before_ids=images_before_ids,
             images_replaced_ids=images_replaced_ids,
             goal_price=goal_price,
@@ -6505,6 +6585,10 @@ def update_master(
         result["Headlines"] = headlines
     if texts:
         result["Texts"] = texts
+    if clear_headlines:
+        result["ClearedHeadlines"] = sorted(clear_headlines)
+    if clear_texts:
+        result["ClearedTexts"] = sorted(clear_texts)
     if images:
         result["Images"] = images
     if gender is not None:
@@ -7439,6 +7523,127 @@ def _set_repeating_value(
             f"at {selector!r} — Yandex may have changed the page's markup. "
             "Re-run with --headful to inspect the page."
         ) from exc
+
+
+def _clear_repeating_value(
+    page: "Page",
+    textarea_testid_template: str,
+    clear_testid_template: str,
+    slot_count: int,
+    index: int,
+) -> None:
+    """Delete an EXISTING headline/text variant by clicking its per-slot
+    ``.clear`` button, leaving every other slot untouched.
+
+    Issue #786 (Этап B follow-up, part of the #648 umbrella). This is the
+    counterpart ``_set_repeating_value`` deliberately refuses to be: that
+    function treats an empty replacement value as "delete in disguise" and
+    raises rather than acting on it (see its own docstring), because typing
+    "" into a slot and deleting a slot's variant look identical from the
+    re-read-and-compare verification ``_verify_repeating_value_mismatches``
+    does — both leave the slot reading as ``""``. That ambiguity is exactly
+    what makes this a SEPARATE, explicit operation with its own CLI flag
+    (``--clear-headline``/``--clear-text``) rather than an overload of
+    ``--headline``/``--text`` with an empty value.
+
+    Confirmed live (2026-08-02, campaign 107707079 — see the "BONUS FINDING"
+    note in ``tests/fixtures/masters_wizard_edit_stage_b.html``) that each
+    slot renders its own ``{prefix}{N}.clear`` button alongside its
+    ``.textarea`` — this was recon'd but explicitly left unimplemented by
+    #665 pending a dedicated follow-up, which this is.
+
+    Unlike ``_set_repeating_value``, clearing an ALREADY-empty slot is a
+    harmless no-op on Yandex's side (there's nothing left to remove) — but
+    this still raises, mirroring this module's general "an operation that
+    can't possibly have the effect the caller asked for is a hard error,
+    not a silent success" convention (e.g. ``_set_landing_url``'s ARCHIVED
+    guard): the caller asked to delete a variant, and there was no variant
+    there to delete.
+
+    After the click, polls the slot's own ``inner_text()`` until it reads
+    empty (same ``_AUDIENCE_TAG_SUGGEST_TIMEOUT_MS`` budget and "click
+    alone isn't proof" guard as the audience-tag add/remove loop in
+    ``update_master``, issue #681) and raises if it never does — the
+    caller's ``_click_save`` is irreversible, so a click that hasn't
+    actually committed must be caught HERE, before save, not only
+    after via the post-save ``_verify_repeating_value_mismatches``
+    re-read (cycle-review finding, Codex, this PR).
+    """
+    if index >= slot_count:
+        raise BrowserSessionError(
+            f"Slot index {index + 1} is out of range — this field only has "
+            f"{slot_count} slots on the edit page."
+        )
+
+    textarea_selector = (
+        f'[data-testid="{textarea_testid_template.format(index=index)}"]'
+    )
+    textarea = page.locator(textarea_selector).first
+    try:
+        current = textarea.inner_text()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not read the current value of slot {index + 1} at "
+            f"{textarea_selector!r} — Yandex may have changed the page's "
+            "markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    if not current:
+        raise BrowserSessionError(
+            f"Slot {index + 1} at {textarea_selector!r} is already empty — "
+            "there is no variant there to delete."
+        )
+
+    clear_selector = f'[data-testid="{clear_testid_template.format(index=index)}"]'
+    clear_button = page.locator(clear_selector).first
+    try:
+        clear_button.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not click the clear button for slot {index + 1} at "
+            f"{clear_selector!r} — Yandex may have changed the page's "
+            "markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    # Same "click alone isn't proof" guard as the audience-tag add/remove
+    # loop in `update_master` (issue #681) — confirmed live that a save
+    # immediately after a click that hadn't actually committed to the DOM
+    # yet reloaded with the old value still present. `.clear`'s handler is
+    # async exactly like that close button, and the caller's subsequent
+    # `_click_save` is irreversible, so a non-committing click must be
+    # caught HERE, before the caller ever gets to save — not only after,
+    # via the post-save `_verify_repeating_value_mismatches` re-read (found
+    # by cycle-review, Codex, on this PR).
+    def _read_current() -> str:
+        # Same PlaywrightError -> BrowserSessionError conversion as the
+        # initial read above — unguarded here too (cycle-review finding,
+        # Codex, round 2 of this PR): the `.clear` click can trigger
+        # Yandex to re-render the slot row, and a transient detach mid-poll
+        # must surface this function's documented error, not a raw
+        # PlaywrightError traceback out of the exact mechanism meant to
+        # make a non-committing click legible.
+        try:
+            return textarea.inner_text()
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                f"Could not re-read slot {index + 1} at "
+                f"{textarea_selector!r} while confirming the clear "
+                "committed — Yandex may have changed the page's markup. "
+                "Re-run with --headful to inspect the page."
+            ) from exc
+
+    deadline = _clock.now() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
+    current = _read_current()
+    while current and _clock.now() < deadline:
+        page.wait_for_timeout(250)
+        current = _read_current()
+    if current:
+        raise BrowserSessionError(
+            f"Clicked the clear button for slot {index + 1} at "
+            f"{clear_selector!r}, but the slot still reads "
+            f"{current!r} instead of empty — the click may not have "
+            "committed. Verify manually before retrying."
+        )
 
 
 def _poll_until(
