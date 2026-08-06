@@ -3676,10 +3676,21 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
         # ``_TARGET_ACTION_SETTLE_TIMEOUT_MS``), and Playwright's
         # ``TimeoutError`` cannot tell "absent" from "present but not
         # actionable". Re-probing with a plain ``count()`` (no auto-wait, so
-        # it cannot itself hang) does distinguish them, and blaming the
-        # Metrika counter for a hydration race would send the user to audit
-        # a setup that is fine — the exact opposite of this module's
-        # "precise error over opaque timeout" rule.
+        # it cannot itself hang) does distinguish them — but issue #783
+        # found that even a positive ``count()`` read does not prove the
+        # trigger is genuinely actionable (a disabled "Добавить" — e.g. the
+        # linked Metrika counter has no goals on offer — also satisfies
+        # ``count() > 0``), and an exhausted ``option.wait_for`` after a
+        # successful click does not prove the goal is absent from the
+        # popup either (issue #783: the option-wait budget here,
+        # ``_TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS *
+        # _POPUP_APPEAR_TIMEOUT_MS``, is shorter than the section's
+        # documented hydration bound, ``_TARGET_ACTION_SETTLE_TIMEOUT_MS``).
+        # A bounded timeout only proves "did not happen within the bound",
+        # never "will not happen" — so NEITHER branch below may assert a
+        # single cause; each states both possibilities and lets the caller
+        # judge, with the settled-read/count() probes only shifting which
+        # is likelier.
         trigger_present = False
         if not ever_clicked:
             for testid in add_button_testids:
@@ -3695,13 +3706,27 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
                 "The 'Добавить' target-action trigger is on the page but "
                 f"never became clickable within {_POPUP_APPEAR_TIMEOUT_MS}ms, "
                 f"across {_TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS} attempts, "
-                f"so goal {goal_id} could not be added. The 'Целевые "
-                "действия' section is known to hydrate slowly, so this is "
-                "most likely a still-rendering page rather than a "
-                "configuration problem — re-run, or re-run with --headful "
-                "to watch it. If it persists, the goal may genuinely not be "
-                "on offer (see below)."
+                f"so goal {goal_id} could not be added. This has two "
+                "possible causes and a bounded timeout cannot tell them "
+                "apart: (1) the 'Целевые действия' section is known to "
+                "hydrate slowly, so this may just be a still-rendering "
+                "page — re-run, or re-run with --headful to watch it; or "
+                "(2) the trigger is present in the DOM but genuinely not "
+                "actionable — e.g. disabled because the campaign's linked "
+                "Metrika counter has no goals on offer. To rule out (2): "
+                "confirm the campaign's promotion goal is 'max-conversions' "
+                "(pass --promotion-goal max-conversions if not), and confirm "
+                f"goal {goal_id} belongs to the linked Metrika counter and "
+                "isn't already listed (`masters targetactions get`)."
             ) from last_exc
+
+        # A successful trigger click observes only that the popup DID NOT
+        # SHOW the option within the bound above — not that the option is
+        # absent. Gate on a settled read before leaning on that as a cause:
+        # if the section had not yet stabilized, the exhausted retry may
+        # simply have been racing a popup that was correct but slow to
+        # render, not a genuinely missing goal (issue #783).
+        settled = _wait_for_target_actions_settled(page) if ever_clicked else True
 
         raise BrowserSessionError(
             f"Could not find goal {goal_id} in the 'Добавить' target-action "
@@ -3719,13 +3744,22 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
             "installed offers no goals at all."
             + (
                 ""
-                if ever_clicked
-                # The popup was never even opened, so "the goal isn't in it"
-                # is an inference, not an observation — say so rather than
-                # asserting a diagnosis the run could not actually make.
-                else " The 'Добавить' trigger was not found on the page "
-                "either, so if the goal setup is correct, the page may not "
-                "have finished hydrating — re-run to rule that out."
+                if ever_clicked and settled
+                else (
+                    " The 'Добавить' trigger was not found on the page "
+                    "either, so if the goal setup is correct, the page may "
+                    "not have finished hydrating — re-run to rule that out."
+                    if not ever_clicked
+                    # ever_clicked is True but the row count never settled
+                    # within the wait above — the popup may have been
+                    # correct but still hydrating when the option-wait gave
+                    # up, not proof the goal is genuinely absent.
+                    else " The 'Целевые действия' section had not finished "
+                    "settling when this timed out, so the popup may simply "
+                    "have been slow to render the option rather than "
+                    "missing it — re-run to rule that out before treating "
+                    "this as a counter/promotion-goal problem."
+                )
             )
         ) from last_exc
 
