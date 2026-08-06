@@ -49,6 +49,25 @@ one testid differs: with an empty table the create page renders its
 `MiniGrid.AddButton` form once a first row exists). `_add_target_action`
 now tries both.
 
+Trying both triggers has a cost that had to be paid for explicitly (review
+of #779, found independently by both reviewers): clicking the trigger that
+is *not* on the current render is the expected path, not an error — and
+with no explicit `timeout=`, Playwright charges its **30s default**
+actionability auto-wait for each miss. Since the create page's table always
+starts empty, the populated-table trigger tried first was absent on every
+single `masters add`, adding a guaranteed ~30s stall to the happy path and
+multiplying to minutes in the documented no-goals-offered failure case
+(5 attempts × 2 triggers). Both trigger clicks are now bounded by
+`_POPUP_APPEAR_TIMEOUT_MS`, and the attempt order is picked from the
+table's current row count so the empty-table create path goes straight to
+the trigger that exists. The order is only a hint — both are still tried,
+so a stale or mid-hydration count costs at most one bounded click. The
+offline harness could not have caught this on timing alone: the fake
+locator raises instantly for an absent selector, so the production cost
+never surfaces as a slow test — the same structural blind spot `_clock.py`
+documents for poll deadlines. The tests therefore assert on the `timeout=`
+argument itself.
+
 `create_master` also gained a **pre-click gate** for the goals, mirroring
 the existing headline/text gate: the table is read back before the terminal
 button is clicked, and a missing row or a price that did not stick aborts

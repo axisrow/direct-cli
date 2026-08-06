@@ -749,10 +749,14 @@ def _parse_add_target_action_options(
 
     Same shape as ``_parse_target_action_price_options`` (goal id, never a
     label — see that function's docstring), but the price is NOT optional
-    here: live recon (issue #717) confirmed a freshly added row's price
-    input starts empty and Yandex's own client-side validation rejects
-    saving it empty, so there is no page default to fall back to — always
-    require ``"goal_id=price"``, never a bare goal id.
+    here, and on both pages that use this parse. On the EDIT page live recon
+    (issue #717) confirmed a freshly added row's price input starts empty
+    and Yandex's own client-side validation rejects saving it empty. On the
+    CREATE page (issue #777 recon) it instead arrives pre-filled with a
+    Yandex suggestion — but that is not a documented default either, and
+    publishing a CPA the caller never chose is worse than requiring one. So
+    neither page offers a default worth inheriting: always require
+    ``"goal_id=price"``, never a bare goal id.
     """
     parsed: "dict[int, float]" = {}
     for raw in values:

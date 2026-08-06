@@ -140,6 +140,9 @@ class _FakeLocatorHandle:
         self._get_value = get_value
         self._get_checked = get_checked
         self._on_upload = on_upload
+        # Every `timeout=` this handle's click() was called with, in order
+        # (issue #779 review) — see click().
+        self.click_timeouts = []
         # {selector: _FakeLocatorHandle} for a SCOPED child lookup — models
         # Playwright's Locator.locator(), e.g. `label.locator("xpath=.//input
         # [...]")` (issue #656: _set_region reads a checkbox scoped off the
@@ -177,6 +180,12 @@ class _FakeLocatorHandle:
             raise PlaywrightError("Timeout waiting for element state")
 
     def click(self, timeout=None):
+        # Record every click's timeout, including the ones that raise
+        # (issue #779 review): a trigger that ISN'T on the page is exactly
+        # the call whose missing `timeout=` costs Playwright's 30s default,
+        # and this fake raises instantly, so the argument is the only
+        # observable an offline test has for that cost.
+        self.click_timeouts.append(timeout)
         if self._raises:
             raise PlaywrightError("element detached")
         if not self._visible:
@@ -5389,6 +5398,144 @@ class TestAddTargetAction(unittest.TestCase):
             browser_masters._add_target_action(page, 226158067, 77)
         self.assertIn("226158067", str(ctx.exception))
         self.assertIn("max-conversions", str(ctx.exception))
+
+    def _empty_add_button_testid(self):
+        testid = browser_masters._TARGET_ACTION_ADD_BUTTON_EMPTY_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY
+        )
+        return f'[data-testid="{testid}"]'
+
+    def test_bounds_the_click_on_a_trigger_that_is_not_on_the_page(self):
+        """Every candidate trigger must be clicked with an EXPLICIT short
+        ``timeout=`` (issue #779 review, found independently by both
+        reviewers).
+
+        ``_add_target_action`` tries both trigger testids because only one
+        of them exists on any given render — so a click against the absent
+        one is the EXPECTED path, not an edge case, and it runs on every
+        single ``masters add``: the create page's table always starts
+        empty, so the ``MiniGrid.AddButton`` variant tried first is never
+        there for the first goal. With no explicit ``timeout=``, Playwright
+        applies its 30s default action timeout (nothing in ``direct_cli/``
+        calls ``set_default_timeout``), so that expected miss costs ~30s of
+        auto-wait before falling through to the trigger that does exist —
+        and the documented no-Metrika-counter failure case multiplies it by
+        ``_TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS``.
+
+        This is unobservable through the fake's timing: ``_FakeLocator.first``
+        raises INSTANTLY for an absent selector, so the production cost
+        never shows up as a slow test — the same structural blind spot
+        ``_clock.py`` documents for poll deadlines. The argument passed to
+        ``click()`` is therefore the only thing an offline test can assert
+        on, which is why the fake records it.
+        """
+        # Create-page shape: only the empty-table trigger exists, so the
+        # MiniGrid one tried first is absent.
+        missing_trigger = _FakeLocatorHandle(raises=True)
+        present_trigger = _FakeLocatorHandle()
+        option = _FakeLocatorHandle()
+        price_field = _FakeLocatorHandle()
+        price_field.fill = lambda value: None
+
+        page = FakePage(
+            locators={
+                self._add_button_testid(): _FakeLocator([missing_trigger]),
+                self._empty_add_button_testid(): _FakeLocator([present_trigger]),
+                self._option_testid(226158067): _FakeLocator([option]),
+                self._price_testid(226158067): _FakeLocator([price_field]),
+            }
+        )
+
+        browser_masters._add_target_action(page, 226158067, 77)
+
+        # An empty table must go STRAIGHT to the trigger that exists there,
+        # never paying for the MiniGrid variant at all.
+        self.assertEqual(
+            missing_trigger.click_timeouts,
+            [],
+            "an empty table clicked the populated-table trigger — the "
+            "ordering that keeps `masters add`'s first goal from paying "
+            "for a known-absent trigger has regressed",
+        )
+        self.assertTrue(present_trigger.click_timeouts)
+
+        # And every trigger click, whichever is tried, stays bounded: the
+        # ordering is a hint, so the OTHER trigger is still attempted
+        # whenever the hint is wrong (a non-empty table on the create page,
+        # a mid-hydration row count), and that attempt must not fall back
+        # to Playwright's 30s default.
+        for timeout in present_trigger.click_timeouts:
+            self.assertIsNotNone(
+                timeout,
+                "click() was called with no explicit timeout, so Playwright's "
+                "30s default applies to a trigger that may be absent",
+            )
+            self.assertLessEqual(
+                timeout,
+                browser_masters._POPUP_APPEAR_TIMEOUT_MS,
+                "the trigger click's timeout must stay short — a present "
+                "trigger is present immediately",
+            )
+
+    def test_bounds_the_click_when_the_row_count_hint_is_wrong(self):
+        """The row-count hint only reorders the attempts — when it points at
+        the wrong trigger the other is still tried, and THAT click is the
+        one whose missing ``timeout=`` would cost Playwright's 30s default
+        (issue #779 review).
+
+        Modelled here as a populated table (so the hint picks
+        ``MiniGrid.AddButton`` first) on which only the empty-table trigger
+        actually renders — the create page's state mid-hydration, and the
+        reason the ordering must stay a hint rather than a branch.
+        """
+        missing_trigger = _FakeLocatorHandle(raises=True)
+        present_trigger = _FakeLocatorHandle()
+        option = _FakeLocatorHandle()
+        price_field = _FakeLocatorHandle()
+        price_field.fill = lambda value: None
+
+        row_testid = browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=111222333
+        )
+        prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+
+        page = FakePage(
+            locators={
+                # A row already in the table — the hint therefore says
+                # "populated", so MiniGrid.AddButton is tried first...
+                prefix_selector: _FakeLocator(
+                    [_FakeLocatorHandle(attrs={"data-testid": row_testid})]
+                ),
+                # ...but only the empty-table trigger is actually present.
+                self._add_button_testid(): _FakeLocator([missing_trigger]),
+                self._empty_add_button_testid(): _FakeLocator([present_trigger]),
+                self._option_testid(226158067): _FakeLocator([option]),
+                self._price_testid(226158067): _FakeLocator([price_field]),
+            }
+        )
+
+        browser_masters._add_target_action(page, 226158067, 77)
+
+        self.assertTrue(
+            missing_trigger.click_timeouts,
+            "the wrong-hint fall-through was never exercised — this test no "
+            "longer covers the click it is meant to bound",
+        )
+        for timeout in missing_trigger.click_timeouts + present_trigger.click_timeouts:
+            self.assertIsNotNone(
+                timeout,
+                "click() was called with no explicit timeout, so Playwright's "
+                "30s default applies to a trigger known to be absent",
+            )
+            self.assertLessEqual(
+                timeout,
+                browser_masters._POPUP_APPEAR_TIMEOUT_MS,
+                "the trigger click's timeout must stay short — a present "
+                "trigger is present immediately",
+            )
 
     def test_raises_with_context_when_price_fill_fails_after_add(self):
         add_button = _FakeLocatorHandle()

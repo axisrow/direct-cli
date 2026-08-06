@@ -43,9 +43,13 @@ non-critical campaign, confirming before/after state in the web UI):
   - direct masters launch <campaign_id>
     (publishes a DRAFT campaign -- irreversible, there is no `masters unlaunch`)
   - direct masters add <url> --headline ... --text ... --region ...
+      --add-target-action "<goal_id>=<price>"
     (creates a brand-new campaign -- NOT idempotent, a second run creates a
     second campaign; verify with --draft first, then delete/archive the
-    test campaign by hand after checking it in the web UI)
+    test campaign by hand after checking it in the web UI.
+    --add-target-action is REQUIRED since 0.6.0 -- Yandex's create form
+    silently refuses a campaign with no conversion goal. Note a --draft
+    created this way currently cannot be archived at all, see issue #782)
 
 Interactive human-in-the-loop login (opens a visible browser window and
 blocks waiting for a person to sign in -- cannot run unattended):

@@ -3418,6 +3418,16 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
             _TARGET_ACTION_ADD_BUTTON_EMPTY_TESTID_TEMPLATE,
         )
     ]
+    # The order is not a preference — it decides which trigger eats the
+    # miss (issue #779 review). Both are tried either way and each click is
+    # timeout-bounded below, so this only shifts WHICH one is attempted
+    # first: the empty-table `AddTargetButton` for a table that currently
+    # has no rows (every `create_master` first goal, and any edit page
+    # whose table is empty), the `MiniGrid.AddButton` otherwise. Probing
+    # the row count is a plain `count()` with no auto-wait, so a wrong
+    # guess here costs one bounded click, never a hang.
+    if _target_action_row_count(page) == 0:
+        add_button_testids.reverse()
     add_buttons = [
         page.locator(f'[data-testid="{testid}"]').first for testid in add_button_testids
     ]
@@ -3435,7 +3445,17 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
         clicked = False
         for add_button in add_buttons:
             try:
-                add_button.click()
+                # An EXPLICIT short timeout, not Playwright's 30s default
+                # (issue #779 review): clicking the trigger that ISN'T on
+                # this render is the expected path here, not an error, so
+                # the default would charge ~30s of actionability auto-wait
+                # for every miss — on every `masters add`, since the create
+                # page's table always starts empty — and
+                # _TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS times that in the
+                # documented no-goals-offered failure case. A trigger that
+                # is present is present immediately, so bounding this costs
+                # the happy path nothing.
+                add_button.click(timeout=_POPUP_APPEAR_TIMEOUT_MS)
                 clicked = True
                 break
             except PlaywrightError as exc:
@@ -4160,6 +4180,50 @@ def _read_target_actions_or_none(page: "Page") -> Optional[List[Dict[str, Any]]]
         results.append({"GoalId": goal_id, "Name": name, "Price": price})
 
     return results
+
+
+def _target_action_row_count(page: "Page") -> int:
+    """How many goal rows the "Целевые действия" table currently holds.
+
+    Used only to pick which "Добавить" trigger ``_add_target_action`` tries
+    FIRST (issue #779 review) — an empty table renders the create page's
+    ``AddTargetButton``, a populated one the ``MiniGrid.AddButton``. This is
+    a hint, never a decision: both triggers are attempted regardless, so a
+    stale or mid-hydration count costs at most one bounded click. That is
+    also why this deliberately does NOT wait for the table to settle the way
+    ``_created_target_action_mismatches`` does — the settling loop exists for
+    reads whose ANSWER must be trustworthy, and paying seconds of it to
+    reorder two cheap attempts would cost more than the miss it avoids.
+
+    Returns ``0`` on any read failure, which is the safe default: an
+    unreadable table is most likely one that has not rendered rows yet.
+    """
+    prefix = f"TargetActions.{_TARGET_ACTIONS_CATEGORY}."
+    try:
+        raw_testids = [
+            page.locator(f'[data-testid^="{prefix}"]')
+            .nth(i)
+            .get_attribute("data-testid")
+            for i in range(page.locator(f'[data-testid^="{prefix}"]').count())
+        ]
+    except PlaywrightError:
+        return 0
+    rows = 0
+    for testid in raw_testids:
+        if not testid or not testid.startswith(prefix):
+            continue
+        suffix = testid[len(prefix) :]
+        # Same skip-the-children convention as ``_read_target_actions_or_none``
+        # — and it also excludes the two "Добавить" triggers themselves,
+        # which share this prefix but never parse as an int.
+        if suffix.endswith((".PriceInput", ".CloseButton")):
+            continue
+        try:
+            int(suffix)
+        except ValueError:
+            continue
+        rows += 1
+    return rows
 
 
 def _wait_for_target_actions_settled(page: "Page") -> bool:
