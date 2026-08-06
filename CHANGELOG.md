@@ -32,6 +32,11 @@
 - `create_master` now returns `CampaignId` (previously omitted for exactly
   that reason), so callers can find what they just created — which matters
   because this operation is irreversible and not idempotent.
+- The redirect poll's deadline goes through the injectable `_clock.now()`
+  (#767, landed in #770) rather than a raw `time.monotonic()`. #770 merged
+  first and removed this module's `import time`, so the collision the two
+  PRs flagged for each other resolved here — `TestBrowserPackageClock`
+  guards against it recurring.
 - `_verify_created` now verifies the display region through a **real
   reload** (`page.goto(WIZARD_EDIT_URL...)` + `_read_until_matches` over
   `_read_region_tags`), mirroring `update_master`'s `_verify_saved`. Region
