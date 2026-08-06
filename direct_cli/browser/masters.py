@@ -280,7 +280,9 @@ side effect on the campaign itself.
 
 import contextlib
 import json
+import os
 import re
+import sys
 from urllib.parse import urlsplit
 from typing import (
     TYPE_CHECKING,
@@ -434,6 +436,26 @@ _SUSPEND_BUTTON_TEXTS = ("Остановить кампанию", "Приост�
 # enough that a genuinely dead click is retried in seconds instead of after a
 # full minute.
 _STATUS_CHANGE_TIMEOUT_MS = 8_000
+
+# How long to wait for the status element to render *at all* after navigating,
+# BEFORE any click — a different quantity from the post-click budget above,
+# and deliberately a separate constant.
+#
+# `_goto_overview_page` only guarantees the title rendered (issue #683); the
+# status element is a later render pass. The 1.6-2.3s measurement above is the
+# lag from an *effective click* to the status text updating — it says nothing
+# about how long a freshly navigated page takes to render that element in the
+# first place, which was never measured. Before #766 this wait was inline in
+# `resume_master` with the then-current 60s budget; folding it into
+# `_STATUS_CHANGE_TIMEOUT_MS` would have silently cut it to 8s.
+#
+# That matters because `resume_master` branches on this read: a campaign whose
+# ARCHIVED status has not hydrated yet reads as None, skips the unarchive step,
+# and then hunts for a resume button an archived page never renders — leaving
+# the campaign archived and reporting a misleading "could not find" error. So
+# this keeps the pre-#766 value until real numbers replace it; see
+# `_log_timing` for how those numbers are being collected.
+_STATUS_HYDRATION_TIMEOUT_MS = 60_000
 
 # How many times to click the action button before giving up (issue #766).
 #
@@ -1786,6 +1808,27 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
         )
 
 
+def _log_timing(what: str, started: float, outcome: object) -> None:
+    """TEMPORARY (issue #764 follow-up): print how long a status wait took.
+
+    Silent unless ``DIRECT_MASTERS_DEBUG_TIMING`` is set to a non-empty value,
+    so ordinary runs are unaffected. Deliberately a scaffold, not a feature:
+    no CLI flag, no logger config, no plumbing through call signatures — the
+    env var is read here and nowhere else, so removing this function plus its
+    three call sites removes the whole thing.
+
+    It exists because two of the three waits in this module have never been
+    measured (see ``_STATUS_HYDRATION_TIMEOUT_MS``): the constants were picked
+    from a measurement of a *different* quantity. Rather than guess again,
+    collect real numbers from real runs, then set the constants from them and
+    delete this.
+    """
+    if not os.environ.get("DIRECT_MASTERS_DEBUG_TIMING"):
+        return
+    elapsed = _clock.now() - started
+    print(f"[masters timing] {what}: {elapsed:.2f}s -> {outcome!r}", file=sys.stderr)
+
+
 def _read_status_text(page: "Page") -> Optional[str]:
     """Return ``"SUSPENDED"``/``"ACTIVE"``/``"MODERATION"``/``"ARCHIVED"``/
     ``None`` from the current page body.
@@ -2015,12 +2058,14 @@ def _click_and_wait_for_status_change(
     never followed by a second one.
     """
     last_seen = current_status
-    for _ in range(_STATUS_CLICK_MAX_ATTEMPTS):
+    started = _clock.now()
+    for attempt in range(1, _STATUS_CLICK_MAX_ATTEMPTS + 1):
         _click_action_button(page, button_texts, selector=selector)
         last_seen = _poll_status(
             page, current_status=current_status, target_statuses=target_statuses
         )
         if last_seen in target_statuses:
+            _log_timing(f"action-button click x{attempt}", started, last_seen)
             return last_seen
 
     raise BrowserSessionError(
@@ -2130,15 +2175,18 @@ def _poll_status(
     status element momentarily unrendered mid-transition — observed live)
     are simply polled again rather than treated as a distinct state.
     """
-    deadline = _clock.now() + _STATUS_CHANGE_TIMEOUT_MS / 1000
+    started = _clock.now()
+    deadline = started + _STATUS_CHANGE_TIMEOUT_MS / 1000
     new_status = current_status
     while True:
         seen = _read_status_text(page)
         if seen is not None:
             new_status = seen
         if new_status in target_statuses:
+            _log_timing("post-click status change", started, new_status)
             return new_status
         if _clock.now() >= deadline:
+            _log_timing("post-click status change (TIMED OUT)", started, new_status)
             return new_status
         page.wait_for_timeout(250)
 
@@ -2154,12 +2202,18 @@ def _wait_for_recognised_status(page: "Page") -> Optional[str]:
     (issue #758 follow-up) but ``_suspend_or_resume`` did not, which
     live-aborted a real ``masters suspend`` with "unrecognised status text"
     (issue #766).
+
+    Budgeted by ``_STATUS_HYDRATION_TIMEOUT_MS``, NOT the post-click
+    ``_STATUS_CHANGE_TIMEOUT_MS`` — see that constant for why the two are
+    deliberately separate.
     """
-    deadline = _clock.now() + _STATUS_HYDRATION_TIMEOUT_MS / 1000
+    started = _clock.now()
+    deadline = started + _STATUS_HYDRATION_TIMEOUT_MS / 1000
     status = _read_status_text(page)
     while status is None and _clock.now() < deadline:
         page.wait_for_timeout(250)
         status = _read_status_text(page)
+    _log_timing("initial status hydration", started, status)
     return status
 
 
@@ -2189,7 +2243,8 @@ def _click_menu_item_and_wait_for_status(
     attempt, and unarchive is reversible.
     """
     last_seen: Optional[str] = current_status
-    for _ in range(_STATUS_CLICK_MAX_ATTEMPTS):
+    started = _clock.now()
+    for attempt in range(1, _STATUS_CLICK_MAX_ATTEMPTS + 1):
         _click_menu_item(
             page,
             campaign_id,
@@ -2200,6 +2255,7 @@ def _click_menu_item_and_wait_for_status(
             page, current_status=current_status, target_statuses=target_statuses
         )
         if last_seen in target_statuses:
+            _log_timing(f"menu-item click x{attempt}", started, last_seen)
             return last_seen  # type: ignore[return-value]
 
     raise BrowserSessionError(

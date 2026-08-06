@@ -22,6 +22,21 @@
   effective click and the overview page's status text reporting the new
   status was 1.64s–2.28s (mean 1.8s), with no long tail. The old 60s was
   never measuring that latency — it was masking the no-op bug above.
+- That measured 8s applies **only after a click**. The separate wait for the
+  status element to render at all after navigating — which `resume_master`
+  branches on to decide whether to unarchive — keeps the previous 60s under
+  its own constant, `_STATUS_HYDRATION_TIMEOUT_MS`. The two are different
+  quantities and only the first was measured; sharing one constant would
+  have cut the unmeasured wait to 8s, and a slow page could then read an
+  archived campaign as "no status yet", skip the unarchive step, and hunt
+  for a resume button an archived page never renders — leaving the campaign
+  archived behind a misleading "could not find the button" error.
+- Temporary, off by default: setting `DIRECT_MASTERS_DEBUG_TIMING=1` prints
+  to stderr how long each of these waits actually took and how many clicks a
+  status change needed, so the remaining unmeasured budget can be set from
+  real runs instead of guessed again. A deliberate scaffold — no CLI flag,
+  no logging config, one env var read in one place — to be deleted once the
+  numbers are in.
 - Both action buttons now resolve via live-confirmed stable `data-testid`s
   — `CampaignHeader.ActionButton.stop` ("Остановить кампанию") and
   `CampaignHeader.ActionButton.resume` ("Возобновить кампанию") — instead

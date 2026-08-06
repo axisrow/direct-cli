@@ -3400,6 +3400,47 @@ class TestSuspendResumeMaster(unittest.TestCase):
             "hydration and came back unrecognised",
         )
 
+    def test_initial_hydration_uses_its_own_budget_not_the_post_click_one(self):
+        """The pre-click hydration wait and the post-click status wait are
+        two different quantities and must not share a constant.
+
+        Only the post-click latency was ever measured (1.6-2.3s, issue #764);
+        `_STATUS_CHANGE_TIMEOUT_MS` was set to 8s from it. The initial
+        hydration wait has no measurement behind it, and before #766 it ran
+        on the then-current 60s budget. Collapsing the two would silently cut
+        it to 8s and, on a slow page, make `resume_master` miss an ARCHIVED
+        status, skip the unarchive step and hunt for a resume button that an
+        archived page never renders.
+
+        The test above only proves hydration is polled *at all* — it passes
+        under any sufficient budget, including a shared one. This asserts the
+        separation itself, so a well-meaning "dedupe these two constants"
+        change fails here instead of live.
+        """
+        self.assertGreater(
+            browser_masters._STATUS_HYDRATION_TIMEOUT_MS,
+            browser_masters._STATUS_CHANGE_TIMEOUT_MS,
+            "initial status hydration must keep its own, larger budget — the "
+            "8s post-click figure was measured for a different quantity",
+        )
+
+        # And the wait must actually poll past a slow first read rather than
+        # give up on it -- the behaviour the larger budget buys.
+        reads = {"n": 0}
+
+        def fake_read_status_text(page):
+            reads["n"] += 1
+            return None if reads["n"] < 3 else "ARCHIVED"
+
+        page = FakePage()
+        with patch.object(
+            browser_masters, "_read_status_text", side_effect=fake_read_status_text
+        ):
+            status = browser_masters._wait_for_recognised_status(page)
+
+        self.assertEqual(status, "ARCHIVED")
+        self.assertEqual(reads["n"], 3)
+
 
 class TestMastersSuspendResumeCommand(unittest.TestCase):
     """CLI wiring for `masters suspend`/`masters resume`."""
