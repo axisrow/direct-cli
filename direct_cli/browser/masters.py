@@ -7516,10 +7516,20 @@ def _verify_created(
 
     The reload target is ``WIZARD_EDIT_URL``, not the overview URL the click
     redirects to. A freshly LAUNCHED campaign's overview page is the stats
-    dashboard, which has no region widget at all; only the edit page renders
-    "Регион показов" for both DRAFT and non-DRAFT campaigns (a DRAFT
+    dashboard, which has no region widget at all; the edit page is ASSUMED to
+    render "Регион показов" for both DRAFT and non-DRAFT campaigns (a DRAFT
     overview happens to render the wizard form too — issue #660 — but
     relying on that would make this check silently status-dependent).
+
+    **That assumption is not field-proven (issue #776).**
+    ``_read_region_tags`` is live-verified on the CREATE page only (#653);
+    no existing command reads region from the edit page (``update_master``
+    has no region option), and the live edit-page fixtures are targeted
+    extracts that neither contain nor exclude the widget. If the assumption
+    is wrong, ``_read_until_matches`` exhausts its budget, returns an empty
+    read, and this raises AFTER the campaign was irreversibly launched — a
+    false failure, not data loss. It cannot be confirmed until goal support
+    makes a successful create possible at all (see ``create_master``).
 
     Region tags are compared as a SUBSET, not for equality: Yandex renders a
     tag per accepted selection, and selecting a region can bring implied

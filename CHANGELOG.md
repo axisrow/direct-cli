@@ -41,7 +41,13 @@
   by the click itself, which a reload would discard.
 - The reload targets the **edit** page, not the overview page the click
   redirects to: a launched campaign's overview is the stats dashboard and
-  renders no region widget at all. Region tags are compared as a subset
+  renders no region widget at all. That the **edit** page does render it for
+  a LAUNCHED (non-DRAFT) campaign is an assumption, not a live-verified
+  fact — `_read_region_tags` was verified on the create page only (#653),
+  and no existing command reads region from the edit page. Tracked in #776,
+  gated on goal support; if wrong, `masters add --launch` with a region
+  fails *after* the campaign is live (a false failure, not data loss).
+  Region tags are compared as a subset
   (selecting a region can pull in implied parent/child nodes), and a click
   that never redirects now raises — naming the campaign that may already
   exist — instead of reporting success without an ID.
