@@ -695,6 +695,65 @@ def _parse_repeating_slot_options(
     return parsed
 
 
+def _parse_clear_slot_options(
+    option_name: str, values: "tuple[int, ...]", slot_count: int
+) -> "list[int]":
+    """Parse repeated ``--clear-headline``/``--clear-text`` 1-based slot
+    numbers into a 0-based index list (issue #786, Этап B follow-up).
+
+    Mirrors ``_parse_repeating_slot_options``'s bounds-checking and
+    duplicate-slot rejection, but for a plain integer list rather than
+    ``"N=value"`` pairs — there is no replacement value to parse here, the
+    whole point of ``--clear-*`` is that it deletes rather than replaces.
+    """
+    parsed: "list[int]" = []
+    seen: "set[int]" = set()
+    for slot_number in values:
+        if slot_number < 1:
+            raise click.UsageError(
+                f"{option_name} slot number {slot_number} must be 1 or "
+                f"greater (this field has slots 1-{slot_count})."
+            )
+        if slot_number > slot_count:
+            raise click.UsageError(
+                f"{option_name} slot number {slot_number} is out of range — "
+                f"this field has slots (1-{slot_count})."
+            )
+        index = slot_number - 1
+        if index in seen:
+            raise click.UsageError(
+                f"{option_name} slot {slot_number} was specified more than " "once."
+            )
+        seen.add(index)
+        parsed.append(index)
+    return parsed
+
+
+def _reject_overlapping_slots(
+    set_slots: "dict[int, str]",
+    clear_slots: "list[int]",
+    set_option_name: str,
+    clear_option_name: str,
+) -> None:
+    """Refuse a slot number passed to both a ``--headline``/``--text``-style
+    setter and its ``--clear-*`` counterpart in the same call (issue #786).
+
+    Ambiguous otherwise — Yandex's edit page has no "set then immediately
+    clear" concept, and silently picking one order to apply them in would
+    make the CLI's behaviour depend on an implementation detail the caller
+    can't see. Mirrors the target-action goal-id overlap guard above this
+    function's own call site.
+    """
+    overlap = sorted(set(set_slots) & set(clear_slots))
+    if overlap:
+        slots = ", ".join(str(index + 1) for index in overlap)
+        raise click.UsageError(
+            f"Slot(s) {slots} passed to both {set_option_name} and "
+            f"{clear_option_name} — a slot can only be set or cleared in "
+            "the same call, not both."
+        )
+
+
 def _parse_target_action_price_options(
     values: "tuple[str, ...]",
 ) -> "dict[int, float]":
@@ -1374,6 +1433,32 @@ def audience_get(
     ),
 )
 @click.option(
+    "--clear-headline",
+    "clear_headlines",
+    multiple=True,
+    type=int,
+    help=(
+        "DELETE an EXISTING headline variant by its 1-based slot number "
+        "(1-5). Repeat for multiple slots. A slot number already passed to "
+        "--headline in the same call is refused — that would be a set and "
+        "a delete on the same slot. Deleting an already-empty slot is "
+        "refused too (there is nothing there to delete)."
+    ),
+)
+@click.option(
+    "--clear-text",
+    "clear_texts",
+    multiple=True,
+    type=int,
+    help=(
+        "DELETE an EXISTING ad-text variant by its 1-based slot number "
+        "(1-3). Repeat for multiple slots. A slot number already passed to "
+        "--text in the same call is refused — that would be a set and a "
+        "delete on the same slot. Deleting an already-empty slot is "
+        "refused too (there is nothing there to delete)."
+    ),
+)
+@click.option(
     "--image",
     "images",
     multiple=True,
@@ -1478,6 +1563,8 @@ def update(
     tracking_params,
     headlines,
     texts,
+    clear_headlines,
+    clear_texts,
     images,
     gender,
     age_from,
@@ -1556,6 +1643,17 @@ def update(
     counters/goals, budget adaptation) and video (a separate follow-up
     issue) are tracked separately, see issue #648.
 
+    ``--clear-headline``/``--clear-text`` (issue #786) DELETE an existing
+    headline/ad-text variant by its 1-based slot number, the counterpart
+    ``--headline``/``--text`` deliberately refuse (an empty replacement
+    there is treated as a mistake, not a delete request — see their own
+    help text). A slot number cannot be passed to both a set flag and its
+    clear counterpart in the same call. Adding a brand-new variant beyond
+    the page's fixed slot count (5 headlines / 3 texts) is not supported —
+    Yandex's edit page has no "add another" control. Per-variant weights
+    are also not supported: confirmed live, Мастер кампаний has no
+    weight/priority UI at all for these slots.
+
     ``--gender``/``--age-from``/``--age-to``/``--device``/
     ``--add-audience-tag``/``--remove-audience-tag`` (issue #681) cover the
     "Аудитория" section's manual-targeting fields — see `masters audience
@@ -1590,6 +1688,8 @@ def update(
         and tracking_params is None
         and not headlines
         and not texts
+        and not clear_headlines
+        and not clear_texts
         and not images
         and gender is None
         and age_from is None
@@ -1603,8 +1703,8 @@ def update(
             "--goal-price, --target-action-price, --add-target-action, "
             "--remove-target-action, --directs-helps/--no-directs-helps, "
             "--name, --landing-url, --tracking-params, --headline, --text, "
-            "--image, --gender, --age-from, --age-to, --device, "
-            "--add-audience-tag, --remove-audience-tag."
+            "--clear-headline, --clear-text, --image, --gender, --age-from, "
+            "--age-to, --device, --add-audience-tag, --remove-audience-tag."
         )
 
     if goal_price is not None and promotion_goal == "max-conversions":
@@ -1671,6 +1771,18 @@ def update(
         "--headline", headlines, _HEADLINES_SLOT_COUNT
     )
     parsed_texts = _parse_repeating_slot_options("--text", texts, _TEXTS_SLOT_COUNT)
+    parsed_clear_headlines = _parse_clear_slot_options(
+        "--clear-headline", clear_headlines, _HEADLINES_SLOT_COUNT
+    )
+    parsed_clear_texts = _parse_clear_slot_options(
+        "--clear-text", clear_texts, _TEXTS_SLOT_COUNT
+    )
+    _reject_overlapping_slots(
+        parsed_headlines, parsed_clear_headlines, "--headline", "--clear-headline"
+    )
+    _reject_overlapping_slots(
+        parsed_texts, parsed_clear_texts, "--text", "--clear-text"
+    )
     parsed_images = _parse_repeating_slot_options(
         "--image",
         images,
@@ -1713,6 +1825,8 @@ def update(
             tracking_params=tracking_params,
             headlines=parsed_headlines,
             texts=parsed_texts,
+            clear_headlines=parsed_clear_headlines or None,
+            clear_texts=parsed_clear_texts or None,
             images=parsed_images,
             gender=gender,
             age_from=parsed_age_from,

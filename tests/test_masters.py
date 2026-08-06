@@ -9508,6 +9508,172 @@ class TestMastersUpdateCommand(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
 
+    def test_documents_clear_headline_and_clear_text_flags(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--clear-headline", result.output)
+        self.assertIn("--clear-text", result.output)
+
+    def test_passes_clear_headline_slot_as_zero_based_index(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--clear-headline", "2"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        # User-facing slot 2 (1-based) -> browser layer's 0-based index 1.
+        self.assertEqual(mock_update.call_args.kwargs["clear_headlines"], [1])
+
+    def test_passes_multiple_clear_headline_and_clear_text_slots(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--clear-headline",
+                    "1",
+                    "--clear-headline",
+                    "3",
+                    "--clear-text",
+                    "2",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_update.call_args.kwargs["clear_headlines"], [0, 2])
+        self.assertEqual(mock_update.call_args.kwargs["clear_texts"], [1])
+
+    def test_rejects_non_numeric_clear_headline_slot(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--clear-headline", "abc"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_rejects_clear_headline_slot_below_one(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--clear-headline", "0"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("1 or greater", result.output)
+
+    def test_rejects_an_out_of_range_clear_headline_slot(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--clear-headline", "6"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("1-5", result.output)
+
+    def test_rejects_an_out_of_range_clear_text_slot(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--clear-text", "4"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("1-3", result.output)
+
+    def test_rejects_duplicate_clear_headline_slot(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--clear-headline",
+                "1",
+                "--clear-headline",
+                "1",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("more than once", result.output)
+
+    def test_rejects_same_slot_in_both_headline_and_clear_headline(self):
+        """A slot cannot be both set and cleared in the same call — Yandex's
+        edit page has no "set then clear" concept, and picking an order
+        silently would make behaviour depend on an implementation detail."""
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--headline",
+                "2=Новый заголовок",
+                "--clear-headline",
+                "2",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--headline", result.output)
+        self.assertIn("--clear-headline", result.output)
+
+    def test_rejects_same_slot_in_both_text_and_clear_text(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--text",
+                "1=Новый текст",
+                "--clear-text",
+                "1",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--text", result.output)
+        self.assertIn("--clear-text", result.output)
+
+    def test_clear_headline_flag_alone_satisfies_the_at_least_one_field_guard(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--clear-headline", "1"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_out_of_range_clear_slot_does_not_open_a_browser_session(self):
+        with patch("direct_cli.commands.masters._with_session") as mock_with_session:
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--clear-headline", "6"]
+            )
+        self.assertNotEqual(result.exit_code, 0)
+        mock_with_session.assert_not_called()
+
+    def test_omitted_clear_flags_pass_none_not_empty_list(self):
+        """``clear_headlines``/``clear_texts`` must be ``None`` when not
+        requested — ``update_master``'s own guard distinguishes "nothing
+        passed" (falsy None/[]) consistently with every other optional
+        list-shaped field here (e.g. ``add_audience_tags``)."""
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--weekly-budget", "1000"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIsNone(mock_update.call_args.kwargs["clear_headlines"])
+        self.assertIsNone(mock_update.call_args.kwargs["clear_texts"])
+
     def test_documents_launch_flag(self):
         result = self.runner.invoke(cli, ["masters", "update", "--help"])
         self.assertIn("--launch", result.output)
@@ -11195,6 +11361,102 @@ class TestSetRepeatingValue(unittest.TestCase):
 
         self.assertEqual(field.inner_text(), "Старый заголовок")
         self.assertIn("empty", str(ctx.exception).lower())
+
+
+class TestClearRepeatingValue(unittest.TestCase):
+    """``_clear_repeating_value`` (issue #786, Этап B follow-up) — deletes
+    ONE existing headline/text slot via its per-slot ``.clear`` button.
+    """
+
+    def test_clicks_the_clear_button_of_a_filled_slot(self):
+        clicked = []
+        textarea = _FakeLocatorHandle(text="Старый заголовок")
+        clear_button = _FakeLocatorHandle(on_click=lambda: clicked.append(True))
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([textarea]),
+                '[data-testid="fake0.clear"]': _FakeLocator([clear_button]),
+            }
+        )
+
+        browser_masters._clear_repeating_value(
+            page, "fake{index}.textarea", "fake{index}.clear", 5, 0
+        )
+
+        self.assertEqual(clicked, [True])
+
+    def test_other_slots_are_never_touched(self):
+        untouched_textarea = _FakeLocatorHandle(text="Не трогать")
+        untouched_clear_clicked = []
+        untouched_clear = _FakeLocatorHandle(
+            on_click=lambda: untouched_clear_clicked.append(True)
+        )
+        target_textarea = _FakeLocatorHandle(text="Удалить меня")
+        target_clear = _FakeLocatorHandle(on_click=lambda: None)
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([untouched_textarea]),
+                '[data-testid="fake0.clear"]': _FakeLocator([untouched_clear]),
+                '[data-testid="fake1.textarea"]': _FakeLocator([target_textarea]),
+                '[data-testid="fake1.clear"]': _FakeLocator([target_clear]),
+            }
+        )
+
+        browser_masters._clear_repeating_value(
+            page, "fake{index}.textarea", "fake{index}.clear", 2, 1
+        )
+
+        self.assertEqual(untouched_clear_clicked, [])
+
+    def test_raises_when_slot_is_already_empty(self):
+        textarea = _FakeLocatorHandle(text="")
+        clear_button = _FakeLocatorHandle()
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([textarea]),
+                '[data-testid="fake0.clear"]': _FakeLocator([clear_button]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._clear_repeating_value(
+                page, "fake{index}.textarea", "fake{index}.clear", 5, 0
+            )
+
+        self.assertIn("already empty", str(ctx.exception).lower())
+
+    def test_raises_when_index_out_of_range(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._clear_repeating_value(
+                page, "fake{index}.textarea", "fake{index}.clear", 3, 5
+            )
+
+        self.assertIn("out of range", str(ctx.exception).lower())
+
+    def test_raises_when_textarea_missing(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._clear_repeating_value(
+                page, "fake{index}.textarea", "fake{index}.clear", 1, 0
+            )
+
+    def test_raises_when_clear_button_click_fails(self):
+        textarea = _FakeLocatorHandle(text="Старый заголовок")
+        clear_button = _FakeLocatorHandle(raises=True)
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([textarea]),
+                '[data-testid="fake0.clear"]': _FakeLocator([clear_button]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._clear_repeating_value(
+                page, "fake{index}.textarea", "fake{index}.clear", 5, 0
+            )
 
 
 class _FakeImagesPage(FakePage):

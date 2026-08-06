@@ -96,8 +96,16 @@ defeat the point of a partial update — see
 Writing to a slot that is currently empty is refused (`UsageError`) — this
 only edits variants that already exist, it does not add new ones. An empty or
 whitespace-only replacement (`--headline "1="`) is refused for the mirror-image
-reason: blanking a slot would delete a live ad variant, not replace it.
-Deleting a variant and editing variant weights aren't implemented yet.
+reason: blanking a slot would delete a live ad variant, not replace it — use
+`--clear-headline N`/`--clear-text N` (repeatable, 1-based slot number) to
+actually delete a variant instead, which clicks that slot's own clear button.
+A slot number cannot be passed to both a set flag and its clear counterpart
+in the same call, and clearing an already-empty slot is refused too. Adding a
+brand-new variant beyond the page's fixed slot count is not supported —
+Yandex's edit page has no "add another" control. Editing variant *weights*
+isn't supported either, but for a different reason: Мастер кампаний has no
+weight/priority UI for these slots at all (confirmed live), unlike ordinary
+text-campaign ad variants.
 
 `--image "N=/path/to/file.png"` replaces the image currently at position N of
 the campaign's image set with a local PNG/JPEG/GIF file, through the edit
