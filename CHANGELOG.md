@@ -152,6 +152,47 @@ re-reading it from a separate page (goal 236386933 at price 150).
   clicked node's `id="region-node-<RegionId>"` equals the requested RegionId
   and refuses before any save click.
 
+**Fixed — `masters update` could report a target-action removal or an audience save as successful while it had not happened (#756, #752):**
+
+Both are the same class of race: the campaign edit page has no positive
+"this section finished loading" marker, so every guard so far approximated
+completeness with *N consecutive equal reads over a fixed window*. That is a
+probability, not a guarantee — a hydration dip lasting as long as the streak
+defeats it. Two changes, one structural and one a widening:
+
+- **`--remove-target-action`/`--add-target-action` now verify against the
+  full expected row set (#756).** `update_master` snapshots the "Целевые
+  действия" table's goal-id set *before* any mutation, and `_verify_saved`
+  derives the expected post-save set (`before - removed + added`) and
+  requires the observed set to *equal* it. The previous predicate asked two
+  positive-biased questions — "are the added goals present?", "are the
+  removed goals absent?" — and a mid-hydration **empty** snapshot answers the
+  removal half "yes" for free, so on a pure removal `{}` was a full match.
+  That asymmetry is what made every earlier mitigation probabilistic.
+  Comparing the whole set makes an empty or partial read fail **closed**: a
+  structural guarantee for every case where at least one row is expected to
+  survive, independent of how long the dip lasts. A pre-mutation snapshot
+  that cannot be taken (settle timeout) degrades to the previous behaviour
+  rather than aborting the update.
+- **Stability windows widened (#756, #752).** `_TARGET_ACTION_STABLE_STREAK`
+  5→**10** at a 400ms tick (~1.5s → ~4s of agreement, past the ~1-1.5s dip
+  observed live); `_AUDIENCE_TAG_STABLE_STREAK` 5→**12** at a 500ms tick
+  (~2.5s → ~6s, now comfortably past the ~4s worst-case settle time this
+  module's own live recon documents — previously the streak's span was
+  *shorter* than that worst case, so a tag count held at a stale 0 could
+  settle anyway and `update_master` would go straight on to save an empty
+  audience-tag payload over a campaign that actually had tags, silently
+  dropping targeting criteria). Settle timeouts raised to keep room for
+  several streak attempts.
+
+**This widening reduces, but does not mathematically eliminate, the race.**
+Any fixed window can in principle be defeated by a longer dip. It is the
+only defence remaining for the one case the expected-set check cannot
+discriminate — a genuinely *empty* expected final state, where "every row
+removed" and "table hasn't hydrated" are the same observation — and for the
+audience-tag count, which has no equivalent pre-mutation baseline. Finding a
+real positive completeness signal on Yandex's page remains open.
+
 **Fixed — `masters suspend`/`resume` never changed the status, and a batch stopped at the first failing ID (#766, #764):**
 
 - Root cause, confirmed live 2026-08-06 against campaign 713277109: **the

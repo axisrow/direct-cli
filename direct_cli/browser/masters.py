@@ -1147,9 +1147,39 @@ _TARGET_ACTION_WAIT_TIMEOUT_MS = 5_000
 # ``_TARGET_ACTION_STABLE_TICK_MS`` apart, before trusting any read of this
 # table — mirrors ``_wait_for_audience_section``'s tag-count settling
 # (``_AUDIENCE_TAG_STABLE_STREAK``), same class of race, same fix shape.
-_TARGET_ACTION_STABLE_STREAK = 5
-_TARGET_ACTION_STABLE_TICK_MS = 300
-_TARGET_ACTION_SETTLE_TIMEOUT_MS = 10_000
+#
+# Issue #756 (Codex round-3 finding on #750) widened this streak and, more
+# importantly, stopped relying on it alone. Two separate changes:
+#
+# 1. STRUCTURAL (the actual fix): ``update_master`` now snapshots the
+#    table's goal-id set BEFORE any mutation and passes it to
+#    ``_verify_saved``, which derives the FULL expected post-save set
+#    (``before - removed + added``) and requires the observed set to equal
+#    it. A hydration dip reads as ``{}`` (or a partial subset), which no
+#    longer matches a non-empty expected set — so the dip can no longer be
+#    mistaken for "the removal succeeded". The previous predicate only
+#    asked "is the removed goal absent?", which an empty snapshot answers
+#    "yes" to for free; that asymmetry is what made every mitigation so
+#    far a probabilistic streak rather than a guarantee. The one case the
+#    expected set cannot discriminate is a genuinely EMPTY final state
+#    (every row removed, nothing added) — there "expected" and "dip" are
+#    the same observation, and the streak below is still the only defence,
+#    which is exactly why it is also widened.
+#
+# 2. WIDENED WINDOW (mitigation for that residual empty-final-state case):
+#    5 reads x 300ms spanned ~1.5s — the SAME order of magnitude as the
+#    ~1-1.5s dip documented above, i.e. a dip could sit entirely inside
+#    the streak. ``_TARGET_ACTION_STABLE_STREAK`` is now 10 at a 400ms
+#    tick, spanning ~4s of continued agreement — comfortably past the
+#    longest dip observed live, with the settle timeout raised to keep
+#    room for several streak attempts inside it. This lowers the
+#    probability of the race; it does NOT close it mathematically (any
+#    fixed window can be defeated by a longer dip), and the page offers no
+#    positive "table finished loading" marker to replace it with
+#    (re-confirmed live, see issue #756's recon).
+_TARGET_ACTION_STABLE_STREAK = 10
+_TARGET_ACTION_STABLE_TICK_MS = 400
+_TARGET_ACTION_SETTLE_TIMEOUT_MS = 20_000
 
 # "Аудитория" section (issue #681, Этап C, live recon 2026-08-04 against
 # campaign 713277109, ksamatadirect account — see module docstring for the
@@ -1292,8 +1322,23 @@ _AUDIENCE_SECTION_READY_TIMEOUT_MS = 8_000
 # agreement on top of whatever tick first produced that value, which does
 # not by itself guarantee correctness but meaningfully raises the bar
 # above "two ticks of an SPA that hasn't started rendering yet".
-_AUDIENCE_TAG_STABLE_STREAK = 5
-_AUDIENCE_TAG_STABLE_WINDOW_MS = 10_000
+#
+# Issue #752 (R2-1, Codex round-2 finding on #751): 2.5s of agreement is
+# still SHORTER than the ~4s worst-case settle time this module's own live
+# recon documents, so a count held at a stale 0 for 4s could still be
+# accepted as settled — and because ``update_master`` proceeds straight to
+# the whole-form save after this check, a raced read could submit an empty
+# audience-tag payload for a campaign that actually has tags, silently
+# dropping targeting criteria. The streak is therefore raised to 12
+# samples at a 500ms tick: ~6s of continued agreement, comfortably PAST
+# that 4s worst case rather than inside it, with the overall window raised
+# to leave room for several streak attempts. Same caveat as
+# ``_TARGET_ACTION_STABLE_STREAK``: this lowers the probability of the
+# race, it does not eliminate it mathematically — no positive "tag list
+# finished hydrating" marker exists on this page to key off instead.
+_AUDIENCE_TAG_STABLE_STREAK = 12
+_AUDIENCE_TAG_STABLE_TICK_MS = 500
+_AUDIENCE_TAG_STABLE_WINDOW_MS = 20_000
 
 # "Устройства пользователей" (DeviceEditor): a multi-select popup with
 # exactly three checkboxes, confirmed live all pre-checked by default
@@ -3732,9 +3777,11 @@ def _wait_for_audience_section(page: "Page") -> None:
     # started arriving is "stable" by that test too. Live recon showed the
     # race resolving somewhere between 1.5s and 4s after the gender trigger
     # already had data, so this instead requires ``_AUDIENCE_TAG_STABLE_
-    # STREAK`` consecutive equal counts spread across
-    # ``_AUDIENCE_TAG_STABLE_WINDOW_MS`` (comfortably past that observed 4s
-    # settle point) before treating the count as trustworthy.
+    # STREAK`` consecutive equal counts, ``_AUDIENCE_TAG_STABLE_TICK_MS``
+    # apart, before treating the count as trustworthy. Issue #752 (R2-1):
+    # the streak's own span — not just the overall window — has to exceed
+    # that 4s worst case, or a stale count held across it settles anyway;
+    # see the constants' comment for the widened values.
     previous_count: "Optional[int]" = None
     stable_streak = 0
 
@@ -3749,7 +3796,10 @@ def _wait_for_audience_section(page: "Page") -> None:
         return stable_streak >= _AUDIENCE_TAG_STABLE_STREAK
 
     if not _poll_until(
-        page, _tag_count_stable, _AUDIENCE_TAG_STABLE_WINDOW_MS, tick_ms=500
+        page,
+        _tag_count_stable,
+        _AUDIENCE_TAG_STABLE_WINDOW_MS,
+        tick_ms=_AUDIENCE_TAG_STABLE_TICK_MS,
     ):
         raise BrowserSessionError(
             "The 'Интересы и поисковые запросы' tag count never settled "
@@ -5071,6 +5121,7 @@ def _verify_saved(
     target_action_prices: Optional[Dict[int, float]] = None,
     add_target_actions: Optional[Dict[int, float]] = None,
     remove_target_action_goal_ids: Optional[List[int]] = None,
+    target_action_goal_ids_before: Optional[List[int]] = None,
     gender: Optional[str] = None,
     age_from_requested: bool = False,
     age_from: Optional[int] = None,
@@ -5398,18 +5449,47 @@ def _verify_saved(
 
             # Codex adversarial review of this PR (#753), round 2: the
             # settling wait above and this predicate's own read are TWO
-            # separate DOM reads — settling certifying 5 stable ``.count()``
+            # separate DOM reads — settling certifying stable ``.count()``
             # ticks does not certify that THIS predicate's next, independent
             # ``_read_target_actions_or_none`` call lands on the same
             # settled state (reproduced live: a stable pre-dip streak
             # followed by one post-settle empty read was enough to report a
-            # no-op removal as successful). Rather than trust a single
-            # matching read here either, require
-            # ``_TARGET_ACTION_STABLE_STREAK`` CONSECUTIVE matching reads
-            # of the full add/remove snapshot before accepting it — the
-            # same stability bar ``_wait_for_target_actions_settled``
-            # applies to a bare row count, now applied to the actual
-            # verified state.
+            # no-op removal as successful). Round 2's answer was to require
+            # ``_TARGET_ACTION_STABLE_STREAK`` CONSECUTIVE matching reads.
+            #
+            # Issue #756 (round-3 finding): a streak of matching reads is
+            # still only a timed proxy for completeness, and the round-2
+            # predicate made that proxy far weaker than it had to be. It
+            # asked two POSITIVE-BIASED questions — "are the added goals
+            # present?" and "are the removed goals absent?" — and an empty
+            # mid-hydration snapshot answers the removal half "yes" for
+            # free. On a pure removal (no adds), ``{}`` was therefore a
+            # full match, so a hydration dip lasting the streak's own
+            # duration reported the removal as successful without the goal
+            # ever having been removed server-side.
+            #
+            # The fix is to verify against the FULL expected row set
+            # derived from a pre-mutation snapshot
+            # (``target_action_goal_ids_before``): expected = before
+            # - removed + added. An empty or partial dip no longer matches
+            # a non-empty expected set, so verification now fails CLOSED on
+            # the dip instead of open — a structural guarantee for every
+            # case where at least one row is expected to survive, not a
+            # probability. The streak is kept (and widened, see
+            # ``_TARGET_ACTION_STABLE_STREAK``) because it is still the only
+            # defence in the one case the expected set cannot discriminate:
+            # a genuinely EMPTY expected final state, where "every row
+            # removed" and "table hasn't hydrated" are the same observation.
+            #
+            # ``target_action_goal_ids_before`` is optional so callers that
+            # cannot supply a pre-mutation snapshot degrade to exactly the
+            # round-2 behaviour rather than failing.
+            expected_goal_ids: "Optional[Set[int]]" = None
+            if target_action_goal_ids_before is not None:
+                expected_goal_ids = set(target_action_goal_ids_before)
+                expected_goal_ids -= set(remove_target_action_goal_ids or [])
+                expected_goal_ids |= set(add_target_actions or {})
+
             match_streak = 0
 
             def _add_remove_match(
@@ -5426,7 +5506,8 @@ def _verify_saved(
                 removed_ok = not any(
                     goal_id in actual for goal_id in remove_target_action_goal_ids or []
                 )
-                if added_ok and removed_ok:
+                set_ok = expected_goal_ids is None or set(actual) == expected_goal_ids
+                if added_ok and removed_ok and set_ok:
                     match_streak += 1
                 else:
                     match_streak = 0
@@ -5465,6 +5546,23 @@ def _verify_saved(
                             f"remove_target_action[{goal_id}]: still present "
                             "in the 'Целевые действия' table after save"
                         )
+                # Issue #756: the expected-set check is what makes a
+                # mid-hydration dip fail CLOSED, so a set that never
+                # matched must be REPORTED — the two per-goal loops above
+                # only look at the requested goals and would both pass on
+                # a snapshot that is missing rows nobody asked to remove
+                # (exactly what a partial/empty hydration read looks like).
+                if (
+                    expected_goal_ids is not None
+                    and set(actual_after_add_remove) != expected_goal_ids
+                ):
+                    mismatches.append(
+                        "target actions: expected the 'Целевые действия' "
+                        f"table to contain goals {sorted(expected_goal_ids)} "
+                        "after saving, page now shows "
+                        f"{sorted(actual_after_add_remove)} — the table may "
+                        "still be hydrating, or the save did not take effect"
+                    )
 
     mismatches.extend(
         _verify_repeating_value_mismatches(
@@ -5728,6 +5826,28 @@ def update_master(
         _set_goal_price(page, goal_price)
     for goal_id, price in (target_action_prices or {}).items():
         _set_target_action_price(page, goal_id, price)
+    # Issue #756: snapshot the table's goal-id set BEFORE any add/remove so
+    # _verify_saved can derive the FULL expected post-save set rather than
+    # only asking "is the removed goal absent?" — a question a
+    # mid-hydration empty read answers "yes" to for free (see
+    # _verify_saved's own comment for why that asymmetry made every prior
+    # mitigation probabilistic). Settled first, for the same reason the
+    # post-save read is: an unsettled BASELINE would be just as wrong, and
+    # in the more dangerous direction — a baseline read during the dip
+    # would under-count the expected set and hand verification a bar the
+    # real table can never clear (or, on a pure removal, an empty expected
+    # set that a dip matches). A settle timeout leaves the snapshot None,
+    # degrading verification to the previous streak-only behaviour rather
+    # than aborting an update whose mutations are otherwise fine.
+    target_action_goal_ids_before: Optional[List[int]] = None
+    if add_target_actions or remove_target_action_goal_ids:
+        _rows_before = (
+            _read_target_actions_or_none(page)
+            if _wait_for_target_actions_settled(page)
+            else None
+        )
+        if _rows_before is not None:
+            target_action_goal_ids_before = [row["GoalId"] for row in _rows_before]
     for goal_id in remove_target_action_goal_ids or []:
         _remove_target_action(page, goal_id)
     for goal_id, price in (add_target_actions or {}).items():
@@ -5889,6 +6009,7 @@ def update_master(
             target_action_prices=target_action_prices,
             add_target_actions=add_target_actions,
             remove_target_action_goal_ids=remove_target_action_goal_ids,
+            target_action_goal_ids_before=target_action_goal_ids_before,
             gender=gender,
             age_from_requested=age_from_requested,
             age_from=age_from,
