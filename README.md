@@ -191,7 +191,20 @@ Yandex shows **no confirmation dialog** before deleting — the campaign is
 gone the instant the click lands — so this command always asks for its own
 confirmation first: interactively by default, or pass `--yes` to skip the
 prompt non-interactively. Same no-`--sandbox` caveat as suspend/resume
-above.
+above. **The campaigns grid is a virtualized SPA (#639/#671): `delete`
+locates the row's DOM node to click its menu, and a row that isn't
+currently rendered in the grid's viewport is simply absent from the DOM,
+not just off-screen.** `delete` best-effort scrolls the row into view first,
+but that only works on a node that has already resolved — it cannot make an
+unrendered row appear. In practice this reaches the common case (a DRAFT
+just created by `masters add --draft`, which renders near the top of the
+grid), but an older DRAFT buried under many other campaigns may fail with
+"Could not open the campaigns grid row menu" even though `masters list`
+finds it (list reads the grid's paginated JSON data API directly, not the
+DOM, so it always sees every row regardless of scroll position). If that
+happens, scroll the campaigns grid to the row manually in a real browser
+first, or archive/launch other campaigns to shrink the list, then retry.
+Tracked as a follow-up: #791.
 
 `add` creates a brand-new "Конверсии и трафик" Мастер кампаний by driving the
 same create wizard a human uses. **It is NOT idempotent** — running it twice
