@@ -68,7 +68,7 @@ from typing import Optional
 import click
 from click.core import ParameterSource
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ..browser.masters import AGE_FROM_CHOICES as _AGE_FROM_CHOICES
 from ..browser.masters import AGE_TO_CHOICES as _AGE_TO_CHOICES
 from ..browser.masters import DEVICE_OPTION_VALUES as _DEVICE_OPTION_VALUES
@@ -1936,10 +1936,20 @@ def _resolve_region_ids(
     Yandex Direct API credentials), this one lookup does require valid API
     credentials, resolved the same way as any other command: it is only
     reached when the caller actually passes ``--region-id``.
+
+    The lookup is pinned to ``language="ru"`` (issue #775). ``create_client``
+    defaults to ``language="en"``, which resolved 213 to "Moscow" — a name the
+    Russian-language Мастер кампаний region widget cannot match, and one that
+    Yandex's own ``ExactNames`` lookup does not round-trip either.
     """
     if not region_ids:
         return []
-    client = client_from_ctx(ctx, create_client)
+    client = create_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        sandbox=ctx.obj.get("sandbox"),
+        language="ru",
+    )
     body = {
         "method": "getGeoRegions",
         "params": {
@@ -1950,7 +1960,7 @@ def _resolve_region_ids(
     result = client.dictionaries().post(data=body)
     found = {
         item["GeoRegionId"]: item["GeoRegionName"]
-        for item in result.data["result"]["GeoRegions"]
+        for item in (result.data["result"] or {}).get("GeoRegions") or []
     }
     missing = [rid for rid in region_ids if rid not in found]
     if missing:
@@ -1984,11 +1994,35 @@ def _resolve_region_ids(
             },
         }
     )
+    # Yandex omits the `GeoRegions` key entirely (``result == {}``) when
+    # `ExactNames` matches nothing — it does NOT return an empty list. Indexing
+    # the key unconditionally turned every `--region-id` run into a bare
+    # ``KeyError: 'GeoRegions'`` before a browser was ever opened (issue #775).
+    # The `language="ru"` pin above removes the locale-crossed round-trip that
+    # made an empty match the *normal* case, but it does not guarantee every
+    # name round-trips through `ExactNames`, so the shape is still handled.
+    #
+    # A name with no rows is not evidence of uniqueness, so it is not silently
+    # treated as unambiguous: the check is skipped for that name and said so
+    # out loud. `_set_region` still enforces the real safety net downstream by
+    # confirming the clicked node's ``id="region-node-<RegionId>"``.
     name_owners = {}
-    for item in name_check.data["result"]["GeoRegions"]:
+    for item in (name_check.data["result"] or {}).get("GeoRegions") or []:
         name_owners.setdefault(item["GeoRegionName"], set()).add(item["GeoRegionId"])
 
-    ambiguous = sorted({name for name in resolved if len(name_owners[name]) > 1})
+    unchecked = sorted({name for name in resolved if name not in name_owners})
+    if unchecked:
+        print_warning(
+            "Could not pre-check region name uniqueness for: "
+            f"{', '.join(unchecked)} — Yandex's GeoRegions dictionary "
+            "returned no ExactNames match for these names. Proceeding; the "
+            "region selected in the browser is still verified against the "
+            "requested RegionId."
+        )
+
+    ambiguous = sorted(
+        {name for name in resolved if len(name_owners.get(name, ())) > 1}
+    )
     if ambiguous:
         raise click.UsageError(
             "--region-id resolved to ambiguous region name(s): "

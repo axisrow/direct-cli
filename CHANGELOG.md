@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+**Fixed — `masters add --region-id` crashed with a bare `KeyError: 'GeoRegions'` (#775):**
+
+- `_resolve_region_ids`' ambiguity pre-flight (the second `getGeoRegions`
+  call, added by #657) indexed `result["GeoRegions"]` unconditionally.
+  Confirmed live 2026-08-06: Yandex **omits the key entirely** when
+  `ExactNames` matches nothing — `result` comes back as `{}`, not as
+  `{"GeoRegions": []}`. Every `--region-id` run therefore died with
+  `✗ 'GeoRegions'` before a browser was ever opened, making the flag
+  unusable (`--region "Москва"` was the workaround). Both `getGeoRegions`
+  responses are now read defensively, `None` result included.
+- Root cause of the empty match: the `ExactNames` round-trip was
+  **locale-crossed**. `create_client` defaults to `language="en"`, so call 1
+  resolved 213 to `"Moscow"`, and that English name was fed straight back
+  into call 2's `ExactNames`. The lookup is now pinned to `language="ru"` —
+  which is also the name the Russian-language Мастер кампаний region widget
+  has to match downstream, so `en` was wrong for `_set_region` regardless.
+- A name the pre-flight cannot match is **not** silently treated as
+  unambiguous — that would quietly disable #657's safety net. The check is
+  skipped for that name and a warning says so. `_set_region` still enforces
+  the real guarantee in-page by confirming the clicked node's
+  `id="region-node-<RegionId>"` equals the requested RegionId.
+
 **Fixed — `masters suspend`/`resume` never changed the status, and a batch stopped at the first failing ID (#766, #764):**
 
 - Root cause, confirmed live 2026-08-06 against campaign 713277109: **the
