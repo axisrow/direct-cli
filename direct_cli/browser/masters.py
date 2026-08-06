@@ -660,6 +660,34 @@ _GRID_ROW_DELETE_ITEM_SELECTOR = '[data-testid="DeleteCampaignAction"]'
 # commands/masters.py, same as every --yes/prompt elsewhere in this CLI).
 _DELETE_VERIFY_TIMEOUT_MS = 10_000
 
+# Virtual-scroll driver for a row buried outside the grid's initial render
+# window (issue #791, live-confirmed 2026-08-06 against a fresh DRAFT
+# campaign, 713356270, placed below the fold by the grid's default
+# cost-descending sort). scroll_into_view_if_needed() cannot help here — it
+# only acts on an element that has already resolved to a DOM node, and a
+# virtualized row outside the viewport simply is not one yet. Live recon
+# found the grid's actual scroll container is NOT the row's immediate
+# parent (that element reports overflowY: visible) but its own parent one
+# level up — a `[data-testid^="Grid.Row-"]` element's closest ancestor with
+# `overflowY: auto`/`scroll` and `scrollHeight > clientHeight`. That
+# container's own CSS class (confirmed live: `Grid_grid__WNdri
+# dc-Scrollbar ...`) is a CSS-modules hash Yandex's build regenerates on
+# every deploy (same instability class as every other un-testid'd selector
+# this module avoids elsewhere) — so it is located structurally at runtime,
+# never hardcoded.
+#
+# Setting `scrollTop` directly and dispatching a synthetic `scroll` event
+# (confirmed live: no real wheel/touch event needed) triggers the grid's
+# own virtualization to re-render its visible row window. Scrolling by one
+# `clientHeight` per step (not straight to `scrollHeight`) mirrors a real
+# incremental scroll and reliably surfaces a row several pages down within
+# single-digit steps (measured live: 8 steps for a row ~90% down a ~6000px
+# list) — jumping to the very bottom in one step is not needed and would
+# make "did the target row's own position moved between polls" harder to
+# reason about if the grid ever re-sorts under a live filter change.
+_GRID_SCROLL_MAX_STEPS = 40
+_GRID_SCROLL_STEP_DELAY_MS = 150
+
 # DRAFT overview page support (issue #660, live-confirmed 2026-08-04 against
 # campaign 713231614 — see the module docstring's "DRAFT overview page" note).
 # A DRAFT campaign's overview page (WIZARD_OVERVIEW_URL itself, no "/edit/")
@@ -2840,6 +2868,91 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     return updated
 
 
+def _scroll_grid_to_row(page: "Page", campaign_id: int) -> bool:
+    """Drive the campaigns grid's own virtual-scroll container until
+    ``campaign_id``'s row appears in the DOM (issue #791).
+
+    Live-verified end-to-end 2026-08-06 via ``masters delete`` against a
+    fresh DRAFT campaign (713356270) placed outside the grid's initial
+    ~10-row render window by the grid's default cost-descending sort —
+    confirmed absent from the DOM at load, reachable after this function
+    runs, and successfully deleted through the normal trigger-click retry
+    loop below it (no code path change needed there).
+
+    Returns ``True`` once the row is present, ``False`` if it never
+    appeared within ``_GRID_SCROLL_MAX_STEPS`` steps or the container
+    stopped scrolling before that (genuinely virtualized out, or the row
+    does not exist in the grid's current view at all). Never raises on its
+    own — the caller's existing trigger-click retry loop is still the one
+    place that turns "row unreachable" into a raised error, so this is a
+    best-effort nudge exactly like the ``scroll_into_view_if_needed()`` call
+    it runs alongside, just one that can actually reach a row outside the
+    initial render window (see the constants' docstring above for the live
+    recon backing the approach: structural container discovery, direct
+    ``scrollTop`` assignment plus a synthetic ``scroll`` event, one
+    ``clientHeight`` per step).
+    """
+    script = """
+        ([campaignId, maxSteps, stepDelayMs]) => {
+            const rowSelector = `[data-testid="Grid.Row-${campaignId}"]`;
+            const anyRow = document.querySelector('[data-testid^="Grid.Row-"]');
+            if (!anyRow) return false;
+
+            // The scroll container is not the row's immediate parent (that
+            // one is overflow:visible, live-confirmed) -- walk up until an
+            // ancestor is actually scrollable.
+            let container = anyRow.parentElement;
+            while (container) {
+                const style = getComputedStyle(container);
+                const scrollable =
+                    (style.overflowY === "auto" || style.overflowY === "scroll") &&
+                    container.scrollHeight > container.clientHeight;
+                if (scrollable) break;
+                container = container.parentElement;
+            }
+            if (!container) return false;
+
+            return new Promise((resolve) => {
+                let steps = 0;
+                const tick = () => {
+                    if (document.querySelector(rowSelector)) {
+                        resolve(true);
+                        return;
+                    }
+                    if (steps >= maxSteps) {
+                        resolve(false);
+                        return;
+                    }
+                    const before = container.scrollTop;
+                    container.scrollTop = before + container.clientHeight;
+                    container.dispatchEvent(new Event("scroll", {bubbles: true}));
+                    steps += 1;
+                    if (container.scrollTop === before) {
+                        // Reached the end (or never moved) -- one more
+                        // check in case the target rendered on this exact
+                        // frame, then give up.
+                        setTimeout(() => {
+                            resolve(!!document.querySelector(rowSelector));
+                        }, stepDelayMs);
+                        return;
+                    }
+                    setTimeout(tick, stepDelayMs);
+                };
+                tick();
+            });
+        }
+    """
+    try:
+        return bool(
+            page.evaluate(
+                script,
+                [campaign_id, _GRID_SCROLL_MAX_STEPS, _GRID_SCROLL_STEP_DELAY_MS],
+            )
+        )
+    except PlaywrightError:
+        return False
+
+
 def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     """Permanently delete a DRAFT Мастер кампаний via the campaigns grid's
     own row menu (issue #782).
@@ -2909,11 +3022,15 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
 
     # The grid is a virtualized SPA (module docstring, issues #639/#671) --
     # a row outside the currently rendered window is simply absent from the
-    # DOM, not just off-screen. scroll_into_view_if_needed() only works on
-    # an element that already resolved, so this is a best-effort nudge, not
-    # a guarantee the row becomes reachable; a row genuinely virtualized out
-    # still fails the retry loop below with an honest error, not a bare
-    # "Yandex changed the markup" misdiagnosis.
+    # DOM, not just off-screen. _scroll_grid_to_row (issue #791) drives the
+    # grid's own virtual-scroll container until the row actually appears —
+    # unlike scroll_into_view_if_needed() below, which only works on an
+    # element that has already resolved and cannot make an unrendered row
+    # appear on its own. Both are best-effort: a row genuinely unreachable
+    # (removed from the grid's current filter/view entirely) still falls
+    # through to the retry loop below, which raises an honest error rather
+    # than a bare "Yandex changed the markup" misdiagnosis.
+    _scroll_grid_to_row(page, campaign_id)
     with contextlib.suppress(PlaywrightError):
         row.scroll_into_view_if_needed(timeout=_POPUP_APPEAR_TIMEOUT_MS)
 

@@ -663,6 +663,9 @@ class FakePage:
         # could not distinguish a correct role-scoped match from an
         # accidental ancestor-container match).
         self._role_elements = role_elements or []
+        # Callable(arg) -> result for evaluate() -- see evaluate()'s own
+        # docstring (issue #791, _scroll_grid_to_row).
+        self._evaluate_side_effect = None
 
     @property
     def url(self):
@@ -717,6 +720,19 @@ class FakePage:
 
     def eval_on_selector_all(self, selector, expression):
         return []
+
+    def evaluate(self, script, arg=None):
+        # _scroll_grid_to_row (issue #791) is the only caller: a test wires
+        # up ``self._evaluate_side_effect`` (a callable taking the same
+        # ``arg`` this method receives) to model the grid's virtual-scroll
+        # container being found/not-found, or a test overrides this method
+        # entirely for an exception path. Defaults to ``False`` (row never
+        # found) so any test that doesn't care about scroll behaviour gets
+        # the same "no-op, fall through to the existing retry loop" shape
+        # as production code hitting a real page without this call wired.
+        if self._evaluate_side_effect is not None:
+            return self._evaluate_side_effect(arg)
+        return False
 
     def locator(self, selector):
         return self._locators.get(selector, _FakeLocator([]))
@@ -4181,6 +4197,74 @@ class TestMastersArchiveCommand(unittest.TestCase):
         self.assertIn("boom on id 3", result.output)
 
 
+class TestScrollGridToRow(unittest.TestCase):
+    """_scroll_grid_to_row (issue #791): drives the campaigns grid's own
+    virtual-scroll container to make a row outside the initial render
+    window appear in the DOM. Unit-level tests against page.evaluate()
+    directly -- TestDeleteMaster covers the integration (call order,
+    best-effort failure handling) within delete_master itself.
+    """
+
+    CAMPAIGN_ID = 713356270
+
+    def test_returns_true_and_passes_expected_args_when_row_found(self):
+        captured = {}
+
+        def _evaluate(arg):
+            captured["arg"] = arg
+            return True
+
+        page = FakePage()
+        page._evaluate_side_effect = _evaluate
+
+        result = browser_masters._scroll_grid_to_row(page, self.CAMPAIGN_ID)
+
+        self.assertTrue(result)
+        self.assertEqual(
+            captured["arg"],
+            [
+                self.CAMPAIGN_ID,
+                browser_masters._GRID_SCROLL_MAX_STEPS,
+                browser_masters._GRID_SCROLL_STEP_DELAY_MS,
+            ],
+        )
+
+    def test_returns_false_when_row_never_found(self):
+        page = FakePage()
+        page._evaluate_side_effect = lambda arg: False
+
+        result = browser_masters._scroll_grid_to_row(page, self.CAMPAIGN_ID)
+
+        self.assertFalse(result)
+
+    def test_returns_false_instead_of_raising_on_playwright_error(self):
+        # Mirrors every other best-effort browser primitive in this module
+        # (scroll_into_view_if_needed's own try/except) -- a page.evaluate()
+        # failure (detached frame, navigation mid-call, etc.) must not
+        # propagate; the caller's retry loop is still the authority on
+        # success/failure.
+        def _raise(arg):
+            raise browser_masters.PlaywrightError("evaluate failed")
+
+        page = FakePage()
+        page._evaluate_side_effect = _raise
+
+        result = browser_masters._scroll_grid_to_row(page, self.CAMPAIGN_ID)
+
+        self.assertFalse(result)
+
+    def test_coerces_truthy_non_bool_result_to_bool(self):
+        # page.evaluate() over CDP can hand back a JS boolean as a Python
+        # bool already, but defensively coerce anyway rather than trust
+        # the exact type.
+        page = FakePage()
+        page._evaluate_side_effect = lambda arg: 1
+
+        result = browser_masters._scroll_grid_to_row(page, self.CAMPAIGN_ID)
+
+        self.assertIs(result, True)
+
+
 class TestDeleteMaster(unittest.TestCase):
     """delete_master (issue #782): DRAFT-only removal via the campaigns
     grid's own row menu — a SEPARATE menu from the overview page's "⋮"
@@ -4329,6 +4413,90 @@ class TestDeleteMaster(unittest.TestCase):
             browser_masters.delete_master(page, self.CAMPAIGN_ID)
 
         self.assertEqual(len(scroll_calls), 1)
+
+    def test_virtual_scroll_runs_before_scroll_into_view(self):
+        # issue #791: _scroll_grid_to_row must run BEFORE
+        # scroll_into_view_if_needed(), since it's the one that can
+        # actually make a row outside the initial render window exist in
+        # the DOM in the first place -- scroll_into_view_if_needed() alone
+        # cannot.
+        state = {"rows": [self._row("DRAFT")]}
+        call_order = []
+
+        def _remove():
+            state["rows"] = []
+
+        trigger_selector = browser_masters._GRID_ROW_ACTIONS_TRIGGER_SELECTOR
+        row_handle = _FakeLocatorHandle(
+            sub_locators={trigger_selector: _FakeLocatorHandle()}
+        )
+        row_handle.scroll_into_view_if_needed = lambda timeout=None: call_order.append(
+            "scroll_into_view"
+        )
+        page = FakePage(
+            locators={
+                self.ROW_SELECTOR: _FakeLocator([row_handle]),
+                browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._GRID_ROW_DELETE_ITEM_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_remove)]
+                ),
+            }
+        )
+
+        def _virtual_scroll(arg):
+            call_order.append("virtual_scroll")
+            return True
+
+        page._evaluate_side_effect = _virtual_scroll
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": list(state["rows"]),
+        ):
+            browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertEqual(call_order, ["virtual_scroll", "scroll_into_view"])
+
+    def test_virtual_scroll_failure_does_not_abort_delete(self):
+        # _scroll_grid_to_row swallows its own PlaywrightError (mirrors
+        # scroll_into_view_if_needed's existing best-effort contract) --
+        # a row genuinely unreachable must still fall through to the
+        # existing trigger-click retry loop, not raise here.
+        state = {"rows": [self._row("DRAFT")]}
+
+        def _remove():
+            state["rows"] = []
+
+        trigger_selector = browser_masters._GRID_ROW_ACTIONS_TRIGGER_SELECTOR
+        row_handle = _FakeLocatorHandle(
+            sub_locators={trigger_selector: _FakeLocatorHandle()}
+        )
+        page = FakePage(
+            locators={
+                self.ROW_SELECTOR: _FakeLocator([row_handle]),
+                browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._GRID_ROW_DELETE_ITEM_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_remove)]
+                ),
+            }
+        )
+
+        def _raise_evaluate(arg):
+            raise browser_masters.PlaywrightError("evaluate failed")
+
+        page._evaluate_side_effect = _raise_evaluate
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": list(state["rows"]),
+        ):
+            result = browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertEqual(result, {"CampaignId": self.CAMPAIGN_ID, "Deleted": True})
 
     def test_scroll_into_view_failure_does_not_abort_delete(self):
         # A row genuinely absent from the DOM (fully virtualized out) makes

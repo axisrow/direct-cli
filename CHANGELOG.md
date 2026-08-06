@@ -32,19 +32,27 @@ other than DRAFT.
 - Registered `masters.delete` as `DANGEROUS`/manual-only in
   `smoke_matrix.py`, same rationale as `archive`/`suspend`/`resume`: no API
   surface, no `--sandbox` equivalent, irreversible.
-- **Known limitation:** the campaigns grid is a virtualized SPA (#639/#671)
-  — `delete` needs the target row's DOM node to click its menu, and a row
-  outside the grid's currently-rendered viewport is absent from the DOM
-  entirely, not just off-screen. `delete` best-effort scrolls the row into
-  view first, but that can only act on a node that already resolved; it
-  cannot make an unrendered row appear. This reaches the common case (a
-  just-created DRAFT, which renders near the top of the grid) but an older
-  DRAFT buried under many other campaigns may fail with "Could not open the
-  campaigns grid row menu" even though `masters list` finds it fine (`list`
-  reads the grid's paginated JSON API directly, unaffected by scroll
-  position). See README for the workaround. Driving the grid's own
-  virtual-scroll container to the row's server-known offset would close
-  this gap but is out of scope here; tracked as a follow-up (#791).
+
+**`masters delete` now reaches a DRAFT row buried outside the grid's
+initial render window (#791).**
+
+The campaigns grid is a virtualized SPA (#639/#671) — `delete` needs the
+target row's DOM node to click its menu, and a row outside the grid's
+currently-rendered viewport was previously absent from the DOM entirely,
+with no way to make it appear: `scroll_into_view_if_needed()` only acts on
+a node that has already resolved, and cannot make an unrendered one exist.
+
+Live recon found the grid's virtual-scroll container (a `[data-testid^=
+"Grid.Row-"]` element's closest scrollable ancestor — located structurally
+at runtime, never by a hardcoded CSS-modules class, which Yandex's build
+regenerates on every deploy) responds to a directly-assigned `scrollTop`
+plus a synthetic `scroll` event, the same as a real user scroll would.
+`delete_master` now drives this container one `clientHeight` at a time
+until the target row appears, before falling back to the existing
+`scroll_into_view_if_needed()`/trigger-click retry loop unchanged. Live-
+verified end-to-end 2026-08-06: a fresh DRAFT campaign (713356270) placed
+outside the grid's initial ~10-row render window by its default
+cost-descending sort was reached and deleted successfully.
 
 **`masters delete` hardened against a TOCTOU race and transient verify
 errors (#793).**
