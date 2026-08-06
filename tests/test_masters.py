@@ -15112,6 +15112,69 @@ class TestWaitForAudienceSection(unittest.TestCase):
             old_streak_reads + browser_masters._AUDIENCE_TAG_STABLE_STREAK,
         )
 
+    def test_untouched_tag_list_is_verified_after_a_gender_only_save(self):
+        """Issue #752 (R2-1), the second half: a --gender/--age/--device
+        update mutates no tag, but still submits the WHOLE form. If the
+        readiness poll settled on a stale/empty tag count, the save can
+        persist that emptiness and silently drop every targeting tag the
+        campaign had — and nothing used to notice, because verification
+        only ran when a tag add/remove was requested.
+
+        Models the loss by driving the REAL ``_verify_saved`` branch: 112
+        tags went in, the page comes back showing 0, no tag flag was
+        passed. It must report a mismatch (which ``update_master`` turns
+        into a raised error) rather than silently accepting the loss."""
+        tags_before = [f"тег{i}" for i in range(112)]
+        # The page comes back EMPTY — the targeting was dropped.
+        page = _FakeAudienceTagsPage(counts=[0], role_elements=[])
+
+        with (
+            patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
+            patch.object(browser_masters, "_AUDIENCE_SECTION_READY_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                audience_tags_before=tags_before,
+                audience_untouched_but_saved=True,
+            )
+
+        self.assertIn("audience_tags", str(ctx.exception))
+        self.assertIn("touched no tag", str(ctx.exception))
+
+    def test_untouched_tag_list_accepts_an_unchanged_list(self):
+        """The mirror of the test above: when the untouched list comes back
+        intact, the new check must stay silent rather than failing every
+        gender/age/device update. Compared as a MULTISET — the grid has no
+        guaranteed tag ordering, and a reordering is not data loss."""
+        tags_before = ["йога", "фитнес", "бег"]
+        page = _FakeAudienceTagsPage(counts=[3], role_elements=[])
+        # _FakeAudienceTagsPage names its tags by index; match that shape so
+        # the multiset comparison sees an unchanged list.
+        actual = browser_masters._read_audience_tags(page)
+
+        with (
+            patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
+            patch.object(browser_masters, "_AUDIENCE_SECTION_READY_TIMEOUT_MS", 10),
+        ):
+            # Passing the list the page actually shows must NOT raise.
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                audience_tags_before=list(reversed(actual)),
+                audience_untouched_but_saved=True,
+            )
+
+        self.assertEqual(len(actual), 3)
+        self.assertNotEqual(sorted(["йога", "бег"]), sorted(tags_before))
+
     def test_raises_if_gender_trigger_never_shows_a_label(self):
         page = FakePage(locators={})  # no _GENDER_SELECT_TESTID handle at all
 

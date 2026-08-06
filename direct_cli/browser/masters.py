@@ -5131,6 +5131,7 @@ def _verify_saved(
     audience_tags_before: Optional[List[str]] = None,
     add_audience_tags: Optional[List[str]] = None,
     remove_audience_tag_count: int = 0,
+    audience_untouched_but_saved: bool = False,
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
@@ -5314,6 +5315,37 @@ def _verify_saved(
             mismatches.append(
                 f"devices: expected {sorted(devices)}, page now shows "
                 f"{sorted(actual_devices) if actual_devices is not None else None}"
+            )
+
+    if (
+        audience_untouched_but_saved
+        and not add_audience_tags
+        and not remove_audience_tag_count
+    ):
+        # Issue #752 (R2-1): a gender/age/device-only update mutates no tag,
+        # but still submits the whole form — so a readiness poll that
+        # settled on a stale/empty tag count could persist that emptiness
+        # and silently drop the campaign's targeting. Assert the untouched
+        # list came back EXACTLY as it went in. Compared as a multiset
+        # rather than a list: the grid has no guaranteed tag ordering, and
+        # a reordering is not data loss.
+        def _tags_unchanged(actual_tags: List[str], _expected: Any) -> bool:
+            return sorted(actual_tags) == sorted(audience_tags_before or [])
+
+        actual_tags = _read_until_matches(
+            page,
+            _read_audience_tags,
+            None,
+            matches=_tags_unchanged,
+            timeout_ms=_AUDIENCE_SECTION_READY_TIMEOUT_MS * 3,
+        )
+        if not _tags_unchanged(actual_tags, None):
+            mismatches.append(
+                "audience_tags: this update touched no tag, so the list "
+                f"should still hold the {len(audience_tags_before or [])} "
+                f"tag(s) read before saving, but the page now shows "
+                f"{len(actual_tags)} — the save may have persisted a "
+                "still-hydrating (stale or empty) audience-tag payload"
             )
 
     if add_audience_tags or remove_audience_tag_count:
@@ -5912,9 +5944,17 @@ def update_master(
     # post-save count, and _remove_audience_tags below needs it to remove
     # high-to-low without an earlier removal shifting a later requested
     # position.
-    audience_tags_before = (
-        _read_audience_tags(page) if (add_audience_tags or remove_audience_tags) else []
-    )
+    # Issue #752 (R2-1): also snapshotted for a gender/age/device-only
+    # update, which mutates no tag at all. Those updates still submit the
+    # WHOLE form, so if _wait_for_audience_section above settled on a
+    # stale/empty tag count, the save can persist that emptiness and
+    # silently drop every targeting tag the campaign had. Nothing used to
+    # re-check the untouched list afterwards — verification only ran when
+    # a tag add/remove was requested — so that loss was invisible.
+    # Capturing the list here lets _verify_saved assert it came back
+    # UNCHANGED, turning a raced audience save into a reported mismatch
+    # instead of silent data loss.
+    audience_tags_before = _read_audience_tags(page) if _audience_requested else []
     _running_tag_count = len(audience_tags_before)  # noqa: SIM113
     for index in sorted(remove_audience_tags or [], reverse=True):
         if index >= len(audience_tags_before):
@@ -6051,6 +6091,7 @@ def update_master(
             audience_tags_before=audience_tags_before,
             add_audience_tags=add_audience_tags,
             remove_audience_tag_count=len(remove_audience_tags or []),
+            audience_untouched_but_saved=bool(_audience_requested),
             clicked_button_label=clicked_button_label,
         )
     except BrowserAuthError as exc:

@@ -195,6 +195,18 @@ defeats it. Two changes, one structural and one a widening:
   dropping targeting criteria). Settle timeouts raised to keep room for
   several streak attempts.
 
+- **A `--gender`/`--age`/`--device` update now verifies the untouched tag
+  list came back unchanged (#752 R2-1).** Those updates mutate no tag, but
+  still submit the *whole* form — so if the readiness poll settled on a
+  stale/empty tag count, the save could persist that emptiness and silently
+  drop every targeting tag the campaign had. Nothing noticed, because
+  verification only ran when a tag add/remove was requested. The list is now
+  snapshotted before the save and re-checked after it (as a multiset — the
+  grid has no guaranteed tag ordering, and a reordering is not data loss),
+  turning a raced audience save into a reported mismatch. This is a
+  defence-in-depth backstop for the widened window above: if the streak is
+  ever defeated anyway, the loss is now *reported* rather than silent.
+
 **This widening reduces, but does not mathematically eliminate, the race.**
 Any fixed window can in principle be defeated by a longer dip. It is the
 only defence remaining for the one case the expected-set check cannot
