@@ -5537,6 +5537,79 @@ class TestAddTargetAction(unittest.TestCase):
                 "trigger is present immediately",
             )
 
+    def test_names_the_click_bound_when_no_trigger_ever_became_clickable(self):
+        """Bounding the trigger click made "present but not actionable in
+        time" a NEWLY reachable way into the exhausted-retry branch, and the
+        error must say so (issue #779 review round 2).
+
+        Before the bound, that branch was only reachable after Playwright's
+        30s-per-click default, so attributing it to the Metrika counter /
+        promotion goal / changed markup was fair. With a
+        ``_POPUP_APPEAR_TIMEOUT_MS`` bound it is also reachable on a slow
+        render — and this section is documented to hydrate for seconds
+        (``_TARGET_ACTION_SETTLE_TIMEOUT_MS`` is 10s, and
+        ``_wait_for_target_actions_settled`` exists precisely because its
+        reads are unreliable for over a second). Playwright's ``TimeoutError``
+        cannot tell "absent" from "present but not actionable", so the code
+        cannot distinguish them — but the message can name both, instead of
+        sending the user to audit counter setup that is fine.
+        """
+        # Both triggers time out on every attempt — the shape a still-
+        # hydrating page presents.
+        page = FakePage(
+            locators={
+                self._add_button_testid(): _FakeLocator(
+                    [_FakeLocatorHandle(visible=False)]
+                ),
+                self._empty_add_button_testid(): _FakeLocator(
+                    [_FakeLocatorHandle(visible=False)]
+                ),
+                self._option_testid(226158067): _FakeLocator([_FakeLocatorHandle()]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_target_action(page, 226158067, 77)
+
+        message = str(ctx.exception)
+        self.assertIn("226158067", message)
+        self.assertRegex(
+            message,
+            r"(?i)hydrat|clickable|did not become",
+            "the exhausted-retry error never mentions that the 'Добавить' "
+            "trigger may simply not have become clickable within the short "
+            "bound — on a slow page this sends the user to audit a Metrika "
+            "counter that is fine",
+        )
+        # A present-but-unresponsive trigger is NOT a counter/promotion-goal
+        # problem, so the error must not lead with that diagnosis.
+        self.assertNotIn(
+            "max-conversions",
+            message,
+            "a trigger that is present but slow was blamed on the campaign's "
+            "promotion goal / Metrika counter setup",
+        )
+
+    def test_still_blames_the_counter_when_no_trigger_is_on_the_page_at_all(self):
+        """The counter/promotion-goal diagnosis must survive for the case it
+        was written for — a genuinely absent trigger (issue #779 review
+        round 2). The new hydration branch above must not swallow it."""
+        page = FakePage(
+            locators={
+                # Neither trigger registered at all — the section really
+                # isn't there.
+                self._option_testid(226158067): _FakeLocator([_FakeLocatorHandle()]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_target_action(page, 226158067, 77)
+
+        message = str(ctx.exception)
+        self.assertIn("226158067", message)
+        self.assertIn("max-conversions", message)
+        self.assertIn("targetactions get", message)
+
     def test_raises_with_context_when_price_fill_fails_after_add(self):
         add_button = _FakeLocatorHandle()
         option = _FakeLocatorHandle()

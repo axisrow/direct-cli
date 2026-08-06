@@ -68,6 +68,20 @@ never surfaces as a slow test — the same structural blind spot `_clock.py`
 documents for poll deadlines. The tests therefore assert on the `timeout=`
 argument itself.
 
+Bounding that click also made a new failure mode reachable, and the error
+message had to follow (review round 2). "The trigger is present but never
+became clickable in time" now lands in the same exhausted-retry branch as
+"the goal isn't on offer" — and the message blamed the Metrika counter,
+the promotion goal, or changed markup for both. On a slow render (this
+section is documented to hydrate for seconds) that sends the user to audit
+a setup that is fine, the exact opposite of the "precise error over opaque
+timeout" rule this PR exists to uphold. The branch is now split by whether
+any attempt actually got a trigger clicked: if none did, the error names
+the click bound and the hydration race and suggests a re-run; if one did
+and the popup still had no matching option, the counter/promotion-goal
+diagnosis stands, since that one was genuinely observed rather than
+inferred.
+
 `create_master` also gained a **pre-click gate** for the goals, mirroring
 the existing headline/text gate: the table is read back before the terminal
 button is clicked, and a missing row or a price that did not stick aborts

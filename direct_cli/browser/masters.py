@@ -3437,6 +3437,13 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
     option = page.locator(f'[data-testid="{option_testid}"]').first
 
     opened = False
+    # Whether ANY attempt got as far as clicking a trigger (issue #779
+    # review round 2). This is what separates the two ways the retry loop
+    # can be exhausted: never clicking means no trigger was actionable
+    # (absent, or present but too slow for the bound below), whereas
+    # clicking and still seeing no option means the popup opened and the
+    # goal genuinely was not in it — the counter/promotion-goal diagnosis.
+    ever_clicked = False
     last_exc: Optional[Exception] = None
     for _ in range(_TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS):
         # Only ONE of the two triggers exists on any given render, so a
@@ -3457,6 +3464,7 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
                 # the happy path nothing.
                 add_button.click(timeout=_POPUP_APPEAR_TIMEOUT_MS)
                 clicked = True
+                ever_clicked = True
                 break
             except PlaywrightError as exc:
                 last_exc = exc
@@ -3471,6 +3479,41 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
             continue
 
     if not opened:
+        # Which failure this was decides what to tell the user (issue #779
+        # review round 2). Bounding the trigger click made "the trigger IS
+        # there but never became clickable in time" newly reachable here —
+        # this section is documented to hydrate for seconds (see
+        # ``_wait_for_target_actions_settled`` and
+        # ``_TARGET_ACTION_SETTLE_TIMEOUT_MS``), and Playwright's
+        # ``TimeoutError`` cannot tell "absent" from "present but not
+        # actionable". Re-probing with a plain ``count()`` (no auto-wait, so
+        # it cannot itself hang) does distinguish them, and blaming the
+        # Metrika counter for a hydration race would send the user to audit
+        # a setup that is fine — the exact opposite of this module's
+        # "precise error over opaque timeout" rule.
+        trigger_present = False
+        if not ever_clicked:
+            for testid in add_button_testids:
+                try:
+                    if page.locator(f'[data-testid="{testid}"]').count() > 0:
+                        trigger_present = True
+                        break
+                except PlaywrightError:
+                    continue
+
+        if trigger_present:
+            raise BrowserSessionError(
+                "The 'Добавить' target-action trigger is on the page but "
+                f"never became clickable within {_POPUP_APPEAR_TIMEOUT_MS}ms, "
+                f"across {_TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS} attempts, "
+                f"so goal {goal_id} could not be added. The 'Целевые "
+                "действия' section is known to hydrate slowly, so this is "
+                "most likely a still-rendering page rather than a "
+                "configuration problem — re-run, or re-run with --headful "
+                "to watch it. If it persists, the goal may genuinely not be "
+                "on offer (see below)."
+            ) from last_exc
+
         raise BrowserSessionError(
             f"Could not find goal {goal_id} in the 'Добавить' target-action "
             "popup. On the campaign edit page this table only exists when "
@@ -3485,6 +3528,16 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
             "the create page the counter is auto-discovered from the "
             "landing page's domain, so a domain with no Metrika counter "
             "installed offers no goals at all."
+            + (
+                ""
+                if ever_clicked
+                # The popup was never even opened, so "the goal isn't in it"
+                # is an inference, not an observation — say so rather than
+                # asserting a diagnosis the run could not actually make.
+                else " The 'Добавить' trigger was not found on the page "
+                "either, so if the goal setup is correct, the page may not "
+                "have finished hydrating — re-run to rule that out."
+            )
         ) from last_exc
 
     option.click()
