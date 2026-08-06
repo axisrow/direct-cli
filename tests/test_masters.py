@@ -269,6 +269,15 @@ class _FakeLocatorHandle:
         if self._on_upload is not None:
             self._on_upload(path)
 
+    def scroll_into_view_if_needed(self, timeout=None):
+        # Models Locator.scroll_into_view_if_needed() — delete_master
+        # (issue #782 cycle-review follow-up) calls this as a best-effort
+        # nudge against the virtualized campaigns grid, wrapped in its own
+        # try/except, so this only needs to mirror "raises the same way
+        # every other action does when the element never resolved/detached".
+        if self._raises:
+            raise PlaywrightError("element detached")
+
 
 class _DynamicAttrsLocatorHandle(_FakeLocatorHandle):
     """A handle whose ``get_attribute`` reads LIVE state via a callable.
@@ -4245,6 +4254,89 @@ class TestDeleteMaster(unittest.TestCase):
                 browser_masters.delete_master(page, self.CAMPAIGN_ID)
 
         self.assertIn("Could not open the campaigns grid row menu", str(ctx.exception))
+        # cycle-review follow-up (#784): the grid is a virtualized SPA
+        # (module docstring, #639/#671) -- a row absent from the DOM is
+        # indistinguishable, at this call site, from a genuine markup
+        # change, so the error must not claim only the latter.
+        self.assertIn("virtualized SPA", str(ctx.exception))
+
+    def test_row_is_scrolled_into_view_before_opening_menu(self):
+        # cycle-review follow-up (#784, Codex): delete_master is the only
+        # function that clicks a specific campaigns-grid ROW's DOM node,
+        # and the grid is documented as virtualized -- a best-effort
+        # scroll_into_view_if_needed() must run before the trigger click,
+        # not just left to Playwright's own actionability wait.
+        state = {"rows": [self._row("DRAFT")]}
+        scroll_calls = []
+
+        def _remove():
+            state["rows"] = []
+
+        trigger_selector = browser_masters._GRID_ROW_ACTIONS_TRIGGER_SELECTOR
+        row_handle = _FakeLocatorHandle(
+            sub_locators={trigger_selector: _FakeLocatorHandle()}
+        )
+        row_handle.scroll_into_view_if_needed = (
+            lambda timeout=None: scroll_calls.append(timeout)
+        )
+        page = FakePage(
+            locators={
+                self.ROW_SELECTOR: _FakeLocator([row_handle]),
+                browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._GRID_ROW_DELETE_ITEM_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_remove)]
+                ),
+            }
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": list(state["rows"]),
+        ):
+            browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertEqual(len(scroll_calls), 1)
+
+    def test_scroll_into_view_failure_does_not_abort_delete(self):
+        # A row genuinely absent from the DOM (fully virtualized out) makes
+        # scroll_into_view_if_needed() itself raise -- must not propagate
+        # past the best-effort nudge; the existing trigger-click retry loop
+        # is still the one place that decides success/failure.
+        state = {"rows": [self._row("DRAFT")]}
+
+        def _remove():
+            state["rows"] = []
+
+        trigger_selector = browser_masters._GRID_ROW_ACTIONS_TRIGGER_SELECTOR
+        row_handle = _FakeLocatorHandle(
+            sub_locators={trigger_selector: _FakeLocatorHandle()}
+        )
+
+        def _raise_scroll(timeout=None):
+            raise PlaywrightError("element detached")
+
+        row_handle.scroll_into_view_if_needed = _raise_scroll
+        page = FakePage(
+            locators={
+                self.ROW_SELECTOR: _FakeLocator([row_handle]),
+                browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._GRID_ROW_DELETE_ITEM_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_remove)]
+                ),
+            }
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": list(state["rows"]),
+        ):
+            result = browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertEqual(result, {"CampaignId": self.CAMPAIGN_ID, "Deleted": True})
 
     def test_raises_when_delete_item_not_found(self):
         page = self._page_with_row_menu(trigger=_FakeLocatorHandle())

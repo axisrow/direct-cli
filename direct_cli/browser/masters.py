@@ -2772,6 +2772,16 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     trigger = row.locator(_GRID_ROW_ACTIONS_TRIGGER_SELECTOR).first
     popup = page.locator(_GRID_ROW_ACTIONS_POPUP_SELECTOR).first
 
+    # The grid is a virtualized SPA (module docstring, issues #639/#671) --
+    # a row outside the currently rendered window is simply absent from the
+    # DOM, not just off-screen. scroll_into_view_if_needed() only works on
+    # an element that already resolved, so this is a best-effort nudge, not
+    # a guarantee the row becomes reachable; a row genuinely virtualized out
+    # still fails the retry loop below with an honest error, not a bare
+    # "Yandex changed the markup" misdiagnosis.
+    with contextlib.suppress(PlaywrightError):
+        row.scroll_into_view_if_needed(timeout=_POPUP_APPEAR_TIMEOUT_MS)
+
     last_exc: Optional[Exception] = None
     opened = False
     for _ in range(_POPUP_CLICK_MAX_ATTEMPTS):
@@ -2800,7 +2810,10 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         raise BrowserSessionError(
             f"Could not open the campaigns grid row menu for {campaign_id} "
             f"({row_selector!r} / {_GRID_ROW_ACTIONS_TRIGGER_SELECTOR!r}) — "
-            "Yandex may have changed the grid's markup."
+            "either Yandex changed the grid's markup, or this row is not "
+            "currently rendered in the grid's viewport (the grid is a "
+            "virtualized SPA, see module docstring) and needs to be "
+            "scrolled into view manually first."
         ) from last_exc
 
     delete_item = page.locator(_GRID_ROW_DELETE_ITEM_SELECTOR).first
