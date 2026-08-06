@@ -11563,6 +11563,152 @@ class TestVerifyTrackingParamsReloadRetry(unittest.TestCase):
 
         self.assertIn("missing", str(ctx.exception))
 
+    def test_an_unmountable_section_fails_without_burning_the_read_budget(self):
+        # Cycle-review of PR #780: `_wait_for_utm_section` returns False when
+        # the section never mounts, but that verdict was discarded — so the
+        # caller went on to spend the FULL `_read_until_matches` budget
+        # re-reading a field that returns None instantly, ~50s per attempt
+        # (30s wait + 20s read) instead of failing fast on the wait alone.
+        # Driven through `_verify_saved` directly: the WRITE path expands the
+        # same spoiler, so an always-absent trigger would fail there first and
+        # never reach the read budget this test is about.
+        class _NeverMountingSpoiler:
+            @property
+            def first(self):
+                # `_expand_utm_spoiler` resolves `.first` before probing
+                # `.count()`; the handle is never actually used because the
+                # count is 0.
+                return _FakeLocatorHandle()
+
+            def count(self):
+                return 0
+
+        page = self._page([self.NEW])
+        page.goto(browser_masters.WIZARD_EDIT_URL.format(campaign_id=42))
+        page._locators[browser_masters._EDIT_UTM_SPOILER_BUTTON_TESTID] = (
+            _NeverMountingSpoiler()
+        )
+
+        # Counting `_read_until_matches` entries is what actually
+        # discriminates the two code paths. Counting field reads does NOT:
+        # `_read_tracking_params` short-circuits on the same absent spoiler,
+        # so the field locator is untouched whether or not the caller
+        # honours the readability verdict — an assertion on field reads
+        # passes against the unfixed code too.
+        real_read_until = browser_masters._read_until_matches
+        budget_entries = {"n": 0}
+
+        def _counting_read_until(page_, reader, expected, **kwargs):
+            if reader is browser_masters._read_tracking_params:
+                budget_entries["n"] += 1
+            return real_read_until(page_, reader, expected, **kwargs)
+
+        with patch.object(browser_masters, "_read_until_matches", _counting_read_until):
+            with self.assertRaises(browser_masters.BrowserSessionError) as ctx:
+                browser_masters._verify_saved(
+                    page,
+                    42,
+                    weekly_budget=None,
+                    promotion_goal=None,
+                    directs_helps=None,
+                    tracking_params=self.NEW,
+                )
+
+        # Reported as unreadable, not as an empty field (issue #774 point 3).
+        self.assertIn("could not be read", str(ctx.exception))
+        # The unreadable verdict short-circuits: not one read budget is
+        # opened on a field that cannot be mounted.
+        self.assertEqual(budget_entries["n"], 0)
+
+    def test_re_navigation_re_runs_the_audience_hydration_gate(self):
+        # Cycle-review of PR #780: the stale-render reload is page-level, but
+        # the retry loop re-navigated WITHOUT re-running
+        # `_wait_for_audience_section`. Every audience check runs after the
+        # tracking_params block, so on a combined update they then read a
+        # freshly-navigated, still-hydrating section — the exact race #681
+        # added that gate for.
+        # Driven through `_verify_saved` directly rather than
+        # `update_master`, so the fake page needs no device dropdown to
+        # write through — the gate's re-run on re-navigation is the whole
+        # subject here, not the setter.
+        calls = {"gate": 0}
+        page = self._page([self.STALE, self.NEW])
+        # `_verify_saved` navigates itself; `_page` counts post-save loads
+        # from -2 because `update_master` opens the form first.
+        page.goto(browser_masters.WIZARD_EDIT_URL.format(campaign_id=42))
+
+        def _counting_gate(_page):
+            calls["gate"] += 1
+
+        # The devices check itself has no fake dropdown to read and will
+        # therefore report a mismatch; irrelevant here — the subject is
+        # whether the gate ran again after the re-navigation.
+        with patch.object(
+            browser_masters, "_wait_for_audience_section", _counting_gate
+        ):
+            with contextlib.suppress(browser_masters.BrowserSessionError):
+                browser_masters._verify_saved(
+                    page,
+                    42,
+                    weekly_budget=None,
+                    promotion_goal=None,
+                    directs_helps=None,
+                    tracking_params=self.NEW,
+                    devices={"desktop"},
+                )
+
+        # Once for the initial post-save reload, once for the re-navigation.
+        self.assertEqual(calls["gate"], 2)
+
+    def test_the_writer_tolerates_a_late_mounting_spoiler(self):
+        # Cycle-review of PR #780: this PR's central finding is that the
+        # "Дополнительные параметры" section can stay unmounted long after
+        # `_wait_for_edit_form` returns (90s measured live). The READ path
+        # now waits that out; the WRITE path still raised on the first
+        # missing trigger, so the same slow load hard-fails the update with
+        # a "Yandex may have changed the page's markup" message that is
+        # wrong for a transient hydration delay.
+        # Driven straight at `_set_tracking_params`, so the late-mounting
+        # trigger is consumed by the WRITE path alone. Going through
+        # `update_master` would let the verify path's own probes exhaust the
+        # unmounted window first, and the test would pass either way.
+        # Must exceed `_SPOILER_EXPAND_MAX_ATTEMPTS`: `_expand_utm_spoiler`
+        # already retries its own click that many times, so a shorter delay
+        # is absorbed there and the test passes without the outer wait.
+        mounts = {"left": browser_masters._SPOILER_EXPAND_MAX_ATTEMPTS + 2}
+        expanded = {"open": False}
+        field = _FakeContentEditableHandle(text="")
+
+        class _LateMountingHandle(_DynamicAttrsLocatorHandle):
+            # `_expand_utm_spoiler` probes `count()` on the HANDLE, not on
+            # the locator — putting the counter on the locator leaves it
+            # never called and the "late mount" never happens.
+            def count(self):
+                if mounts["left"] > 0:
+                    mounts["left"] -= 1
+                    return 0
+                return 1
+
+        spoiler_handle = _LateMountingHandle(
+            get_attrs=lambda: {
+                "aria-expanded": "true" if expanded["open"] else "false"
+            },
+            on_click=lambda: expanded.__setitem__("open", True),
+        )
+
+        page = FakePage(
+            locators={
+                browser_masters._EDIT_UTM_SPOILER_BUTTON_TESTID: _FakeLocator(
+                    [spoiler_handle]
+                ),
+                browser_masters._EDIT_UTM_INPUT_TESTID: _FakeLocator([field]),
+            }
+        )
+
+        browser_masters._set_tracking_params(page, self.NEW)
+
+        self.assertEqual(field.text_content(), self.NEW)
+
 
 class TestDescribeValueMismatch(unittest.TestCase):
     """``describe_value_mismatch`` — issue #774's readable diff for long
@@ -11651,9 +11797,16 @@ class TestDescribeValueMismatch(unittest.TestCase):
 
         self.assertIn("moved", detail)
         self.assertIn("|kw|", detail)
-        # Nothing silently vanishes: the extra copy is accounted for.
-        self.assertEqual(detail.count("|kw|"), detail.count("|kw|"))
-        self.assertTrue(detail.strip(), detail)
+        # Nothing silently vanishes: the extra copy is accounted for on its
+        # OWN line. The previous assertion here compared `detail.count(...)`
+        # to itself — a tautology that passed while the leftover was in fact
+        # being absorbed, because difflib emits the two adjacent copies as a
+        # single '|kw||kw|' insert that the move-pairing consumed whole.
+        extra_lines = [
+            line for line in detail.splitlines() if line.strip().startswith("- extra")
+        ]
+        self.assertEqual(len(extra_lines), 1, detail)
+        self.assertIn("|kw|", extra_lines[0])
 
     def test_two_distinct_relocations_produce_two_moved_lines(self):
         # The pairing bookkeeping itself: two DISTINCT relocated fragments

@@ -197,6 +197,54 @@ def _save_latency(page, value: str) -> None:
         print(_diff_report(value, last if isinstance(last, str) else None))
 
 
+def _restore_baseline(page, baseline: Optional[str], *, saved: bool) -> None:
+    """Put the campaign back the way it was found.
+
+    The probes below ``--save-latency`` only type into the field, so a plain
+    re-navigation discards them and printing the value is enough. But
+    ``--save-latency`` CLICKS SAVE, committing ``PROBE`` — whose
+    ``{campaign_id}``/``{gbid}``/``{keyword}``/``{ad_id}`` placeholders are
+    never interpolated — to a live campaign. Without an actual write-back
+    that leaves real, malformed tracking params on a production master
+    campaign, recoverable only by a manual ``masters update``. The module
+    docstring promises restoration; this is where it has to happen.
+    """
+    from direct_cli.browser.masters import (
+        _click_save,
+        _is_draft_edit_page,
+        _set_tracking_params,
+    )
+
+    print("\n=== restoring baseline ===")
+    _goto_edit(page)
+    _expand(page)
+    if not saved:
+        # Nothing was committed: the re-navigation above already dropped
+        # every typed-but-unsaved probe value.
+        print(f"  no save was performed; UTMInput now = {_read(page)!r}")
+        return
+    if baseline is None:
+        print(
+            "  WARNING: the baseline could not be read at the start, so the "
+            "saved probe value CANNOT be restored automatically. Fix the "
+            "campaign manually with 'masters update --tracking-params'."
+        )
+        return
+
+    is_draft = _is_draft_edit_page(page)
+    _set_tracking_params(page, baseline)
+    _click_save(page, CAMPAIGN_ID, is_draft=is_draft)
+    _goto_edit(page)
+    _expand(page)
+    restored = _read(page)
+    print(f"  restored UTMInput = {restored!r} (match={restored == baseline})")
+    if restored != baseline:
+        print(
+            "  WARNING: restore did NOT round-trip. The campaign still holds "
+            "a probe value — fix it manually before leaving it."
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--headful", action="store_true")
@@ -226,10 +274,7 @@ def main() -> int:
             if args.save_latency:
                 _save_latency(page, args.value)
         finally:
-            print("\n=== restoring baseline (no save unless --save-latency) ===")
-            _goto_edit(page)
-            _expand(page)
-            print(f"  UTMInput now = {_read(page)!r}")
+            _restore_baseline(page, baseline, saved=args.save_latency)
 
     return 0
 

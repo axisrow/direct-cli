@@ -1337,7 +1337,17 @@ _UTM_SECTION_READY_TIMEOUT_MS = 30_000
 # inside that one page (what ``_read_until_matches``' retry budget does)
 # cannot fix it — the stale value is what that page has; only a genuinely
 # new navigation re-fetches it. Three attempts covers the observed settle
-# time with headroom while bounding a real mismatch at ~15s of extra work.
+# time with headroom.
+#
+# Worst-case cost, spelled out because the naive reading is ~10x off: an
+# attempt is bounded by ``_UTM_SECTION_READY_TIMEOUT_MS`` (30s) plus
+# ``_VERIFY_FIELD_READ_TIMEOUT_MS * 4`` (20s), so three attempts plus two
+# backoffs is ~160s before a genuine mismatch is reported. That ceiling is
+# only reached when the section is slow on EVERY load; the case this
+# constant exists for (a stale render that resolves on the next
+# navigation) costs one backoff. An unmountable section short-circuits the
+# 20s read entirely — see the ``_wait_for_utm_section`` check in
+# ``_verify_saved`` — capping it at ~30s per attempt instead.
 _VERIFY_RELOAD_MAX_ATTEMPTS = 3
 _VERIFY_RELOAD_BACKOFF_MS = 5_000
 
@@ -3105,7 +3115,18 @@ def _set_tracking_params(page: "Page", tracking_params: str) -> None:
     Lazily mounted under the collapsed "Дополнительные параметры" spoiler
     (``_EDIT_UTM_SPOILER_BUTTON_TESTID``), which this function expands
     first. Passing an empty string clears the field.
+
+    Waits the section out before deciding the trigger is missing (issue
+    #769/#774's central finding, applied to the WRITE path): the whole
+    "Дополнительные параметры" section can mount long after
+    ``_wait_for_edit_form`` returns — 90s measured live against campaign
+    713234064. Raising on the first absent trigger would turn that
+    transient hydration delay into a hard "Yandex changed the markup"
+    failure, which is both wrong and unactionable. Only a section that is
+    still unmounted after ``_wait_for_utm_section``'s budget is a real
+    markup problem.
     """
+    _wait_for_utm_section(page)
     if not _expand_utm_spoiler(page):
         raise BrowserSessionError(
             "Could not find the 'Дополнительные параметры' spoiler to "
@@ -4736,9 +4757,11 @@ def describe_value_mismatch(expected: str, actual: "Optional[str]") -> str:
     # equality test misses entirely. Instead a missing segment counts as
     # moved when it appears VERBATIM in ``actual`` at an offset that is not
     # where it was requested; the paired extra is whichever unpaired extra
-    # segment overlaps that occurrence. Each extra is consumed at most once,
-    # so a fragment duplicated on one side only still reports its leftover
-    # copy as extra rather than being silently absorbed into a move.
+    # segment overlaps that occurrence. Only the overlapping SPAN of that
+    # extra is consumed, not the whole segment: difflib merges adjacent
+    # copies into one insert, so a fragment duplicated on one side only
+    # would otherwise have its leftover copy silently absorbed into the
+    # move. The unaccounted-for head/tail goes back on the extra list.
     lines: "List[str]" = []
     unpaired_extra = list(extra)
     unpaired_missing: "List[Tuple[int, str]]" = []
@@ -4769,7 +4792,22 @@ def describe_value_mismatch(expected: str, actual: "Optional[str]") -> str:
         if overlapping is None:
             unpaired_missing.append((pos, segment))
             continue
+        # Consume only the part of the extra that the move accounts for.
+        # The extra difflib emits can be WIDER than the relocated fragment:
+        # two adjacent copies of '|kw|' are emitted as a single
+        # '|kw||kw|' insert, and removing it whole made the second,
+        # unrequested copy vanish from the report — the exact silent
+        # absorption this pairing's contract promises not to do. Put the
+        # unaccounted-for remainder back so it still surfaces as extra.
         unpaired_extra.remove(overlapping)
+        extra_pos, extra_text = overlapping
+        head = extra_text[: max(0, found_at - extra_pos)]
+        tail = extra_text[max(0, found_at - extra_pos) + len(segment) :]
+        if head:
+            unpaired_extra.append((extra_pos, head))
+        if tail:
+            unpaired_extra.append((found_at + len(segment), tail))
+        unpaired_extra.sort()
         lines.append(
             f"    - moved: {segment!r} was requested at position {pos}, "
             f"but the page has it at position {found_at}"
@@ -4958,13 +4996,23 @@ def _verify_saved(
         # a fresh load 6.6s after a verify that had failed this way.
         actual = None
         for _attempt in range(_VERIFY_RELOAD_MAX_ATTEMPTS):
-            _wait_for_utm_section(page)
-            actual = _read_until_matches(
-                page,
-                _read_tracking_params,
-                tracking_params,
-                timeout_ms=_VERIFY_FIELD_READ_TIMEOUT_MS * 4,
-            )
+            # HONOUR the readability verdict rather than discarding it. A
+            # False here means the section never mounted within the wait's
+            # own budget, so every _read_tracking_params call that followed
+            # would return None instantly for the full read budget — 20s of
+            # guaranteed-futile polling per attempt, on top of the 30s
+            # already spent waiting. Falling straight through to the
+            # mismatch report keeps an unmountable section a ~30s-per-
+            # attempt failure instead of a ~50s one.
+            if _wait_for_utm_section(page):
+                actual = _read_until_matches(
+                    page,
+                    _read_tracking_params,
+                    tracking_params,
+                    timeout_ms=_VERIFY_FIELD_READ_TIMEOUT_MS * 4,
+                )
+            else:
+                actual = None
             if actual == tracking_params:
                 break
             if _attempt == _VERIFY_RELOAD_MAX_ATTEMPTS - 1:
@@ -4974,6 +5022,17 @@ def _verify_saved(
             assert_not_captcha(page.content())
             assert_authenticated(page.content())
             _wait_for_edit_form(page, campaign_id)
+            # A stale render is PAGE-level, not field-specific, so this
+            # re-navigation resets the whole form — including the audience
+            # section, whose checks all run BELOW this block. Skipping the
+            # gate here would hand them a freshly-navigated, still-
+            # hydrating section: exactly the race issue #681 added
+            # ``_wait_for_audience_section`` for, where a campaign with 112
+            # tags read back as ``[]``. That misreports as a false success
+            # for tags (a hydrating ``[]`` can match a removal-only
+            # expectation) and a false failure for devices/age bounds.
+            if _audience_touched:
+                _wait_for_audience_section(page)
         if actual != tracking_params:
             mismatches.append(
                 _format_value_mismatch("tracking_params", tracking_params, actual)
