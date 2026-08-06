@@ -220,8 +220,21 @@ def _restore_baseline(page, baseline: Optional[str], *, saved: bool) -> None:
     )
 
     print("\n=== restoring baseline ===")
-    _goto_edit(page)
-    _expand(page)
+    try:
+        _goto_edit(page)
+        _expand(page)
+    except Exception as exc:  # noqa: PIE786 - see the contained-restore note
+        print(
+            f"  ERROR: could not reopen the edit page ({exc!r}). "
+            + (
+                f"The campaign may still hold the probe value; check it "
+                f"manually:\n    direct masters update {CAMPAIGN_ID} "
+                f"--tracking-params {baseline!r}"
+                if saved
+                else "Nothing was saved, so nothing needs restoring."
+            )
+        )
+        return
     if not saved:
         # Nothing was committed: the re-navigation above already dropped
         # every typed-but-unsaved probe value.
@@ -235,19 +248,38 @@ def _restore_baseline(page, baseline: Optional[str], *, saved: bool) -> None:
         )
         return
 
-    # Same #726 hardening as the probe save above — a misclassified DRAFT
-    # here would silently leave the campaign holding the probe value.
-    is_draft = _wait_for_draft_status(page, CAMPAIGN_ID)
-    _set_tracking_params(page, baseline)
-    _click_save(page, CAMPAIGN_ID, is_draft=is_draft)
-    _goto_edit(page)
-    _expand(page)
-    restored = _read(page)
+    # This whole function runs from a `finally`, so an exception escaping it
+    # would REPLACE whatever error the probes raised and abort the restore
+    # midway — the worst possible outcome, since the campaign is holding the
+    # probe value at exactly this point. `_wait_for_draft_status` raises on
+    # timeout (an ARCHIVED campaign renders no terminal save control at
+    # all), and the save path can fail for its own reasons, so every step is
+    # contained and reported instead of propagated.
+    try:
+        # Same #726 hardening as the probe save above — a misclassified
+        # DRAFT here would silently leave the campaign holding the probe.
+        is_draft = _wait_for_draft_status(page, CAMPAIGN_ID)
+        _set_tracking_params(page, baseline)
+        _click_save(page, CAMPAIGN_ID, is_draft=is_draft)
+        _goto_edit(page)
+        _expand(page)
+        restored = _read(page)
+    except Exception as exc:  # noqa: PIE786 - never mask the probe's own error
+        print(
+            f"  ERROR: restore FAILED ({exc!r}). The campaign is still "
+            f"holding the probe value. Fix it manually:\n"
+            f"    direct masters update {CAMPAIGN_ID} "
+            f"--tracking-params {baseline!r}"
+        )
+        return
+
     print(f"  restored UTMInput = {restored!r} (match={restored == baseline})")
     if restored != baseline:
         print(
             "  WARNING: restore did NOT round-trip. The campaign still holds "
-            "a probe value — fix it manually before leaving it."
+            f"a probe value — fix it manually:\n"
+            f"    direct masters update {CAMPAIGN_ID} "
+            f"--tracking-params {baseline!r}"
         )
 
 
