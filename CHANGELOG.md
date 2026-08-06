@@ -16,14 +16,25 @@ counter by its 0-based position via its close button. Testid shapes
 (2026-08-06, campaign 713277109) covering the DOM before and immediately
 after opening the section's editor.
 
-**NOT LIVE-VERIFIED**: unlike the audience-tag flags this mirrors, the
-actual add/remove commit behaviour (whether a click reliably grows/shrinks
-the counter list, whether a save persists it, and what text a caller should
-actually pass — a domain, a numeric counter ID, or something else) has not
-been confirmed against a real Yandex session. See the module comment above
-`_METRIKA_COUNTER_WRAPPER_TESTID` in `direct_cli/browser/masters.py` for
-details. Treat this as an implementation-by-pattern pending a later live
-verification pass, not a confirmed-working feature.
+**`--add-metrika-counter`'s expected text CONFIRMED LIVE** (2026-08-06, via
+`mcp claude-in-chrome` against a real Chrome session — separate from the
+Playwright/Chrome-for-Testing browser this module normally drives): a
+suggestion's accessible text is one line shaped `"{label} • {domain/path}
+• {numeric counter id}"` (e.g. `"Ксамата • yandex.ru/maps • 88834924"`).
+Typing just the label is enough to surface the right suggestion
+interactively, but this flag needs the WHOLE string for the exact-match
+lookup to succeed.
+
+**Still NOT LIVE-VERIFIED**: whether `match.click()` actually commits the
+counter into the list and whether that persists through a save — the recon
+session closed the suggestion popup with Escape and reloaded the edit page
+without saving, specifically to avoid mutating this production campaign's
+counter set. See the `_add_metrika_counter` docstring in
+`direct_cli/browser/masters.py` for details, including a possible
+"leftover text after Escape" gap discovered during the same recon (mirrors
+issue #796's target-action price popup). Treat add/remove itself as an
+implementation-by-pattern pending a later live mutation verification pass,
+not a confirmed-working feature.
 
 **`masters delete` — remove a DRAFT Мастер кампаний campaign (#782).**
 
