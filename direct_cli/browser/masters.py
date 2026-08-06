@@ -2682,9 +2682,9 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     if existing["Status"] == "DRAFT":
         raise BrowserSessionError(
             f"Campaign {campaign_id} is a DRAFT — its overview page has no "
-            '"⋮" menu to archive from (issue #660), and no delete action '
-            "exists for a Мастер кампаний draft anywhere in the UI. Launch "
-            "it first (masters launch) if you want to archive it."
+            '"⋮" menu to archive from (issue #660). Use `masters delete` to '
+            "remove it (issue #782), or launch it first (masters launch) if "
+            "you want to archive it instead."
         )
 
     _goto_overview_page(page, campaign_id)
