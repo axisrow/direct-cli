@@ -4,6 +4,27 @@
 
 ### Added
 
+**`masters update --add-metrika-counter`/`--remove-metrika-counter` —
+"Счетчики Яндекс Метрики" section (#648, Этап C).**
+
+Offline implementation mirroring `--add-audience-tag`/`--remove-audience-tag`
+(#681) field-for-field: `--add-metrika-counter TEXT` types into the
+section's search input and clicks the matching autocomplete suggestion by
+its first line of text; `--remove-metrika-counter POSITION` removes a
+counter by its 0-based position via its close button. Testid shapes
+(`MetrikaCountersTagGroup.*`) were confirmed via live read-only recon
+(2026-08-06, campaign 713277109) covering the DOM before and immediately
+after opening the section's editor.
+
+**NOT LIVE-VERIFIED**: unlike the audience-tag flags this mirrors, the
+actual add/remove commit behaviour (whether a click reliably grows/shrinks
+the counter list, whether a save persists it, and what text a caller should
+actually pass — a domain, a numeric counter ID, or something else) has not
+been confirmed against a real Yandex session. See the module comment above
+`_METRIKA_COUNTER_WRAPPER_TESTID` in `direct_cli/browser/masters.py` for
+details. Treat this as an implementation-by-pattern pending a later live
+verification pass, not a confirmed-working feature.
+
 **`masters delete` — remove a DRAFT Мастер кампаний campaign (#782).**
 
 A DRAFT campaign was previously a one-way door: its overview page has no

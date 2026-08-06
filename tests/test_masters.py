@@ -128,6 +128,7 @@ class _FakeLocatorHandle:
         get_checked=None,
         on_upload=None,
         sub_locators=None,
+        role_options=None,
     ):
         self._text = text
         self._attrs = attrs or {}
@@ -149,10 +150,30 @@ class _FakeLocatorHandle:
         # matched label handle itself, not via a second independent
         # page.locator() call built from the same selector string).
         self._sub_locators = sub_locators or {}
+        # [_FakeLocatorHandle, ...] this handle's own get_by_role() call
+        # enumerates — models Locator.get_by_role() scoped off an
+        # already-matched locator (e.g. ``page.locator(listbox_testid).first
+        # .get_by_role("option")``), used by ``_add_metrika_counter``/
+        # ``_add_audience_tag`` (issue #648/#681) to enumerate an
+        # autocomplete popup's option rows.
+        self._role_options = role_options or []
 
     def locator(self, selector):
         handle = self._sub_locators.get(selector)
         return _FakeLocator([handle] if handle is not None else [])
+
+    def get_by_role(self, role, name=None, exact=False):
+        if name is None:
+            return _FakeGetByTextLocator(list(self._role_options))
+        matched = []
+        for handle in self._role_options:
+            text = handle.inner_text()
+            if exact:
+                if text == name:
+                    matched.append(handle)
+            elif name in text:
+                matched.append(handle)
+        return _FakeGetByTextLocator(matched)
 
     def inner_text(self, timeout=None):
         if self._raises:
@@ -16924,6 +16945,253 @@ class TestMastersAudienceGetCommand(unittest.TestCase):
         mock_fetch.assert_called_once()
         args, _kwargs = mock_fetch.call_args
         self.assertEqual(args[1], 42)
+
+
+class TestReadMetrikaCounters(unittest.TestCase):
+    """``_read_metrika_counters`` (issue #648, Этап C) — mirrors
+    ``_read_audience_tags``, but each "tag" is a whole Metrika counter whose
+    on-page text spans two lines (domain+id, then goal count). NOT
+    LIVE-VERIFIED beyond the DOM shape recon confirmed BEFORE/immediately
+    after opening the editor — see the module comment above
+    ``_METRIKA_COUNTER_WRAPPER_TESTID`` in ``direct_cli/browser/masters.py``.
+    """
+
+    def _tag_testid(self, index):
+        testid = browser_masters._METRIKA_COUNTER_TESTID_TEMPLATE.format(index=index)
+        return f'[data-testid="{testid}"]'
+
+    def test_returns_every_counters_full_two_line_text(self):
+        page = FakePage(
+            locators={
+                browser_masters._METRIKA_COUNTER_WRAPPER_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                self._tag_testid(0): _FakeLocator(
+                    [_FakeLocatorHandle(text="gc.ksamata.ru • 72112213\n30 целей")]
+                ),
+                self._tag_testid(1): _FakeLocator(
+                    [_FakeLocatorHandle(text="example.com • 12345678\n5 целей")]
+                ),
+            }
+        )
+
+        self.assertEqual(
+            browser_masters._read_metrika_counters(page),
+            [
+                "gc.ksamata.ru • 72112213\n30 целей",
+                "example.com • 12345678\n5 целей",
+            ],
+        )
+
+    def test_returns_empty_list_when_wrapper_missing(self):
+        page = FakePage(locators={})
+
+        self.assertEqual(browser_masters._read_metrika_counters(page), [])
+
+    def test_stops_at_first_missing_index(self):
+        page = FakePage(
+            locators={
+                browser_masters._METRIKA_COUNTER_WRAPPER_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                self._tag_testid(0): _FakeLocator(
+                    [_FakeLocatorHandle(text="a.ru • 1\n1 цель")]
+                ),
+                # No entry for index 1 -> .first raises -> loop stops.
+            }
+        )
+
+        self.assertEqual(
+            browser_masters._read_metrika_counters(page), ["a.ru • 1\n1 цель"]
+        )
+
+
+class TestRemoveMetrikaCounter(unittest.TestCase):
+    """``_remove_metrika_counter`` (issue #648) — mirrors
+    ``_remove_audience_tag``'s position-based close-button click."""
+
+    def _close_testid(self, index):
+        testid = browser_masters._METRIKA_COUNTER_CLOSE_TESTID_TEMPLATE.format(
+            index=index
+        )
+        return f'[data-testid="{testid}"]'
+
+    def test_clicks_close_button_at_position(self):
+        clicked = {"count": 0}
+        handle = _FakeLocatorHandle(
+            on_click=lambda: clicked.__setitem__("count", clicked["count"] + 1)
+        )
+        page = FakePage(locators={self._close_testid(1): _FakeLocator([handle])})
+
+        browser_masters._remove_metrika_counter(page, 1)
+
+        self.assertEqual(clicked["count"], 1)
+
+    def test_raises_when_close_button_missing(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._remove_metrika_counter(page, 0)
+
+
+class TestAddMetrikaCounter(unittest.TestCase):
+    """``_add_metrika_counter`` (issue #648) — mirrors ``_add_audience_tag``,
+    but clicks a dedicated launcher button instead of the tags-wrapper
+    itself (see the module comment above ``_METRIKA_COUNTER_WRAPPER_TESTID``
+    for why). NOT LIVE-VERIFIED: recon never exercised typing into the
+    input or clicking a suggestion, so the exact input semantics (what text
+    a caller must pass) remain unconfirmed."""
+
+    def test_raises_when_launcher_missing(self):
+        page = FakePage(locators={})
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._add_metrika_counter(page, "gc.ksamata.ru")
+
+    def test_raises_when_input_missing_after_launcher_click(self):
+        launcher = _FakeLocatorHandle()
+        page = FakePage(
+            locators={
+                browser_masters._METRIKA_COUNTER_LAUNCHER_TESTID: _FakeLocator(
+                    [launcher]
+                ),
+                # No entry for the input testid -> .first raises on click().
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters._add_metrika_counter(page, "gc.ksamata.ru")
+
+    def test_clicks_launcher_then_matching_option_by_first_line(self):
+        launcher_clicks = {"count": 0}
+        launcher = _FakeLocatorHandle(
+            on_click=lambda: launcher_clicks.__setitem__(
+                "count", launcher_clicks["count"] + 1
+            )
+        )
+        field = _FakeLocatorHandle()
+        option_clicked = {"clicked": False}
+        matching_option = _FakeLocatorHandle(
+            text="gc.ksamata.ru • 72112213\n30 целей",
+            on_click=lambda: option_clicked.__setitem__("clicked", True),
+        )
+        other_option = _FakeLocatorHandle(text="other.ru • 999\n1 цель")
+        listbox = _FakeLocatorHandle(role_options=[other_option, matching_option])
+        page = FakePage(
+            locators={
+                browser_masters._METRIKA_COUNTER_LAUNCHER_TESTID: _FakeLocator(
+                    [launcher]
+                ),
+                browser_masters._METRIKA_COUNTER_INPUT_TESTID: _FakeLocator([field]),
+                browser_masters._METRIKA_COUNTER_LISTBOX_TESTID: _FakeLocator(
+                    [listbox]
+                ),
+            }
+        )
+
+        browser_masters._add_metrika_counter(page, "gc.ksamata.ru • 72112213")
+
+        self.assertEqual(launcher_clicks["count"], 1)
+        self.assertTrue(option_clicked["clicked"])
+
+    def test_raises_when_no_suggestion_matches(self):
+        launcher = _FakeLocatorHandle()
+        field = _FakeLocatorHandle()
+        non_matching = _FakeLocatorHandle(text="other.ru • 999\n1 цель")
+        listbox = _FakeLocatorHandle(role_options=[non_matching])
+        page = FakePage(
+            locators={
+                browser_masters._METRIKA_COUNTER_LAUNCHER_TESTID: _FakeLocator(
+                    [launcher]
+                ),
+                browser_masters._METRIKA_COUNTER_INPUT_TESTID: _FakeLocator([field]),
+                browser_masters._METRIKA_COUNTER_LISTBOX_TESTID: _FakeLocator(
+                    [listbox]
+                ),
+            }
+        )
+
+        with (
+            patch.object(browser_masters, "_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError),
+        ):
+            browser_masters._add_metrika_counter(page, "nomatch.ru")
+
+
+class TestParseRemoveMetrikaCounterOptions(unittest.TestCase):
+    """``_parse_remove_metrika_counter_options`` (issue #648) — mirrors
+    ``_parse_remove_audience_tag_options``'s duplicate-position guard."""
+
+    def test_rejects_duplicate_position(self):
+        from direct_cli.commands.masters import _parse_remove_metrika_counter_options
+
+        with self.assertRaises(click.UsageError):
+            _parse_remove_metrika_counter_options((1, 1))
+
+    def test_accepts_distinct_positions_in_order(self):
+        from direct_cli.commands.masters import _parse_remove_metrika_counter_options
+
+        self.assertEqual(_parse_remove_metrika_counter_options((3, 1, 2)), [3, 1, 2])
+
+
+class TestMastersUpdateMetrikaCounterFlags(unittest.TestCase):
+    """CLI wiring for `masters update`'s "Счетчики Яндекс Метрики" flags
+    (issue #648)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_documents_metrika_counter_flags(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--add-metrika-counter", result.output)
+        self.assertIn("--remove-metrika-counter", result.output)
+
+    def test_rejects_duplicate_remove_metrika_counter_position(self):
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "update",
+                "42",
+                "--remove-metrika-counter",
+                "1",
+                "--remove-metrika-counter",
+                "1",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("more than once", result.output.lower())
+
+    def test_passes_add_and_remove_metrika_counters(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--add-metrika-counter",
+                    "gc.ksamata.ru",
+                    "--remove-metrika-counter",
+                    "1",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_update.assert_called_once()
+        _args, kwargs = mock_update.call_args
+        self.assertEqual(kwargs["add_metrika_counters"], ["gc.ksamata.ru"])
+        self.assertEqual(kwargs["remove_metrika_counters"], [1])
+
+    def test_no_fields_still_rejected_with_metrika_counter_flags_absent(self):
+        result = self.runner.invoke(cli, ["masters", "update", "42"])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--add-metrika-counter", result.output)
 
 
 if __name__ == "__main__":

@@ -893,6 +893,22 @@ def _parse_remove_audience_tag_options(values: "tuple[int, ...]") -> "list[int]"
     return list(values)
 
 
+def _parse_remove_metrika_counter_options(values: "tuple[int, ...]") -> "list[int]":
+    """Parse repeated ``--remove-metrika-counter`` CLI values into a list of
+    0-based positions — mirrors ``_parse_remove_audience_tag_options``
+    exactly, for the same "positions resolve against a single pre-mutation
+    snapshot" reason (``update_master``'s ``metrika_counters_before``)."""
+    seen: "set[int]" = set()
+    for position in values:
+        if position in seen:
+            raise click.UsageError(
+                f"--remove-metrika-counter position {position + 1} was "
+                "specified more than once."
+            )
+        seen.add(position)
+    return list(values)
+
+
 def _validate_image_path(raw_path: str, *, option_name: str, context: str) -> None:
     """Reject one image path that doesn't exist or that Yandex won't accept.
 
@@ -1535,6 +1551,35 @@ def audience_get(
     ),
 )
 @click.option(
+    "--add-metrika-counter",
+    "add_metrika_counters",
+    multiple=True,
+    help=(
+        "Add a Yandex Metrika counter to 'Счетчики Яндекс Метрики' — the "
+        "exact text of one of Yandex's own autocomplete suggestions for "
+        "that text (repeat for multiple). NOT LIVE-VERIFIED: the exact "
+        "expected input (a domain, a numeric counter ID, or something "
+        "else) has not been confirmed against a real Yandex session — see "
+        "`direct_cli/browser/masters.py`'s module comment above "
+        "`_METRIKA_COUNTER_WRAPPER_TESTID`. A value with no matching "
+        "suggestion is refused."
+    ),
+)
+@click.option(
+    "--remove-metrika-counter",
+    "remove_metrika_counters",
+    multiple=True,
+    type=int,
+    help=(
+        "Remove a counter from 'Счетчики Яндекс Метрики' by its CURRENT "
+        "0-based position. There is no dedicated read command for this "
+        "section yet — inspect current positions with --headful. Repeat "
+        "for multiple positions; positions refer to the list as it exists "
+        "BEFORE this command runs, not after earlier removals in the same "
+        "call. NOT LIVE-VERIFIED — see --add-metrika-counter's help text."
+    ),
+)
+@click.option(
     "--launch",
     is_flag=True,
     default=False,
@@ -1572,6 +1617,8 @@ def update(
     devices,
     add_audience_tags,
     remove_audience_tags,
+    add_metrika_counters,
+    remove_metrika_counters,
     launch,
     headful,
     profile_dir,
@@ -1639,9 +1686,9 @@ def update(
     rationale. ``--image`` additionally has NO in-place replacement at all
     on Yandex's side — see its own help text and
     ``direct_cli/browser/masters.py::_set_image`` for why the image set's
-    order changes as a result. Later fields (sitelinks, Metrika
-    counters/goals, budget adaptation) and video (a separate follow-up
-    issue) are tracked separately, see issue #648.
+    order changes as a result. Later fields (sitelinks, budget adaptation)
+    and video (a separate follow-up issue) are tracked separately, see
+    issue #648.
 
     ``--clear-headline``/``--clear-text`` (issue #786) DELETE an existing
     headline/ad-text variant by its 1-based slot number, the counterpart
@@ -1665,6 +1712,18 @@ def update(
     Yandex's own autocomplete suggestions — Yandex decides whether it
     resolves to a search-term keyword or an interest category, and a tag
     with no matching suggestion is refused rather than added as free text.
+
+    ``--add-metrika-counter``/``--remove-metrika-counter`` (issue #648)
+    cover the "Счетчики Яндекс Метрики" section, mirroring
+    ``--add-audience-tag``/``--remove-audience-tag`` above field-for-field:
+    a value must be the exact text of one of Yandex's own autocomplete
+    suggestions, and ``--remove-metrika-counter`` takes 0-based positions
+    into the counter list as it exists BEFORE this command runs. NOT
+    LIVE-VERIFIED — this is an offline implementation following the
+    audience-tags pattern; see ``--add-metrika-counter``'s own help text
+    and ``direct_cli/browser/masters.py``'s module comment above
+    ``_METRIKA_COUNTER_WRAPPER_TESTID`` for what specifically remains
+    unconfirmed.
 
     A DRAFT campaign's edit page has no "Сохранить кампанию" button at all —
     only a save-as-draft/launch pair (issue #668). ``update`` saves it as a
@@ -1697,6 +1756,8 @@ def update(
         and not devices
         and not add_audience_tags
         and not remove_audience_tags
+        and not add_metrika_counters
+        and not remove_metrika_counters
     ):
         raise click.UsageError(
             "Provide at least one of --weekly-budget, --promotion-goal, "
@@ -1704,7 +1765,8 @@ def update(
             "--remove-target-action, --directs-helps/--no-directs-helps, "
             "--name, --landing-url, --tracking-params, --headline, --text, "
             "--clear-headline, --clear-text, --image, --gender, --age-from, "
-            "--age-to, --device, --add-audience-tag, --remove-audience-tag."
+            "--age-to, --device, --add-audience-tag, --remove-audience-tag, "
+            "--add-metrika-counter, --remove-metrika-counter."
         )
 
     if goal_price is not None and promotion_goal == "max-conversions":
@@ -1804,6 +1866,9 @@ def update(
     parsed_remove_audience_tags = _parse_remove_audience_tag_options(
         remove_audience_tags
     )
+    parsed_remove_metrika_counters = _parse_remove_metrika_counter_options(
+        remove_metrika_counters
+    )
 
     result = _with_session(
         ctx,
@@ -1836,6 +1901,8 @@ def update(
             devices=set(devices) if devices else None,
             add_audience_tags=list(add_audience_tags) or None,
             remove_audience_tags=parsed_remove_audience_tags or None,
+            add_metrika_counters=list(add_metrika_counters) or None,
+            remove_metrika_counters=parsed_remove_metrika_counters or None,
             launch=launch,
         ),
     )
