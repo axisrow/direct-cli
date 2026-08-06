@@ -11539,6 +11539,45 @@ class TestClearRepeatingValue(unittest.TestCase):
 
         self.assertEqual(textarea.inner_text(), "")
 
+    def test_raises_browser_session_error_when_commit_check_read_detaches(self):
+        # cycle-review (Codex, round 2 of this PR): the post-click
+        # commit-check reads must be guarded exactly like the initial
+        # pre-click read — a transient DOM detach mid-poll (Yandex
+        # re-rendering the slot row after the `.clear` handler runs) must
+        # surface this function's own BrowserSessionError, not a raw
+        # PlaywrightError traceback out of the mechanism meant to make a
+        # non-committing click legible.
+        textarea = _FakeLocatorHandle(text="Старый заголовок")
+        clear_button = _FakeLocatorHandle(on_click=lambda: None)
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([textarea]),
+                '[data-testid="fake0.clear"]': _FakeLocator([clear_button]),
+            }
+        )
+
+        # The FIRST call is the pre-click "is it already empty?" read
+        # (must still succeed with the original value, exactly as every
+        # other test in this class exercises). Only calls AFTER that —
+        # the post-click commit-check reads — must detach, isolating the
+        # gap to the unguarded code path this test targets.
+        call_count = [0]
+
+        def _detaches_after_first_read(timeout=None):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return "Старый заголовок"
+            raise PlaywrightError("element detached mid-poll")
+
+        textarea.inner_text = _detaches_after_first_read
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._clear_repeating_value(
+                page, "fake{index}.textarea", "fake{index}.clear", 5, 0
+            )
+
+        self.assertNotIsInstance(ctx.exception, PlaywrightError)
+
 
 class _FakeImagesPage(FakePage):
     """Models the image set + image manager modal (issue #670, Этап D).

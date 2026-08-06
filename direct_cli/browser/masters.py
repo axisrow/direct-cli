@@ -7387,11 +7387,29 @@ def _clear_repeating_value(
     # caught HERE, before the caller ever gets to save — not only after,
     # via the post-save `_verify_repeating_value_mismatches` re-read (found
     # by cycle-review, Codex, on this PR).
+    def _read_current() -> str:
+        # Same PlaywrightError -> BrowserSessionError conversion as the
+        # initial read above — unguarded here too (cycle-review finding,
+        # Codex, round 2 of this PR): the `.clear` click can trigger
+        # Yandex to re-render the slot row, and a transient detach mid-poll
+        # must surface this function's documented error, not a raw
+        # PlaywrightError traceback out of the exact mechanism meant to
+        # make a non-committing click legible.
+        try:
+            return textarea.inner_text()
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                f"Could not re-read slot {index + 1} at "
+                f"{textarea_selector!r} while confirming the clear "
+                "committed — Yandex may have changed the page's markup. "
+                "Re-run with --headful to inspect the page."
+            ) from exc
+
     deadline = _clock.now() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
-    current = textarea.inner_text()
+    current = _read_current()
     while current and _clock.now() < deadline:
         page.wait_for_timeout(250)
-        current = textarea.inner_text()
+        current = _read_current()
     if current:
         raise BrowserSessionError(
             f"Clicked the clear button for slot {index + 1} at "
