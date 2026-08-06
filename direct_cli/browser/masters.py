@@ -7430,13 +7430,52 @@ def _wait_for_created_campaign_id(page: "Page", *, button_label: str) -> int:
     )
 
 
-def _verify_created(
+def _read_created_form_mismatches(
     page: "Page",
-    campaign_id: int,
     *,
     headlines: List[str],
     texts: List[str],
     weekly_budget: Optional[int],
+) -> List[str]:
+    """Re-read the create form's fields while that form still exists.
+
+    Split out of ``_verify_created`` (cycle-review of issue #744) because
+    WHEN this runs is load-bearing. ``create_master`` calls it between
+    ``_click_terminal_button`` and ``_wait_for_created_campaign_id`` — the
+    only window in which the create form is both post-click (so Yandex's own
+    validation has had its say) and still rendered.
+
+    Reading these fields after the redirect instead would report every
+    successful launch as a failure: the campaign lands on the stats
+    dashboard, which renders no wizard slots and no budget input, and
+    ``_read_repeating_values`` degrades an absent slot to ``""`` rather than
+    raising — so each requested headline/text "goes missing" and a requested
+    budget reads back as ``None``.
+    """
+    mismatches = _repeating_values_mismatches(page, headlines=headlines, texts=texts)
+
+    if weekly_budget is not None:
+        field = page.locator(_WEEKLY_BUDGET_INPUT_XPATH).first
+        try:
+            raw = field.input_value()
+        except PlaywrightError:
+            raw = ""
+        digits = "".join(ch for ch in raw if ch.isdigit())
+        actual_budget = int(digits) if digits else None
+        if actual_budget != weekly_budget:
+            mismatches.append(
+                f"weekly_budget: expected {weekly_budget}, page now shows "
+                f"{actual_budget!r}"
+            )
+
+    return mismatches
+
+
+def _verify_created(
+    page: "Page",
+    campaign_id: int,
+    *,
+    form_mismatches: List[str],
     regions: "Optional[Sequence[Union[str, Tuple[str, Optional[int]]]]]" = None,
 ) -> None:
     """Confirm the fields this module actually set are still present after the
@@ -7449,14 +7488,24 @@ def _verify_created(
 
     Two checks with deliberately different strengths (issue #744):
 
-    * headlines/texts/budget are re-read from the CURRENT page, immediately
-      after the click and BEFORE any navigation. This is the weaker,
-      no-reload check, and it stays that way on purpose: it is the backstop
-      for divergences that appear as a side effect of the click itself
-      (e.g. Yandex's own post-click validation reverting a field), which is
-      exactly the state a reload would discard. ``create_master`` also runs
+    * headlines/texts/budget are re-read from the create form while it still
+      EXISTS — see ``_read_created_form_mismatches``, which ``create_master``
+      calls between the click and the redirect wait, passing the result in as
+      ``form_mismatches``. This is the weaker, no-reload check, and it stays
+      that way on purpose: it is the backstop for divergences that appear as
+      a side effect of the click itself (e.g. Yandex's own post-click
+      validation reverting a field), which is exactly the state a reload
+      would discard. ``create_master`` also runs
       ``_repeating_values_mismatches`` BEFORE the click, catching every
       divergence that already existed at click time (see that function).
+
+      It must NOT be read here, after the redirect: a launched campaign
+      lands on the stats dashboard, which renders no wizard slots and no
+      budget input at all (only a DRAFT overview re-renders the form, issue
+      #660), and ``_read_repeating_values`` maps an absent slot to ``""``
+      rather than raising — so reading it there turns every successful
+      launch into a false "did not take effect" failure (cycle-review of
+      this issue).
     * ``regions``, when given, is verified the way ``_verify_saved`` does it:
       re-navigate to a genuinely fresh page load and re-read. This was
       impossible until issue #744's live pass confirmed the post-click
@@ -7481,26 +7530,12 @@ def _verify_created(
     targeting detail already visible in the same widget the caller chose it
     from.
     """
-    mismatches = _repeating_values_mismatches(page, headlines=headlines, texts=texts)
-
-    if weekly_budget is not None:
-        field = page.locator(_WEEKLY_BUDGET_INPUT_XPATH).first
-        try:
-            raw = field.input_value()
-        except PlaywrightError:
-            raw = ""
-        digits = "".join(ch for ch in raw if ch.isdigit())
-        actual_budget = int(digits) if digits else None
-        if actual_budget != weekly_budget:
-            mismatches.append(
-                f"weekly_budget: expected {weekly_budget}, page now shows "
-                f"{actual_budget!r}"
-            )
+    mismatches = list(form_mismatches)
 
     if regions:
-        # Every read above is against the pre-navigation page; do the reload
-        # only once those are done, so a real reload cannot discard the
-        # post-click state they exist to inspect.
+        # The form reads were already taken by _read_created_form_mismatches
+        # against the pre-redirect page, so the reload below cannot discard
+        # the post-click state they exist to inspect.
         expected_regions = [
             region[0] if isinstance(region, tuple) else region for region in regions
         ]
@@ -7657,14 +7692,24 @@ def create_master(
     button_label = _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
     _click_terminal_button(page, button_label)
 
+    # Read the form's own fields BEFORE waiting for the redirect: that wait
+    # blocks until Yandex has navigated away, and the page it lands on does
+    # not render these fields at all (cycle-review of issue #744 — see
+    # _read_created_form_mismatches). Reported only after the campaign id is
+    # known, so the error can name the campaign that now exists.
+    form_mismatches = _read_created_form_mismatches(
+        page,
+        headlines=headlines,
+        texts=texts,
+        weekly_budget=weekly_budget,
+    )
+
     campaign_id = _wait_for_created_campaign_id(page, button_label=button_label)
 
     _verify_created(
         page,
         campaign_id,
-        headlines=headlines,
-        texts=texts,
-        weekly_budget=weekly_budget,
+        form_mismatches=form_mismatches,
         regions=regions,
     )
 

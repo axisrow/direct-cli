@@ -45,6 +45,18 @@
   (selecting a region can pull in implied parent/child nodes), and a click
   that never redirects now raises — naming the campaign that may already
   exist — instead of reporting success without an ID.
+- The headline/text/budget read-back moved into its own
+  `_read_created_form_mismatches`, called BETWEEN the terminal click and
+  the redirect wait. Waiting for the redirect first would have read those
+  fields off the page the campaign lands on — the stats dashboard, which
+  renders no wizard slots and no budget input (only a DRAFT overview
+  re-renders the form, #660) — and `_read_repeating_values` degrades an
+  absent slot to `""` rather than raising, so every successful `--launch`
+  would have been reported as "did not take effect as requested" on a
+  campaign that was in fact created and live. Found in this issue's
+  cycle-review; `FakePage` now models a navigation replacing the DOM
+  (`locators_after_navigation`), which is what the earlier fake could not
+  express — it kept serving the create form's fields after the redirect.
 
 **Fixed — `masters get` returned the URL of a Yandex promo banner instead of the campaign's landing page (#763):**
 
