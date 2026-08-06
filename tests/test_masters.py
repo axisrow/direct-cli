@@ -8596,6 +8596,52 @@ class TestUpdateMaster(unittest.TestCase):
             )
         self.assertIn("landing_url", str(ctx.exception))
 
+    def test_a_stale_landing_url_reload_is_recovered_by_re_navigating(self):
+        # Issue #790: live-reproduced 15/15 against real Мастер кампаний —
+        # `masters update --landing-url` on a URL whose CURRENT value already
+        # carries a query string reported a mismatch (the old query tail
+        # showing as "extra") even though the save genuinely took effect. The
+        # immediate post-save reload served a stale render (same class of
+        # race as #769/#774's tracking_params staleness, confirmed PAGE-level
+        # not field-specific); a fresh navigation moments later showed the
+        # correct new value. `_verify_saved` must re-navigate on a
+        # `landing_url` mismatch instead of only re-polling the same stale
+        # page — this must succeed, not raise.
+        original_value = "https://lp.example.ru/old?utm_source=old"
+        new_value = "https://lp.example.ru/new?utm_source=new"
+
+        class _RecoversOnReNavigationHandle(_FakeContentEditableHandle):
+            def text_content(self):
+                # The first post-save reload (one goto beyond the initial
+                # edit-page open) is stale; the second goto (the re-
+                # navigation retry) sees the real, saved value.
+                if len(page.navigated_to) > 2:
+                    return new_value
+                if len(page.navigated_to) > 1:
+                    return original_value
+                return super().text_content()
+
+        url_handle = _RecoversOnReNavigationHandle(text=original_value)
+        clear_handle = _FakeLocatorHandle()
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        page = FakePage(
+            locators={
+                browser_masters._EDIT_URL_INPUT_TESTID: _FakeLocator([url_handle]),
+                browser_masters._EDIT_URL_CLEAR_BUTTON_TESTID: _FakeLocator(
+                    [clear_handle]
+                ),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(page, 42, landing_url=new_value)
+
+        self.assertEqual(result["LandingUrl"], new_value)
+
     def test_updates_name_together_with_weekly_budget(self):
         budget_state = {}
         name_state = {}

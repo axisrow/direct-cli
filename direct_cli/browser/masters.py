@@ -5506,9 +5506,38 @@ def _verify_saved(
         return found
 
     mismatches = _run_checks()
-    # Set when the tracking_params block below re-navigates, so these checks
-    # can be re-run against the page that navigation actually fetched.
+    # Set when either re-navigation block below fires, so later per-section
+    # checks (tracking_params/audience/etc.) can tell a fresh load happened.
     _re_navigated = False
+
+    if mismatches:
+        # RE-NAVIGATE on a mismatch in any of ``checks``, not just re-poll
+        # the same page (issue #790, same staleness class as #769/#774's
+        # tracking_params fix below): a stale render served by the post-save
+        # reload above is PAGE-level, not field-specific (see the
+        # tracking_params block's own docstring note a few lines down) — a
+        # ``landing_url``-only ``update_master`` call has no tracking_params
+        # branch to fall through into, so without this its own mismatch from
+        # a stale first load was never retried and was reported as a false
+        # "did not save" even though the value was confirmed present via a
+        # later fresh load (confirmed live, issue #790: the edit page showed
+        # the OLD query string on the immediate post-save reload, but a
+        # fresh navigation moments later showed the correct new value).
+        # ``_read_until_matches`` cannot see past this on its own — it only
+        # re-polls the same DOM the (possibly stale) navigation produced;
+        # only a genuinely new ``page.goto`` re-fetches it.
+        for _attempt in range(_VERIFY_RELOAD_MAX_ATTEMPTS - 1):
+            page.wait_for_timeout(_VERIFY_RELOAD_BACKOFF_MS)
+            page.goto(url, wait_until="commit")
+            assert_not_captcha(page.content())
+            assert_authenticated(page.content())
+            _wait_for_edit_form(page, campaign_id)
+            _re_navigated = True
+            if _audience_touched:
+                _wait_for_audience_section(page)
+            mismatches = _run_checks()
+            if not mismatches:
+                break
 
     if tracking_params is not None:
         # Wait for the section to be READABLE before judging it (issue
