@@ -56,6 +56,11 @@ non-critical campaign, confirming before/after state in the web UI):
     silently refuses a campaign with no conversion goal. Note a --draft
     created this way cannot be archived (issue #660) but can be removed
     via `masters delete`, see issue #782)
+  - direct masters copy <campaign_id> [--launch/--draft]
+    (clones an existing campaign via the overview page's "..." menu, issue
+    #659 -- NOT idempotent, a second run creates a second copy, not an
+    update. Verify with --draft first, then delete/archive the test copy
+    by hand after checking it in the web UI.)
 
 Interactive human-in-the-loop login (opens a visible browser window and
 blocks waiting for a person to sign in -- cannot run unattended):
