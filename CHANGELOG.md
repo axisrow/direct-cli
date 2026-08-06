@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+**Fixed — `masters add --region-id` crashed with a bare `KeyError: 'GeoRegions'` (#775):**
+
+- `_resolve_region_ids`' ambiguity pre-flight (the second `getGeoRegions`
+  call, added by #657) indexed `result["GeoRegions"]` unconditionally.
+  Confirmed live 2026-08-06: Yandex **omits the key entirely** when
+  `ExactNames` matches nothing — `result` comes back as `{}`, not as
+  `{"GeoRegions": []}`. Every `--region-id` run therefore died with
+  `✗ 'GeoRegions'` before a browser was ever opened, making the flag
+  unusable (`--region "Москва"` was the workaround). Both `getGeoRegions`
+  responses are now read defensively, `None` result included.
+- Root cause of the empty match: the `ExactNames` round-trip was
+  **locale-crossed**. The lookup went through `client_from_ctx`, which
+  passes no `language` at all, and the vendored client omits the
+  `Accept-Language` header entirely when it is `None` — so the locale was
+  left to Yandex, which answered in English. Call 1 resolved 213 to
+  `"Moscow"`, and that English name was fed straight back into call 2's
+  `ExactNames`. The lookup is now pinned to `language="ru"` — which is also
+  the name the Russian-language Мастер кампаний region widget has to match
+  downstream, so an unpinned locale was wrong for `_set_region` regardless.
+- The ambiguity pre-flight now selects on **`Name`** (substring search)
+  instead of `ExactNames`. Confirmed live: `ExactNames` returns **no rows at
+  all**, for any spelling, even for a region that demonstrably exists —
+  `ExactNames["Москва"]` yields `result == {}` while `RegionIds[213]`
+  resolves to exactly that name. Built on `ExactNames`, the check could
+  therefore never fire; it was dead code. `Name` does return rows and does
+  surface real ambiguity (measured: 97 distinct RegionIds named "Сосновка"),
+  and exact matches are filtered from its substring hits client-side so that
+  "Новая Москва" cannot make "Москва" look ambiguous.
+- A name with no rows is **not** reported. `Name` legitimately returns
+  nothing for top-level regions (live: `Name="Москва"` matches only "Новая
+  Москва"/"Менеуз-Москва", never Москва itself), so warning there would fire
+  on the most common `--region-id` values and train the user to ignore it.
+  The real guarantee is downstream regardless: `_set_region` confirms the
+  clicked node's `id="region-node-<RegionId>"` equals the requested RegionId
+  and refuses before any save click.
+
 **Fixed — `masters suspend`/`resume` never changed the status, and a batch stopped at the first failing ID (#766, #764):**
 
 - Root cause, confirmed live 2026-08-06 against campaign 713277109: **the

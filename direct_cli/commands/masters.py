@@ -68,7 +68,7 @@ from typing import Optional
 import click
 from click.core import ParameterSource
 
-from ..api import client_from_ctx, create_client
+from ..api import create_client
 from ..browser.masters import AGE_FROM_CHOICES as _AGE_FROM_CHOICES
 from ..browser.masters import AGE_TO_CHOICES as _AGE_TO_CHOICES
 from ..browser.masters import DEVICE_OPTION_VALUES as _DEVICE_OPTION_VALUES
@@ -1936,10 +1936,24 @@ def _resolve_region_ids(
     Yandex Direct API credentials), this one lookup does require valid API
     credentials, resolved the same way as any other command: it is only
     reached when the caller actually passes ``--region-id``.
+
+    The lookup is pinned to ``language="ru"`` (issue #775). It used to go
+    through ``client_from_ctx``, which passes no ``language`` at all — and
+    the vendored client omits the ``Accept-Language`` header entirely when
+    it is ``None`` (``_vendor/tapi_yandex_direct/tapi_yandex_direct.py``),
+    leaving the locale to Yandex. In practice Yandex answered in English,
+    resolving 213 to "Moscow" — a name the Russian-language Мастер кампаний
+    region widget cannot match, and one Yandex's own ``ExactNames`` lookup
+    does not round-trip either.
     """
     if not region_ids:
         return []
-    client = client_from_ctx(ctx, create_client)
+    client = create_client(
+        token=ctx.obj.get("token"),
+        login=ctx.obj.get("login"),
+        sandbox=ctx.obj.get("sandbox"),
+        language="ru",
+    )
     body = {
         "method": "getGeoRegions",
         "params": {
@@ -1950,7 +1964,7 @@ def _resolve_region_ids(
     result = client.dictionaries().post(data=body)
     found = {
         item["GeoRegionId"]: item["GeoRegionName"]
-        for item in result.data["result"]["GeoRegions"]
+        for item in (result.data["result"] or {}).get("GeoRegions") or []
     }
     missing = [rid for rid in region_ids if rid not in found]
     if missing:
@@ -1970,25 +1984,53 @@ def _resolve_region_ids(
     # clear API-level error before a browser is even opened, rather than
     # deferring to `_set_region`'s harder-to-diagnose in-page identity
     # mismatch. Look up every GeoRegions entry sharing one of the resolved
-    # names (SelectionCriteria is mandatory per the WSDL —
-    # GetGeoRegionsRequest.SelectionCriteria has minOccurs=1 — so ExactNames
-    # must be supplied) and refuse rather than guess if any name has more
-    # than one distinct owning RegionId.
+    # names and refuse rather than guess if any name has more than one
+    # distinct owning RegionId.
+    #
+    # The criterion is `Name` (substring search), NOT `ExactNames`. Confirmed
+    # live 2026-08-06 (issue #775): `ExactNames` returns **no rows at all**,
+    # for any spelling, even for a region that demonstrably exists —
+    # `ExactNames["Москва"]` yields `result == {}` while `RegionIds[213]`
+    # resolves to exactly that name. Built on `ExactNames`, this pre-flight
+    # could therefore never fire: every name looked "unchecked", so the
+    # check was dead code that only produced a warning on every ordinary run.
+    # `Name` does return rows and does surface real ambiguity (measured: 97
+    # distinct RegionIds named "Сосновка"), so exact matches are filtered
+    # client-side from its substring hits.
+    #
+    # `Name` takes a single string, not a list, so this is one request per
+    # distinct name — in practice one, since `--region-id` is rarely repeated.
     resolved = [found[rid] for rid in region_ids]
-    name_check = client.dictionaries().post(
-        data={
-            "method": "getGeoRegions",
-            "params": {
-                "FieldNames": ["GeoRegionId", "GeoRegionName"],
-                "SelectionCriteria": {"ExactNames": sorted(set(resolved))},
-            },
-        }
-    )
     name_owners = {}
-    for item in name_check.data["result"]["GeoRegions"]:
-        name_owners.setdefault(item["GeoRegionName"], set()).add(item["GeoRegionId"])
+    for name in sorted(set(resolved)):
+        name_check = client.dictionaries().post(
+            data={
+                "method": "getGeoRegions",
+                "params": {
+                    "FieldNames": ["GeoRegionId", "GeoRegionName"],
+                    "SelectionCriteria": {"Name": name},
+                },
+            }
+        )
+        # Yandex omits the `GeoRegions` key entirely (``result == {}``) when
+        # nothing matches — it does NOT return an empty list. Indexing the key
+        # unconditionally turned every `--region-id` run into a bare
+        # ``KeyError: 'GeoRegions'`` before a browser was ever opened (#775).
+        for item in (name_check.data["result"] or {}).get("GeoRegions") or []:
+            if item["GeoRegionName"] == name:
+                name_owners.setdefault(name, set()).add(item["GeoRegionId"])
 
-    ambiguous = sorted({name for name in resolved if len(name_owners[name]) > 1})
+    # A name with no rows is NOT reported: `Name` legitimately returns nothing
+    # for top-level regions (confirmed live — `Name="Москва"` matches only
+    # "Новая Москва"/"Менеуз-Москва", never Москва itself), so warning here
+    # would fire on the most common `--region-id` values and train the user to
+    # ignore it. Absence of rows means "could not check", and the real
+    # guarantee is downstream anyway: `_set_region` confirms the clicked
+    # node's ``id="region-node-<RegionId>"`` matches the requested RegionId
+    # and refuses before any save click.
+    ambiguous = sorted(
+        {name for name in resolved if len(name_owners.get(name, ())) > 1}
+    )
     if ambiguous:
         raise click.UsageError(
             "--region-id resolved to ambiguous region name(s): "
