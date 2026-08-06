@@ -534,8 +534,19 @@ class FakePage:
         api_request=None,
         text_buttons=None,
         role_elements=None,
+        locators_after_navigation=None,
     ):
         self._locators = locators or {}
+        # Issue #744 cycle-review: a real navigation REPLACES the DOM, so a
+        # fake whose locator map survives goto() cannot distinguish "read
+        # the field before navigating" from "read it after". That blindness
+        # hid a live defect — _verify_created read the create form's slots
+        # off the post-redirect overview page, which does not render them.
+        # A test that passes this dict gets the map swapped on the first
+        # goto()/url change, modelling the page the caller actually lands on.
+        self._locators_after_navigation = locators_after_navigation
+        # Armed by the url setter, committed by the url getter — see both.
+        self._pending_locators = None
         # Every overview-page test implicitly exercises _goto_overview_page
         # (issue #683), which polls for this exact testid before returning
         # control to the caller — default it present so existing tests that
@@ -555,7 +566,7 @@ class FakePage:
         # callback to simulate Yandex's post-click redirect (see
         # TestCopyMaster) — copy_master polls this the same way
         # archive_master polls fetch_masters_list.
-        self.url = ""
+        self._url = ""
         # If set, matched by expect_response()'s predicate once goto() has
         # been called inside its `with` block — models the grid firing its
         # GridCampaigns XHR during navigation.
@@ -573,6 +584,44 @@ class FakePage:
         # could not distinguish a correct role-scoped match from an
         # accidental ancestor-container match).
         self._role_elements = role_elements or []
+
+    @property
+    def url(self):
+        """Reading the redirected URL is what commits the DOM swap.
+
+        Issue #744 cycle-review. A property rather than a plain attribute so
+        the fake can model the one ordering that matters: in a real SPA the
+        URL changes first (history.pushState) and the DOM is replaced
+        shortly after, so code that reads the create form BETWEEN the click
+        and the redirect wait still finds it, while code that reads it after
+        `_wait_for_created_campaign_id` (which polls this property until the
+        URL carries a campaign id) finds the page it landed on instead.
+
+        Committing on read rather than on assignment is what makes the fake
+        able to tell those two orderings apart — assigning on click swapped
+        the map before `create_master` had read anything, which made a
+        correctly-ordered implementation look broken.
+        """
+        if self._pending_locators is not None:
+            self._locators = self._pending_locators
+            self._pending_locators = None
+        return self._url
+
+    @url.setter
+    def url(self, value):
+        """Arm the DOM swap; the read above commits it.
+
+        A test's on_click callback simulates Yandex's post-click redirect by
+        assigning ``page.url`` directly, exactly as goto() does. The initial
+        navigation TO the create page is deliberately exempt: that one
+        renders the form this fake is scripted with.
+        """
+        leaving_create_page = (
+            self._url == browser_masters.WIZARD_CREATE_URL and value != self._url
+        )
+        self._url = value
+        if leaving_create_page and self._locators_after_navigation is not None:
+            self._pending_locators = self._locators_after_navigation
 
     def goto(self, url, wait_until=None):
         self.navigated_to.append(url)
@@ -9790,6 +9839,58 @@ class TestAddRepeatingValues(unittest.TestCase):
             slot1.inner_text(), "Центр оздоровления и китайской гимнастики!"
         )
 
+    def test_skips_a_trailing_slot_that_yandex_collapsed_away(self):
+        """Issue #744 live recon: the slot list SHRINKS as it is emptied.
+
+        Confirmed live on the create page — clearing the last pre-filled
+        headline slot drops the rendered set from 5 slots to 1 in a single
+        re-render, so the trailing testids are gone from the DOM by the time
+        the loop reaches them. Aborting there (the pre-#744 behaviour) made
+        `masters add` fail outright on a form that was in fact filled
+        correctly. A slot that does not exist cannot be holding Yandex's AI
+        copy, so with no value to write it is safe to skip — which is
+        materially different from the obstructed-but-present slot in the
+        test above, and that distinction is the whole fix.
+        """
+        slot0 = _FakeContentEditableHandle(text="Старый заголовок")
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([slot0]),
+                # slot1 registered as genuinely ABSENT (zero matches), the
+                # way a collapsed slot resolves on the real page.
+                '[data-testid="fake1.textarea"]': _FakeLocator([]),
+            }
+        )
+
+        browser_masters._add_repeating_values(
+            page, "fake{index}.textarea", 2, ["Мой заголовок"]
+        )  # must not raise
+
+        self.assertEqual(slot0.inner_text(), "Мой заголовок")
+
+    def test_still_aborts_when_a_slot_with_a_value_is_absent(self):
+        """The collapse skip must never swallow a caller's OWN value.
+
+        Skipping an absent slot is only safe when there is nothing to write
+        into it. If the caller supplied a value for a slot that is gone,
+        that value would be silently dropped — the exact "never silently
+        drop a caller's value" guarantee issue #655 established — so this
+        still has to fail loudly.
+        """
+        slot0 = _FakeContentEditableHandle(text="")
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([slot0]),
+                '[data-testid="fake1.textarea"]': _FakeLocator([]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_repeating_values(
+                page, "fake{index}.textarea", 2, ["Первый", "Второй"]
+            )
+        self.assertIn("Второй", str(ctx.exception))
+
 
 class TestReadRepeatingValues(unittest.TestCase):
     """``_read_repeating_values`` (issue #632, re-recon #653) — post-add
@@ -11743,14 +11844,32 @@ class TestClickTerminalButton(unittest.TestCase):
         self.assertEqual(decoy_clicked, [])
 
 
-class TestVerifyCreated(unittest.TestCase):
-    """``_verify_created`` (issue #632) — ported from ``update_master``'s
-    ``_verify_saved`` (issue #631 review finding): a click on the terminal
-    button is not proof Yandex accepted the form.
+class TestReadCreatedFormMismatches(unittest.TestCase):
+    """``_read_created_form_mismatches`` (issue #632, split out in #744's
+    cycle-review) — ported from ``update_master``'s ``_verify_saved`` (issue
+    #631 review finding): a click on the terminal button is not proof Yandex
+    accepted the form.
+
+    Returns the divergences rather than raising; ``_verify_created`` folds
+    them into its own error once the campaign id is known. Reading them is
+    deliberately separate from reporting them, because the read must happen
+    while the create form still exists — before the post-click redirect.
     """
 
-    def _page(self, headline_values, text_values, budget_value=None):
+    CAMPAIGN_ID = 713299002
+
+    def _page(self, headline_values, text_values, budget_value=None, region_tags=None):
         locators = {}
+        if region_tags is not None:
+            # The tags the reloaded edit page reports (issue #744) --
+            # _verify_created only navigates/reads these when the caller
+            # passes `regions`, so tests that don't care leave them unset.
+            locators[browser_masters._REGION_TAGS_WRAPPER_TESTID] = _FakeLocator(
+                [_FakeLocatorHandle()]
+            )
+            locators[browser_masters._REGION_TAG_TESTID_PATTERN] = _FakeLocator(
+                [_FakeLocatorHandle(text=name) for name in region_tags]
+            )
         for index, value in enumerate(headline_values):
             selector = (
                 '[data-testid="'
@@ -11774,12 +11893,15 @@ class TestVerifyCreated(unittest.TestCase):
     def test_passes_when_every_requested_value_is_present(self):
         page = self._page(["Заголовок"], ["Текст объявления"])
 
-        browser_masters._verify_created(
-            page,
-            headlines=["Заголовок"],
-            texts=["Текст объявления"],
-            weekly_budget=None,
-        )  # must not raise
+        self.assertEqual(
+            browser_masters._read_created_form_mismatches(
+                page,
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                weekly_budget=None,
+            ),
+            [],
+        )
 
     def test_raises_when_an_unrequested_headline_variant_survives(self):
         """Extra non-empty slots are published variants (issue #655 review).
@@ -11795,15 +11917,15 @@ class TestVerifyCreated(unittest.TestCase):
             ["Текст объявления"],
         )
 
-        with self.assertRaises(BrowserSessionError) as ctx:
-            browser_masters._verify_created(
-                page,
-                headlines=["Заголовок"],
-                texts=["Текст объявления"],
-                weekly_budget=None,
-            )
-        self.assertIn("unrequested headline variants", str(ctx.exception))
-        self.assertIn("Центр оздоровления", str(ctx.exception))
+        mismatches = browser_masters._read_created_form_mismatches(
+            page,
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            weekly_budget=None,
+        )
+
+        self.assertIn("unrequested headline variants", "; ".join(mismatches))
+        self.assertIn("Центр оздоровления", "; ".join(mismatches))
 
     def test_raises_when_an_unrequested_text_variant_survives(self):
         # Same invariant on the ad-text slots.
@@ -11812,64 +11934,84 @@ class TestVerifyCreated(unittest.TestCase):
             ["Текст объявления", "Приходите на пробное занятие цигун!"],
         )
 
-        with self.assertRaises(BrowserSessionError) as ctx:
-            browser_masters._verify_created(
-                page,
-                headlines=["Заголовок"],
-                texts=["Текст объявления"],
-                weekly_budget=None,
-            )
-        self.assertIn("unrequested ad-text variants", str(ctx.exception))
-
-    def test_raises_when_a_headline_is_missing(self):
-        page = self._page(["Другой заголовок"], ["Текст объявления"])
-
-        with self.assertRaises(BrowserSessionError) as ctx:
-            browser_masters._verify_created(
-                page,
-                headlines=["Заголовок"],
-                texts=["Текст объявления"],
-                weekly_budget=None,
-            )
-        self.assertIn("did not take effect as requested", str(ctx.exception))
-
-    def test_raises_when_a_text_is_missing(self):
-        page = self._page(["Заголовок"], ["Другой текст"])
-
-        with self.assertRaises(BrowserSessionError):
-            browser_masters._verify_created(
-                page,
-                headlines=["Заголовок"],
-                texts=["Текст объявления"],
-                weekly_budget=None,
-            )
-
-    def test_raises_when_weekly_budget_does_not_match(self):
-        page = self._page(["Заголовок"], ["Текст объявления"], budget_value="10000")
-
-        with self.assertRaises(BrowserSessionError):
-            browser_masters._verify_created(
-                page,
-                headlines=["Заголовок"],
-                texts=["Текст объявления"],
-                weekly_budget=50000,
-            )
-
-    def test_ignores_weekly_budget_when_not_requested(self):
-        page = self._page(["Заголовок"], ["Текст объявления"], budget_value="10000")
-
-        browser_masters._verify_created(
+        mismatches = browser_masters._read_created_form_mismatches(
             page,
             headlines=["Заголовок"],
             texts=["Текст объявления"],
             weekly_budget=None,
-        )  # must not raise -- caller never asked for a budget
+        )
+
+        self.assertIn("unrequested ad-text variants", "; ".join(mismatches))
+
+    def test_raises_when_a_headline_is_missing(self):
+        page = self._page(["Другой заголовок"], ["Текст объявления"])
+
+        mismatches = browser_masters._read_created_form_mismatches(
+            page,
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            weekly_budget=None,
+        )
+
+        self.assertIn("headline 'Заголовок' not found", "; ".join(mismatches))
+
+    def test_raises_when_a_text_is_missing(self):
+        page = self._page(["Заголовок"], ["Другой текст"])
+
+        self.assertTrue(
+            browser_masters._read_created_form_mismatches(
+                page,
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                weekly_budget=None,
+            )
+        )
+
+    def test_raises_when_weekly_budget_does_not_match(self):
+        page = self._page(["Заголовок"], ["Текст объявления"], budget_value="10000")
+
+        self.assertIn(
+            "weekly_budget: expected 50000",
+            "; ".join(
+                browser_masters._read_created_form_mismatches(
+                    page,
+                    headlines=["Заголовок"],
+                    texts=["Текст объявления"],
+                    weekly_budget=50000,
+                )
+            ),
+        )
+
+    def test_ignores_weekly_budget_when_not_requested(self):
+        page = self._page(["Заголовок"], ["Текст объявления"], budget_value="10000")
+
+        self.assertEqual(
+            browser_masters._read_created_form_mismatches(
+                page,
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                weekly_budget=None,
+            ),
+            [],
+        )  # budget unchecked — caller never asked for one
 
 
 class TestCreateMaster(unittest.TestCase):
     """``create_master`` (issue #632) — end-to-end wiring of the helpers above."""
 
-    def _full_page(self, region="Москва"):
+    # The campaign id Yandex's post-click redirect carries (issue #744) --
+    # see _redirect_to_overview below.
+    CREATED_ID = 713299001
+
+    def _full_page(
+        self,
+        region="Москва",
+        created_id=None,
+        reloaded_regions=None,
+        redirect=True,
+        node_id=None,
+        page_after_redirect_has_no_form=False,
+    ):
         url_state = {}
         headline_state = []
         text_state = []
@@ -11877,6 +12019,22 @@ class TestCreateMaster(unittest.TestCase):
         budget_state = {}
         launch_clicks = []
         draft_clicks = []
+        created_id = self.CREATED_ID if created_id is None else created_id
+
+        def _redirect_to_overview():
+            """Model the redirect confirmed live in issue #744.
+
+            Clicking either terminal button sends page.url to the new
+            campaign's overview URL -- the same redirect copy_master has
+            relied on since #659. Without this the fake would sit on
+            /wizard/campaigns/new/ forever, which is precisely the timeout
+            case test_raises_when_yandex_never_redirects covers.
+            """
+            if not redirect:
+                return
+            page.url = browser_masters.WIZARD_OVERVIEW_URL.format(
+                campaign_id=created_id
+            )
 
         url_field = _FakeContentEditableHandle(
             on_fill=lambda v: url_state.__setitem__("url", v)
@@ -11953,7 +12111,12 @@ class TestCreateMaster(unittest.TestCase):
                 region_checked.append(region)
 
         region_checkbox_handle = _FakeLocatorHandle(
-            get_checked=lambda: region_state["checked"]
+            get_checked=lambda: region_state["checked"],
+            # id="region-node-<RegionId>" (issue #657) — only needed when a
+            # test passes regions as (name, RegionId) tuples, since
+            # _set_region then cross-checks the clicked node's id against
+            # the requested RegionId.
+            attrs=None if node_id is None else {"id": node_id},
         )
         region_label_handle = _FakeLocatorHandle(
             visible=True,
@@ -11982,26 +12145,87 @@ class TestCreateMaster(unittest.TestCase):
                 browser_masters._WEEKLY_BUDGET_INPUT_XPATH: _FakeLocator(
                     [budget_field]
                 ),
+                # The reloaded edit page's region tags (issue #744).
+                # _verify_created navigates to WIZARD_EDIT_URL and re-reads
+                # the display region there via _read_region_tags; these are
+                # the tags that read finds. Defaults to exactly what the
+                # caller selected, so the happy path verifies; a test
+                # passing reloaded_regions=[...] models Yandex having
+                # dropped/changed the region despite the click landing.
+                browser_masters._REGION_TAGS_WRAPPER_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._REGION_TAG_TESTID_PATTERN: _FakeLocator(
+                    [
+                        _FakeLocatorHandle(text=name)
+                        for name in (
+                            [region] if reloaded_regions is None else reloaded_regions
+                        )
+                    ]
+                ),
             },
             role_elements=[
                 (
                     "button",
                     browser_masters._LAUNCH_BUTTON_TEXT,
                     _FakeTextLocatorHandle(
-                        visible=True, on_click=lambda: launch_clicks.append(True)
+                        visible=True,
+                        on_click=lambda: (
+                            launch_clicks.append(True),
+                            _redirect_to_overview(),
+                        ),
                     ),
                 ),
                 (
                     "button",
                     browser_masters._SAVE_DRAFT_BUTTON_TEXT,
                     _FakeTextLocatorHandle(
-                        visible=True, on_click=lambda: draft_clicks.append(True)
+                        visible=True,
+                        on_click=lambda: (
+                            draft_clicks.append(True),
+                            _redirect_to_overview(),
+                        ),
                     ),
                 ),
             ],
             text_buttons={
                 browser_masters._CREATE_INVALID_URL_TEXT: _FakeGetByTextLocator([]),
             },
+            # Issue #744 cycle-review: model what the post-click redirect
+            # actually lands on for a LAUNCHED campaign — the stats
+            # dashboard, which renders the region widget on the subsequent
+            # /edit/ reload but NOT the wizard's headline/text slots or its
+            # budget input (only a DRAFT overview re-renders the form,
+            # issue #660). Opt-in, because every other test in this class
+            # predates the redirect and asserts against the create form.
+            locators_after_navigation=(
+                {
+                    # The launched campaign's overview renders NEITHER the
+                    # wizard slots nor the budget input; the /edit/ reload
+                    # that _verify_created performs for the region check
+                    # does render them again, which is why the headline
+                    # slot below is present. The defect is that the slots
+                    # are read on the overview, BEFORE that reload.
+                    f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]': (
+                        _FakeLocator([_FakeLocatorHandle()])
+                    ),
+                    browser_masters._REGION_TAGS_WRAPPER_TESTID: _FakeLocator(
+                        [_FakeLocatorHandle()]
+                    ),
+                    browser_masters._REGION_TAG_TESTID_PATTERN: _FakeLocator(
+                        [
+                            _FakeLocatorHandle(text=name)
+                            for name in (
+                                [region]
+                                if reloaded_regions is None
+                                else reloaded_regions
+                            )
+                        ]
+                    ),
+                }
+                if page_after_redirect_has_no_form
+                else None
+            ),
         )
         return page, {
             "url": url_state,
@@ -12033,6 +12257,8 @@ class TestCreateMaster(unittest.TestCase):
         self.assertEqual(
             result,
             {
+                # Issue #744: the id Yandex's post-click redirect carried.
+                "CampaignId": self.CREATED_ID,
                 "LandingUrl": "https://ksamata.ru/",
                 "Headlines": ["Заголовок"],
                 "Texts": ["Текст объявления"],
@@ -12040,7 +12266,16 @@ class TestCreateMaster(unittest.TestCase):
                 "Launched": True,
             },
         )
-        self.assertEqual(page.navigated_to, [browser_masters.WIZARD_CREATE_URL])
+        # Two navigations now (issue #744): the create page, then
+        # _verify_created's reload of the new campaign's EDIT page to
+        # re-read the display region from a genuinely fresh load.
+        self.assertEqual(
+            page.navigated_to,
+            [
+                browser_masters.WIZARD_CREATE_URL,
+                browser_masters.WIZARD_EDIT_URL.format(campaign_id=self.CREATED_ID),
+            ],
+        )
         self.assertEqual(page.goto_wait_until, "commit")
 
     def test_saves_as_draft_when_launch_false(self):
@@ -12238,6 +12473,154 @@ class TestCreateMaster(unittest.TestCase):
             )
         self.assertEqual(len(state["launch_clicks"]), 1)  # the click DID happen
         self.assertIn("did not take effect as requested", str(ctx.exception))
+
+    def test_returns_campaign_id_from_the_post_click_redirect(self):
+        """Issue #744: the created campaign's ID comes from ``page.url``.
+
+        Live-confirmed that clicking either terminal button redirects to
+        WIZARD_OVERVIEW_URL carrying the new ID — the same redirect
+        copy_master has used since #659. Before this, create_master returned
+        only the caller's own inputs, leaving no way to find what it made.
+        """
+        page, _ = self._full_page(created_id=713299123)
+
+        result = browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=["Москва"],
+        )
+
+        self.assertEqual(result["CampaignId"], 713299123)
+
+    def test_raises_when_yandex_never_redirects(self):
+        """A click that never redirects must not be reported as success.
+
+        The campaign may still have been created (the click is irreversible
+        and not idempotent), so the error has to say so rather than let the
+        caller assume nothing happened and retry into a duplicate.
+        """
+        page, state = self._full_page(redirect=False)
+
+        with patch.object(browser_masters, "_CREATE_VERIFY_TIMEOUT_MS", 10):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.create_master(
+                    page,
+                    "https://ksamata.ru/",
+                    headlines=["Заголовок"],
+                    texts=["Текст объявления"],
+                    regions=["Москва"],
+                )
+
+        self.assertEqual(len(state["launch_clicks"]), 1)  # the click DID happen
+        self.assertIn("did not redirect", str(ctx.exception))
+        self.assertIn("not idempotent", str(ctx.exception))
+
+    def test_raises_when_the_reloaded_page_lost_the_requested_region(self):
+        """Issue #744: region is verified through a REAL reload.
+
+        This is the check the pre-#744 code could not perform at all — it
+        had no campaign ID, so no page to reload. A region silently dropped
+        by Yandex would previously have been reported as a clean success.
+        """
+        page, state = self._full_page(reloaded_regions=["Санкт-Петербург"])
+
+        # _read_until_matches busy-spins for the full production retry
+        # budget on a genuine mismatch, and FakePage.wait_for_timeout is a
+        # no-op, so this would cost exactly _VERIFY_FIELD_READ_TIMEOUT_MS of
+        # wall clock (issue #767) if _verify_created had left that timeout
+        # to the parameter default — patching the module constant only
+        # reaches it because the call site passes it explicitly.
+        with patch.object(browser_masters, "_VERIFY_FIELD_READ_TIMEOUT_MS", 10):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.create_master(
+                    page,
+                    "https://ksamata.ru/",
+                    headlines=["Заголовок"],
+                    texts=["Текст объявления"],
+                    regions=["Москва"],
+                )
+
+        self.assertEqual(len(state["launch_clicks"]), 1)  # the click DID happen
+        self.assertIn("regions", str(ctx.exception))
+        self.assertIn("Москва", str(ctx.exception))
+        # The error must name the campaign that DOES now exist, so the
+        # caller can inspect it instead of retrying into a duplicate.
+        self.assertIn(str(self.CREATED_ID), str(ctx.exception))
+
+    def test_accepts_extra_region_tags_beyond_the_requested_ones(self):
+        """Region tags are a SUBSET check, not equality.
+
+        Selecting a region can bring implied parent/child nodes along with
+        it, so an exact-set comparison would fail a correct save. Unlike a
+        surplus ad-copy slot (which would publish unreviewed text), a
+        surplus region tag is not a hazard worth failing on.
+        """
+        page, _ = self._full_page(
+            reloaded_regions=["Москва", "Москва и область"],
+        )
+
+        result = browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=["Москва"],
+        )  # must not raise
+
+        self.assertEqual(result["CampaignId"], self.CREATED_ID)
+
+    def test_verifies_region_passed_as_a_name_id_pair(self):
+        """``--region-id`` gives (name, RegionId) tuples, not plain strings.
+
+        _verify_created compares against the NAME half — the reloaded tag
+        group renders labels, not ids.
+        """
+        page, _ = self._full_page(
+            reloaded_regions=["Москва"], node_id="region-node-213"
+        )
+
+        result = browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=[("Москва", 213)],
+        )  # must not raise
+
+        self.assertEqual(result["Regions"], [("Москва", 213)])
+
+    def test_verifies_ad_copy_before_the_redirect_swaps_the_page(self):
+        """Issue #744 cycle-review: read the form's fields while it EXISTS.
+
+        `_wait_for_created_campaign_id` blocks until Yandex has navigated
+        away from the create form. A launched campaign lands on the stats
+        dashboard, which renders no headline/text slots and no budget input
+        at all (only a DRAFT overview re-renders the wizard form — issue
+        #660). So a post-redirect read of those fields finds nothing, and
+        `_read_repeating_values` maps every absent slot to "" rather than
+        raising — turning a campaign that WAS created and launched into a
+        hard BrowserSessionError telling the caller to check it by hand.
+
+        The earlier fake could not express this: it kept serving the create
+        form's locators after the redirect, so the wrong-page read passed.
+        `locators_after_navigation` models the page actually landed on.
+        """
+        page, state = self._full_page(page_after_redirect_has_no_form=True)
+
+        result = browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=["Москва"],
+            weekly_budget=50000,
+        )  # must not raise: the campaign really was created
+
+        self.assertEqual(len(state["launch_clicks"]), 1)
+        self.assertEqual(result["CampaignId"], self.CREATED_ID)
+        self.assertEqual(result["WeeklyBudget"], 50000)
 
 
 class TestMastersAddCommand(unittest.TestCase):

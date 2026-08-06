@@ -522,6 +522,15 @@ _DRAFT_OVERVIEW_DETECT_TIMEOUT_MS = 15_000
 # live ~7s, issue #659) before giving up on copy_master.
 _CLONE_VERIFY_TIMEOUT_MS = 20_000
 
+# Same budget, same redirect, for create_master (issue #744). The create form
+# and the clone form are the SAME step-2 form terminated by the SAME
+# _click_terminal_button (see copy_master / the module docstring), so the
+# post-click redirect to WIZARD_OVERVIEW_URL is the same behaviour with the
+# same observed latency — kept as its own constant rather than reusing
+# _CLONE_VERIFY_TIMEOUT_MS so either path can be retuned independently if
+# Yandex's create and clone flows ever diverge.
+_CREATE_VERIFY_TIMEOUT_MS = 20_000
+
 # How long to wait for the DRAFT edit page's saveDraft/launch click to
 # redirect away from /edit/ (issue #668) — live-confirmed ~5s in one recon,
 # generous headroom for a slower response.
@@ -5746,6 +5755,15 @@ def _add_repeating_values(
       leftover AI-written ones they never reviewed — precisely what
       ``create_master``'s contract refuses to do.
 
+    The slot list is fixed-size only while it is POPULATED: confirmed live
+    (issue #744 recon) Yandex collapses it as it empties — clearing the last
+    pre-filled headline slot drops the rendered set from 5 slots to 1 in one
+    re-render, so the trailing testids vanish mid-loop. A slot that is
+    absent AND has no caller value is therefore skipped rather than treated
+    as an unclickable slot (it cannot be holding AI copy if it does not
+    exist); an absent slot the caller DID supply a value for still raises,
+    since that value would otherwise be silently dropped.
+
     A slot that cannot even be clicked, or cannot be cleared, is fatal for
     EVERY slot — including one with no caller-supplied value. A click
     failure does not distinguish "not rendered" from "obstructed but still
@@ -5775,8 +5793,29 @@ def _add_repeating_values(
     # no sandbox and no rollback (issue #655 review).
     for index in range(slot_count):
         selector = f'[data-testid="{testid_template.format(index=index)}"]'
-        field = page.locator(selector).first
+        locator = page.locator(selector)
+        field = locator.first
         value = values[index] if index < len(values) else None
+
+        # Yandex COLLAPSES the slot list as it empties (confirmed live,
+        # issue #744 recon): clearing the last populated headline slot drops
+        # the rendered set from 5 slots straight to 1, so by the time this
+        # loop reaches index 4 that testid is gone from the DOM entirely.
+        # The old code read that as a click failure on a slot that "may be
+        # obstructed but still holding AI copy" and aborted — but a slot
+        # that does not exist cannot be holding anything, and the read-back
+        # below (_repeating_values_mismatches, run before the terminal
+        # click) still independently proves no unreviewed copy survived.
+        #
+        # Deliberately narrow: this only skips when the slot is ABSENT and
+        # there is no value to write into it. An absent slot that the caller
+        # DID supply a value for is a real failure — the value would be
+        # silently dropped — so that still falls through to the click below
+        # and raises, preserving issue #655's "never silently drop a
+        # caller's value" guarantee.
+        if value is None and not locator.count():
+            continue
+
         try:
             field.click()
             # The slot arrives pre-filled with Yandex's AI-generated copy and
@@ -7333,36 +7372,87 @@ def _repeating_values_mismatches(
     return mismatches
 
 
-def _verify_created(
+def _wait_for_created_campaign_id(page: "Page", *, button_label: str) -> int:
+    """Read the new campaign's ID off Yandex's post-click redirect.
+
+    Modelled on ``copy_master``'s redirect, which IS live-verified (issue
+    #659): the clone flow lands on the very same step-2 form and terminates
+    through the same ``_click_terminal_button``, then redirects ``page.url``
+    to ``WIZARD_OVERVIEW_URL`` carrying the new campaign's ID.
+
+    **Not yet observed on the create path** (issue #744 live recon,
+    2026-08-06). Every create attempt available during that pass was
+    rejected before any redirect could happen: Yandex's create form requires
+    at least one conversion goal ("Добавьте хотя бы одну цель для сайта,
+    чтобы создать и запустить кампанию") and ``create_master`` has no way to
+    set one yet, so the terminal click was silently swallowed — ``page.url``
+    stayed on ``WIZARD_CREATE_URL`` for 48s and no campaign was created.
+    Notably both terminal buttons still report ``visible``/``enabled`` with
+    no ``aria-disabled`` in that state, so the DOM offers no signal to
+    distinguish "rejected" from "still working" — which is exactly why this
+    function must raise on timeout rather than assume success. The clone
+    path does not hit this because a clone inherits the source campaign's
+    goals. Once goal support exists, this needs re-confirming on a create
+    that Yandex actually accepts.
+
+    The predicate differs from ``copy_master``'s in one way that matters.
+    ``copy_master`` starts from the SOURCE campaign's own overview URL, so
+    ``page.url`` already matches ``_WIZARD_OVERVIEW_URL_ID_RE`` before the
+    click and it must additionally require a DIFFERENT id to know the
+    redirect happened. ``create_master`` starts from ``WIZARD_CREATE_URL``
+    (``/wizard/campaigns/new/``), whose ``new`` segment cannot match the
+    regex's ``\\d+`` — so here the appearance of ANY numeric id is itself
+    proof of the redirect, with no source id to exclude.
+
+    Raises rather than returning ``None`` on timeout: by this point the
+    campaign has already been created (the click is irreversible and not
+    idempotent), so silently reporting success without an ID would leave the
+    caller unable to find what it just made.
+    """
+    # Deadline goes through the injectable `_clock.now()` (issue #767, landed
+    # in #770), like every other poll in direct_cli/browser/ —
+    # TestBrowserPackageClock guards against a raw time.monotonic() here, and
+    # a test patching the timeout constant would otherwise busy-spin for the
+    # full production budget.
+    deadline = _clock.now() + _CREATE_VERIFY_TIMEOUT_MS / 1000
+    while True:
+        match = _WIZARD_OVERVIEW_URL_ID_RE.search(page.url)
+        if match:
+            return int(match.group(1))
+        if _clock.now() >= deadline:
+            break
+        page.wait_for_timeout(250)
+
+    raise BrowserSessionError(
+        f"Clicked '{button_label}' on the Мастер кампаний create page, but "
+        f"Yandex did not redirect to the new campaign's overview page within "
+        f"{_CREATE_VERIFY_TIMEOUT_MS / 1000:.0f}s (page.url is still "
+        f"{page.url!r}). The campaign may still have been created — check "
+        "'masters list' before retrying, as this is not idempotent."
+    )
+
+
+def _read_created_form_mismatches(
     page: "Page",
     *,
     headlines: List[str],
     texts: List[str],
     weekly_budget: Optional[int],
-) -> None:
-    """Confirm the fields this module actually set are still present after the
-    terminal click, rather than trusting the click alone.
+) -> List[str]:
+    """Re-read the create form's fields while that form still exists.
 
-    Ported from ``update_master``'s ``_verify_saved`` (issue #631 review
-    finding): a click on "Запустить кампанию"/"Сохранить как черновик" is not
-    proof Yandex accepted the form — client-side validation can reject a
-    value silently. Unlike ``_verify_saved``, this does NOT re-navigate and
-    reload first: issue #632 step 0 recon never confirmed what URL the
-    launch/draft click lands on (module docstring), so there is no known
-    page to reload yet. This re-reads the CURRENT page's fields immediately
-    after the click instead — a strictly weaker check than a real reload,
-    but the strongest one available until a live pass confirms the
-    post-click destination. Region is intentionally NOT verified here even
-    though ``_read_region_tags`` is now live-verified (issue #653): a
-    reload-based verification (mirroring ``_verify_saved``) is a bigger,
-    separately-scoped change than this issue's markup fix.
+    Split out of ``_verify_created`` (cycle-review of issue #744) because
+    WHEN this runs is load-bearing. ``create_master`` calls it between
+    ``_click_terminal_button`` and ``_wait_for_created_campaign_id`` — the
+    only window in which the create form is both post-click (so Yandex's own
+    validation has had its say) and still rendered.
 
-    This is the BACKSTOP for divergences that only appear as a side effect
-    of the click itself (e.g. Yandex's own post-click validation reverting
-    a field) — ``create_master`` also runs
-    ``_repeating_values_mismatches`` BEFORE the click, which catches every
-    divergence that already existed at click time (see that function's
-    docstring).
+    Reading these fields after the redirect instead would report every
+    successful launch as a failure: the campaign lands on the stats
+    dashboard, which renders no wizard slots and no budget input, and
+    ``_read_repeating_values`` degrades an absent slot to ``""`` rather than
+    raising — so each requested headline/text "goes missing" and a requested
+    budget reads back as ``None``.
     """
     mismatches = _repeating_values_mismatches(page, headlines=headlines, texts=texts)
 
@@ -7380,14 +7470,126 @@ def _verify_created(
                 f"{actual_budget!r}"
             )
 
+    return mismatches
+
+
+def _verify_created(
+    page: "Page",
+    campaign_id: int,
+    *,
+    form_mismatches: List[str],
+    regions: "Optional[Sequence[Union[str, Tuple[str, Optional[int]]]]]" = None,
+) -> None:
+    """Confirm the fields this module actually set are still present after the
+    terminal click, rather than trusting the click alone.
+
+    Ported from ``update_master``'s ``_verify_saved`` (issue #631 review
+    finding): a click on "Запустить кампанию"/"Сохранить как черновик" is not
+    proof Yandex accepted the form — client-side validation can reject a
+    value silently.
+
+    Two checks with deliberately different strengths (issue #744):
+
+    * headlines/texts/budget are re-read from the create form while it still
+      EXISTS — see ``_read_created_form_mismatches``, which ``create_master``
+      calls between the click and the redirect wait, passing the result in as
+      ``form_mismatches``. This is the weaker, no-reload check, and it stays
+      that way on purpose: it is the backstop for divergences that appear as
+      a side effect of the click itself (e.g. Yandex's own post-click
+      validation reverting a field), which is exactly the state a reload
+      would discard. ``create_master`` also runs
+      ``_repeating_values_mismatches`` BEFORE the click, catching every
+      divergence that already existed at click time (see that function).
+
+      It must NOT be read here, after the redirect: a launched campaign
+      lands on the stats dashboard, which renders no wizard slots and no
+      budget input at all (only a DRAFT overview re-renders the form, issue
+      #660), and ``_read_repeating_values`` maps an absent slot to ``""``
+      rather than raising — so reading it there turns every successful
+      launch into a false "did not take effect" failure (cycle-review of
+      this issue).
+    * ``regions``, when given, is verified the way ``_verify_saved`` does it:
+      re-navigate to a genuinely fresh page load and re-read. This was
+      impossible until issue #744's live pass confirmed the post-click
+      redirect exposes the new campaign's ID (see
+      ``_wait_for_created_campaign_id``); before that there was no known
+      page to reload, which is why region was previously left unverified
+      here despite ``_read_region_tags`` being live-verified in #653.
+
+    The reload target is ``WIZARD_EDIT_URL``, not the overview URL the click
+    redirects to. A freshly LAUNCHED campaign's overview page is the stats
+    dashboard, which has no region widget at all; the edit page is ASSUMED to
+    render "Регион показов" for both DRAFT and non-DRAFT campaigns (a DRAFT
+    overview happens to render the wizard form too — issue #660 — but
+    relying on that would make this check silently status-dependent).
+
+    **That assumption is not field-proven (issue #776).**
+    ``_read_region_tags`` is live-verified on the CREATE page only (#653);
+    no existing command reads region from the edit page (``update_master``
+    has no region option), and the live edit-page fixtures are targeted
+    extracts that neither contain nor exclude the widget. If the assumption
+    is wrong, ``_read_until_matches`` exhausts its budget, returns an empty
+    read, and this raises AFTER the campaign was irreversibly launched — a
+    false failure, not data loss. It cannot be confirmed until goal support
+    makes a successful create possible at all (see ``create_master``).
+
+    Region tags are compared as a SUBSET, not for equality: Yandex renders a
+    tag per accepted selection, and selecting a region can bring implied
+    child/parent nodes along with it, so requiring an exact set would fail
+    on a correct save. Every requested region must be present; extra tags
+    are not treated as an error the way extra ad-copy slots are, because a
+    surplus region tag is not published unreviewed ad text — it is a
+    targeting detail already visible in the same widget the caller chose it
+    from.
+    """
+    mismatches = list(form_mismatches)
+
+    if regions:
+        # The form reads were already taken by _read_created_form_mismatches
+        # against the pre-redirect page, so the reload below cannot discard
+        # the post-click state they exist to inspect.
+        expected_regions = [
+            region[0] if isinstance(region, tuple) else region for region in regions
+        ]
+
+        def _regions_match(actual: List[str], expected: List[str]) -> bool:
+            return all(name in actual for name in expected)
+
+        page.goto(WIZARD_EDIT_URL.format(campaign_id=campaign_id), wait_until="commit")
+        assert_not_captcha(page.content())
+        assert_authenticated(page.content())
+        _wait_for_edit_form(page, campaign_id)
+
+        actual_regions = _read_until_matches(
+            page,
+            _read_region_tags,
+            expected_regions,
+            matches=_regions_match,
+            # Passed explicitly rather than left to the parameter default:
+            # the default is bound at _read_until_matches' DEFINITION, so a
+            # test patching the module constant would never reach it (issue
+            # #767's lesson) — and the region tag group is one of the
+            # slower-hydrating widgets on the reloaded page, so the budget
+            # deserves to be a visible decision here either way.
+            timeout_ms=_VERIFY_FIELD_READ_TIMEOUT_MS,
+        )
+        if not _regions_match(actual_regions, expected_regions):
+            missing = [n for n in expected_regions if n not in actual_regions]
+            mismatches.append(
+                f"regions: expected {missing!r} among the campaign's display "
+                f"regions, reloaded page shows {actual_regions!r}"
+            )
+
     if mismatches:
         raise BrowserSessionError(
-            "Clicked the create page's terminal button, but re-reading the "
-            "page afterwards shows it did not take effect as requested: "
+            f"Clicked the create page's terminal button (campaign "
+            f"{campaign_id} was created), but re-reading afterwards shows it "
+            "did not take effect as requested: "
             + "; ".join(mismatches)
             + ". Yandex may have rejected the form "
             "(client-side validation) or the click did not land — verify "
-            "manually before retrying."
+            f"campaign {campaign_id} manually rather than retrying (this is "
+            "not idempotent)."
         )
 
 
@@ -7422,13 +7624,22 @@ def create_master(
     headline/text/budget fields to confirm the form actually reflects what
     was requested (see ``_verify_created``) rather than trusting the click
     alone — mirrors ``update_master``'s ``_verify_saved`` convention (issue
-    #631 review). Neither button's post-click landing page was live-verified
-    during recon (issue #632 step 0 was read-only, see
-    ``tests/fixtures/masters_wizard_create.html``) — in particular, where the
-    created/drafted campaign's ID can be read from (URL redirect vs. an
-    on-page confirmation element) is NOT yet determined, so this returns
-    only the fields the caller supplied, not a ``CampaignId`` — a follow-up
-    live pass must confirm the ID source before that can be added.
+    #631 review).
+
+    Returns the created campaign's ``CampaignId``, read from the post-click
+    redirect (``_wait_for_created_campaign_id``), which also gives
+    ``_verify_created`` a page to reload for the display-region check.
+
+    **Caveat — the create path's redirect is still unconfirmed** (issue
+    #744 live recon, 2026-08-06). It is modelled on ``copy_master``'s
+    live-verified redirect through the identical form and button, but no
+    create attempt has yet been accepted by Yandex to observe it directly:
+    the form requires at least one conversion goal, which this function
+    cannot set, so the terminal click is silently rejected and no campaign
+    is created (see ``_wait_for_created_campaign_id``). That failure mode is
+    reported as an error, not as success — but until goal support lands,
+    treat the ID/region-verification path here as designed-and-unit-tested
+    rather than field-proven.
     """
     if not headlines:
         raise ValueError("create_master requires at least one headline.")
@@ -7490,18 +7701,32 @@ def create_master(
             "to clear — re-run with --headful to inspect the page."
         )
 
-    _click_terminal_button(
-        page, _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
-    )
+    button_label = _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
+    _click_terminal_button(page, button_label)
 
-    _verify_created(
+    # Read the form's own fields BEFORE waiting for the redirect: that wait
+    # blocks until Yandex has navigated away, and the page it lands on does
+    # not render these fields at all (cycle-review of issue #744 — see
+    # _read_created_form_mismatches). Reported only after the campaign id is
+    # known, so the error can name the campaign that now exists.
+    form_mismatches = _read_created_form_mismatches(
         page,
         headlines=headlines,
         texts=texts,
         weekly_budget=weekly_budget,
     )
 
+    campaign_id = _wait_for_created_campaign_id(page, button_label=button_label)
+
+    _verify_created(
+        page,
+        campaign_id,
+        form_mismatches=form_mismatches,
+        regions=regions,
+    )
+
     result: Dict[str, Any] = {
+        "CampaignId": campaign_id,
         "LandingUrl": url,
         "Headlines": headlines,
         "Texts": texts,
