@@ -288,6 +288,7 @@ side effect on the campaign itself.
 """
 
 import contextlib
+import difflib
 import json
 import os
 import re
@@ -1311,6 +1312,35 @@ _EDIT_UTM_SPOILER_BUTTON_TESTID = (
 # (``CampaignLinkEditorLite.Spoiler.Button``, ``_expand_utm_spoiler``) —
 # ``_set_tracking_params``/``--tracking-params`` is the dedicated setter,
 # expanding the spoiler before writing. Pass an empty string to clear it.
+
+# How long ``_wait_for_utm_section`` polls for the UTM field to become
+# READABLE after a reload (issue #769/#774). Live-measured against campaign
+# 713234064: a save that demonstrably took effect (the value was correct on
+# the next fresh page load) was still reporting an UNMOUNTED field 90s after
+# the reload, because the "Дополнительные параметры" spoiler had not
+# rendered its trigger yet and ``_expand_utm_spoiler`` therefore had nothing
+# to click. 30s matches ``_GRID_CAPTURE_TIMEOUT_MS``'s order of magnitude for
+# "this page section is slow but not broken".
+_UTM_SECTION_READY_TIMEOUT_MS = 30_000
+
+# How many times ``_verify_saved`` will RE-NAVIGATE (not merely re-read the
+# already-loaded page) before declaring a tracking_params mismatch, and how
+# long it waits between those reloads.
+#
+# Issue #769, live-measured against campaign 713234064 (2026-08-06): two
+# ``masters update --tracking-params`` runs back to back — the second
+# sending a value differing only by a removed ``|kw|{keyword}`` — had the
+# second run's verify read back the FIRST run's value and fail. Re-opening
+# the same campaign in a fresh page load 6.6s later showed the second run's
+# value correctly saved all along: the save was never the problem, the
+# post-save reload served a stale render of the section. Polling harder
+# inside that one page (what ``_read_until_matches``' retry budget does)
+# cannot fix it — the stale value is what that page has; only a genuinely
+# new navigation re-fetches it. Three attempts covers the observed settle
+# time with headroom while bounding a real mismatch at ~15s of extra work.
+_VERIFY_RELOAD_MAX_ATTEMPTS = 3
+_VERIFY_RELOAD_BACKOFF_MS = 5_000
+
 
 _SAVE_BUTTON_TEXT = "Сохранить кампанию"
 _LAUNCH_BUTTON_TEXT = "Запустить кампанию"
@@ -2963,13 +2993,58 @@ def _read_tracking_params(page: "Page") -> Optional[str]:
     """
     # _expand_utm_spoiler is itself a cheap no-op (single aria-expanded
     # read) when the spoiler is already open, so there is no need to
-    # duplicate that check here first.
-    _expand_utm_spoiler(page)
+    # duplicate that check here first. A False return means the spoiler's
+    # trigger isn't in the DOM at all — the field cannot be mounted, so
+    # this is "unreadable" (None), NOT "empty" (issue #769/#774: conflating
+    # the two is what made a still-hydrating section look like a failed
+    # save). Callers that need to wait this out use _wait_for_utm_section.
+    if not _expand_utm_spoiler(page):
+        return None
     field = page.locator(_EDIT_UTM_INPUT_TESTID).first
     try:
         return field.text_content()
     except PlaywrightError:
         return None
+
+
+def _wait_for_utm_section(page: "Page") -> bool:
+    """Block until the UTM field is actually READABLE, so a caller's read
+    distinguishes "the field is empty" from "the field isn't mounted yet".
+
+    Issue #769/#774. ``_read_tracking_params`` calls ``_expand_utm_spoiler``
+    and then DISCARDS its return value: when the spoiler's trigger has not
+    rendered yet (the whole "Дополнительные параметры" section mounts late,
+    well after ``_wait_for_edit_form``'s first-headline marker), there is
+    nothing to click, the field stays unmounted, and ``text_content()``
+    returns ``None``. Feeding that ``None`` straight into
+    ``_read_until_matches`` is the bug behind both issues: the poll re-reads
+    an unmountable field for its entire budget and the mismatch is then
+    reported as "the save did not take effect", even though live recon
+    against campaign 713234064 confirmed the save HAD taken effect — the
+    correct value was there on the very next page load, while the verifying
+    run had spent 90s reading ``None``.
+
+    Retrying the EXPANSION (not just the read) is what actually closes it:
+    each tick re-attempts ``_expand_utm_spoiler``, so a trigger that appears
+    late is clicked as soon as it exists.
+
+    Returns ``True`` once a non-``None`` read succeeds, ``False`` on
+    timeout. Callers treat ``False`` as "could not confirm this section is
+    usable" and let their own mismatch reporting take over rather than
+    raising here — same degradation contract as
+    ``_wait_for_target_actions_settled`` (issue #750).
+    """
+
+    def _readable() -> bool:
+        if not _expand_utm_spoiler(page):
+            return False
+        field = page.locator(_EDIT_UTM_INPUT_TESTID).first
+        try:
+            return field.text_content() is not None
+        except PlaywrightError:
+            return False
+
+    return _poll_until(page, _readable, _UTM_SECTION_READY_TIMEOUT_MS)
 
 
 def _set_contenteditable_field(
@@ -4593,6 +4668,137 @@ def _verify_repeating_value_mismatches(
     return mismatches
 
 
+# Below this length a plain ``expected X, page shows Y`` pair is already
+# readable at a glance, so ``describe_value_mismatch`` adds nothing and just
+# doubles the message. The values that motivated the helper (issue #774's UTM
+# query strings) run 100+ characters.
+_VALUE_DIFF_MIN_LEN = 40
+
+# Segments shorter than this are reported as plain missing/extra rather than
+# as a move, even when the same text appears on both sides: a 1-2 character
+# coincidence (a stray ``&`` or ``=`` matching somewhere else in a query
+# string) is noise, not a relocated fragment.
+_VALUE_DIFF_MIN_MOVE_LEN = 3
+
+
+def describe_value_mismatch(expected: str, actual: "Optional[str]") -> str:
+    """Render a human-readable account of how ``actual`` differs from
+    ``expected``, as indented ``- ...`` bullet lines (empty string when the
+    two are equal, or when a plain pair is already readable).
+
+    Issue #774: ``_verify_saved``'s mismatches were reported purely as
+    ``expected {a!r}, page now shows {b!r}``. For a 110-character UTM query
+    string whose only difference is that ``|kw|{keyword}`` moved from the
+    middle to the end, spotting that by eye across two near-identical repr
+    lines is genuinely hard — and the SHAPE of the difference is exactly
+    what tells a reader whether Yandex rejected the value, truncated it, or
+    (as #774 turned out to be) the CLI's own typing reordered it.
+
+    Classifies each ``difflib`` opcode into ``missing`` (in ``expected``,
+    absent from ``actual``) and ``extra`` (present in ``actual``, not
+    requested), then pairs a missing segment with an identical extra one
+    into a single ``moved`` line — the #774 signature. Positions are
+    0-based character offsets into ``expected``/``actual`` respectively, so
+    a reader can find the fragment without counting.
+
+    Deliberately descriptive, never a verdict: this does not decide whether
+    a mismatch is benign. ``_verify_saved`` still fails on any mismatch,
+    including a pure reorder — a reordered query string is a different
+    string, and the caller asked for the one they passed.
+    """
+    if actual is None:
+        return "    - the field could not be read at all (no value on the page)"
+    if actual == expected:
+        return ""
+    if not expected:
+        return f"    - expected an empty value, but the field holds {actual!r}"
+    if not actual:
+        return "    - expected a value, but the field is empty"
+    if max(len(expected), len(actual)) < _VALUE_DIFF_MIN_LEN:
+        return ""
+
+    missing: "List[Tuple[int, str]]" = []
+    extra: "List[Tuple[int, str]]" = []
+    matcher = difflib.SequenceMatcher(None, expected, actual, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag in ("delete", "replace"):
+            missing.append((i1, expected[i1:i2]))
+        if tag in ("insert", "replace"):
+            extra.append((j1, actual[j1:j2]))
+
+    # Pair a missing segment with an extra one into a single "moved" line.
+    #
+    # Matching is NOT byte-equality of the two opcode slices: difflib aligns
+    # on the longest common runs, so when a relocated fragment is bracketed
+    # by delimiters that also appear at its new site, the opcode boundaries
+    # land inside the fragment — a ``|aa|`` moved across a query string is
+    # emitted as missing ``'|aa|'`` against extra ``'aa'``, which an
+    # equality test misses entirely. Instead a missing segment counts as
+    # moved when it appears VERBATIM in ``actual`` at an offset that is not
+    # where it was requested; the paired extra is whichever unpaired extra
+    # segment overlaps that occurrence. Each extra is consumed at most once,
+    # so a fragment duplicated on one side only still reports its leftover
+    # copy as extra rather than being silently absorbed into a move.
+    lines: "List[str]" = []
+    unpaired_extra = list(extra)
+    unpaired_missing: "List[Tuple[int, str]]" = []
+    for pos, segment in missing:
+        found_at = (
+            actual.find(segment) if len(segment) >= _VALUE_DIFF_MIN_MOVE_LEN else -1
+        )
+        if found_at < 0 or found_at == pos:
+            unpaired_missing.append((pos, segment))
+            continue
+        # The paired extra is whichever unpaired extra segment's own span
+        # overlaps that occurrence. Overlap alone — NOT equality or
+        # containment of the two texts: difflib picks its alignment
+        # arbitrarily around delimiters shared with the fragment's new
+        # neighbourhood, so the extra it emits for a relocated '|aa|' can be
+        # 'aa' (the fragment minus both delimiters) or '|kw||kw|' (the
+        # fragment merged with an adjacent duplicate). Neither survives a
+        # text-identity test, but both overlap the occurrence's span.
+        end = found_at + len(segment)
+        overlapping = next(
+            (
+                candidate
+                for candidate in unpaired_extra
+                if candidate[0] < end and found_at < candidate[0] + len(candidate[1])
+            ),
+            None,
+        )
+        if overlapping is None:
+            unpaired_missing.append((pos, segment))
+            continue
+        unpaired_extra.remove(overlapping)
+        lines.append(
+            f"    - moved: {segment!r} was requested at position {pos}, "
+            f"but the page has it at position {found_at}"
+        )
+
+    for pos, segment in unpaired_missing:
+        lines.append(f"    - missing: {segment!r} (expected at position {pos})")
+    for pos, segment in unpaired_extra:
+        lines.append(f"    - extra: {segment!r} (on the page at position {pos})")
+
+    return "\n".join(lines)
+
+
+def _format_value_mismatch(label: str, expected: Any, actual: Any) -> str:
+    """Format one ``_verify_saved`` mismatch line, appending
+    ``describe_value_mismatch``'s breakdown when both sides are strings long
+    enough for the raw pair to be hard to read (issue #774).
+
+    Non-string values (booleans, ints, sets) keep the plain
+    ``expected X, page now shows Y`` form — they are short and the
+    character-level diff would be meaningless for them.
+    """
+    line = f"{label}: expected {expected!r}, page now shows {actual!r}"
+    if not isinstance(expected, str) or not isinstance(actual, (str, type(None))):
+        return line
+    detail = describe_value_mismatch(expected, actual)
+    return f"{line}\n{detail}" if detail else line
+
+
 def _read_until_matches(
     page: "Page",
     reader: "Callable[[Page], Any]",
@@ -4727,28 +4933,50 @@ def _verify_saved(
             continue
         actual = _read_until_matches(page, reader, expected)
         if actual != expected:
-            mismatches.append(
-                f"{label}: expected {expected!r}, page now shows {actual!r}"
-            )
+            mismatches.append(_format_value_mismatch(label, expected, actual))
 
     if tracking_params is not None:
-        # Same settle-wait-then-poll shape as the audience section above
-        # (issue #681): the "Дополнительные параметры" spoiler is not
-        # guaranteed ready by _wait_for_edit_form, and a single
-        # _read_tracking_params call right after reload can itself take
-        # 4-5s just to expand it — confirmed live (issue #761), leaving no
-        # room in the default 5s retry budget for even one retry.
-        page.wait_for_timeout(3_000)
-        actual = _read_until_matches(
-            page,
-            _read_tracking_params,
-            tracking_params,
-            timeout_ms=_VERIFY_FIELD_READ_TIMEOUT_MS * 4,
-        )
+        # Wait for the section to be READABLE before judging it (issue
+        # #769/#774), rather than sleeping a fixed 3s and hoping. The old
+        # fixed wait was calibrated (issue #761) against "expanding the
+        # spoiler takes 4-5s"; live recon against campaign 713234064 found
+        # the section can instead stay entirely unmounted, making every
+        # subsequent read return None for the full retry budget and
+        # reporting a save that DID take effect as a failure. This retries
+        # the expansion itself, so a late-mounting trigger is picked up as
+        # soon as it exists — and a timeout is left to fall through to the
+        # mismatch reporting below, which now says "could not be read at
+        # all" rather than pretending the field was empty.
+        #
+        # RE-NAVIGATING on a mismatch, not just re-reading (issue #769): the
+        # post-save reload above can serve a stale render of this section,
+        # showing the value from a PREVIOUS update of the same campaign.
+        # ``_read_until_matches`` cannot see past that — the stale value is
+        # what the loaded page has, so polling it harder just re-reads the
+        # same wrong string. A genuinely new navigation is what re-fetches
+        # it; live recon against campaign 713234064 had the correct value on
+        # a fresh load 6.6s after a verify that had failed this way.
+        actual = None
+        for _attempt in range(_VERIFY_RELOAD_MAX_ATTEMPTS):
+            _wait_for_utm_section(page)
+            actual = _read_until_matches(
+                page,
+                _read_tracking_params,
+                tracking_params,
+                timeout_ms=_VERIFY_FIELD_READ_TIMEOUT_MS * 4,
+            )
+            if actual == tracking_params:
+                break
+            if _attempt == _VERIFY_RELOAD_MAX_ATTEMPTS - 1:
+                break
+            page.wait_for_timeout(_VERIFY_RELOAD_BACKOFF_MS)
+            page.goto(url, wait_until="commit")
+            assert_not_captcha(page.content())
+            assert_authenticated(page.content())
+            _wait_for_edit_form(page, campaign_id)
         if actual != tracking_params:
             mismatches.append(
-                f"tracking_params: expected {tracking_params!r}, page now "
-                f"shows {actual!r}"
+                _format_value_mismatch("tracking_params", tracking_params, actual)
             )
 
     if age_from_requested:
