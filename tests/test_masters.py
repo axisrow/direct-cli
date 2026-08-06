@@ -140,6 +140,9 @@ class _FakeLocatorHandle:
         self._get_value = get_value
         self._get_checked = get_checked
         self._on_upload = on_upload
+        # Every `timeout=` this handle's click() was called with, in order
+        # (issue #779 review) — see click().
+        self.click_timeouts = []
         # {selector: _FakeLocatorHandle} for a SCOPED child lookup — models
         # Playwright's Locator.locator(), e.g. `label.locator("xpath=.//input
         # [...]")` (issue #656: _set_region reads a checkbox scoped off the
@@ -177,6 +180,12 @@ class _FakeLocatorHandle:
             raise PlaywrightError("Timeout waiting for element state")
 
     def click(self, timeout=None):
+        # Record every click's timeout, including the ones that raise
+        # (issue #779 review): a trigger that ISN'T on the page is exactly
+        # the call whose missing `timeout=` costs Playwright's 30s default,
+        # and this fake raises instantly, so the argument is the only
+        # observable an offline test has for that cost.
+        self.click_timeouts.append(timeout)
         if self._raises:
             raise PlaywrightError("element detached")
         if not self._visible:
@@ -5389,6 +5398,217 @@ class TestAddTargetAction(unittest.TestCase):
             browser_masters._add_target_action(page, 226158067, 77)
         self.assertIn("226158067", str(ctx.exception))
         self.assertIn("max-conversions", str(ctx.exception))
+
+    def _empty_add_button_testid(self):
+        testid = browser_masters._TARGET_ACTION_ADD_BUTTON_EMPTY_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY
+        )
+        return f'[data-testid="{testid}"]'
+
+    def test_bounds_the_click_on_a_trigger_that_is_not_on_the_page(self):
+        """Every candidate trigger must be clicked with an EXPLICIT short
+        ``timeout=`` (issue #779 review, found independently by both
+        reviewers).
+
+        ``_add_target_action`` tries both trigger testids because only one
+        of them exists on any given render — so a click against the absent
+        one is the EXPECTED path, not an edge case, and it runs on every
+        single ``masters add``: the create page's table always starts
+        empty, so the ``MiniGrid.AddButton`` variant tried first is never
+        there for the first goal. With no explicit ``timeout=``, Playwright
+        applies its 30s default action timeout (nothing in ``direct_cli/``
+        calls ``set_default_timeout``), so that expected miss costs ~30s of
+        auto-wait before falling through to the trigger that does exist —
+        and the documented no-Metrika-counter failure case multiplies it by
+        ``_TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS``.
+
+        This is unobservable through the fake's timing: ``_FakeLocator.first``
+        raises INSTANTLY for an absent selector, so the production cost
+        never shows up as a slow test — the same structural blind spot
+        ``_clock.py`` documents for poll deadlines. The argument passed to
+        ``click()`` is therefore the only thing an offline test can assert
+        on, which is why the fake records it.
+        """
+        # Create-page shape: only the empty-table trigger exists, so the
+        # MiniGrid one tried first is absent.
+        missing_trigger = _FakeLocatorHandle(raises=True)
+        present_trigger = _FakeLocatorHandle()
+        option = _FakeLocatorHandle()
+        price_field = _FakeLocatorHandle()
+        price_field.fill = lambda value: None
+
+        page = FakePage(
+            locators={
+                self._add_button_testid(): _FakeLocator([missing_trigger]),
+                self._empty_add_button_testid(): _FakeLocator([present_trigger]),
+                self._option_testid(226158067): _FakeLocator([option]),
+                self._price_testid(226158067): _FakeLocator([price_field]),
+            }
+        )
+
+        browser_masters._add_target_action(page, 226158067, 77)
+
+        # An empty table must go STRAIGHT to the trigger that exists there,
+        # never paying for the MiniGrid variant at all.
+        self.assertEqual(
+            missing_trigger.click_timeouts,
+            [],
+            "an empty table clicked the populated-table trigger — the "
+            "ordering that keeps `masters add`'s first goal from paying "
+            "for a known-absent trigger has regressed",
+        )
+        self.assertTrue(present_trigger.click_timeouts)
+
+        # And every trigger click, whichever is tried, stays bounded: the
+        # ordering is a hint, so the OTHER trigger is still attempted
+        # whenever the hint is wrong (a non-empty table on the create page,
+        # a mid-hydration row count), and that attempt must not fall back
+        # to Playwright's 30s default.
+        for timeout in present_trigger.click_timeouts:
+            self.assertIsNotNone(
+                timeout,
+                "click() was called with no explicit timeout, so Playwright's "
+                "30s default applies to a trigger that may be absent",
+            )
+            self.assertLessEqual(
+                timeout,
+                browser_masters._POPUP_APPEAR_TIMEOUT_MS,
+                "the trigger click's timeout must stay short — a present "
+                "trigger is present immediately",
+            )
+
+    def test_bounds_the_click_when_the_row_count_hint_is_wrong(self):
+        """The row-count hint only reorders the attempts — when it points at
+        the wrong trigger the other is still tried, and THAT click is the
+        one whose missing ``timeout=`` would cost Playwright's 30s default
+        (issue #779 review).
+
+        Modelled here as a populated table (so the hint picks
+        ``MiniGrid.AddButton`` first) on which only the empty-table trigger
+        actually renders — the create page's state mid-hydration, and the
+        reason the ordering must stay a hint rather than a branch.
+        """
+        missing_trigger = _FakeLocatorHandle(raises=True)
+        present_trigger = _FakeLocatorHandle()
+        option = _FakeLocatorHandle()
+        price_field = _FakeLocatorHandle()
+        price_field.fill = lambda value: None
+
+        row_testid = browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=111222333
+        )
+        prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+
+        page = FakePage(
+            locators={
+                # A row already in the table — the hint therefore says
+                # "populated", so MiniGrid.AddButton is tried first...
+                prefix_selector: _FakeLocator(
+                    [_FakeLocatorHandle(attrs={"data-testid": row_testid})]
+                ),
+                # ...but only the empty-table trigger is actually present.
+                self._add_button_testid(): _FakeLocator([missing_trigger]),
+                self._empty_add_button_testid(): _FakeLocator([present_trigger]),
+                self._option_testid(226158067): _FakeLocator([option]),
+                self._price_testid(226158067): _FakeLocator([price_field]),
+            }
+        )
+
+        browser_masters._add_target_action(page, 226158067, 77)
+
+        self.assertTrue(
+            missing_trigger.click_timeouts,
+            "the wrong-hint fall-through was never exercised — this test no "
+            "longer covers the click it is meant to bound",
+        )
+        for timeout in missing_trigger.click_timeouts + present_trigger.click_timeouts:
+            self.assertIsNotNone(
+                timeout,
+                "click() was called with no explicit timeout, so Playwright's "
+                "30s default applies to a trigger known to be absent",
+            )
+            self.assertLessEqual(
+                timeout,
+                browser_masters._POPUP_APPEAR_TIMEOUT_MS,
+                "the trigger click's timeout must stay short — a present "
+                "trigger is present immediately",
+            )
+
+    def test_names_the_click_bound_when_no_trigger_ever_became_clickable(self):
+        """Bounding the trigger click made "present but not actionable in
+        time" a NEWLY reachable way into the exhausted-retry branch, and the
+        error must say so (issue #779 review round 2).
+
+        Before the bound, that branch was only reachable after Playwright's
+        30s-per-click default, so attributing it to the Metrika counter /
+        promotion goal / changed markup was fair. With a
+        ``_POPUP_APPEAR_TIMEOUT_MS`` bound it is also reachable on a slow
+        render — and this section is documented to hydrate for seconds
+        (``_TARGET_ACTION_SETTLE_TIMEOUT_MS`` is 10s, and
+        ``_wait_for_target_actions_settled`` exists precisely because its
+        reads are unreliable for over a second). Playwright's ``TimeoutError``
+        cannot tell "absent" from "present but not actionable", so the code
+        cannot distinguish them — but the message can name both, instead of
+        sending the user to audit counter setup that is fine.
+        """
+        # Both triggers time out on every attempt — the shape a still-
+        # hydrating page presents.
+        page = FakePage(
+            locators={
+                self._add_button_testid(): _FakeLocator(
+                    [_FakeLocatorHandle(visible=False)]
+                ),
+                self._empty_add_button_testid(): _FakeLocator(
+                    [_FakeLocatorHandle(visible=False)]
+                ),
+                self._option_testid(226158067): _FakeLocator([_FakeLocatorHandle()]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_target_action(page, 226158067, 77)
+
+        message = str(ctx.exception)
+        self.assertIn("226158067", message)
+        self.assertRegex(
+            message,
+            r"(?i)hydrat|clickable|did not become",
+            "the exhausted-retry error never mentions that the 'Добавить' "
+            "trigger may simply not have become clickable within the short "
+            "bound — on a slow page this sends the user to audit a Metrika "
+            "counter that is fine",
+        )
+        # A present-but-unresponsive trigger is NOT a counter/promotion-goal
+        # problem, so the error must not lead with that diagnosis.
+        self.assertNotIn(
+            "max-conversions",
+            message,
+            "a trigger that is present but slow was blamed on the campaign's "
+            "promotion goal / Metrika counter setup",
+        )
+
+    def test_still_blames_the_counter_when_no_trigger_is_on_the_page_at_all(self):
+        """The counter/promotion-goal diagnosis must survive for the case it
+        was written for — a genuinely absent trigger (issue #779 review
+        round 2). The new hydration branch above must not swallow it."""
+        page = FakePage(
+            locators={
+                # Neither trigger registered at all — the section really
+                # isn't there.
+                self._option_testid(226158067): _FakeLocator([_FakeLocatorHandle()]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_target_action(page, 226158067, 77)
+
+        message = str(ctx.exception)
+        self.assertIn("226158067", message)
+        self.assertIn("max-conversions", message)
+        self.assertIn("targetactions get", message)
 
     def test_raises_with_context_when_price_fill_fails_after_add(self):
         add_button = _FakeLocatorHandle()
@@ -12415,6 +12635,11 @@ class TestCreateMaster(unittest.TestCase):
     # see _redirect_to_overview below.
     CREATED_ID = 713299001
 
+    # The Metrika goal id / CPA the create-page tests add (issue #777).
+    # A real goal id from the live recon's auto-discovered counter.
+    GOAL_ID = 236386933
+    GOAL_PRICE = 150
+
     def _full_page(
         self,
         region="Москва",
@@ -12423,6 +12648,10 @@ class TestCreateMaster(unittest.TestCase):
         redirect=True,
         node_id=None,
         page_after_redirect_has_no_form=False,
+        offer_goal_ids=None,
+        add_button_testid=None,
+        drop_goal_rows_after_add=False,
+        revert_goal_price_after_add=None,
     ):
         url_state = {}
         headline_state = []
@@ -12541,8 +12770,129 @@ class TestCreateMaster(unittest.TestCase):
             },
         )
 
+        # "Целевые действия" widget (issue #777 live recon, 2026-08-06).
+        # Modelled exactly as the create page behaves: the table starts
+        # EMPTY with only an add trigger, clicking it reveals one
+        # AddTargetAction.OTHER.<goalId> option per goal on the
+        # auto-discovered Metrika counter, and clicking an option appends a
+        # row whose PriceInput arrives PRE-FILLED with a Yandex suggestion
+        # (not empty, unlike the edit page) — which _add_target_action must
+        # overwrite rather than accept.
+        offer_goal_ids = (
+            [self.GOAL_ID] if offer_goal_ids is None else list(offer_goal_ids)
+        )
+        # Which of the two live-observed trigger testids this page renders.
+        # The create page's empty table uses AddTargetButton; the edit page
+        # (and the create page once a row exists) uses MiniGrid.AddButton.
+        # Defaulting to the empty-table form is what makes these tests cover
+        # the create page's actual markup rather than the edit page's.
+        add_button_testid = add_button_testid or (
+            browser_masters._TARGET_ACTION_ADD_BUTTON_EMPTY_TESTID_TEMPLATE.format(
+                category=browser_masters._TARGET_ACTIONS_CATEGORY
+            )
+        )
+        goal_rows = {}
+        goal_price_state = {}
+        target_action_popup_open = {"value": False}
+
+        def _fill_goal_price(goal_id, value):
+            """The price fill, plus the two ways a successful
+            ``_add_target_action`` can still leave the table wrong by the
+            time the terminal button is reached (issue #777's pre-click
+            gate). Both are modelled here, at the LAST step of the add, so
+            they land after the add believes it succeeded and before the
+            gate reads the table back.
+            """
+            goal_price_state[goal_id] = value
+            if drop_goal_rows_after_add:
+                # A React re-render dropping the row behind us.
+                goal_rows.clear()
+                page._locators[row_prefix_selector] = _FakeLocator([])
+            elif revert_goal_price_after_add is not None:
+                goal_price_state[goal_id] = revert_goal_price_after_add
+
+        def _make_goal_locators():
+            """Row/price locators for goals currently in the table."""
+            out = {}
+            for goal_id in goal_rows:
+                price_testid = (
+                    browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+                        category=browser_masters._TARGET_ACTIONS_CATEGORY,
+                        goal_id=goal_id,
+                    )
+                )
+                out[f'[data-testid="{price_testid}"]'] = _FakeLocator(
+                    [
+                        _FakeLocatorHandle(
+                            on_fill=lambda v, g=goal_id: _fill_goal_price(g, v),
+                            get_value=lambda g=goal_id: goal_price_state.get(g, ""),
+                        )
+                    ]
+                )
+            return out
+
+        def _add_goal_row(goal_id):
+            goal_rows[goal_id] = True
+            # Pre-filled Yandex suggestion, confirmed live — the value
+            # _add_target_action must not trust.
+            goal_price_state.setdefault(goal_id, "160")
+            page._locators.update(_make_goal_locators())
+            row_template = browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE
+            page._locators[row_prefix_selector] = _FakeLocator(
+                [
+                    _FakeLocatorHandle(
+                        attrs={
+                            "data-testid": row_template.format(
+                                category=browser_masters._TARGET_ACTIONS_CATEGORY,
+                                goal_id=g,
+                            )
+                        }
+                    )
+                    for g in goal_rows
+                ]
+            )
+
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        # The options are hidden until the trigger opens the popup, which is
+        # exactly the state _add_target_action's wait_for(state="visible")
+        # polls — a fake that renders them visible from the start would let
+        # a broken trigger pass.
+        goal_option_handles = []
+        goal_option_locators = {}
+        for _goal_id in offer_goal_ids:
+            _option_testid = (
+                browser_masters._TARGET_ACTION_ADD_OPTION_TESTID_TEMPLATE.format(
+                    category=browser_masters._TARGET_ACTIONS_CATEGORY,
+                    goal_id=_goal_id,
+                )
+            )
+            _handle = _FakeLocatorHandle(
+                visible=False,
+                on_click=lambda g=_goal_id: _add_goal_row(g),
+            )
+            goal_option_handles.append(_handle)
+            goal_option_locators[f'[data-testid="{_option_testid}"]'] = _FakeLocator(
+                [_handle]
+            )
+
+        def _open_target_action_popup():
+            target_action_popup_open["value"] = True
+            for handle in goal_option_handles:
+                handle._visible = True
+
         page = FakePage(
             locators={
+                browser_masters._TARGET_ACTIONS_SECTION_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                row_prefix_selector: _FakeLocator([]),
+                f'[data-testid="{add_button_testid}"]': _FakeLocator(
+                    [_FakeLocatorHandle(on_click=_open_target_action_popup)]
+                ),
+                **goal_option_locators,
                 browser_masters._CREATE_URL_INPUT_TESTID: _FakeLocator([url_field]),
                 browser_masters._CREATE_NEXT_BUTTON_TESTID: _FakeLocator([next_button]),
                 headline_selector: _FakeLocator([headline_field]),
@@ -12647,6 +12997,10 @@ class TestCreateMaster(unittest.TestCase):
             "budget": budget_state,
             "launch_clicks": launch_clicks,
             "draft_clicks": draft_clicks,
+            # Issue #777: {goal_id: price-as-filled}, so a test can assert
+            # the CALLER's price landed rather than Yandex's pre-filled
+            # suggestion.
+            "goal_prices": goal_price_state,
         }
 
     def test_launches_by_default(self):
@@ -12658,6 +13012,7 @@ class TestCreateMaster(unittest.TestCase):
             headlines=["Заголовок"],
             texts=["Текст объявления"],
             regions=["Москва"],
+            target_actions={self.GOAL_ID: self.GOAL_PRICE},
         )
 
         self.assertEqual(state["url"]["url"], "https://ksamata.ru/")
@@ -12675,6 +13030,10 @@ class TestCreateMaster(unittest.TestCase):
                 "Headlines": ["Заголовок"],
                 "Texts": ["Текст объявления"],
                 "Regions": ["Москва"],
+                # Issue #777: the conversion goal(s) the create form
+                # required, echoed back so the caller can see which CPA was
+                # actually published.
+                "TargetActions": {self.GOAL_ID: self.GOAL_PRICE},
                 "Launched": True,
             },
         )
@@ -12699,6 +13058,7 @@ class TestCreateMaster(unittest.TestCase):
             headlines=["Заголовок"],
             texts=["Текст объявления"],
             regions=["Москва"],
+            target_actions={self.GOAL_ID: self.GOAL_PRICE},
             launch=False,
         )
 
@@ -12715,6 +13075,7 @@ class TestCreateMaster(unittest.TestCase):
             headlines=["Заголовок"],
             texts=["Текст объявления"],
             regions=["Москва"],
+            target_actions={self.GOAL_ID: self.GOAL_PRICE},
             weekly_budget=50000,
         )
 
@@ -12730,16 +13091,193 @@ class TestCreateMaster(unittest.TestCase):
             headlines=["Заголовок"],
             texts=["Текст объявления"],
             regions=["Москва"],
+            target_actions={self.GOAL_ID: self.GOAL_PRICE},
         )
 
         self.assertNotIn("WeeklyBudget", result)
+
+    def test_raises_value_error_when_no_target_actions(self):
+        """Issue #777: Yandex silently swallows the terminal click when the
+        form has no conversion goal, so a goal-less call must be refused
+        outright rather than driven through the whole form and left to fail
+        as an opaque redirect timeout."""
+        page, state = self._full_page()
+
+        with self.assertRaises(ValueError):
+            browser_masters.create_master(
+                page,
+                "https://ksamata.ru/",
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                regions=["Москва"],
+                target_actions={},
+            )
+
+        # Fails fast: nothing was published, and no browser work was done.
+        self.assertEqual(state["launch_clicks"], [])
+        self.assertEqual(state["draft_clicks"], [])
+        self.assertEqual(page.navigated_to, [])
+
+    def test_adds_the_requested_goal_with_its_price_before_clicking(self):
+        """The goal must reach the page, and its price must be the one the
+        caller asked for — not the value Yandex pre-fills (issue #777 live
+        recon found the create page's new row arrives holding a suggested
+        "160", unlike the edit page's empty input)."""
+        page, state = self._full_page()
+
+        browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=["Москва"],
+            target_actions={self.GOAL_ID: 250},
+        )
+
+        self.assertEqual(state["goal_prices"], {self.GOAL_ID: "250"})
+        self.assertEqual(len(state["launch_clicks"]), 1)
+
+    def test_adds_multiple_goals_in_one_create(self):
+        second_goal = 236386932
+        page, state = self._full_page(offer_goal_ids=[self.GOAL_ID, second_goal])
+
+        browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=["Москва"],
+            target_actions={self.GOAL_ID: 250, second_goal: 75},
+        )
+
+        self.assertEqual(state["goal_prices"], {self.GOAL_ID: "250", second_goal: "75"})
+        self.assertEqual(len(state["launch_clicks"]), 1)
+
+    def test_uses_the_create_pages_empty_table_add_trigger(self):
+        """The create page's empty "Целевые действия" table renders its
+        "Добавить" button as ``TargetActions.OTHER.AddTargetButton``, NOT
+        the edit page's ``MiniGrid.AddButton`` (issue #777 live recon) —
+        the one testid that differs between the two pages. ``_full_page``
+        already defaults to the create-page form, so this asserts the
+        default is the one being exercised."""
+        page, state = self._full_page()
+
+        browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=["Москва"],
+            target_actions={self.GOAL_ID: self.GOAL_PRICE},
+        )
+
+        self.assertEqual(len(state["launch_clicks"]), 1)
+
+    def test_still_works_against_the_edit_pages_add_trigger(self):
+        """The same code path must keep working when the page renders the
+        OTHER trigger name — confirmed live that the create page itself
+        switches to ``MiniGrid.AddButton`` once a first row exists, so
+        neither testid may be assumed."""
+        page, state = self._full_page(
+            add_button_testid=(
+                browser_masters._TARGET_ACTION_ADD_BUTTON_TESTID_TEMPLATE.format(
+                    category=browser_masters._TARGET_ACTIONS_CATEGORY
+                )
+            )
+        )
+
+        browser_masters.create_master(
+            page,
+            "https://ksamata.ru/",
+            headlines=["Заголовок"],
+            texts=["Текст объявления"],
+            regions=["Москва"],
+            target_actions={self.GOAL_ID: self.GOAL_PRICE},
+        )
+
+        self.assertEqual(state["goal_prices"], {self.GOAL_ID: "150"})
+        self.assertEqual(len(state["launch_clicks"]), 1)
+
+    def test_raises_before_clicking_when_the_goal_is_not_offered(self):
+        """A goal that isn't on the auto-discovered Metrika counter never
+        appears as an option — that must abort BEFORE the terminal click,
+        since a create without a valid goal is silently rejected."""
+        page, state = self._full_page(offer_goal_ids=[])
+
+        with self.assertRaises(browser_masters.BrowserSessionError):
+            browser_masters.create_master(
+                page,
+                "https://ksamata.ru/",
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                regions=["Москва"],
+                target_actions={self.GOAL_ID: self.GOAL_PRICE},
+            )
+
+        self.assertEqual(state["launch_clicks"], [])
+        self.assertEqual(state["draft_clicks"], [])
+
+    def test_raises_before_clicking_when_the_goal_row_silently_vanished(self):
+        """The pre-click gate, and the reason it exists (issue #777).
+
+        ``_add_target_action`` succeeding is not proof the row survived —
+        a React re-render can drop it, and Yandex punishes a goal-less form
+        by SILENTLY swallowing the terminal click (no redirect, no error,
+        both buttons still ``enabled``/``aria-disabled=None``). Without
+        this gate the run would publish nothing and fail 48s later as an
+        unexplained redirect timeout. Modelled by letting the add succeed
+        and then clearing the table behind it.
+        """
+        page, state = self._full_page(drop_goal_rows_after_add=True)
+
+        with self.assertRaises(browser_masters.BrowserSessionError) as ctx:
+            browser_masters.create_master(
+                page,
+                "https://ksamata.ru/",
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                regions=["Москва"],
+                target_actions={self.GOAL_ID: self.GOAL_PRICE},
+            )
+
+        self.assertIn("Целевые действия", str(ctx.exception))
+        self.assertIn(str(self.GOAL_ID), str(ctx.exception))
+        # Nothing was published — the whole point of gating BEFORE the click.
+        self.assertEqual(state["launch_clicks"], [])
+        self.assertEqual(state["draft_clicks"], [])
+
+    def test_raises_before_clicking_when_the_goal_price_did_not_stick(self):
+        """A row with the wrong/blank price is rejected by Yandex's own
+        client-side validation exactly like a missing row — same silent
+        swallow, so the gate must check the price too, not just presence."""
+        # Yandex's suggested value creeping back after the fill.
+        page, state = self._full_page(revert_goal_price_after_add="160")
+
+        with self.assertRaises(browser_masters.BrowserSessionError) as ctx:
+            browser_masters.create_master(
+                page,
+                "https://ksamata.ru/",
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                regions=["Москва"],
+                target_actions={self.GOAL_ID: self.GOAL_PRICE},
+            )
+
+        self.assertIn(str(self.GOAL_ID), str(ctx.exception))
+        self.assertEqual(state["launch_clicks"], [])
+        self.assertEqual(state["draft_clicks"], [])
 
     def test_raises_value_error_when_no_headlines(self):
         page, _ = self._full_page()
 
         with self.assertRaises(ValueError):
             browser_masters.create_master(
-                page, "https://ksamata.ru/", headlines=[], texts=["t"], regions=["r"]
+                page,
+                "https://ksamata.ru/",
+                headlines=[],
+                texts=["t"],
+                regions=["r"],
+                target_actions={self.GOAL_ID: self.GOAL_PRICE},
             )
 
     def test_raises_value_error_when_no_texts(self):
@@ -12747,7 +13285,12 @@ class TestCreateMaster(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             browser_masters.create_master(
-                page, "https://ksamata.ru/", headlines=["h"], texts=[], regions=["r"]
+                page,
+                "https://ksamata.ru/",
+                headlines=["h"],
+                texts=[],
+                regions=["r"],
+                target_actions={self.GOAL_ID: self.GOAL_PRICE},
             )
 
     def test_raises_value_error_when_no_regions(self):
@@ -12755,7 +13298,12 @@ class TestCreateMaster(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             browser_masters.create_master(
-                page, "https://ksamata.ru/", headlines=["h"], texts=["t"], regions=[]
+                page,
+                "https://ksamata.ru/",
+                headlines=["h"],
+                texts=["t"],
+                regions=[],
+                target_actions={self.GOAL_ID: self.GOAL_PRICE},
             )
 
     def test_invalid_url_stops_before_step2(self):
@@ -12771,6 +13319,7 @@ class TestCreateMaster(unittest.TestCase):
                 headlines=["h"],
                 texts=["t"],
                 regions=["Москва"],
+                target_actions={self.GOAL_ID: self.GOAL_PRICE},
             )
 
     def test_step1_timeout_raises_when_url_field_never_renders(self):
@@ -12792,6 +13341,7 @@ class TestCreateMaster(unittest.TestCase):
                     headlines=["h"],
                     texts=["t"],
                     regions=["Москва"],
+                    target_actions={self.GOAL_ID: self.GOAL_PRICE},
                 )
         self.assertIn("step 1", str(ctx.exception))
 
@@ -12835,6 +13385,7 @@ class TestCreateMaster(unittest.TestCase):
                 headlines=["Заголовок"],
                 texts=["Текст объявления"],
                 regions=["Москва"],
+                target_actions={self.GOAL_ID: self.GOAL_PRICE},
             )
         # The whole point: caught BEFORE the irreversible click, not after.
         self.assertEqual(len(state["launch_clicks"]), 0)
@@ -12882,6 +13433,7 @@ class TestCreateMaster(unittest.TestCase):
                 headlines=["Заголовок"],
                 texts=["Текст объявления"],
                 regions=["Москва"],
+                target_actions={self.GOAL_ID: self.GOAL_PRICE},
             )
         self.assertEqual(len(state["launch_clicks"]), 1)  # the click DID happen
         self.assertIn("did not take effect as requested", str(ctx.exception))
@@ -12902,6 +13454,7 @@ class TestCreateMaster(unittest.TestCase):
             headlines=["Заголовок"],
             texts=["Текст объявления"],
             regions=["Москва"],
+            target_actions={self.GOAL_ID: self.GOAL_PRICE},
         )
 
         self.assertEqual(result["CampaignId"], 713299123)
@@ -12923,6 +13476,7 @@ class TestCreateMaster(unittest.TestCase):
                     headlines=["Заголовок"],
                     texts=["Текст объявления"],
                     regions=["Москва"],
+                    target_actions={self.GOAL_ID: self.GOAL_PRICE},
                 )
 
         self.assertEqual(len(state["launch_clicks"]), 1)  # the click DID happen
@@ -12952,6 +13506,7 @@ class TestCreateMaster(unittest.TestCase):
                     headlines=["Заголовок"],
                     texts=["Текст объявления"],
                     regions=["Москва"],
+                    target_actions={self.GOAL_ID: self.GOAL_PRICE},
                 )
 
         self.assertEqual(len(state["launch_clicks"]), 1)  # the click DID happen
@@ -12979,6 +13534,7 @@ class TestCreateMaster(unittest.TestCase):
             headlines=["Заголовок"],
             texts=["Текст объявления"],
             regions=["Москва"],
+            target_actions={self.GOAL_ID: self.GOAL_PRICE},
         )  # must not raise
 
         self.assertEqual(result["CampaignId"], self.CREATED_ID)
@@ -12999,6 +13555,7 @@ class TestCreateMaster(unittest.TestCase):
             headlines=["Заголовок"],
             texts=["Текст объявления"],
             regions=[("Москва", 213)],
+            target_actions={self.GOAL_ID: self.GOAL_PRICE},
         )  # must not raise
 
         self.assertEqual(result["Regions"], [("Москва", 213)])
@@ -13027,6 +13584,7 @@ class TestCreateMaster(unittest.TestCase):
             headlines=["Заголовок"],
             texts=["Текст объявления"],
             regions=["Москва"],
+            target_actions={self.GOAL_ID: self.GOAL_PRICE},
             weekly_budget=50000,
         )  # must not raise: the campaign really was created
 
@@ -13072,6 +13630,8 @@ class TestMastersAddCommand(unittest.TestCase):
                     "Заголовок 2",
                     "--text",
                     "Текст",
+                    "--add-target-action",
+                    "236386933=150",
                     "--region",
                     "Москва",
                 ],
@@ -13083,6 +13643,10 @@ class TestMastersAddCommand(unittest.TestCase):
         self.assertEqual(kwargs["headlines"], ["Заголовок 1", "Заголовок 2"])
         self.assertEqual(kwargs["texts"], ["Текст"])
         self.assertEqual(kwargs["regions"], [("Москва", None)])
+        # Issue #777: parsed through the same "goal_id=price" helper
+        # `masters update --add-target-action` uses, so both commands
+        # accept exactly the same syntax for the same flag name.
+        self.assertEqual(kwargs["target_actions"], {236386933: 150.0})
         self.assertTrue(kwargs["launch"])
 
     def test_draft_flag_disables_launch(self):
@@ -13102,6 +13666,8 @@ class TestMastersAddCommand(unittest.TestCase):
                     "h",
                     "--text",
                     "t",
+                    "--add-target-action",
+                    "236386933=150",
                     "--region",
                     "Москва",
                     "--draft",
@@ -13129,6 +13695,8 @@ class TestMastersAddCommand(unittest.TestCase):
                     "h",
                     "--text",
                     "t",
+                    "--add-target-action",
+                    "236386933=150",
                     "--region",
                     "Москва",
                     "--weekly-budget",
@@ -13151,10 +13719,58 @@ class TestMastersAddCommand(unittest.TestCase):
                 "h",
                 "--text",
                 "t",
+                "--add-target-action",
+                "236386933=150",
             ],
         )
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("--region/--region-id", result.output)
+
+    def test_add_target_action_is_required(self):
+        """Issue #777: Yandex's create form is silently rejected without a
+        conversion goal — both terminal buttons keep reporting
+        visible/enabled/aria-disabled=None — so a goal-less invocation must
+        be refused at the CLI boundary rather than driven through a whole
+        browser session that can only end in an unexplained timeout."""
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "add",
+                "https://ksamata.ru/",
+                "--headline",
+                "h",
+                "--text",
+                "t",
+                "--region",
+                "Москва",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--add-target-action", result.output)
+
+    def test_add_target_action_rejects_a_bare_goal_id_with_no_price(self):
+        """Same "goal_id=price" syntax as `masters update
+        --add-target-action`, including its price requirement — a newly
+        added row's price has no safe default (issue #717/#777)."""
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "add",
+                "https://ksamata.ru/",
+                "--headline",
+                "h",
+                "--text",
+                "t",
+                "--region",
+                "Москва",
+                "--add-target-action",
+                "236386933",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("goal_id=price", result.output)
 
     def test_region_id_resolves_via_geo_regions_dictionary(self):
         service = Mock()
@@ -13185,6 +13801,8 @@ class TestMastersAddCommand(unittest.TestCase):
                     "h",
                     "--text",
                     "t",
+                    "--add-target-action",
+                    "236386933=150",
                     "--region-id",
                     "213",
                 ],
@@ -13228,6 +13846,8 @@ class TestMastersAddCommand(unittest.TestCase):
                     "h",
                     "--text",
                     "t",
+                    "--add-target-action",
+                    "236386933=150",
                     "--region",
                     "Москва",
                     "--region-id",
@@ -13261,6 +13881,8 @@ class TestMastersAddCommand(unittest.TestCase):
                     "h",
                     "--text",
                     "t",
+                    "--add-target-action",
+                    "236386933=150",
                     "--region-id",
                     "999999",
                 ],

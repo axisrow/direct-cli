@@ -749,10 +749,14 @@ def _parse_add_target_action_options(
 
     Same shape as ``_parse_target_action_price_options`` (goal id, never a
     label — see that function's docstring), but the price is NOT optional
-    here: live recon (issue #717) confirmed a freshly added row's price
-    input starts empty and Yandex's own client-side validation rejects
-    saving it empty, so there is no page default to fall back to — always
-    require ``"goal_id=price"``, never a bare goal id.
+    here, and on both pages that use this parse. On the EDIT page live recon
+    (issue #717) confirmed a freshly added row's price input starts empty
+    and Yandex's own client-side validation rejects saving it empty. On the
+    CREATE page (issue #777 recon) it instead arrives pre-filled with a
+    Yandex suggestion — but that is not a documented default either, and
+    publishing a CPA the caller never chose is worse than requiring one. So
+    neither page offers a default worth inheriting: always require
+    ``"goal_id=price"``, never a bare goal id.
     """
     parsed: "dict[int, float]" = {}
     for raw in values:
@@ -2076,6 +2080,22 @@ def _resolve_region_ids(
     "(unlike the rest of `masters`). Combines with --region.",
 )
 @click.option(
+    "--add-target-action",
+    "add_target_actions",
+    multiple=True,
+    required=True,
+    help=(
+        'Conversion goal to optimize for: "goal_id=price" where goal_id is '
+        "the Yandex Metrika goal ID and price is its CPA in account "
+        "currency. Repeat for multiple goals. REQUIRED — Yandex's create "
+        "form silently refuses to submit without at least one goal. The "
+        "goal must belong to the Metrika counter Yandex auto-discovers "
+        "from the landing page's domain, so a domain with no counter "
+        "installed cannot be used. Same flag name and syntax as `masters "
+        "update --add-target-action`."
+    ),
+)
+@click.option(
     "--weekly-budget",
     type=int,
     help="Weekly budget in account currency (Недельный бюджет)",
@@ -2097,6 +2117,7 @@ def add(
     texts,
     regions,
     region_ids,
+    add_target_actions,
     weekly_budget,
     draft,
     headful,
@@ -2126,6 +2147,13 @@ def add(
     wording the region widget expects; it requires Yandex Direct API
     credentials, unlike the rest of this command.
 
+    --add-target-action is required (issue #777): Yandex's create form
+    refuses to submit without at least one conversion goal, and refuses
+    SILENTLY — both terminal buttons stay visible and enabled in the
+    rejected state, so a goal-less run could only ever surface as an
+    unexplained timeout. It takes the same "goal_id=price" syntax as
+    `masters update --add-target-action`.
+
     By default the campaign is launched immediately (--launch). Pass
     --draft to save it as a draft instead (Сохранить как черновик) without
     going live.
@@ -2134,6 +2162,8 @@ def add(
 
     if not regions and not region_ids:
         raise click.UsageError("At least one of --region/--region-id is required.")
+
+    parsed_target_actions = _parse_add_target_action_options(add_target_actions)
 
     # (name, region_id) pairs — plain --region text has no known RegionId
     # (region_id=None), so `_set_region` can only verify it by exact-text
@@ -2154,6 +2184,7 @@ def add(
             headlines=list(headlines),
             texts=list(texts),
             regions=all_regions,
+            target_actions=parsed_target_actions,
             weekly_budget=weekly_budget,
             launch=not draft,
         ),

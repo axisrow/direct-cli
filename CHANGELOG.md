@@ -2,6 +2,120 @@
 
 ## Unreleased
 
+### BREAKING CHANGES
+
+**`masters add` now requires `--add-target-action` (#777).**
+
+`masters add` previously could not create a campaign at all. Yandex's create
+form requires at least one Яндекс Метрика conversion goal, `create_master`
+had no way to set one, and the rejection is **silent**: live recon (#744,
+2026-08-06) filled the form correctly, clicked "Сохранить как черновик", and
+watched `page.url` for 48s — no redirect, no campaign, while both terminal
+buttons kept reporting `visible=True`, `enabled=True`, `aria-disabled=None`.
+There is no DOM signal distinguishing "rejected" from "still working".
+
+- New required option `masters add --add-target-action "goal_id=price"`
+  (repeatable). Deliberately the **same flag name and syntax** as
+  `masters update --add-target-action` rather than a new spelling for the
+  same concept, per the project's no-legacy-aliases rule. Goals are
+  identified by numeric Metrika goal id, never by display name — consistent
+  with every other target-action entry point in the module.
+- Required at the Click level (`required=True`), not validated after the
+  fact: the live evidence says a create without a goal cannot succeed, so
+  failing before a browser is even launched beats a ~48s silent-rejection
+  timeout. `create_master` enforces the same invariant with a `ValueError`
+  for direct API callers.
+- The price is mandatory, as it already is on `masters update`. On the edit
+  page a newly added row's price input starts empty and Yandex rejects
+  saving it that way; on the create page it instead arrives **pre-filled
+  with a Yandex suggestion** (observed: "160"). Neither is a documented
+  default, and publishing a CPA the caller never chose is worse than
+  requiring one, so both paths overwrite it.
+- **Migration:** add `--add-target-action "<metrika_goal_id>=<price>"` to
+  existing `masters add` invocations. `masters targetactions get` lists the
+  goal ids available on an existing campaign; on the create page the goals
+  come from the Metrika counter Yandex auto-discovers from the landing
+  page's domain, so a domain with no counter installed cannot be used.
+
+Live recon of the create page (2026-08-06) settled #777's open question:
+the create page renders the **same** `TargetActionsSection` widget as the
+edit page, with the same `AddTargetAction.{category}.{goal_id}` popup
+options and the same resulting
+`TargetActions.{category}.{goal_id}[.PriceInput|.CloseButton]` row testids —
+so `_add_target_action` is reused wholesale rather than duplicated. Exactly
+one testid differs: with an empty table the create page renders its
+"Добавить" trigger as `TargetActions.OTHER.AddTargetButton`, without the
+`MiniGrid` segment (confirmed live that it switches to the edit page's
+`MiniGrid.AddButton` form once a first row exists). `_add_target_action`
+now tries both.
+
+Trying both triggers has a cost that had to be paid for explicitly (review
+of #779, found independently by both reviewers): clicking the trigger that
+is *not* on the current render is the expected path, not an error — and
+with no explicit `timeout=`, Playwright charges its **30s default**
+actionability auto-wait for each miss. Since the create page's table always
+starts empty, the populated-table trigger tried first was absent on every
+single `masters add`, adding a guaranteed ~30s stall to the happy path and
+multiplying to minutes in the documented no-goals-offered failure case
+(5 attempts × 2 triggers). Both trigger clicks are now bounded by
+`_POPUP_APPEAR_TIMEOUT_MS`, and the attempt order is picked from the
+table's current row count so the empty-table create path goes straight to
+the trigger that exists. The order is only a hint — both are still tried,
+so a stale or mid-hydration count costs at most one bounded click. The
+offline harness could not have caught this on timing alone: the fake
+locator raises instantly for an absent selector, so the production cost
+never surfaces as a slow test — the same structural blind spot `_clock.py`
+documents for poll deadlines. The tests therefore assert on the `timeout=`
+argument itself.
+
+Bounding that click also made a new failure mode reachable, and the error
+message had to follow (review round 2). "The trigger is present but never
+became clickable in time" now lands in the same exhausted-retry branch as
+"the goal isn't on offer" — and the message blamed the Metrika counter,
+the promotion goal, or changed markup for both. On a slow render (this
+section is documented to hydrate for seconds) that sends the user to audit
+a setup that is fine, the exact opposite of the "precise error over opaque
+timeout" rule this PR exists to uphold. The branch is now split by whether
+any attempt actually got a trigger clicked: if none did, the error names
+the click bound and the hydration race and suggests a re-run; if one did
+and the popup still had no matching option, the counter/promotion-goal
+diagnosis stands, since that one was genuinely observed rather than
+inferred.
+
+`create_master` also gained a **pre-click gate** for the goals, mirroring
+the existing headline/text gate: the table is read back before the terminal
+button is clicked, and a missing row or a price that did not stick aborts
+*before* anything is published. This is the one field whose absence Yandex
+punishes by silently swallowing the click, so there is no "afterwards" in
+which to observe it. The returned result now includes `TargetActions`.
+
+**Live-verified end to end (2026-08-06).** With the goal requirement
+satisfied, a `--draft` create was accepted by Yandex and produced campaign
+713337891 — the first create this CLI has ever completed. That settles
+**#744**: the terminal click *does* redirect, and the id is read straight
+off it, exactly as modelled on `copy_master`. The id was cross-checked
+against a grid diff (79 rows → 80, the single new row being 713337891,
+status `DRAFT`) so it is a real campaign id rather than a URL-parsing
+artefact, and the goal was confirmed to have persisted server-side by
+re-reading it from a separate page (goal 236386933 at price 150).
+
+**Still open — deliberately not exercised:**
+
+- The `--launch` leg. It shares `_click_terminal_button` and the same
+  redirect with `--draft`, but it publishes live advertising with no
+  rollback, so it was not run to tick a box.
+- **#776** (region widget on a LAUNCHED campaign) consequently stays
+  blocked: checking it requires a launched campaign, which is the same
+  irreversible publish.
+- The test campaign 713337891 **could not be archived** and remains a
+  DRAFT on the account. `masters archive` refuses it correctly: a DRAFT's
+  overview page has no "⋮" menu (#660), and Мастер кампаний has no delete
+  anywhere in the UI — the only route to archiving is to *launch* the
+  campaign first. Spending real money to tidy up a test was the worse
+  trade. A DRAFT does not serve, does not spend, and does not appear to
+  users. Worth tracking as its own issue: creating a draft via this CLI is
+  currently a one-way door.
+
 **Fixed — `masters add --region-id` crashed with a bare `KeyError: 'GeoRegions'` (#775):**
 
 - `_resolve_region_ids`' ambiguity pre-flight (the second `getGeoRegions`
