@@ -176,8 +176,11 @@ not itself surfaced to the caller (only the resulting mismatch is) — a
 follow-up could read and report Yandex's actual rejection reason.
 
 ``create_master`` (issue #632) — live recon only, NOT live-verified end to end
-(no campaign was ever actually launched/saved during recon — see
-``tests/fixtures/masters_wizard_create.html``). Covers exactly the "Конверсии
+(no campaign has ever actually been launched/saved during recon — see
+``tests/fixtures/masters_wizard_create.html``; the individual form fields,
+including the conversion-goal widget re-reconned for #777, have each been
+driven live, but no terminal click has yet been accepted by
+Yandex). Covers exactly the "Конверсии
 и трафик" Мастер кампаний type (the other five tile types on the create
 modal — Товарная кампания, Продажи на маркетплейсах, Подписчики в
 телеграм-канал, Продвижение бизнеса без сайта, Продвижение специалистов — are
@@ -194,6 +197,22 @@ auto-populates headlines/texts by scanning the landing page). This module
 therefore requires the caller to pass headlines/texts/regions explicitly
 rather than trusting Yandex's AI-generated copy silently, given the "no
 sandbox, no rollback" risk profile called out in issue #632.
+
+**A required-field marker is not the list of required fields** (issue #777,
+live recon 2026-08-06). A FOURTH field is mandatory despite carrying no such
+marker: "Целевые действия" needs at least one Яндекс Метрика conversion goal,
+or Yandex refuses the form with "Добавьте хотя бы одну цель для сайта, чтобы
+создать и запустить кампанию". Worse, it refuses SILENTLY — both terminal
+buttons keep reporting ``visible=True``, ``enabled=True``,
+``aria-disabled=None`` in the rejected state, so there is no DOM signal
+separating "rejected" from "still working"; #744's recon watched ``page.url``
+for 48s before the cause was found. ``create_master`` therefore takes a
+REQUIRED ``target_actions`` mapping and refuses an empty one up front, and
+gates the terminal click on the goal rows actually being present with the
+requested prices (``_created_target_action_mismatches``). The widget itself
+is the same one the edit page uses — see
+``_TARGET_ACTION_ADD_BUTTON_EMPTY_TESTID_TEMPLATE`` for the single testid
+that differs — so ``_add_target_action`` is shared between both paths.
 
 **Save/launch verification.** Ported from ``update_master``'s
 ``_verify_saved`` pattern (issue #631 review finding, see the CHANGELOG
@@ -1076,6 +1095,23 @@ _TARGET_ACTION_PRICE_TESTID_TEMPLATE = "TargetActions.{category}.{goal_id}.Price
 _TARGET_ACTION_CLOSE_TESTID_TEMPLATE = "TargetActions.{category}.{goal_id}.CloseButton"
 _TARGET_ACTION_ADD_BUTTON_TESTID_TEMPLATE = (
     "TargetActions.{category}.MiniGrid.AddButton"
+)
+# The create page's EMPTY-table variant of the same button (issue #777 live
+# recon, 2026-08-06, create wizard for ksamata.ru). Every other testid in
+# this section is identical between the create and edit pages — the section
+# container, the ``AddTargetAction.{category}.{goal_id}`` popup options, and
+# the resulting row's ``TargetActions.{category}.{goal_id}[.PriceInput|
+# .CloseButton]`` — but the "Добавить" trigger is NOT: with no rows yet, the
+# create page renders it as ``TargetActions.OTHER.AddTargetButton``, with no
+# ``MiniGrid`` segment (there is no grid to hang it off yet). Confirmed live
+# that once the first row exists, the create page ALSO renders the
+# ``MiniGrid.AddButton`` form — so the two are alternatives for the first
+# add only, not two permanently distinct pages. ``_add_target_action``
+# therefore tries both rather than branching on which page it is on, which
+# keeps one code path shared by ``create_master`` and ``update_master``
+# (issue #777 step 2) and degrades gracefully if Yandex settles on one name.
+_TARGET_ACTION_ADD_BUTTON_EMPTY_TESTID_TEMPLATE = (
+    "TargetActions.{category}.AddTargetButton"
 )
 _TARGET_ACTION_ADD_OPTION_TESTID_TEMPLATE = "AddTargetAction.{category}.{goal_id}"
 
@@ -3331,8 +3367,8 @@ def _set_target_action_price(page: "Page", goal_id: int, price: float) -> None:
     except PlaywrightError as exc:
         raise BrowserSessionError(
             f"Could not find or fill the target-action price input for goal "
-            f"{goal_id} in the 'Целевые действия' table on the campaign "
-            "edit page. This table only exists when the promotion goal is "
+            f"{goal_id} in the 'Целевые действия' table. On the campaign "
+            "edit page this table only exists when the promotion goal is "
             "'max-conversions', and only shows goals already added to it — "
             f"pass --promotion-goal max-conversions, and confirm goal "
             f"{goal_id} is already listed (add it first with "
@@ -3361,15 +3397,30 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
     because the target here is a per-goal-id OPTION inside the popup, not
     the popup's own container.
 
-    A freshly clicked option renders with an EMPTY price input (confirmed
-    live — not a page default), so this always fills one — there is no
-    "add with no price" caller path; the CLI-boundary parse requires a
-    price for exactly this reason (see ``_parse_add_target_action_options``).
+    A freshly clicked option's price input must not be trusted to be
+    meaningful, so this always fills one — there is no "add with no price"
+    caller path; the CLI-boundary parse requires a price for exactly this
+    reason (see ``_parse_add_target_action_options``). On the edit page the
+    input starts genuinely EMPTY and Yandex rejects saving it that way; on
+    the create page (issue #777 recon) it instead arrives PRE-FILLED with a
+    Yandex-suggested value (observed: "160"). Neither is a documented
+    default, and silently publishing a CPA the caller never chose is worse
+    than requiring one, so both paths overwrite it.
+
+    Works on the create page as well as the edit page — see
+    ``_TARGET_ACTION_ADD_BUTTON_EMPTY_TESTID_TEMPLATE`` for the one testid
+    that differs there, which the trigger loop below tries as an alternative.
     """
-    add_button_testid = _TARGET_ACTION_ADD_BUTTON_TESTID_TEMPLATE.format(
-        category=_TARGET_ACTIONS_CATEGORY
-    )
-    add_button = page.locator(f'[data-testid="{add_button_testid}"]').first
+    add_button_testids = [
+        template.format(category=_TARGET_ACTIONS_CATEGORY)
+        for template in (
+            _TARGET_ACTION_ADD_BUTTON_TESTID_TEMPLATE,
+            _TARGET_ACTION_ADD_BUTTON_EMPTY_TESTID_TEMPLATE,
+        )
+    ]
+    add_buttons = [
+        page.locator(f'[data-testid="{testid}"]').first for testid in add_button_testids
+    ]
     option_testid = _TARGET_ACTION_ADD_OPTION_TESTID_TEMPLATE.format(
         category=_TARGET_ACTIONS_CATEGORY, goal_id=goal_id
     )
@@ -3378,10 +3429,18 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
     opened = False
     last_exc: Optional[Exception] = None
     for _ in range(_TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS):
-        try:
-            add_button.click()
-        except PlaywrightError as exc:
-            last_exc = exc
+        # Only ONE of the two triggers exists on any given render, so a
+        # click failure on the first is expected, not an error — fall
+        # through to the other before giving up on this attempt.
+        clicked = False
+        for add_button in add_buttons:
+            try:
+                add_button.click()
+                clicked = True
+                break
+            except PlaywrightError as exc:
+                last_exc = exc
+        if not clicked:
             continue
         try:
             option.wait_for(state="visible", timeout=_POPUP_APPEAR_TIMEOUT_MS)
@@ -3394,7 +3453,7 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
     if not opened:
         raise BrowserSessionError(
             f"Could not find goal {goal_id} in the 'Добавить' target-action "
-            "popup on the campaign edit page. This table only exists when "
+            "popup. On the campaign edit page this table only exists when "
             "the promotion goal is 'max-conversions' — pass "
             "--promotion-goal max-conversions if that's not already the "
             "case. Otherwise the popup only lists goals from the "
@@ -3402,7 +3461,10 @@ def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
             "table — confirm goal "
             f"{goal_id} belongs to that counter and isn't already listed "
             "(`masters targetactions get`), or Yandex may have changed the "
-            "page's markup — re-run with --headful to inspect the page."
+            "page's markup — re-run with --headful to inspect the page. On "
+            "the create page the counter is auto-discovered from the "
+            "landing page's domain, so a domain with no Metrika counter "
+            "installed offers no goals at all."
         ) from last_exc
 
     option.click()
@@ -7692,6 +7754,61 @@ def _click_terminal_button(page: "Page", text: str) -> None:
     )
 
 
+def _created_target_action_mismatches(
+    page: "Page", target_actions: Dict[int, float]
+) -> List[str]:
+    """Compare the create page's CURRENT "Целевые действия" rows against the
+    goals/prices the caller asked for — ``create_master``'s pre-click gate
+    (issue #777).
+
+    Deliberately a pre-click check with no post-click twin, unlike
+    ``_repeating_values_mismatches``: this is the one field whose absence
+    Yandex punishes by silently swallowing the terminal click (no redirect,
+    no error, buttons still ``enabled``/``aria-disabled=None``), so
+    observing it afterwards is impossible by construction — there is no
+    "afterwards" to observe.
+
+    Reuses ``_wait_for_target_actions_settled``/
+    ``_read_target_actions_or_none`` rather than a one-shot read for the
+    hydration reasons documented on those functions: this section's row
+    count genuinely dips to zero mid-render, and reading a truthful-but-
+    incomplete snapshot here would abort a create that was in fact fine.
+    A settle timeout is reported as a mismatch rather than passed over —
+    refusing to click on an unreadable table is the safe direction when the
+    click is an irreversible publish.
+    """
+    if not _wait_for_target_actions_settled(page):
+        return [
+            "the 'Целевые действия' table did not finish loading, so the "
+            "requested goals could not be confirmed"
+        ]
+
+    rows = _read_target_actions_or_none(page)
+    if rows is None:
+        return ["the 'Целевые действия' table could not be read"]
+
+    actual = {
+        row["GoalId"]: row.get("Price") for row in rows if row.get("GoalId") is not None
+    }
+
+    mismatches = []
+    for goal_id, price in target_actions.items():
+        if goal_id not in actual:
+            mismatches.append(
+                f"goal {goal_id} is not listed in the table (present: "
+                f"{sorted(actual)!r})"
+            )
+        elif not _target_action_price_matches(price, actual[goal_id]):
+            # An empty/wrong price is not cosmetic here: Yandex's own
+            # client-side validation rejects a row with no price, which is
+            # the same silent-swallow failure as a missing goal.
+            mismatches.append(
+                f"goal {goal_id}: expected price {price}, page holds "
+                f"{actual[goal_id]!r}"
+            )
+    return mismatches
+
+
 def _repeating_values_mismatches(
     page: "Page", *, headlines: List[str], texts: List[str]
 ) -> List[str]:
@@ -7982,6 +8099,7 @@ def create_master(
     headlines: List[str],
     texts: List[str],
     regions: "Sequence[Union[str, Tuple[str, Optional[int]]]]",
+    target_actions: Dict[int, float],
     weekly_budget: Optional[int] = None,
     launch: bool = True,
 ) -> Dict[str, Any]:
@@ -8008,20 +8126,34 @@ def create_master(
     alone — mirrors ``update_master``'s ``_verify_saved`` convention (issue
     #631 review).
 
+    ``target_actions`` maps a Yandex Metrika goal id to its CPA price, and
+    is REQUIRED — at least one entry (issue #777). Yandex's create form
+    refuses to submit without a conversion goal ("Добавьте хотя бы одну
+    цель для сайта, чтобы создать и запустить кампанию"), and it refuses
+    *silently*: both terminal buttons keep reporting ``visible=True``,
+    ``enabled=True``, ``aria-disabled=None`` in the rejected state, so a
+    goal-less call could only ever fail as an opaque
+    ``_wait_for_created_campaign_id`` timeout. Rejecting it here instead
+    fails fast, before a browser is even driven through the whole form.
+    Goals are identified by numeric Metrika goal id, never by display name
+    — the same convention as every other target-action entry point in this
+    module (see ``_TARGET_ACTION_ROW_TESTID_TEMPLATE``). The goals offered
+    on the create page come from the Metrika counter Yandex auto-discovers
+    from ``url``'s domain, so a domain with no counter installed has none
+    to pick and cannot be used here at all.
+
     Returns the created campaign's ``CampaignId``, read from the post-click
     redirect (``_wait_for_created_campaign_id``), which also gives
     ``_verify_created`` a page to reload for the display-region check.
 
     **Caveat — the create path's redirect is still unconfirmed** (issue
     #744 live recon, 2026-08-06). It is modelled on ``copy_master``'s
-    live-verified redirect through the identical form and button, but no
-    create attempt has yet been accepted by Yandex to observe it directly:
-    the form requires at least one conversion goal, which this function
-    cannot set, so the terminal click is silently rejected and no campaign
-    is created (see ``_wait_for_created_campaign_id``). That failure mode is
-    reported as an error, not as success — but until goal support lands,
-    treat the ID/region-verification path here as designed-and-unit-tested
-    rather than field-proven.
+    live-verified redirect through the identical form and button. Issue
+    #777 removed the blocker that made it unobservable (the form could not
+    be given a goal, so the terminal click was always rejected), but until
+    a create is actually accepted and observed live, treat the ID/region-
+    verification path here as designed-and-unit-tested rather than
+    field-proven.
     """
     if not headlines:
         raise ValueError("create_master requires at least one headline.")
@@ -8029,6 +8161,12 @@ def create_master(
         raise ValueError("create_master requires at least one ad text.")
     if not regions:
         raise ValueError("create_master requires at least one region.")
+    if not target_actions:
+        raise ValueError(
+            "create_master requires at least one target action (conversion "
+            "goal): Yandex's create form silently refuses to submit without "
+            "one."
+        )
 
     # ``wait_until="commit"``, not ``domcontentloaded`` (issue #685):
     # confirmed live the create page can take long enough to hydrate that
@@ -8063,6 +8201,17 @@ def create_master(
     if weekly_budget is not None:
         _set_weekly_budget_on_create(page, weekly_budget)
 
+    # Issue #777: at least one conversion goal, or Yandex silently rejects
+    # the terminal click below. Live recon (2026-08-06) confirmed the create
+    # page's "Целевые действия" widget is the same one the edit page uses —
+    # same section container, same per-goal popup options, same resulting
+    # row/price/close testids — so this reuses ``_add_target_action``
+    # wholesale rather than growing a create-specific setter (the one testid
+    # that does differ is handled inside it). Ordered after the budget for
+    # the same reason the section sits below it on the page.
+    for goal_id, price in target_actions.items():
+        _add_target_action(page, goal_id, price)
+
     # Gate the click, don't just report on it afterwards (issue #655
     # round-3 review): _add_repeating_values believing it wrote the right
     # values is not the same as the page actually holding them — a click
@@ -8081,6 +8230,24 @@ def create_master(
             "was requested: " + "; ".join(pre_click_mismatches) + ". Yandex "
             "may have changed the page's markup, or a slot silently failed "
             "to clear — re-run with --headful to inspect the page."
+        )
+
+    # Same gate for the goals (issue #777), and for a sharper reason: a
+    # missing/empty-priced goal row is the ONE discrepancy Yandex punishes
+    # by silently swallowing the terminal click — the buttons stay
+    # visible/enabled with no aria-disabled, so a post-click check could
+    # only ever observe it as an opaque _wait_for_created_campaign_id
+    # timeout. Reading the rows back here converts that into a precise
+    # error, before anything is published.
+    goal_mismatches = _created_target_action_mismatches(page, target_actions)
+    if goal_mismatches:
+        raise BrowserSessionError(
+            "Refusing to click the create page's terminal button: before "
+            "clicking, the 'Целевые действия' table does not hold the "
+            "requested conversion goal(s): " + "; ".join(goal_mismatches) + ". "
+            "Yandex silently rejects a create with no valid goal, so this "
+            "would otherwise fail as an unexplained timeout — re-run with "
+            "--headful to inspect the page."
         )
 
     button_label = _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
@@ -8113,6 +8280,7 @@ def create_master(
         "Headlines": headlines,
         "Texts": texts,
         "Regions": regions,
+        "TargetActions": target_actions,
         "Launched": launch,
     }
     if weekly_budget is not None:

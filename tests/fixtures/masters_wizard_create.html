@@ -322,8 +322,27 @@ Header: editable auto-generated campaign name, e.g. "ksamata.ru от 01.08.26"
     here that this recon pass could not observe (needs a second live check
     against a domain with no counter before assuming this is always optional).
 
-17. "Целевые действия" — starts empty, "Добавить" button only; optional (CPA
-    per-goal target list, matches issue #631 field description).
+17. "Целевые действия" — starts empty, "Добавить" button only (CPA per-goal
+    target list, matches issue #631 field description).
+
+    CORRECTION (issue #777 live recon, 2026-08-06): this section is NOT
+    optional, despite carrying no required marker in the UI. Yandex refuses
+    to submit the form without at least one goal — "Добавьте хотя бы одну
+    цель для сайта, чтобы создать и запустить кампанию" — and refuses
+    SILENTLY: both terminal buttons keep reporting visible=True,
+    enabled=True, aria-disabled=None in the rejected state. #744's recon
+    lost 48s to this before the cause was found. "Not marked required in
+    the UI" is not evidence a field is optional on this form.
+
+    The same recon captured the testids this text snapshot could not (it is
+    a text-content dump, not a DOM dump). They match the EDIT page's:
+    `TargetActionsSection`, `AddTargetAction.OTHER.<goalId>` popup options,
+    and `TargetActions.OTHER.<goalId>[.PriceInput|.CloseButton]` rows.
+    The one difference: with an empty table the "Добавить" trigger here is
+    `TargetActions.OTHER.AddTargetButton` (no `MiniGrid` segment), switching
+    to the edit page's `TargetActions.OTHER.MiniGrid.AddButton` once a first
+    row exists. A freshly added row's price input arrives PRE-FILLED with a
+    Yandex suggestion (observed "160"), unlike the edit page's empty one.
 
 18. "Недельный бюджет" — empty numeric input with a "₽" suffix; not marked
     required, but functionally this is very likely enforced server-side (a

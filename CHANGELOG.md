@@ -2,6 +2,65 @@
 
 ## Unreleased
 
+### BREAKING CHANGES
+
+**`masters add` now requires `--add-target-action` (#777).**
+
+`masters add` previously could not create a campaign at all. Yandex's create
+form requires at least one Яндекс Метрика conversion goal, `create_master`
+had no way to set one, and the rejection is **silent**: live recon (#744,
+2026-08-06) filled the form correctly, clicked "Сохранить как черновик", and
+watched `page.url` for 48s — no redirect, no campaign, while both terminal
+buttons kept reporting `visible=True`, `enabled=True`, `aria-disabled=None`.
+There is no DOM signal distinguishing "rejected" from "still working".
+
+- New required option `masters add --add-target-action "goal_id=price"`
+  (repeatable). Deliberately the **same flag name and syntax** as
+  `masters update --add-target-action` rather than a new spelling for the
+  same concept, per the project's no-legacy-aliases rule. Goals are
+  identified by numeric Metrika goal id, never by display name — consistent
+  with every other target-action entry point in the module.
+- Required at the Click level (`required=True`), not validated after the
+  fact: the live evidence says a create without a goal cannot succeed, so
+  failing before a browser is even launched beats a ~48s silent-rejection
+  timeout. `create_master` enforces the same invariant with a `ValueError`
+  for direct API callers.
+- The price is mandatory, as it already is on `masters update`. On the edit
+  page a newly added row's price input starts empty and Yandex rejects
+  saving it that way; on the create page it instead arrives **pre-filled
+  with a Yandex suggestion** (observed: "160"). Neither is a documented
+  default, and publishing a CPA the caller never chose is worse than
+  requiring one, so both paths overwrite it.
+- **Migration:** add `--add-target-action "<metrika_goal_id>=<price>"` to
+  existing `masters add` invocations. `masters targetactions get` lists the
+  goal ids available on an existing campaign; on the create page the goals
+  come from the Metrika counter Yandex auto-discovers from the landing
+  page's domain, so a domain with no counter installed cannot be used.
+
+Live recon of the create page (2026-08-06) settled #777's open question:
+the create page renders the **same** `TargetActionsSection` widget as the
+edit page, with the same `AddTargetAction.{category}.{goal_id}` popup
+options and the same resulting
+`TargetActions.{category}.{goal_id}[.PriceInput|.CloseButton]` row testids —
+so `_add_target_action` is reused wholesale rather than duplicated. Exactly
+one testid differs: with an empty table the create page renders its
+"Добавить" trigger as `TargetActions.OTHER.AddTargetButton`, without the
+`MiniGrid` segment (confirmed live that it switches to the edit page's
+`MiniGrid.AddButton` form once a first row exists). `_add_target_action`
+now tries both.
+
+`create_master` also gained a **pre-click gate** for the goals, mirroring
+the existing headline/text gate: the table is read back before the terminal
+button is clicked, and a missing row or a price that did not stick aborts
+*before* anything is published. This is the one field whose absence Yandex
+punishes by silently swallowing the click, so there is no "afterwards" in
+which to observe it. The returned result now includes `TargetActions`.
+
+**Still not field-proven:** #744's post-click redirect and #776's region
+widget on a launched campaign remain unverified — this change removes the
+blocker that made them unobservable, but no create has yet been accepted by
+Yandex and observed end to end.
+
 **Fixed — `masters add --region-id` crashed with a bare `KeyError: 'GeoRegions'` (#775):**
 
 - `_resolve_region_ids`' ambiguity pre-flight (the second `getGeoRegions`
