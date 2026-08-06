@@ -13,11 +13,14 @@
   unusable (`--region "Москва"` was the workaround). Both `getGeoRegions`
   responses are now read defensively, `None` result included.
 - Root cause of the empty match: the `ExactNames` round-trip was
-  **locale-crossed**. `create_client` defaults to `language="en"`, so call 1
-  resolved 213 to `"Moscow"`, and that English name was fed straight back
-  into call 2's `ExactNames`. The lookup is now pinned to `language="ru"` —
-  which is also the name the Russian-language Мастер кампаний region widget
-  has to match downstream, so `en` was wrong for `_set_region` regardless.
+  **locale-crossed**. The lookup went through `client_from_ctx`, which
+  passes no `language` at all, and the vendored client omits the
+  `Accept-Language` header entirely when it is `None` — so the locale was
+  left to Yandex, which answered in English. Call 1 resolved 213 to
+  `"Moscow"`, and that English name was fed straight back into call 2's
+  `ExactNames`. The lookup is now pinned to `language="ru"` — which is also
+  the name the Russian-language Мастер кампаний region widget has to match
+  downstream, so an unpinned locale was wrong for `_set_region` regardless.
 - A name the pre-flight cannot match is **not** silently treated as
   unambiguous — that would quietly disable #657's safety net. The check is
   skipped for that name and a warning says so. `_set_region` still enforces

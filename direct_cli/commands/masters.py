@@ -1937,10 +1937,14 @@ def _resolve_region_ids(
     credentials, resolved the same way as any other command: it is only
     reached when the caller actually passes ``--region-id``.
 
-    The lookup is pinned to ``language="ru"`` (issue #775). ``create_client``
-    defaults to ``language="en"``, which resolved 213 to "Moscow" — a name the
-    Russian-language Мастер кампаний region widget cannot match, and one that
-    Yandex's own ``ExactNames`` lookup does not round-trip either.
+    The lookup is pinned to ``language="ru"`` (issue #775). It used to go
+    through ``client_from_ctx``, which passes no ``language`` at all — and
+    the vendored client omits the ``Accept-Language`` header entirely when
+    it is ``None`` (``_vendor/tapi_yandex_direct/tapi_yandex_direct.py``),
+    leaving the locale to Yandex. In practice Yandex answered in English,
+    resolving 213 to "Moscow" — a name the Russian-language Мастер кампаний
+    region widget cannot match, and one Yandex's own ``ExactNames`` lookup
+    does not round-trip either.
     """
     if not region_ids:
         return []
@@ -1998,9 +2002,10 @@ def _resolve_region_ids(
     # `ExactNames` matches nothing — it does NOT return an empty list. Indexing
     # the key unconditionally turned every `--region-id` run into a bare
     # ``KeyError: 'GeoRegions'`` before a browser was ever opened (issue #775).
-    # The `language="ru"` pin above removes the locale-crossed round-trip that
-    # made an empty match the *normal* case, but it does not guarantee every
-    # name round-trips through `ExactNames`, so the shape is still handled.
+    # The `language="ru"` pin above removes the locale-crossed round-trip
+    # (unpinned, Yandex answered in English) that made an empty match the
+    # *normal* case, but it does not guarantee every name round-trips through
+    # `ExactNames`, so the shape is still handled.
     #
     # A name with no rows is not evidence of uniqueness, so it is not silently
     # treated as unambiguous: the check is skipped for that name and said so

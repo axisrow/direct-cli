@@ -13465,10 +13465,10 @@ class TestResolveRegionIds(unittest.TestCase):
         self.assertEqual(result, [("Москва", 213)])
 
     def test_lookup_is_pinned_to_russian_locale(self):
-        """Issue #775: `create_client` defaults to `language="en"`, which
-        resolved 213 to "Moscow" — a name the Russian-language Мастер
-        кампаний region widget cannot match, and one Yandex's own
-        `ExactNames` lookup does not round-trip."""
+        """Issue #775: unpinned, no `Accept-Language` header is sent at all
+        and Yandex answered in English, resolving 213 to "Moscow" — a name
+        the Russian-language Мастер кампаний region widget cannot match, and
+        one Yandex's own `ExactNames` lookup does not round-trip."""
         from direct_cli.commands.masters import _resolve_region_ids
 
         service = Mock()
