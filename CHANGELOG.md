@@ -152,6 +152,117 @@ re-reading it from a separate page (goal 236386933 at price 150).
   clicked node's `id="region-node-<RegionId>"` equals the requested RegionId
   and refuses before any save click.
 
+**Fixed — `masters update` could report a target-action removal or an audience save as successful while it had not happened (#756, #752):**
+
+Both are the same class of race: the campaign edit page has no positive
+"this section finished loading" marker, so every guard so far approximated
+completeness with *N consecutive equal reads over a fixed window*. That is a
+probability, not a guarantee — a hydration dip lasting as long as the streak
+defeats it. Two changes, one structural and one a widening:
+
+- **`--remove-target-action` now verifies against the full expected row set
+  (#756).** `update_master` snapshots the "Целевые действия" table's goal-id
+  set *before* the mutation, and `_verify_saved` derives the expected
+  post-save set (`before - removed + added`) and requires the observed set
+  to *equal* it. The previous predicate asked two positive-biased questions
+  — "are the added goals present?", "are the removed goals absent?" — and a
+  mid-hydration **empty** snapshot answers the removal half "yes" for free,
+  so on a pure removal `{}` was a full match. That asymmetry is what made
+  every earlier mitigation probabilistic. Comparing the whole set makes an
+  empty or partial read fail **closed**, independent of how long the dip
+  lasts.
+- The baseline snapshot is guarded by more than the same settling streak it
+  is meant to transcend: a dip outlasting the streak settles at count 0 and
+  reads as a well-formed `[]`, which would under-count the expected set and
+  fail a save that genuinely took effect (and the retry would not be
+  idempotent — `_remove_target_action` raises on an already-absent row). The
+  baseline is therefore additionally required to *contain every goal about
+  to be removed* — rows that provably exist, since their close buttons are
+  about to be clicked — a positive completeness check rather than another
+  timed streak. A baseline failing it degrades to the previous behaviour.
+- The snapshot is taken only when a **removal** is requested. A pure add has
+  no equivalent positive check (added goals are absent beforehand by
+  definition), and its `added_ok` check is already positive-going, so an
+  empty dip cannot satisfy it.
+- **Stability windows widened (#756, #752).** `_TARGET_ACTION_STABLE_STREAK`
+  5→**10** at a 400ms tick (~1.5s → ~4s of agreement, past the ~1-1.5s dip
+  observed live); `_AUDIENCE_TAG_STABLE_STREAK` 5→**12** at a 500ms tick
+  (~2.5s → ~6s, now comfortably past the ~4s worst-case settle time this
+  module's own live recon documents — previously the streak's span was
+  *shorter* than that worst case, so a tag count held at a stale 0 could
+  settle anyway and `update_master` would go straight on to save an empty
+  audience-tag payload over a campaign that actually had tags, silently
+  dropping targeting criteria). Settle timeouts raised to keep room for
+  several streak attempts.
+
+- **Audience-tag verification now compares an expected multiset, covering
+  every audience update shape (#752).** This was two branches, both weak:
+  a count-plus-containment check when tags were added/removed, and *nothing
+  at all* when they weren't. The second gap is R2-1 — a `--gender`/`--age`/
+  `--device` update mutates no tag but still submits the *whole* form, so a
+  readiness poll that settled on a stale/empty count could persist that
+  emptiness and silently drop every targeting tag, unnoticed. The first was
+  the same asymmetry #756 fixed for target actions: a count plus a
+  positive-going "are the added tags present?" cannot distinguish *removed
+  the requested tag* from *removed a different one* — both leave the same
+  count — and on a pure removal it degrades to a bare count check.
+  Both are now one check: expected = `before − removed + added` as a
+  multiset (the grid has no guaranteed tag ordering, so a reordering is not
+  data loss), derived from the pre-mutation baseline. The untouched case
+  falls out for free as `removed = added = {}`. `_verify_saved` takes
+  `remove_audience_tag_indices` instead of a bare count, since identity
+  comparison needs to know *which* positions went.
+
+- **A positive "not ready yet" marker was found for the target-actions dip,
+  and is now used ahead of the streak (#756 follow-up).** Live recon (8
+  fresh navigations, 5 caught dips) found the earlier "no marker exists"
+  conclusion was true only for a *section-scoped* signal — the dip is
+  actually a whole-form hydration event (it also disappears/reappears
+  `CampaignTitles0.textarea`, the field `_wait_for_edit_form` itself polls),
+  gated by a page-level React `<Suspense>` fallback node
+  (`[class*="PageFallback"]`). `_wait_for_target_actions_ready` now waits
+  for that node to clear *before* running the row-count streak, so a dip
+  that's already showing the fallback doesn't have to be absorbed entirely
+  by the streak's own tick budget. It is a *sufficient-but-not-necessary*
+  optimization, not a replacement for the streak: the same recon measured
+  the real content re-committing 0.27–0.65s *after* the fallback node
+  vanishes in every one of the 5 caught dips, so the streak still runs
+  afterwards regardless of what the fallback wait found. A timed-out
+  fallback wait (node never clears, or was never shown at all — 3 of 8
+  fresh loads showed no dip) is not fatal; it falls through to the
+  pre-existing streak-only behaviour.
+
+**This widening reduces, but does not mathematically eliminate, the race.**
+Any fixed window can in principle be defeated by a longer dip, and the
+`PageFallback` gate narrows but does not close the residual gap (the
+0.27–0.65s post-fallback commit delay is still covered by streak alone). It
+remains the only defence for the one case the expected-set check cannot
+discriminate — a genuinely *empty* expected final state, where "every row
+removed" and "table hasn't hydrated" are the same observation — and for the
+audience-tag count, which has no equivalent pre-mutation baseline or known
+positive marker.
+
+- **Local review (cycle-review), Codex adversarial pass on this PR — the
+  pre-mutation baseline certification itself had a gap (#756 follow-up).**
+  The check added above only confirmed the baseline *contained every goal
+  about to be removed*; it never confirmed the baseline was *complete* with
+  respect to an untouched survivor. A settle streak only stabilizes a row
+  **count**, so a baseline that settles on a partial-but-stable read
+  (missing a survivor row that never mounted within the streak's window)
+  passed certification just as easily as a genuinely complete one — the
+  derived expected set then silently omitted the survivor, and a real,
+  successful removal was reported as a mismatch. `update_master` now
+  additionally requires a **second, independent** settled read (its own
+  fresh `_wait_for_target_actions_ready` + row-read acquisition, spaced
+  apart in wall-clock time from the first) to agree with the first on the
+  full id set before certifying the baseline — narrowing, not closing, the
+  same class of dip the rest of this PR already accepts as a residual risk.
+  Separately, when certification cannot complete at all (settle timeout, or
+  the two reads disagree), verification silently fell back to the weaker
+  round-2 predicate with no signal that the stronger guarantee was
+  inactive; it now emits a `print_warning` — non-blocking, since a save the
+  weaker predicate confirms as correct must still be reported as a success.
+
 **Fixed — `masters suspend`/`resume` never changed the status, and a batch stopped at the first failing ID (#766, #764):**
 
 - Root cause, confirmed live 2026-08-06 against campaign 713277109: **the

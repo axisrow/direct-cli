@@ -335,6 +335,37 @@ class _FakeContentEditableHandle(_FakeLocatorHandle):
             self._on_press(key)
 
 
+class _CountOverrideLocator:
+    """Wraps a REAL locator, optionally forcing ``count()`` to a fixed value
+    and/or recording each call — the shape every "models a hydration dip"
+    test in ``TestUpdateMaster`` needs.
+
+    Those tests all want the same thing: a locator that reports the truthful
+    row count except on the ticks where it should look mid-hydration, with
+    ``nth()`` still delegating so a settled read sees the real rows. Before
+    this helper each test nested its own 10-line class for that (there were
+    seven, four of them byte-identical apart from the name), which made the
+    obvious next step "add an eighth variant" rather than "parameterise".
+
+    ``count=None`` delegates to the real locator; ``count=0`` (or any int)
+    forces that value. ``on_count`` is called before each ``count()`` so a
+    test can count reads or decide the dip's length from outside.
+    """
+
+    def __init__(self, real_locator, count=None, on_count=None):
+        self._real = real_locator
+        self._count = count
+        self._on_count = on_count
+
+    def count(self):
+        if self._on_count is not None:
+            self._on_count()
+        return self._real.count() if self._count is None else self._count
+
+    def nth(self, i):
+        return self._real.nth(i)
+
+
 class _FakeLocator:
     """A Locator for one selector — holds every matched handle for that selector."""
 
@@ -7272,6 +7303,84 @@ class TestUpdateMaster(unittest.TestCase):
         # observe more than a couple of `.count()` calls total.
         self.assertGreater(row_scan_calls["count"], 3)
 
+    def test_page_fallback_gate_waits_out_the_marker_before_settling(self):
+        """Issue #756 follow-up live recon: the page-level React Suspense
+        ``PageFallback`` node is present for the WHOLE hydration dip
+        (confirmed live: it also gates ``CampaignTitles0.textarea``, not
+        just this section). ``_wait_for_target_actions_ready`` must wait
+        for it to clear BEFORE running the row-count settling streak,
+        rather than letting the streak absorb the dip on its own.
+
+        Models the marker present for the first few polls, then gone —
+        and asserts the row-count read that follows sees the REAL
+        (post-dip) row set rather than a mid-dip empty one, which only
+        holds if the fallback wait actually blocked first."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        fallback_polls = {"count": 0}
+        fallback_gone_after = 3
+
+        def _stub_locator(selector):
+            if selector == browser_masters._PAGE_FALLBACK_SELECTOR:
+                fallback_polls["count"] += 1
+                still_present = fallback_polls["count"] <= fallback_gone_after
+                return _FakeLocator([_FakeLocatorHandle()] if still_present else [])
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with patch.object(browser_masters, "_PAGE_FALLBACK_GONE_TIMEOUT_MS", 1000):
+            ready = browser_masters._wait_for_target_actions_ready(page)
+
+        self.assertTrue(ready)
+        # The gate must have actually polled the marker more than once —
+        # a single check would defeat the purpose of waiting it out.
+        self.assertGreater(fallback_polls["count"], 1)
+
+    def test_page_fallback_gate_is_a_no_op_when_no_marker_ever_appears(self):
+        """The common case (recon: 3 of 8 fresh loads showed no dip at
+        all) must not be slowed down — ``_wait_for_page_fallback_gone``
+        finds the selector absent on its very first poll and returns
+        immediately, so ``_wait_for_target_actions_ready`` proceeds
+        straight to the row-count streak without extra delay."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+
+        ready = browser_masters._wait_for_target_actions_ready(page)
+
+        self.assertTrue(ready)
+
+    def test_page_fallback_gate_timeout_falls_through_to_the_streak_anyway(self):
+        """A ``PageFallback`` node that never clears within
+        ``_PAGE_FALLBACK_GONE_TIMEOUT_MS`` (an unusually long dip, or a
+        drifted class name making the selector always match something)
+        must not abort verification — ``_wait_for_target_actions_ready``
+        falls through to the row-count streak regardless, since a timed-
+        out fallback wait is a best-effort optimization, not a
+        precondition. The row-count streak below still succeeds because
+        it is checking a genuinely stable table, independent of the
+        fallback node's fate."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+
+        def _stub_locator(selector):
+            if selector == browser_masters._PAGE_FALLBACK_SELECTOR:
+                # Always "present" — the gate can never see it clear.
+                return _FakeLocator([_FakeLocatorHandle()])
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with (patch.object(browser_masters, "_PAGE_FALLBACK_GONE_TIMEOUT_MS", 20),):
+            ready = browser_masters._wait_for_target_actions_ready(page)
+
+        # The fallback wait itself timed out (returns False), but the
+        # overall ready-gate must still report the table as settled since
+        # the row count itself never moved.
+        self.assertTrue(ready)
+
     def test_raises_when_target_actions_row_count_never_settles(self):
         """Codex adversarial review of this PR (#753): the settling wait's
         return value must not be discarded. Models a row-prefix locator
@@ -7447,6 +7556,360 @@ class TestUpdateMaster(unittest.TestCase):
         # Confirms the retry loop kept reading past the single post-settle
         # dip rather than trusting it immediately.
         self.assertGreater(read_attempts["count"], 1)
+
+    def test_raises_when_removal_verify_dip_outlasts_the_whole_streak(self):
+        """Issue #756 (round-3 finding on #750): the round-2 fix required
+        ``_TARGET_ACTION_STABLE_STREAK`` CONSECUTIVE matching reads, but a
+        streak is a TIMED proxy for completeness — a hydration dip lasting
+        at least as long as the streak defeats it outright, and Codex
+        reproduced exactly that: hold the table empty for the streak's full
+        duration and a no-op removal is reported as successful.
+
+        This models a dip LONGER than the whole streak: EVERY post-save
+        retry-loop read reports an empty table for more reads than
+        ``_TARGET_ACTION_STABLE_STREAK``, while the goal is still genuinely
+        present server-side (the close-button click is a no-op, so it never
+        leaves ``rows``). Under a streak-only predicate this is a false
+        success — ``removed_ok`` is trivially true on ``{}``, so every one
+        of those empty reads matches and the streak completes on empty.
+
+        What must save it is the structural fix: ``update_master`` snapshots
+        the goal-id set BEFORE the mutation, ``_verify_saved`` derives the
+        expected post-save set (``{}`` here would only be correct if the
+        removal had actually happened AND nothing else remained), and the
+        set comparison rejects a snapshot that is missing rows nobody asked
+        to remove. Here the pre-mutation table holds a SECOND goal that was
+        never touched, so the expected set is non-empty and an empty dip can
+        never match it — verification fails closed no matter how long the
+        dip lasts."""
+        rows = {159614149: "150", 159614150: "200"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        close_testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        locator_acquisitions = {"count": 0}
+        empty_reads = {"count": 0}
+        # Strictly MORE empty reads than the streak needs, so a
+        # streak-of-matching-reads predicate would complete entirely
+        # inside the dip.
+        dip_reads = browser_masters._TARGET_ACTION_STABLE_STREAK + 5
+
+        def _stub_locator(selector):
+            if selector == f'[data-testid="{close_testid}"]':
+                return _FakeLocator([_FakeLocatorHandle()])  # click is a no-op
+            if selector == row_prefix_selector:
+                locator_acquisitions["count"] += 1
+                real = original_locator(selector)
+                # Acquisitions 1-3 are the PRE-mutation snapshot's own
+                # settle + read (issue #756) — they must see the real table
+                # or there would be no baseline to compare against. The
+                # dip models the POST-save reads only, reporting 0 for the
+                # first `dip_reads` of them (longer than the whole streak).
+                if (
+                    locator_acquisitions["count"] > 3
+                    and empty_reads["count"] < dip_reads
+                ):
+                    return _CountOverrideLocator(
+                        real,
+                        count=0,
+                        on_count=lambda: empty_reads.__setitem__(
+                            "count", empty_reads["count"] + 1
+                        ),
+                    )
+                return _CountOverrideLocator(real)
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+        # Asserts the OUTCOME (verification failed closed), not which of the
+        # two independent defences phrased it — the predicate's set check
+        # rejects the dip mid-loop, and the post-loop set comparison catches
+        # it if the loop times out having only ever seen dips. Either is a
+        # correct report; silently succeeding is the bug.
+        self.assertIn("did not save as requested", str(ctx.exception))
+        self.assertIn("Целевые действия", str(ctx.exception))
+        # The dip really did outlast the streak — otherwise this test would
+        # be re-proving the round-2 fix rather than the round-3 one.
+        self.assertGreater(empty_reads["count"], 0)
+        self.assertGreaterEqual(dip_reads, browser_masters._TARGET_ACTION_STABLE_STREAK)
+
+    def test_a_dipped_pre_mutation_baseline_does_not_fail_a_good_save(self):
+        """Issue #756, adversarial review of the fix itself: the baseline
+        snapshot is guarded only by the same probabilistic settling wait,
+        and a dip that outlasts the streak settles at count 0 — at which
+        point ``_read_target_actions_or_none`` returns a well-formed ``[]``,
+        NOT ``None``. An ``is not None`` guard accepts that empty read, and
+        the derived expected set (``{} - removed`` = ``{}``) is a bar the
+        real table can never clear: the removal genuinely succeeds and
+        ``update_master`` reports failure anyway. That is not harmless —
+        the mutation has already committed and a retry is not idempotent
+        (``_remove_target_action`` raises on an already-absent row).
+
+        The baseline is therefore additionally required to CONTAIN every
+        goal about to be removed, which those rows provably do (their close
+        buttons are about to be clicked). Here the baseline read dips
+        empty, the table hydrates before the click, and the removal really
+        happens — verification must SUCCEED."""
+        rows = {159614149: "150", 159614150: "200"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        acquisitions = {"count": 0}
+
+        def _stub_locator(selector):
+            if selector == row_prefix_selector:
+                acquisitions["count"] += 1
+                real = original_locator(selector)
+                # Acquisition 1 = the baseline's settling wait, 2 = the
+                # baseline's own read. Both dip empty; everything after
+                # (the close click and all post-save reads) sees the real,
+                # fully hydrated table.
+                if acquisitions["count"] <= 2:
+                    return _CountOverrideLocator(real, count=0)
+                return _CountOverrideLocator(real)
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        # Must NOT raise: the removal genuinely took effect.
+        result = browser_masters.update_master(
+            page, 42, remove_target_action_goal_ids=[159614149]
+        )
+
+        self.assertEqual(result["RemovedTargetActionGoalIds"], [159614149])
+        self.assertEqual(set(rows), {159614150})
+
+    def test_stability_constants_leave_room_for_a_full_streak(self):
+        """Issue #756/#752: widening a streak without widening the window
+        that has to contain it turns a settle-poll into one that can never
+        succeed — it would time out mid-streak on every single run, which
+        surfaces as a hard failure on every update rather than as a race.
+        Guards the arithmetic on both pairs, plus the verification retry
+        budget that has to fit a full streak of matching reads at
+        ``_read_until_matches``'s own 250ms poll interval even after a dip
+        has consumed the settle timeout."""
+        target_action_span_ms = (
+            browser_masters._TARGET_ACTION_STABLE_STREAK
+            * browser_masters._TARGET_ACTION_STABLE_TICK_MS
+        )
+        self.assertGreater(
+            browser_masters._TARGET_ACTION_SETTLE_TIMEOUT_MS,
+            target_action_span_ms,
+            "the settle timeout must fit at least one full streak",
+        )
+
+        verify_budget_ms = (
+            browser_masters._VERIFY_FIELD_READ_TIMEOUT_MS
+            + browser_masters._TARGET_ACTION_SETTLE_TIMEOUT_MS
+        )
+        streak_at_retry_tick_ms = browser_masters._TARGET_ACTION_STABLE_STREAK * 250
+        self.assertGreater(
+            verify_budget_ms - browser_masters._TARGET_ACTION_SETTLE_TIMEOUT_MS,
+            streak_at_retry_tick_ms,
+            "after a worst-case dip consumes the settle timeout, the retry "
+            "budget must still fit a full streak of matching reads",
+        )
+
+    def test_removal_verification_rejects_a_snapshot_missing_untouched_rows(self):
+        """Issue #756: a post-save snapshot in which the REQUESTED removal
+        looks correct but an UNTOUCHED row has vanished must be rejected.
+        Both per-goal checks (added present / removed absent) pass on such
+        a snapshot — only the full expected-set comparison catches it, and
+        it is precisely the shape a partial hydration read takes.
+
+        Drives the real path: the close-button click removes BOTH the
+        requested goal and an untouched one (modelling a save that dropped
+        more than asked, or a snapshot that never showed the survivor)."""
+        rows = {159614149: "150", 159614150: "200"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        close_testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+
+        def _stub_locator(selector):
+            if selector == f'[data-testid="{close_testid}"]':
+                # Clicking the requested goal's close button ALSO drops the
+                # untouched row — the requested removal looks correct, but
+                # the surviving goal is gone.
+                return _FakeLocator([_FakeLocatorHandle(on_click=lambda: rows.clear())])
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+
+        self.assertIn("did not save as requested", str(ctx.exception))
+        self.assertIn("159614150", str(ctx.exception))
+
+    def test_pre_mutation_snapshot_lets_a_successful_removal_still_verify(self):
+        """Issue #756's expected-set check must not make a GENUINE removal
+        fail: with a real close-button click, the post-save table equals
+        ``before - removed``, which is exactly the derived expected set."""
+        rows = {159614149: "150", 159614150: "200"}
+        page = self._dynamic_target_actions_page(rows)
+
+        result = browser_masters.update_master(
+            page, 42, remove_target_action_goal_ids=[159614149]
+        )
+
+        self.assertEqual(result["RemovedTargetActionGoalIds"], [159614149])
+        self.assertEqual(set(rows), {159614150})
+
+    def test_baseline_requires_two_independent_settled_reads_to_agree(self):
+        """Codex adversarial review of this PR (#756): the certification
+        that gates ``target_action_goal_ids_before`` used to check only
+        that the to-be-removed goal was PRESENT in the settled baseline —
+        it never confirmed the baseline was COMPLETE with respect to an
+        UNTOUCHED survivor. A settle streak only stabilizes a row *count*;
+        a partial-but-stable read (missing a survivor row that never
+        mounted during the streak's window) passes it just as easily as a
+        genuinely complete one, so the derived expected set silently omits
+        the survivor and a real, successful save is reported as failed.
+
+        This models exactly that: the FIRST settled read of the baseline
+        (survivor 159614150 never mounts) is missing it, but the SECOND
+        independent settled read (later in wall-clock time) sees the full,
+        correct baseline. Two independent reads disagreeing on the id set
+        must refuse to certify — the removal must still verify correctly
+        (via the round-2 streak-only fallback), proving the fix narrows the
+        false-failure window without breaking the genuine-success path."""
+        rows = {159614149: "150", 159614150: "200"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        acquisitions = {"count": 0}
+
+        def _stub_locator(selector):
+            if selector == row_prefix_selector:
+                acquisitions["count"] += 1
+                real = original_locator(selector)
+                # Acquisitions 1-2 = the FIRST settled read (settle poll +
+                # its own row read): missing the untouched survivor.
+                # Acquisitions 3-4 = the SECOND independent settled read:
+                # sees the real, complete baseline. Everything after (the
+                # close click and all post-save reads) sees the real table.
+                if acquisitions["count"] <= 2:
+                    survivor_testid = (
+                        browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE.format(
+                            category=browser_masters._TARGET_ACTIONS_CATEGORY,
+                            goal_id=159614150,
+                        )
+                    )
+                    return _CountOverrideLocator(
+                        _FakeLocator(
+                            [
+                                h
+                                for h in real._handles
+                                if h.get_attribute("data-testid") != survivor_testid
+                            ]
+                        )
+                    )
+                return _CountOverrideLocator(real)
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with patch.object(browser_masters, "print_warning") as mock_warning:
+            result = browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+
+        # The removal genuinely succeeded — must NOT be reported as failed.
+        self.assertEqual(result["RemovedTargetActionGoalIds"], [159614149])
+        self.assertEqual(set(rows), {159614150})
+        # The two reads disagreeing means certification could not complete,
+        # so the degradation must be surfaced (Codex's observability gap).
+        mock_warning.assert_called_once()
+        self.assertIn(
+            "could not certify a pre-mutation baseline",
+            mock_warning.call_args[0][0],
+        )
+
+    def test_warns_when_baseline_certification_never_succeeds(self):
+        """Codex adversarial review of this PR (#756): when the baseline
+        cannot be certified at all (e.g. the table never settles), the PR's
+        own design deliberately degrades verification to the weaker
+        round-2 streak-only predicate rather than aborting a save whose
+        mutations are otherwise fine — but that degradation used to be
+        completely silent. Models a baseline read that never settles (the
+        row count keeps changing every tick), confirming the operator is
+        warned that the stronger structural guarantee did not run, while
+        the update itself still succeeds via the weaker fallback."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        # ``_wait_for_target_actions_settled`` acquires the locator ONCE per
+        # call and polls ``.count()`` on it repeatedly, so unsettling only
+        # the BASELINE's settle poll (and letting every later acquisition —
+        # the post-save settle plus its own reads — see the real, stable
+        # table) requires counting ``.locator()`` acquisitions, not ticks.
+        acquisitions = {"count": 0}
+
+        def _stub_locator(selector):
+            if selector == row_prefix_selector:
+                acquisitions["count"] += 1
+                real = original_locator(selector)
+                if acquisitions["count"] == 1:
+                    # The baseline's one-and-only settle-poll acquisition:
+                    # alternate 0/1 on every .count() call so the streak
+                    # never accumulates and the poll times out.
+                    ticks = {"n": 0}
+
+                    class _NeverSettles:
+                        def count(self):
+                            ticks["n"] += 1
+                            return ticks["n"] % 2
+
+                        def nth(self, i):
+                            return real.nth(i)
+
+                    return _NeverSettles()
+                return _CountOverrideLocator(real)
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with (
+            patch.object(browser_masters, "_TARGET_ACTION_SETTLE_TIMEOUT_MS", 50),
+            patch.object(browser_masters, "_TARGET_ACTION_STABLE_TICK_MS", 5),
+            patch.object(browser_masters, "_TARGET_ACTION_STABLE_STREAK", 3),
+            patch.object(browser_masters, "print_warning") as mock_warning,
+        ):
+            result = browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+
+        # The removal still succeeds via the round-2 fallback — degrading
+        # must not abort an update whose mutations are otherwise fine.
+        self.assertEqual(result["RemovedTargetActionGoalIds"], [159614149])
+        mock_warning.assert_called_once()
+        self.assertIn(
+            "could not certify a pre-mutation baseline",
+            mock_warning.call_args[0][0],
+        )
 
     def test_updates_multiple_fields_in_one_call(self):
         budget_state = {}
@@ -14735,6 +15198,17 @@ class _FakeAudienceTagsPage(FakePage):
     def locator(self, selector):
         if selector == browser_masters._AUDIENCE_TAG_WRAPPER_TESTID:
             return _FakeLocator([_FakeLocatorHandle()])
+        if selector == browser_masters._AUDIENCE_TAG_COUNT_SELECTOR:
+            # The count-only selector _wait_for_audience_section's streak
+            # predicate uses (it needs a count, not the texts). Consumes one
+            # queue entry per call, the same way a full _read_audience_tags
+            # scan does, so a scripted `counts` queue drives both readers
+            # identically.
+            if self._scan_started:
+                self._call_index += 1
+            self._scan_started = True
+            count = self._counts[min(self._call_index, len(self._counts) - 1)]
+            return _FakeLocator([_FakeLocatorHandle() for _ in range(count)])
         prefix = "CustomAudienceAndSearchTermsEditor.TagGroup.tag."
         if selector.startswith(f'[data-testid="{prefix}') and not selector.endswith(
             '.close"]'
@@ -14786,6 +15260,162 @@ class TestWaitForAudienceSection(unittest.TestCase):
         # Reaching here without raising means the loop kept polling past
         # the premature 0-streak and only settled once 112 repeated 3x.
         self.assertEqual(len(browser_masters._read_audience_tags(page)), 112)
+
+    def test_streak_span_exceeds_the_observed_worst_case_settle_time(self):
+        """Issue #752 (R2-1): the streak's own SPAN — not just the overall
+        window — has to exceed the ~4s worst-case settle time this module's
+        live recon documents. The round-1 values (5 reads x 500ms = 2.5s)
+        did not: a count held at a stale 0 for 4s settled inside the window
+        and ``update_master`` went straight on to save an empty audience-tag
+        payload over a campaign that actually had tags. Guards the widened
+        constants against being quietly tuned back under that bound."""
+        observed_worst_case_settle_ms = 4_000
+        streak_span_ms = (
+            browser_masters._AUDIENCE_TAG_STABLE_STREAK
+            * browser_masters._AUDIENCE_TAG_STABLE_TICK_MS
+        )
+        self.assertGreater(streak_span_ms, observed_worst_case_settle_ms)
+        # The overall window must still fit at least one full streak, or
+        # the poll times out before it can ever succeed.
+        self.assertGreater(
+            browser_masters._AUDIENCE_TAG_STABLE_WINDOW_MS, streak_span_ms
+        )
+
+    def test_does_not_settle_on_a_stale_count_held_past_the_old_window(self):
+        """Issue #752 (R2-1) behaviourally: a stale 0 held for longer than
+        the OLD 2.5s streak span (5 reads x 500ms) — but shorter than the
+        widened one — must not be accepted as settled. Uses the real
+        constants rather than patched-down ones, since the value of the
+        constants is the whole point of this fix.
+
+        Reads: 0 held for as many ticks as the OLD streak needed to settle
+        (5 equal reads + the priming read), then the real 112. Under the
+        old constants the poll settles while the count is still 0 — the
+        exact silent-data-loss path R2-1 describes, since ``update_master``
+        goes straight on to save from that state. The widened streak must
+        instead keep polling until the 112s arrive.
+
+        Asserts the count observed AT settle time, not after — a later
+        read would show 112 either way and would not discriminate."""
+        old_streak_reads = 5 + 1  # round-1 streak of 5, plus the priming read
+        real_reads = browser_masters._AUDIENCE_TAG_STABLE_STREAK + 2
+        page = _FakeAudienceTagsPage(
+            counts=[0] * old_streak_reads + [112] * real_reads,
+            role_elements=[],
+        )
+        page._locators[browser_masters._GENDER_SELECT_TESTID] = _FakeLocator(
+            [_FakeLocatorHandle(text="Любой пол")]
+        )
+
+        browser_masters._wait_for_audience_section(page)
+
+        # The queue advances once per full _read_audience_tags scan, so the
+        # number of scans consumed before settling says which value the
+        # poll settled ON: settling inside the stale run would consume at
+        # most `old_streak_reads` scans; settling on the real payload has
+        # to consume all of them plus a full streak of 112s.
+        self.assertGreaterEqual(
+            page._call_index,
+            old_streak_reads + browser_masters._AUDIENCE_TAG_STABLE_STREAK,
+        )
+
+    def test_untouched_tag_list_is_verified_after_a_gender_only_save(self):
+        """Issue #752 (R2-1), the second half: a --gender/--age/--device
+        update mutates no tag, but still submits the WHOLE form. If the
+        readiness poll settled on a stale/empty tag count, the save can
+        persist that emptiness and silently drop every targeting tag the
+        campaign had — and nothing used to notice, because verification
+        only ran when a tag add/remove was requested.
+
+        Models the loss by driving the REAL ``_verify_saved`` branch: 112
+        tags went in, the page comes back showing 0, and no tag was
+        mutated. It must report a mismatch (which ``update_master`` turns
+        into a raised error) rather than silently accepting the loss."""
+        tags_before = [f"тег{i}" for i in range(112)]
+        # The page comes back EMPTY — the targeting was dropped.
+        page = _FakeAudienceTagsPage(counts=[0], role_elements=[])
+
+        with (
+            patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
+            patch.object(browser_masters, "_AUDIENCE_SECTION_READY_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                audience_tags_before=tags_before,
+            )
+
+        self.assertIn("audience_tags", str(ctx.exception))
+
+    def test_untouched_tag_list_accepts_an_unchanged_list(self):
+        """The mirror of the test above: when the untouched list comes back
+        intact, the check must stay silent rather than failing every
+        gender/age/device update. Compared as a MULTISET — the grid has no
+        guaranteed tag ordering, so passing the SAME tags in a different
+        order must still verify."""
+        page = _FakeAudienceTagsPage(counts=[3], role_elements=[])
+        # _FakeAudienceTagsPage names its tags by index; read what the page
+        # actually shows, then hand it back reversed.
+        actual = browser_masters._read_audience_tags(page)
+        self.assertEqual(len(actual), 3)
+
+        with (
+            patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
+            patch.object(browser_masters, "_AUDIENCE_SECTION_READY_TIMEOUT_MS", 10),
+        ):
+            # Must NOT raise: same multiset, different order.
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                audience_tags_before=list(reversed(actual)),
+            )
+
+    def test_removing_a_tag_verifies_by_identity_not_just_count(self):
+        """Issue #752, the audience path's own version of the #756 fix: the
+        old predicate checked the resulting COUNT plus "are the added tags
+        present?". That cannot tell "removed the requested tag" from
+        "removed a different one" — both leave the same count. Deriving the
+        expected multiset from the pre-mutation baseline catches it.
+
+        Baseline [a, b, c], remove position 0 (=a). The page comes back
+        with the RIGHT COUNT (2) but the WRONG tags — 'a' survived and 'b'
+        went instead. A count check passes; the multiset check must not."""
+        page = _FakeAudienceTagsPage(counts=[2], role_elements=[])
+        # A removal makes _verify_saved re-settle the section first, which
+        # polls the gender trigger — give the fake one.
+        page._locators[browser_masters._GENDER_SELECT_TESTID] = _FakeLocator(
+            [_FakeLocatorHandle(text="Любой пол")]
+        )
+        page_tags = browser_masters._read_audience_tags(page)
+        # The fake names tags by index, so the page shows [tag0, tag1].
+        # Claim a baseline whose position 0 is a tag that is STILL there.
+        baseline = [page_tags[0], "удалённый", page_tags[1]]
+
+        with (
+            patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
+            patch.object(browser_masters, "_AUDIENCE_SECTION_READY_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                audience_tags_before=baseline,
+                remove_audience_tag_indices=[0],
+            )
+
+        # Count matches (3 - 1 == 2) — only identity comparison catches it.
+        self.assertEqual(len(page_tags), len(baseline) - 1)
+        self.assertIn("audience_tags", str(ctx.exception))
 
     def test_raises_if_gender_trigger_never_shows_a_label(self):
         page = FakePage(locators={})  # no _GENDER_SELECT_TESTID handle at all
