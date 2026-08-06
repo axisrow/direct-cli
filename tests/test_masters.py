@@ -1816,11 +1816,20 @@ class TestPollUntil(unittest.TestCase):
         self.assertEqual(page.tick_count, 4)
 
 
-# Real-clock readings that must never back a poll deadline (issue #767).
-# ``perf_counter`` is banned alongside ``monotonic`` because it is the obvious
-# drop-in a future contributor would reach for, and it is just as unreachable
-# by a no-op ``wait_for_timeout`` tick.
-_RAW_CLOCK_FUNCTIONS = frozenset({"monotonic", "perf_counter"})
+# Modules whose callables read a real clock. `_clock.now()` is the package's
+# only sanctioned source for a POLL DEADLINE, so rather than denylisting
+# individual functions this bans the modules wholesale (see
+# `_raw_clock_calls`).
+_REAL_CLOCK_MODULES = frozenset({"time", "datetime"})
+
+# ...except the wall-clock readings that legitimately are NOT deadlines.
+# `store.py` stamps `created_at` into the persisted session envelope and
+# measures its age: that is calendar time, which must survive a reboot and be
+# comparable across processes, so `time.time()` is correct there and
+# `_clock.now()` (monotonic, arbitrary epoch) would be actively wrong. Only
+# the monotonic family — the one a poll deadline would reach for — stays
+# banned outright.
+_WALL_CLOCK_ALLOWED = frozenset({"time", "time_ns"})
 
 
 def _raw_clock_calls(source):
@@ -1830,37 +1839,91 @@ def _raw_clock_calls(source):
     literal ``time.monotonic()``, so an aliased import (``import time as _t``
     → ``_t.monotonic()``) or a from-import (``from time import monotonic`` →
     ``monotonic()``) reintroduced a busy-spinning deadline that the guard
-    reported as clean — verified at 1.4s → 64s on this file. Resolving the
-    call target through the module's own import bindings closes both spellings,
-    and because only ``ast.Call`` nodes are considered, prose in a docstring is
-    structurally excluded instead of being filtered by a backtick heuristic
-    (which itself exempted any real call sharing a line with a ``…`` comment).
+    reported as clean — verified at 1.4s → 64s on this file. Because only
+    ``ast.Call`` nodes are considered, prose in a docstring is structurally
+    excluded rather than filtered by a backtick heuristic (which had also
+    exempted any real call sharing a line with a ``…`` comment).
+
+    Bans the clock modules WHOLESALE instead of naming individual functions.
+    A ``{monotonic, perf_counter}`` denylist still let every sibling through —
+    ``monotonic_ns``, ``perf_counter_ns``, ``time``, ``time_ns``,
+    ``process_time``, ``datetime.now()`` — each just as unreachable by a no-op
+    ``wait_for_timeout`` tick, and one of them (``time.monotonic_ns()``) was
+    measured reintroducing the full regression (1.0s → 62s) while the guard
+    reported clean. Enumerating banned functions is a losing game; enumerating
+    the two sanctioned ways to read time is not, since a poll deadline in this
+    package has exactly one legitimate source.
+
+    Also resolves single-name assignment aliasing (``_t = time`` /
+    ``_m = time.monotonic``), which otherwise smuggles a deadline past any
+    import-only analysis.
     """
     tree = ast.parse(source)
 
-    time_aliases = set()  # names bound to the `time` module itself
-    bare_names = {}  # names bound directly to a banned function
+    module_aliases = set()  # names bound to a real-clock module
+    bare_names = set()  # names bound directly to one of its callables
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name == "time":
-                    time_aliases.add(alias.asname or alias.name)
-        elif isinstance(node, ast.ImportFrom) and node.module == "time":
+                root = alias.name.split(".")[0]
+                if root in _REAL_CLOCK_MODULES:
+                    module_aliases.add(alias.asname or root)
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and node.module.split(".")[0] in _REAL_CLOCK_MODULES
+        ):
             for alias in node.names:
-                if alias.name in _RAW_CLOCK_FUNCTIONS:
-                    bare_names[alias.asname or alias.name] = alias.name
+                # `from datetime import datetime` binds the class, whose
+                # `.now()` is caught by the attribute branch below.
+                if alias.name in _REAL_CLOCK_MODULES:
+                    module_aliases.add(alias.asname or alias.name)
+                else:
+                    bare_names.add(alias.asname or alias.name)
+
+    # Second pass: `_t = time` / `_m = time.monotonic` rebind the same source
+    # under a new name, so fold those in before inspecting calls.
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target, value = node.targets[0], node.value
+        if not isinstance(target, ast.Name):
+            continue
+        if isinstance(value, ast.Name):
+            if value.id in module_aliases:
+                module_aliases.add(target.id)
+            elif value.id in bare_names:
+                bare_names.add(target.id)
+        elif (
+            isinstance(value, ast.Attribute)
+            and isinstance(value.value, ast.Name)
+            and value.value.id in module_aliases
+        ):
+            bare_names.add(target.id)
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         func = node.func
+        # `getattr(time, "monotonic")()` — the indirection is the call target.
         if (
-            isinstance(func, ast.Attribute)
-            and func.attr in _RAW_CLOCK_FUNCTIONS
-            and isinstance(func.value, ast.Name)
-            and func.value.id in time_aliases
+            isinstance(func, ast.Call)
+            and isinstance(func.func, ast.Name)
+            and func.func.id == "getattr"
+            and func.args
+            and isinstance(func.args[0], ast.Name)
+            and func.args[0].id in module_aliases
         ):
-            yield node.lineno, f"{func.value.id}.{func.attr}()"
+            yield node.lineno, f"getattr({func.args[0].id}, …)()"
+        elif isinstance(func, ast.Attribute) and func.attr not in _WALL_CLOCK_ALLOWED:
+            # A nested chain (`datetime.datetime.now()`) still bottoms out at
+            # the module. Reported once, at the module attribute, so a
+            # trailing `.timestamp()` does not double-count.
+            root = func.value
+            while isinstance(root, ast.Attribute):
+                root = root.value
+            if isinstance(root, ast.Name) and root.id in module_aliases:
+                yield node.lineno, f"{root.id}.{func.attr}()"
         elif isinstance(func, ast.Name) and func.id in bare_names:
             yield node.lineno, f"{func.id}()"
 
@@ -1929,6 +1992,49 @@ class TestBrowserPackageClock(unittest.TestCase):
         # obvious drop-in once `monotonic` is guarded.
         source = "import time\ndeadline = time.perf_counter() + 1\n"
         self.assertEqual([(2, "time.perf_counter()")], list(_raw_clock_calls(source)))
+
+    def test_detects_every_sibling_of_the_originally_banned_pair(self):
+        # A `{monotonic, perf_counter}` denylist let all of these through, and
+        # `time.monotonic_ns()` was measured reintroducing the full regression
+        # (1.0s -> 62.19s) with the guard still reporting clean. Banning the
+        # module wholesale is what closes the family, not a longer denylist.
+        for call in (
+            "monotonic_ns",
+            "perf_counter_ns",
+            "process_time",
+            "process_time_ns",
+            "gmtime",
+        ):
+            with self.subTest(call=call):
+                source = f"import time\ndeadline = time.{call}() + 1\n"
+                self.assertEqual(
+                    [(2, f"time.{call}()")], list(_raw_clock_calls(source))
+                )
+
+    def test_allows_wall_clock_time_for_non_deadline_use(self):
+        # `store.py` stamps `created_at` into the persisted session envelope
+        # and measures its age. That is calendar time — it must survive a
+        # reboot and compare across processes — so `time.time()` is correct
+        # and `_clock.now()` (monotonic, arbitrary epoch) would be wrong.
+        # Banning it would have made this guard un-satisfiable for real code.
+        source = "import time\nenvelope = {'created_at': time.time()}\n"
+        self.assertEqual([], list(_raw_clock_calls(source)))
+
+    def test_detects_a_datetime_based_clock_read(self):
+        source = "import datetime\nd = datetime.datetime.now().timestamp() + 1\n"
+        self.assertEqual([(2, "datetime.now()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_module_rebound_by_assignment(self):
+        source = "import time\n_t = time\ndeadline = _t.monotonic() + 1\n"
+        self.assertEqual([(3, "_t.monotonic()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_function_rebound_by_assignment(self):
+        source = "import time\n_m = time.monotonic\ndeadline = _m() + 1\n"
+        self.assertEqual([(3, "_m()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_getattr_indirection(self):
+        source = "import time\ndeadline = getattr(time, 'monotonic')() + 1\n"
+        self.assertEqual([(2, "getattr(time, …)()")], list(_raw_clock_calls(source)))
 
     def test_ignores_prose_mentioning_the_banned_call(self):
         # Structurally excluded (not a Call node) rather than filtered by the
@@ -2547,6 +2653,7 @@ class TestFetchMasterDraft(unittest.TestCase):
 
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedStatusPage(
             locators={
@@ -2574,6 +2681,7 @@ class TestFetchMasterDraft(unittest.TestCase):
 
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedBodyPage()
 
@@ -2600,6 +2708,7 @@ class TestFetchMasterDraft(unittest.TestCase):
 
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _EmptyThenFilledStatusPage()
 
@@ -4107,6 +4216,7 @@ class TestSetDirectsHelps(unittest.TestCase):
         class _DelayedHydrationPage(FakePage):
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedHydrationPage(
             locators={
@@ -5043,6 +5153,7 @@ class TestWaitForDraftStatus(unittest.TestCase):
 
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedDraftMarkerPage(
             locators={
@@ -5068,6 +5179,7 @@ class TestWaitForDraftStatus(unittest.TestCase):
 
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedSaveButtonPage(
             locators={},
@@ -5731,6 +5843,7 @@ class TestUpdateMaster(unittest.TestCase):
         class _DelayedBudgetPage(FakePage):
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedBudgetPage(
             locators={
@@ -5773,6 +5886,7 @@ class TestUpdateMaster(unittest.TestCase):
         class _DelayedPricePage(FakePage):
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedPricePage(
             locators={
@@ -5822,6 +5936,7 @@ class TestUpdateMaster(unittest.TestCase):
         class _DelayedTargetActionPage(FakePage):
             def wait_for_timeout(self, timeout):
                 ticks["count"] += 1
+                super().wait_for_timeout(timeout)
 
         page = _DelayedTargetActionPage(
             locators={

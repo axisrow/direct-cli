@@ -40,6 +40,7 @@ dev = [
     "pytest>=6.2",
     "pytest-cov>=2.0",
     "pytest-recording>=0.13",
+    "pytest-timeout>=2.0",
     "pytest-xdist>=3.0",
     "vcrpy>=8.3.0",
     "black>=22.0",
@@ -141,6 +142,17 @@ python_functions = "test_*"
 # filesystem writes use tmp_path, and the only shared-file writer — the orphan
 # store — lives in the excluded live tiers). Disable for debugging / pdb / -s
 # with `pytest -n0`.
+#
+# `--timeout` is a hang backstop, not a performance budget (issue #767). The
+# offline tier runs in ~20s in total, so any single test reaching 60s is stuck,
+# not slow — most plausibly a `direct_cli/browser/` poll loop whose deadline
+# stopped being reachable, which spins forever rather than raising (a frozen
+# fake clock did exactly this: 15.8M iterations in 8s, no termination). Without
+# this, such a test hangs an xdist worker indefinitely; `tests/conftest.py`
+# already documents an unguarded hang taking the whole suite with it. The live
+# tiers are excluded from the default run above and set their own budgets, so
+# this ceiling does not apply to them.
+timeout = 60
 addopts = "-n auto -m 'not integration and not v4_live_read and not integration_live_write'"
 markers = [
     "integration: marks tests as integration tests requiring a real API token (deselect with '-m \"not integration\"')",
