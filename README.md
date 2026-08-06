@@ -35,6 +35,8 @@ direct masters get 72349978
 direct masters suspend 72349978
 direct masters resume 72349978
 direct masters archive 72349978
+direct masters delete 713337891
+direct masters delete 713337891 --yes
 direct masters update 72349978 --weekly-budget 95000
 direct masters update 72349978 --promotion-goal max-clicks --no-directs-helps
 direct masters update 72349978 --name "Мастер ИЖ Источник Жизни (тёплый)"
@@ -167,15 +169,42 @@ warning, not an error). There is **no `--sandbox` for these** — Мастер
 кампаний has no API at all, so there is no isolated test copy; any mutation
 hits your real account.
 
-`archive` is the closest thing to "delete" Мастер кампаний has: a live
-recon (issue #633) confirmed there is **no separate delete action** in
-Yandex's UI for it, neither in the campaigns grid's row menu nor the
-overview page's own menu — only "Архивировать". `masters archive` clicks
-that menu item and verifies the campaign actually shows up as archived in
-the campaigns grid before reporting success. It is idempotent
-(already-archived is a no-op warning) but **irreversible from this CLI** —
-there is no `masters unarchive`. Same no-`--sandbox` caveat as
+`archive` is the closest thing to "delete" a non-DRAFT Мастер кампаний has:
+a live recon (issue #633) confirmed there is **no separate delete action**
+in Yandex's UI for it, only "Архивировать" on the overview page's own menu.
+`masters archive` clicks that menu item and verifies the campaign actually
+shows up as archived in the campaigns grid before reporting success. It is
+idempotent (already-archived is a no-op warning) but **irreversible from
+this CLI** — there is no `masters unarchive`. Same no-`--sandbox` caveat as
 suspend/resume above.
+
+`delete` (issue #782) removes a **DRAFT** campaign — the one status
+`archive` cannot touch, since a DRAFT's overview page has no "⋮" menu at
+all (issue #660). A DRAFT created by mistake (e.g. via `masters add
+--draft`) was previously a one-way door: the only documented route out was
+launching it, spending real money, purely to gain access to archive. Live
+recon found the campaigns **grid's own row menu** (a separate menu from the
+overview page's) does offer "Удалить" for a DRAFT row — `masters delete`
+uses that instead. **Refuses anything but DRAFT** with a clear error
+pointing at `masters archive`. Unlike every other `masters` mutation,
+Yandex shows **no confirmation dialog** before deleting — the campaign is
+gone the instant the click lands — so this command always asks for its own
+confirmation first: interactively by default, or pass `--yes` to skip the
+prompt non-interactively. Same no-`--sandbox` caveat as suspend/resume
+above. **The campaigns grid is a virtualized SPA (#639/#671): `delete`
+locates the row's DOM node to click its menu, and a row that isn't
+currently rendered in the grid's viewport is simply absent from the DOM,
+not just off-screen.** `delete` best-effort scrolls the row into view first,
+but that only works on a node that has already resolved — it cannot make an
+unrendered row appear. In practice this reaches the common case (a DRAFT
+just created by `masters add --draft`, which renders near the top of the
+grid), but an older DRAFT buried under many other campaigns may fail with
+"Could not open the campaigns grid row menu" even though `masters list`
+finds it (list reads the grid's paginated JSON data API directly, not the
+DOM, so it always sees every row regardless of scroll position). If that
+happens, scroll the campaigns grid to the row manually in a real browser
+first, or archive/launch other campaigns to shrink the list, then retry.
+Tracked as a follow-up: #791.
 
 `add` creates a brand-new "Конверсии и трафик" Мастер кампаний by driving the
 same create wizard a human uses. **It is NOT idempotent** — running it twice

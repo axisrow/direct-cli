@@ -1834,10 +1834,14 @@ def archive(
 ):
     """Archive one or more Мастер кампаний by ID (comma-separated)
 
-    Мастер кампаний has no separate "delete" — archiving is the only
-    destructive/lifecycle action beyond suspend/resume (issue #633 live
-    recon: neither the campaigns-grid row menu nor the overview page's menu
-    has a "Удалить" item, only "Архивировать"). Irreversible from this CLI:
+    Мастер кампаний has no separate "delete" for a non-DRAFT campaign —
+    archiving is the only destructive/lifecycle action beyond
+    suspend/resume (issue #633 live recon: the overview page's own "⋮" menu
+    has no "Удалить" item, only "Архивировать"). A DRAFT campaign is
+    different — see `masters delete` (issue #782): the campaigns GRID's own
+    row menu (a separate menu from the overview page's) does offer "Удалить"
+    there; #633's original recon predates DRAFT support (#668) and evidently
+    only checked non-DRAFT rows. Irreversible from this CLI:
     there is no `masters unarchive`. Clicks the overview page's "⋮" menu then
     "Архивировать" (both confirmed live via stable `data-testid` attributes —
     see `direct_cli/browser/masters.py` module docstring), and verifies via
@@ -1866,6 +1870,74 @@ def archive(
         output=output,
         verb="archive",
     )
+
+
+@masters.command()
+@click.argument("campaign_id", type=int)
+@click.option(
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Skip the interactive confirmation prompt (required in "
+    "non-interactive contexts, e.g. scripts/CI).",
+)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def delete(
+    ctx,
+    campaign_id,
+    yes,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """Permanently delete a DRAFT Мастер кампаний (issue #782)
+
+    Мастер кампаний has no delete for any status other than DRAFT — see
+    `masters archive`'s own docstring and issue #633; for a non-DRAFT
+    campaign this refuses and points at `masters archive` instead.
+
+    DRAFT is otherwise a one-way door in this CLI: its overview page has no
+    "⋮" menu to archive from (issue #660), so a mistaken `masters add
+    --draft` previously had no way back short of launching it (spending real
+    money) just to gain access to archive. This command instead uses the
+    campaigns GRID's own row menu, which does offer "Удалить" for a DRAFT
+    row (live-confirmed 2026-08-06, issue #782).
+
+    Irreversible, and unlike every other `masters` mutation Yandex itself
+    shows NO confirmation dialog before deleting — the campaign is gone the
+    instant the click lands. This command therefore always asks for its own
+    confirmation before touching the browser: interactively by default, or
+    pass --yes to skip the prompt in a non-interactive context (the prompt
+    itself would otherwise hang forever with no TTY to answer it).
+    """
+    if not yes:
+        if not _stdin_is_interactive():
+            raise click.UsageError(
+                f"Deleting campaign {campaign_id} needs confirmation, but "
+                "no terminal is attached to prompt for it. Pass --yes to "
+                "confirm non-interactively."
+            )
+        if not click.confirm(
+            f"Permanently delete DRAFT campaign {campaign_id}? This cannot "
+            "be undone."
+        ):
+            raise click.Abort()
+
+    from ..browser.masters import delete_master
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: delete_master(page, campaign_id),
+    )
+
+    format_output(result, output_format, output)
 
 
 @masters.command()

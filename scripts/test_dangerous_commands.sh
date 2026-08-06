@@ -40,6 +40,11 @@ non-critical campaign, confirming before/after state in the web UI):
     (replaces the ENTIRE image set -- NOT idempotent)
   - direct masters archive <campaign_id>
     (irreversible -- there is no `masters unarchive`)
+  - direct masters delete <campaign_id>
+    (permanently deletes a DRAFT campaign via the campaigns grid's row
+    menu, see issue #782 -- irreversible, and unlike every other masters
+    mutation Yandex itself shows NO confirmation dialog before deleting,
+    so the CLI prompts for its own confirmation, or pass --yes)
   - direct masters launch <campaign_id>
     (publishes a DRAFT campaign -- irreversible, there is no `masters unlaunch`)
   - direct masters add <url> --headline ... --text ... --region ...
@@ -49,7 +54,8 @@ non-critical campaign, confirming before/after state in the web UI):
     test campaign by hand after checking it in the web UI.
     --add-target-action is REQUIRED since 0.6.0 -- Yandex's create form
     silently refuses a campaign with no conversion goal. Note a --draft
-    created this way currently cannot be archived at all, see issue #782)
+    created this way cannot be archived (issue #660) but can be removed
+    via `masters delete`, see issue #782)
 
 Interactive human-in-the-loop login (opens a visible browser window and
 blocks waiting for a person to sign in -- cannot run unattended):

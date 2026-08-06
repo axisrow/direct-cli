@@ -212,6 +212,13 @@ SMOKE_MATRIX = {
         "masters.archive",
         "masters.resume",
         "masters.suspend",
+        # Permanently deletes a DRAFT Мастер кампаний via the campaigns
+        # grid's own row menu (issue #782) — irreversible, and unlike every
+        # other masters mutation Yandex itself shows NO confirmation dialog
+        # before deleting. Same no-sandbox-equivalent rationale as
+        # archive/resume/suspend above. Manual-only, per
+        # scripts/test_dangerous_commands.sh.
+        "masters.delete",
         # Publishes a DRAFT Мастер кампаний (issue #704) — irreversible from
         # this CLI (no `masters unlaunch`), same no-sandbox-equivalent
         # rationale as archive/resume/suspend above. Manual-only, per
