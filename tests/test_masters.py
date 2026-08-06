@@ -4141,6 +4141,231 @@ class TestMastersArchiveCommand(unittest.TestCase):
         self.assertIn("boom on id 3", result.output)
 
 
+class TestDeleteMaster(unittest.TestCase):
+    """delete_master (issue #782): DRAFT-only removal via the campaigns
+    grid's own row menu — a SEPARATE menu from the overview page's "⋮"
+    (see archive_master), confirmed live against DRAFT campaign 713337891.
+    """
+
+    CAMPAIGN_ID = 713337891
+    ROW_SELECTOR = browser_masters._GRID_ROW_SELECTOR_TEMPLATE.format(
+        campaign_id=CAMPAIGN_ID
+    )
+
+    def _row(self, status):
+        return {
+            "CampaignId": self.CAMPAIGN_ID,
+            "Name": "ksamata.ru от 06.08.26",
+            "Status": status,
+            "Type": "TEXT",
+            "StartDate": "2026-08-06",
+        }
+
+    def _page_with_row_menu(self, trigger=None, delete_item=None):
+        locators = {}
+        if trigger is not None:
+            row_handle = _FakeLocatorHandle(
+                sub_locators={
+                    browser_masters._GRID_ROW_ACTIONS_TRIGGER_SELECTOR: trigger
+                }
+            )
+            locators[self.ROW_SELECTOR] = _FakeLocator([row_handle])
+        if delete_item is not None:
+            locators[browser_masters._GRID_ROW_DELETE_ITEM_SELECTOR] = _FakeLocator(
+                [delete_item]
+            )
+        return FakePage(locators=locators)
+
+    def test_deletes_and_verifies_via_grid(self):
+        state = {"rows": [self._row("DRAFT")]}
+
+        def _remove():
+            state["rows"] = []
+
+        page = self._page_with_row_menu(
+            trigger=_FakeLocatorHandle(),
+            delete_item=_FakeLocatorHandle(on_click=_remove),
+        )
+        # The popup itself is portal-rendered on `page`, not inside the row.
+        page._locators[browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR] = _FakeLocator(
+            [_FakeLocatorHandle()]
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": list(state["rows"]),
+        ):
+            result = browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertEqual(result, {"CampaignId": self.CAMPAIGN_ID, "Deleted": True})
+
+    def test_raises_when_campaign_not_found_in_grid(self):
+        page = self._page_with_row_menu()
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", return_value=[]):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertIn("Could not find", str(ctx.exception))
+
+    def test_refuses_non_draft_status_without_clicking(self):
+        page = self._page_with_row_menu()
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("ACTIVE")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertIn("not DRAFT", str(ctx.exception))
+        self.assertIn("masters archive", str(ctx.exception))
+
+    def test_refuses_archived_status(self):
+        # Not just ACTIVE -- every non-DRAFT status is refused the same way.
+        page = self._page_with_row_menu()
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("ARCHIVED")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertIn("not DRAFT", str(ctx.exception))
+
+    def test_raises_when_row_menu_trigger_not_found(self):
+        page = self._page_with_row_menu()  # no trigger registered
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("DRAFT")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertIn("Could not open the campaigns grid row menu", str(ctx.exception))
+
+    def test_raises_when_delete_item_not_found(self):
+        page = self._page_with_row_menu(trigger=_FakeLocatorHandle())
+        page._locators[browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR] = _FakeLocator(
+            [_FakeLocatorHandle()]
+        )
+        # No DeleteCampaignAction locator registered.
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("DRAFT")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertIn("Удалить", str(ctx.exception))
+
+    def test_raises_when_campaign_still_present_after_click(self):
+        # The click succeeds but the grid still reports the campaign -- must
+        # not report success on the click alone (mirrors archive_master's
+        # own "never trust the click" convention).
+        page = self._page_with_row_menu(
+            trigger=_FakeLocatorHandle(),
+            delete_item=_FakeLocatorHandle(),
+        )
+        page._locators[browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR] = _FakeLocator(
+            [_FakeLocatorHandle()]
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("DRAFT")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertIn("still reports it present", str(ctx.exception))
+
+
+class TestMastersDeleteCommand(unittest.TestCase):
+    """CLI wiring for `masters delete` (issue #782), including the
+    confirmation gate Yandex's own UI does not provide (live-confirmed: no
+    dialog appears before DeleteCampaignAction actually deletes)."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_delete_registered(self):
+        result = self.runner.invoke(cli, ["masters", "delete", "--help"])
+        self.assertEqual(result.exit_code, 0)
+
+    def test_delete_has_no_login_option(self):
+        result = self.runner.invoke(cli, ["masters", "delete", "--help"])
+        self.assertNotIn("--login", result.output)
+
+    def test_delete_with_yes_skips_prompt_and_calls_delete_master(self):
+        with (
+            patch("direct_cli.browser.masters.delete_master") as mock_delete,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_delete.return_value = {"CampaignId": 713337891, "Deleted": True}
+            result = self.runner.invoke(
+                cli, ["masters", "delete", "713337891", "--yes"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_delete.assert_called_once()
+
+    def test_delete_without_yes_prompts_and_confirms(self):
+        with (
+            patch("direct_cli.browser.masters.delete_master") as mock_delete,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+            patch(
+                "direct_cli.commands.masters._stdin_is_interactive",
+                return_value=True,
+            ),
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_delete.return_value = {"CampaignId": 713337891, "Deleted": True}
+            result = self.runner.invoke(
+                cli, ["masters", "delete", "713337891"], input="y\n"
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("Permanently delete", result.output)
+        mock_delete.assert_called_once()
+
+    def test_delete_without_yes_declining_prompt_aborts(self):
+        with (
+            patch("direct_cli.browser.masters.delete_master") as mock_delete,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+            patch(
+                "direct_cli.commands.masters._stdin_is_interactive",
+                return_value=True,
+            ),
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(
+                cli, ["masters", "delete", "713337891"], input="n\n"
+            )
+
+        self.assertNotEqual(result.exit_code, 0)
+        mock_delete.assert_not_called()
+
+    def test_delete_without_yes_non_interactive_refuses(self):
+        # No TTY to answer a prompt that would otherwise hang forever.
+        with (
+            patch("direct_cli.browser.masters.delete_master") as mock_delete,
+            patch(
+                "direct_cli.commands.masters._stdin_is_interactive",
+                return_value=False,
+            ),
+        ):
+            result = self.runner.invoke(cli, ["masters", "delete", "713337891"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--yes", result.output)
+        mock_delete.assert_not_called()
+
+
 class TestClickDraftTerminalButton(unittest.TestCase):
     """``_click_draft_terminal_button`` (issue #668): clicks exactly once,
     no time-based retry.

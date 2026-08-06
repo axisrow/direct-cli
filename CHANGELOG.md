@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### Added
+
+**`masters delete` — remove a DRAFT Мастер кампаний campaign (#782).**
+
+A DRAFT campaign was previously a one-way door: its overview page has no
+"⋮" menu (#660), so `masters archive` refused it correctly, and the only
+documented route out was launching the draft — spending real money — purely
+to gain access to archive. #777's own live verification left exactly this
+kind of orphan behind (campaign 713337891), with no way to clean it up.
+
+Live recon found the campaigns **grid's own row menu** — a separate menu
+from the overview page's — does offer "Удалить" for a DRAFT row, confirmed
+against 713337891 (which the recon itself deleted, removing that orphan
+from the account for good). #633's earlier conclusion that Мастер кампаний
+has no delete anywhere predates DRAFT support (#668) and evidently only
+checked non-DRAFT rows; that conclusion stands unchanged for every status
+other than DRAFT.
+
+- New `masters delete <campaign_id>` command: refuses anything but DRAFT,
+  pointing at `masters archive` instead. Verifies the campaign is actually
+  gone (via `fetch_masters_list`, `status=all`) before reporting success.
+- **Unlike every other `masters` mutation, Yandex shows NO confirmation
+  dialog before deleting** — the campaign is gone the instant the click
+  lands. `masters delete` therefore always asks its own confirmation first:
+  interactively by default, or `--yes` to skip the prompt non-interactively
+  (required when no TTY is attached, mirroring `masters login`'s own
+  interactivity guard).
+- Registered `masters.delete` as `DANGEROUS`/manual-only in
+  `smoke_matrix.py`, same rationale as `archive`/`suspend`/`resume`: no API
+  surface, no `--sandbox` equivalent, irreversible.
+
 ### BREAKING CHANGES
 
 **`masters add` now requires `--add-target-action` (#777).**
@@ -107,14 +138,13 @@ re-reading it from a separate page (goal 236386933 at price 150).
 - **#776** (region widget on a LAUNCHED campaign) consequently stays
   blocked: checking it requires a launched campaign, which is the same
   irreversible publish.
-- The test campaign 713337891 **could not be archived** and remains a
-  DRAFT on the account. `masters archive` refuses it correctly: a DRAFT's
-  overview page has no "⋮" menu (#660), and Мастер кампаний has no delete
-  anywhere in the UI — the only route to archiving is to *launch* the
-  campaign first. Spending real money to tidy up a test was the worse
-  trade. A DRAFT does not serve, does not spend, and does not appear to
-  users. Worth tracking as its own issue: creating a draft via this CLI is
-  currently a one-way door.
+- The test campaign 713337891 **could not be archived** at the time and
+  remained a DRAFT on the account. `masters archive` refused it correctly:
+  a DRAFT's overview page has no "⋮" menu (#660), and the only route to
+  archiving was to *launch* the campaign first. Spending real money to tidy
+  up a test was the worse trade — this is what led to #782 (`masters
+  delete`, see the "Added" section above), which found and used the
+  campaigns grid's own row menu to remove 713337891 for good instead.
 
 **Fixed — `masters add --region-id` crashed with a bare `KeyError: 'GeoRegions'` (#775):**
 

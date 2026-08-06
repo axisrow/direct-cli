@@ -44,6 +44,7 @@ DRY_RUN_EXCEPTIONS = {
     # click a button in a real browser session against production, there is
     # no request payload to preview. See direct_cli/browser/masters.py.
     "masters.archive",
+    "masters.delete",
     "masters.resume",
     "masters.suspend",
     "masters.update",

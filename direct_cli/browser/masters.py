@@ -66,12 +66,15 @@ flips, so "the button is gone" is usually proof the mutation succeeded, not
 evidence of a markup change.
 
 ``archive_master`` (issue #633, live-recon confirmed no separate "delete"
-exists for Мастер кампаний — only archive; see the issue comment). Both
-the campaigns-grid row menu and the overview page's own "⋮" menu were
-inspected live: neither has a "Удалить" item, only "Архивировать" (grid
-row menu also has Перейти/Редактировать/Статистика/Запустить-Остановить;
-overview menu has only Клонировать/Архивировать, or just Клонировать —
-see the transition matrix below). Confirmed live, stable ``data-testid``
+exists for a non-DRAFT Мастер кампаний — only archive; see the issue
+comment). The overview page's own "⋮" menu was inspected live: it has no
+"Удалить" item, only "Архивировать" (menu has only Клонировать/Архивировать,
+or just Клонировать — see the transition matrix below). #633's recon of the
+grid row menu predates DRAFT support (#668) and evidently only checked
+non-DRAFT rows — issue #782 later found that same grid row menu DOES offer
+"Удалить" for a DRAFT row specifically (see ``delete_master`` below), so
+"only archive, no delete" is a non-DRAFT-only conclusion, not a whole-module
+one. Confirmed live, stable ``data-testid``
 attributes back the overview menu: ``CampaignHeader.MenuTrigger`` (opens
 the "⋮" dropdown), ``CampaignHeader.Menu.archive`` (the "Архивировать"
 menu item), and ``CampaignHeader.Menu.unarchive`` (the "Разархивировать"
@@ -278,16 +281,20 @@ see "DRAFT support" above), plus ``CampaignHeader.TitleName``,
 disagree" rationale) and reads name/status/weekly budget from the form
 instead of the dashboard extractors — no ``LandingUrl``/``Stats`` (the form
 has no rendered landing-URL link with the confirmed ``utm_source=`` marker,
-and obviously no stats yet). No delete action exists for a Мастер кампаний
-draft anywhere in the UI (checked live: neither this page nor the grid row's
-own menu has one) — so ``archive_master``/``suspend_master``/
-``resume_master`` all refuse with a clear ``BrowserSessionError`` on a
-``DRAFT`` campaign instead of clicking blind at selectors that don't exist
-on this page (``archive_master`` already reads the campaign's grid row
-before navigating, so this is a plain status check added there;
-``suspend``/``resume`` check ``_is_draft_overview_page`` right after
-navigating, before ``_read_status_text`` would otherwise report "unrecognised
-status text"). ``copy_master`` itself does not depend on any of these working.
+and obviously no stats yet). This page itself has no delete action — so
+``archive_master``/``suspend_master``/``resume_master`` all refuse with a
+clear ``BrowserSessionError`` on a ``DRAFT`` campaign instead of clicking
+blind at selectors that don't exist on this page (``archive_master``
+already reads the campaign's grid row before navigating, so this is a plain
+status check added there; ``suspend``/``resume`` check
+``_is_draft_overview_page`` right after navigating, before
+``_read_status_text`` would otherwise report "unrecognised status text").
+``copy_master`` itself does not depend on any of these working. **Update
+(issue #782):** the campaigns GRID's own row menu — a separate menu from
+this page's, see ``delete_master`` — DOES offer a "Удалить" action for a
+DRAFT row; this page and the overview "⋮" menu remain delete-less, but
+``masters delete`` (CLI) / ``delete_master`` (browser layer) reaches the
+grid-row menu instead, giving a DRAFT campaign an actual way out.
 
 **Menu/modal-trigger hydration race** (issues #723/#725). Live testing found
 that clicking a trigger element which is itself visible/enabled — the "⋮"
@@ -608,6 +615,37 @@ _POPUP_CLICK_MAX_ATTEMPTS = 3
 # How long to wait, after clicking Архивировать, for the grid API to report
 # the campaign as ARCHIVED before giving up (see archive_master).
 _ARCHIVE_VERIFY_TIMEOUT_MS = 10_000
+
+# Campaigns grid row menu (issue #782, live-confirmed 2026-08-06 against
+# DRAFT campaign 713337891) — a SEPARATE menu from the overview page's own
+# "⋮" (_MENU_TRIGGER_SELECTOR above). Every grid row renders its own
+# ActionsMenu.Trigger button (not unique page-wide — one per row, hence
+# always scoped to a row locator, never clicked via a bare page.locator());
+# its popup is `[data-testid="CampaignActionsMenu.Popup"]`, portal-rendered
+# outside the row, containing exactly three items for a DRAFT row:
+# GoToCampaignAction ("Перейти к кампании"), CampaignActionMenu.REDIRECT_EDIT
+# ("Редактировать"), and DeleteCampaignAction ("Удалить") — the one #633's
+# original recon did not find, because that recon predates DRAFT support
+# (#668) and evidently exercised only non-DRAFT rows. Whether a non-DRAFT
+# row's menu also offers DeleteCampaignAction is NOT re-confirmed here — this
+# module still treats "no delete for a live campaign" as #633's standing
+# conclusion (see archive_master) and delete_master below refuses anything
+# but DRAFT up front, matching that scope.
+_GRID_ROW_SELECTOR_TEMPLATE = '[data-testid="Grid.Row-{campaign_id}"]'
+_GRID_ROW_ACTIONS_TRIGGER_SELECTOR = '[data-testid="ActionsMenu.Trigger"]'
+_GRID_ROW_ACTIONS_POPUP_SELECTOR = '[data-testid="CampaignActionsMenu.Popup"]'
+_GRID_ROW_DELETE_ITEM_SELECTOR = '[data-testid="DeleteCampaignAction"]'
+
+# Confirmed live: clicking DeleteCampaignAction deletes the campaign
+# IMMEDIATELY — no "Вы уверены?" confirmation dialog of any kind (unlike
+# #633's Approach section, which assumed one). A toast ("Кампании удалены")
+# appears and the grid list refetches within a couple seconds. Because
+# Yandex's own UI provides no confirmation step, delete_master's caller (the
+# CLI command) is responsible for its own explicit confirmation before ever
+# calling this function — this function itself does not ask, matching every
+# other browser/masters.py mutation (the click-vs-confirm boundary belongs to
+# commands/masters.py, same as every --yes/prompt elsewhere in this CLI).
+_DELETE_VERIFY_TIMEOUT_MS = 10_000
 
 # DRAFT overview page support (issue #660, live-confirmed 2026-08-04 against
 # campaign 713231614 — see the module docstring's "DRAFT overview page" note).
@@ -2680,6 +2718,119 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         )
 
     return updated
+
+
+def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Permanently delete a DRAFT Мастер кампаний via the campaigns grid's
+    own row menu (issue #782).
+
+    Unlike ``archive_master`` (the only lifecycle action for a non-DRAFT
+    campaign — see its own docstring and #633), a DRAFT campaign's overview
+    page has no "⋮" menu at all (issue #660) and Yandex has no "unarchive"
+    equivalent for a draft either — so a DRAFT created by mistake (e.g. via
+    ``masters add --draft``) was previously permanently stuck. Live recon
+    for #782 found the campaigns GRID's row menu (a separate menu from the
+    overview page's, see ``_GRID_ROW_ACTIONS_TRIGGER_SELECTOR``) DOES offer
+    "Удалить" for a DRAFT row — #633's original recon evidently only checked
+    non-DRAFT rows, before DRAFT support (#668) existed.
+
+    Refuses anything but DRAFT up front: whether the same row menu also
+    deletes a non-DRAFT campaign is unconfirmed, and #633's conclusion
+    ("no delete, only archive") stays this module's working assumption for
+    every other status — a caller with a non-DRAFT campaign is pointed at
+    ``masters archive`` instead.
+
+    Deletion is immediate and irreversible: unlike every other menu action
+    in this module, Yandex shows NO confirmation dialog after
+    ``DeleteCampaignAction`` is clicked (live-confirmed against 713337891) —
+    the campaign is gone by the time the click returns. This function does
+    not itself prompt for confirmation; that responsibility belongs to the
+    CLI command calling it, exactly like every other irreversible action in
+    this codebase asks its own question at the command layer, not here.
+
+    Verifies via ``fetch_masters_list`` that the campaign is actually gone
+    (``status=all``, so even an unexpected non-delete outcome like
+    "archived instead" would still be caught) before reporting success —
+    never trusting the click alone, per this module's dominant convention.
+    """
+    existing = _find_master_row(page, campaign_id)
+    if existing is None:
+        raise BrowserSessionError(
+            f"Could not find Мастер кампаний {campaign_id} in the campaigns "
+            "grid — check the ID, or it may already be deleted."
+        )
+    if existing["Status"] != "DRAFT":
+        raise BrowserSessionError(
+            f"Campaign {campaign_id} is {existing['Status']}, not DRAFT — "
+            "`masters delete` only removes a DRAFT campaign (issue #633: "
+            "Мастер кампаний has no delete for any other status, only "
+            "archive). Use `masters archive` instead."
+        )
+
+    row_selector = _GRID_ROW_SELECTOR_TEMPLATE.format(campaign_id=campaign_id)
+    row = page.locator(row_selector).first
+    trigger = row.locator(_GRID_ROW_ACTIONS_TRIGGER_SELECTOR).first
+    popup = page.locator(_GRID_ROW_ACTIONS_POPUP_SELECTOR).first
+
+    last_exc: Optional[Exception] = None
+    opened = False
+    for _ in range(_POPUP_CLICK_MAX_ATTEMPTS):
+        try:
+            popup.wait_for(state="visible", timeout=1)
+            opened = True
+            break
+        except PlaywrightError:
+            pass
+
+        try:
+            trigger.click()
+        except PlaywrightError as exc:
+            last_exc = exc
+            continue
+
+        try:
+            popup.wait_for(state="visible", timeout=_POPUP_APPEAR_TIMEOUT_MS)
+            opened = True
+            break
+        except PlaywrightError as exc:
+            last_exc = exc
+            continue
+
+    if not opened:
+        raise BrowserSessionError(
+            f"Could not open the campaigns grid row menu for {campaign_id} "
+            f"({row_selector!r} / {_GRID_ROW_ACTIONS_TRIGGER_SELECTOR!r}) — "
+            "Yandex may have changed the grid's markup."
+        ) from last_exc
+
+    delete_item = page.locator(_GRID_ROW_DELETE_ITEM_SELECTOR).first
+    try:
+        delete_item.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not click 'Удалить' for campaign {campaign_id} "
+            f"({_GRID_ROW_DELETE_ITEM_SELECTOR!r} found but not clickable) — "
+            "Yandex may have changed the grid's row menu."
+        ) from exc
+
+    deadline = _clock.now() + _DELETE_VERIFY_TIMEOUT_MS / 1000
+    still_present = True
+    while _clock.now() < deadline:
+        still_present = _find_master_row(page, campaign_id, status="all") is not None
+        if not still_present:
+            break
+        page.wait_for_timeout(250)
+
+    if still_present:
+        raise BrowserSessionError(
+            f"Clicked 'Удалить' for campaign {campaign_id}, but the "
+            f"campaigns grid still reports it present within "
+            f"{_DELETE_VERIFY_TIMEOUT_MS / 1000:.0f}s. The click may not "
+            "have hit the right element, or Yandex is slow to apply it — "
+            "verify manually before retrying."
+        )
+
+    return {"CampaignId": campaign_id, "Deleted": True}
 
 
 def _verify_launched_to_moderation(page: "Page", campaign_id: int) -> str:
