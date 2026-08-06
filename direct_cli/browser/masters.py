@@ -7332,6 +7332,15 @@ def _clear_repeating_value(
     not a silent success" convention (e.g. ``_set_landing_url``'s ARCHIVED
     guard): the caller asked to delete a variant, and there was no variant
     there to delete.
+
+    After the click, polls the slot's own ``inner_text()`` until it reads
+    empty (same ``_AUDIENCE_TAG_SUGGEST_TIMEOUT_MS`` budget and "click
+    alone isn't proof" guard as the audience-tag add/remove loop in
+    ``update_master``, issue #681) and raises if it never does — the
+    caller's ``_click_save`` is irreversible, so a click that hasn't
+    actually committed must be caught HERE, before save, not only
+    after via the post-save ``_verify_repeating_value_mismatches``
+    re-read (cycle-review finding, Codex, this PR).
     """
     if index >= slot_count:
         raise BrowserSessionError(
@@ -7368,6 +7377,28 @@ def _clear_repeating_value(
             f"{clear_selector!r} — Yandex may have changed the page's "
             "markup. Re-run with --headful to inspect the page."
         ) from exc
+
+    # Same "click alone isn't proof" guard as the audience-tag add/remove
+    # loop in `update_master` (issue #681) — confirmed live that a save
+    # immediately after a click that hadn't actually committed to the DOM
+    # yet reloaded with the old value still present. `.clear`'s handler is
+    # async exactly like that close button, and the caller's subsequent
+    # `_click_save` is irreversible, so a non-committing click must be
+    # caught HERE, before the caller ever gets to save — not only after,
+    # via the post-save `_verify_repeating_value_mismatches` re-read (found
+    # by cycle-review, Codex, on this PR).
+    deadline = _clock.now() + _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS / 1000
+    current = textarea.inner_text()
+    while current and _clock.now() < deadline:
+        page.wait_for_timeout(250)
+        current = textarea.inner_text()
+    if current:
+        raise BrowserSessionError(
+            f"Clicked the clear button for slot {index + 1} at "
+            f"{clear_selector!r}, but the slot still reads "
+            f"{current!r} instead of empty — the click may not have "
+            "committed. Verify manually before retrying."
+        )
 
 
 def _poll_until(

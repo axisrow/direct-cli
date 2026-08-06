@@ -130,6 +130,11 @@ separate follow-up rather than folded into that flag; this closes it.
   `CampaignTexts{N}.clear`), confirmed live alongside the `.textarea`
   markup #665 already documented (see
   `tests/fixtures/masters_wizard_edit_stage_b.html`'s "BONUS FINDING").
+  Same "click alone isn't proof" post-click commit check as the
+  audience-tag add/remove loop (#681): the clear click polls the slot
+  until it reads empty and raises before the caller's irreversible save
+  if it never does, instead of only catching a non-committing click after
+  the fact via the post-save re-read verification (cycle-review finding).
 - A slot number passed to both a set flag (`--headline`/`--text`) and its
   clear counterpart in the same call is refused as a `UsageError` — the two
   operations are mutually exclusive per slot, and there is no "set then

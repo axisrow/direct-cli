@@ -11371,7 +11371,16 @@ class TestClearRepeatingValue(unittest.TestCase):
     def test_clicks_the_clear_button_of_a_filled_slot(self):
         clicked = []
         textarea = _FakeLocatorHandle(text="Старый заголовок")
-        clear_button = _FakeLocatorHandle(on_click=lambda: clicked.append(True))
+
+        def _on_click():
+            clicked.append(True)
+            # Models the real `.clear` button synchronously emptying the
+            # textarea — the post-click commit check (cycle-review, Codex,
+            # this PR) requires this, unlike the pre-fix fake which only
+            # recorded the click without mutating state.
+            textarea._text = ""
+
+        clear_button = _FakeLocatorHandle(on_click=_on_click)
         page = FakePage(
             locators={
                 '[data-testid="fake0.textarea"]': _FakeLocator([textarea]),
@@ -11392,7 +11401,11 @@ class TestClearRepeatingValue(unittest.TestCase):
             on_click=lambda: untouched_clear_clicked.append(True)
         )
         target_textarea = _FakeLocatorHandle(text="Удалить меня")
-        target_clear = _FakeLocatorHandle(on_click=lambda: None)
+
+        def _clear_target():
+            target_textarea._text = ""
+
+        target_clear = _FakeLocatorHandle(on_click=_clear_target)
         page = FakePage(
             locators={
                 '[data-testid="fake0.textarea"]': _FakeLocator([untouched_textarea]),
@@ -11457,6 +11470,74 @@ class TestClearRepeatingValue(unittest.TestCase):
             browser_masters._clear_repeating_value(
                 page, "fake{index}.textarea", "fake{index}.clear", 5, 0
             )
+
+    def test_raises_when_clear_click_never_commits_to_the_dom(self):
+        # cycle-review (Codex, this PR): `.clear` is a button whose handler
+        # runs async, exactly like the audience-tag close button that taught
+        # this module (issue #681) "click alone isn't proof" — a save
+        # immediately after a click that hadn't actually committed yet
+        # reloaded with the value still present. Without a post-click commit
+        # check, a non-committing click here would sail straight through to
+        # the caller's `_click_save`, which is irreversible. Models "the
+        # click fires with no error, but the textarea keeps reporting its
+        # old value forever" — the fake never mutates `_text`, since this
+        # `_FakeLocatorHandle` has no `on_click` wired to empty it.
+        textarea = _FakeLocatorHandle(text="Старый заголовок")
+        clear_button = _FakeLocatorHandle()
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([textarea]),
+                '[data-testid="fake0.clear"]': _FakeLocator([clear_button]),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._clear_repeating_value(
+                page, "fake{index}.textarea", "fake{index}.clear", 5, 0
+            )
+
+        self.assertIn("may not have committed", str(ctx.exception).lower())
+        # The click itself must still have fired — this guards the
+        # post-click state, not a refusal to click.
+        self.assertEqual(clear_button.click_timeouts, [None])
+
+    def test_does_not_raise_when_clear_click_commits_after_a_few_ticks(self):
+        # The commit check must tolerate a DOM update that lands a beat
+        # after the click resolves (the normal case), not just an
+        # instantaneous one — mirrors the audience-tag poll loop's
+        # tolerance for the same async-commit lag.
+        textarea = _FakeLocatorHandle(text="Старый заголовок")
+        remaining_ticks = [2]
+
+        def _commit_after_delay():
+            if remaining_ticks[0] <= 0:
+                textarea._text = ""
+            else:
+                remaining_ticks[0] -= 1
+
+        clear_button = _FakeLocatorHandle(on_click=lambda: None)
+        page = FakePage(
+            locators={
+                '[data-testid="fake0.textarea"]': _FakeLocator([textarea]),
+                '[data-testid="fake0.clear"]': _FakeLocator([clear_button]),
+            }
+        )
+        # `inner_text` re-reads must observe the delayed commit — patch the
+        # handle's read to tick the countdown, since `_FakeLocatorHandle`
+        # has no first-class "value changes over successive reads" hook.
+        original_inner_text = textarea.inner_text
+
+        def _ticking_inner_text(timeout=None):
+            _commit_after_delay()
+            return original_inner_text(timeout=timeout)
+
+        textarea.inner_text = _ticking_inner_text
+
+        browser_masters._clear_repeating_value(
+            page, "fake{index}.textarea", "fake{index}.clear", 5, 0
+        )
+
+        self.assertEqual(textarea.inner_text(), "")
 
 
 class _FakeImagesPage(FakePage):
