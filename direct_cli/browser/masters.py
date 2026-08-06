@@ -5606,6 +5606,32 @@ def _verify_saved(
             # ``target_action_goal_ids_before`` is optional so callers that
             # cannot supply a pre-mutation snapshot degrade to exactly the
             # round-2 behaviour rather than failing.
+            #
+            # Codex adversarial review of this PR: that degradation used to
+            # be entirely silent — no warning or log distinguished "the
+            # stronger structural guarantee ran" from "it couldn't certify
+            # a baseline and fell back to the weaker streak-only check". A
+            # removal on a page whose target-action table consistently dips
+            # at baseline-read time would silently run the weak path on
+            # every call with no signal the guarantee was inactive. This is
+            # a ``print_warning``, not a ``mismatches`` entry: the PR's own
+            # design (see the snapshot's comment in ``update_master``)
+            # deliberately degrades rather than aborting an update whose
+            # mutations are otherwise fine — a save the weaker predicate
+            # confirms as correct must still be reported as a success (see
+            # ``test_a_dipped_pre_mutation_baseline_does_not_fail_a_good_save``);
+            # this only makes the degradation observable, not blocking.
+            # Only warn for a REMOVAL — a pure add has no baseline to
+            # certify in the first place, so ``target_action_goal_ids_before
+            # is None`` there is the expected, undegraded case.
+            if remove_target_action_goal_ids and target_action_goal_ids_before is None:
+                print_warning(
+                    "target actions: could not certify a pre-mutation "
+                    "baseline for this removal (the table never settled, "
+                    "or two independent settled reads disagreed) — "
+                    "verification degraded to the weaker per-goal check "
+                    "instead of the full expected-set comparison"
+                )
             expected_goal_ids: "Optional[Set[int]]" = None
             if target_action_goal_ids_before is not None:
                 expected_goal_ids = set(target_action_goal_ids_before)
@@ -5980,6 +6006,24 @@ def update_master(
     # None, degrading verification to the previous streak-only behaviour
     # rather than aborting an update whose mutations are otherwise fine.
     #
+    # Codex adversarial review of this PR: that presence check alone proves
+    # the baseline saw the to-be-removed rows, but NOT that it is complete
+    # with respect to untouched SURVIVORS. ``_wait_for_target_actions_ready``
+    # only certifies a stable ``.count()`` — a partial-but-stable read (the
+    # table settled on N-1 rows, silently missing one untouched survivor)
+    # passes both the streak and the to-be-removed-presence check, so
+    # ``target_action_goal_ids_before`` becomes that partial set,
+    # ``expected_goal_ids`` below omits the survivor, and the post-save set
+    # comparison then rejects a genuinely successful save as a mismatch —
+    # a false failure this PR would otherwise introduce. The fix is a
+    # second, INDEPENDENT settled read (its own fresh
+    # ``_wait_for_target_actions_ready`` + ``_read_target_actions_or_none``
+    # acquisition, not reusing the first) that must agree with the first
+    # on the full id SET, not merely on the row count the streak already
+    # checked — two independent reads agreeing on identity is what a bare
+    # count-stable streak cannot provide, since a partial-but-stable read
+    # reproduces the same wrong count on every tick.
+    #
     # That check only certifies the baseline for a REMOVAL. A pure add has
     # no equivalent: the added goals are by definition absent beforehand,
     # so nothing in the request can attest that the baseline saw the rows
@@ -6001,7 +6045,21 @@ def update_master(
         if _rows_before is not None:
             _ids_before = [row["GoalId"] for row in _rows_before]
             if all(goal_id in _ids_before for goal_id in remove_target_action_goal_ids):
-                target_action_goal_ids_before = _ids_before
+                # Second independent settled read — must agree with the
+                # first on the full SET, not just the count the streak
+                # already stabilized on. A partial-but-stable table (e.g.
+                # a survivor row that never mounted) reproduces the same
+                # wrong set on both reads and is correctly rejected here;
+                # only a genuinely complete, stable table agrees twice.
+                _rows_confirm = (
+                    _read_target_actions_or_none(page)
+                    if _wait_for_target_actions_ready(page)
+                    else None
+                )
+                if _rows_confirm is not None:
+                    _ids_confirm = {row["GoalId"] for row in _rows_confirm}
+                    if _ids_confirm == set(_ids_before):
+                        target_action_goal_ids_before = _ids_before
     for goal_id in remove_target_action_goal_ids or []:
         _remove_target_action(page, goal_id)
     for goal_id, price in (add_target_actions or {}).items():

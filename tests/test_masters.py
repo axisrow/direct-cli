@@ -7771,6 +7771,146 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertEqual(result["RemovedTargetActionGoalIds"], [159614149])
         self.assertEqual(set(rows), {159614150})
 
+    def test_baseline_requires_two_independent_settled_reads_to_agree(self):
+        """Codex adversarial review of this PR (#756): the certification
+        that gates ``target_action_goal_ids_before`` used to check only
+        that the to-be-removed goal was PRESENT in the settled baseline —
+        it never confirmed the baseline was COMPLETE with respect to an
+        UNTOUCHED survivor. A settle streak only stabilizes a row *count*;
+        a partial-but-stable read (missing a survivor row that never
+        mounted during the streak's window) passes it just as easily as a
+        genuinely complete one, so the derived expected set silently omits
+        the survivor and a real, successful save is reported as failed.
+
+        This models exactly that: the FIRST settled read of the baseline
+        (survivor 159614150 never mounts) is missing it, but the SECOND
+        independent settled read (later in wall-clock time) sees the full,
+        correct baseline. Two independent reads disagreeing on the id set
+        must refuse to certify — the removal must still verify correctly
+        (via the round-2 streak-only fallback), proving the fix narrows the
+        false-failure window without breaking the genuine-success path."""
+        rows = {159614149: "150", 159614150: "200"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        acquisitions = {"count": 0}
+
+        def _stub_locator(selector):
+            if selector == row_prefix_selector:
+                acquisitions["count"] += 1
+                real = original_locator(selector)
+                # Acquisitions 1-2 = the FIRST settled read (settle poll +
+                # its own row read): missing the untouched survivor.
+                # Acquisitions 3-4 = the SECOND independent settled read:
+                # sees the real, complete baseline. Everything after (the
+                # close click and all post-save reads) sees the real table.
+                if acquisitions["count"] <= 2:
+                    survivor_testid = (
+                        browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE.format(
+                            category=browser_masters._TARGET_ACTIONS_CATEGORY,
+                            goal_id=159614150,
+                        )
+                    )
+                    return _CountOverrideLocator(
+                        _FakeLocator(
+                            [
+                                h
+                                for h in real._handles
+                                if h.get_attribute("data-testid") != survivor_testid
+                            ]
+                        )
+                    )
+                return _CountOverrideLocator(real)
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with patch.object(browser_masters, "print_warning") as mock_warning:
+            result = browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+
+        # The removal genuinely succeeded — must NOT be reported as failed.
+        self.assertEqual(result["RemovedTargetActionGoalIds"], [159614149])
+        self.assertEqual(set(rows), {159614150})
+        # The two reads disagreeing means certification could not complete,
+        # so the degradation must be surfaced (Codex's observability gap).
+        mock_warning.assert_called_once()
+        self.assertIn(
+            "could not certify a pre-mutation baseline",
+            mock_warning.call_args[0][0],
+        )
+
+    def test_warns_when_baseline_certification_never_succeeds(self):
+        """Codex adversarial review of this PR (#756): when the baseline
+        cannot be certified at all (e.g. the table never settles), the PR's
+        own design deliberately degrades verification to the weaker
+        round-2 streak-only predicate rather than aborting a save whose
+        mutations are otherwise fine — but that degradation used to be
+        completely silent. Models a baseline read that never settles (the
+        row count keeps changing every tick), confirming the operator is
+        warned that the stronger structural guarantee did not run, while
+        the update itself still succeeds via the weaker fallback."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        # ``_wait_for_target_actions_settled`` acquires the locator ONCE per
+        # call and polls ``.count()`` on it repeatedly, so unsettling only
+        # the BASELINE's settle poll (and letting every later acquisition —
+        # the post-save settle plus its own reads — see the real, stable
+        # table) requires counting ``.locator()`` acquisitions, not ticks.
+        acquisitions = {"count": 0}
+
+        def _stub_locator(selector):
+            if selector == row_prefix_selector:
+                acquisitions["count"] += 1
+                real = original_locator(selector)
+                if acquisitions["count"] == 1:
+                    # The baseline's one-and-only settle-poll acquisition:
+                    # alternate 0/1 on every .count() call so the streak
+                    # never accumulates and the poll times out.
+                    ticks = {"n": 0}
+
+                    class _NeverSettles:
+                        def count(self):
+                            ticks["n"] += 1
+                            return ticks["n"] % 2
+
+                        def nth(self, i):
+                            return real.nth(i)
+
+                    return _NeverSettles()
+                return _CountOverrideLocator(real)
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with (
+            patch.object(browser_masters, "_TARGET_ACTION_SETTLE_TIMEOUT_MS", 50),
+            patch.object(browser_masters, "_TARGET_ACTION_STABLE_TICK_MS", 5),
+            patch.object(browser_masters, "_TARGET_ACTION_STABLE_STREAK", 3),
+            patch.object(browser_masters, "print_warning") as mock_warning,
+        ):
+            result = browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+
+        # The removal still succeeds via the round-2 fallback — degrading
+        # must not abort an update whose mutations are otherwise fine.
+        self.assertEqual(result["RemovedTargetActionGoalIds"], [159614149])
+        mock_warning.assert_called_once()
+        self.assertIn(
+            "could not certify a pre-mutation baseline",
+            mock_warning.call_args[0][0],
+        )
+
     def test_updates_multiple_fields_in_one_call(self):
         budget_state = {}
         checkbox_state = {"checked": False}

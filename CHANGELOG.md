@@ -242,6 +242,27 @@ removed" and "table hasn't hydrated" are the same observation — and for the
 audience-tag count, which has no equivalent pre-mutation baseline or known
 positive marker.
 
+- **Local review (cycle-review), Codex adversarial pass on this PR — the
+  pre-mutation baseline certification itself had a gap (#756 follow-up).**
+  The check added above only confirmed the baseline *contained every goal
+  about to be removed*; it never confirmed the baseline was *complete* with
+  respect to an untouched survivor. A settle streak only stabilizes a row
+  **count**, so a baseline that settles on a partial-but-stable read
+  (missing a survivor row that never mounted within the streak's window)
+  passed certification just as easily as a genuinely complete one — the
+  derived expected set then silently omitted the survivor, and a real,
+  successful removal was reported as a mismatch. `update_master` now
+  additionally requires a **second, independent** settled read (its own
+  fresh `_wait_for_target_actions_ready` + row-read acquisition, spaced
+  apart in wall-clock time from the first) to agree with the first on the
+  full id set before certifying the baseline — narrowing, not closing, the
+  same class of dip the rest of this PR already accepts as a residual risk.
+  Separately, when certification cannot complete at all (settle timeout, or
+  the two reads disagree), verification silently fell back to the weaker
+  round-2 predicate with no signal that the stronger guarantee was
+  inactive; it now emits a `print_warning` — non-blocking, since a save the
+  weaker predicate confirms as correct must still be reported as a success.
+
 **Fixed — `masters suspend`/`resume` never changed the status, and a batch stopped at the first failing ID (#766, #764):**
 
 - Root cause, confirmed live 2026-08-06 against campaign 713277109: **the
