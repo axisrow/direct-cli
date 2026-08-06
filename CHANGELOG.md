@@ -21,11 +21,22 @@
   `ExactNames`. The lookup is now pinned to `language="ru"` — which is also
   the name the Russian-language Мастер кампаний region widget has to match
   downstream, so an unpinned locale was wrong for `_set_region` regardless.
-- A name the pre-flight cannot match is **not** silently treated as
-  unambiguous — that would quietly disable #657's safety net. The check is
-  skipped for that name and a warning says so. `_set_region` still enforces
-  the real guarantee in-page by confirming the clicked node's
-  `id="region-node-<RegionId>"` equals the requested RegionId.
+- The ambiguity pre-flight now selects on **`Name`** (substring search)
+  instead of `ExactNames`. Confirmed live: `ExactNames` returns **no rows at
+  all**, for any spelling, even for a region that demonstrably exists —
+  `ExactNames["Москва"]` yields `result == {}` while `RegionIds[213]`
+  resolves to exactly that name. Built on `ExactNames`, the check could
+  therefore never fire; it was dead code. `Name` does return rows and does
+  surface real ambiguity (measured: 97 distinct RegionIds named "Сосновка"),
+  and exact matches are filtered from its substring hits client-side so that
+  "Новая Москва" cannot make "Москва" look ambiguous.
+- A name with no rows is **not** reported. `Name` legitimately returns
+  nothing for top-level regions (live: `Name="Москва"` matches only "Новая
+  Москва"/"Менеуз-Москва", never Москва itself), so warning there would fire
+  on the most common `--region-id` values and train the user to ignore it.
+  The real guarantee is downstream regardless: `_set_region` confirms the
+  clicked node's `id="region-node-<RegionId>"` equals the requested RegionId
+  and refuses before any save click.
 
 **Fixed — `masters suspend`/`resume` never changed the status, and a batch stopped at the first failing ID (#766, #764):**
 

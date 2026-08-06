@@ -13354,9 +13354,11 @@ class TestResolveRegionIds(unittest.TestCase):
 
         second_call_body = service.post.call_args_list[1].kwargs["data"]
         self.assertIn("SelectionCriteria", second_call_body["params"])
+        # `Name`, not `ExactNames` — the latter returns no rows at all from
+        # the live API, which made this whole pre-flight dead code (#775).
         self.assertEqual(
-            second_call_body["params"]["SelectionCriteria"]["ExactNames"],
-            ["Сосновка"],
+            second_call_body["params"]["SelectionCriteria"]["Name"],
+            "Сосновка",
         )
 
     def test_unique_region_name_resolves_normally(self):
@@ -13388,16 +13390,23 @@ class TestResolveRegionIds(unittest.TestCase):
         client.dictionaries.return_value = service
 
         with patch("direct_cli.commands.masters.create_client", return_value=client):
-            result = _resolve_region_ids(Mock(), (213,))
+            with patch("direct_cli.commands.masters.print_warning") as mock_warning:
+                result = _resolve_region_ids(Mock(), (213,))
 
         self.assertEqual(result, [("Москва", 213)])
+        # The happy path must be silent — a warning on every ordinary run
+        # would train the user to ignore it (review of PR #778).
+        mock_warning.assert_not_called()
 
     def test_ambiguity_preflight_without_georegions_key_does_not_crash(self):
         """Issue #775: Yandex omits `GeoRegions` from `result` entirely when
-        `ExactNames` matches nothing — `result` is `{}`, not
-        `{"GeoRegions": []}`. Indexing it unconditionally made every
-        `--region-id` run die with a bare `KeyError: 'GeoRegions'` before a
-        browser was opened. The empty pre-flight must resolve normally."""
+        nothing matches — `result` is `{}`, not `{"GeoRegions": []}`. Indexing
+        it unconditionally made every `--region-id` run die with a bare
+        `KeyError: 'GeoRegions'` before a browser was opened. The empty
+        pre-flight must resolve normally, and must NOT warn: `Name` returns no
+        rows for top-level regions (confirmed live — `Name="Москва"` matches
+        only "Новая Москва"/"Менеуз-Москва", never Москва itself), so warning
+        here would fire on the most common `--region-id` values."""
         from direct_cli.commands.masters import _resolve_region_ids
 
         service = Mock()
@@ -13419,10 +13428,43 @@ class TestResolveRegionIds(unittest.TestCase):
                 result = _resolve_region_ids(_region_ctx(), (213,))
 
         self.assertEqual(result, [("Москва", 213)])
-        # An unmatched name is not evidence of uniqueness — the skipped check
-        # must be reported, not silently swallowed.
-        mock_warning.assert_called_once()
-        self.assertIn("Москва", mock_warning.call_args.args[0])
+        mock_warning.assert_not_called()
+
+    def test_substring_hits_do_not_count_as_ambiguity(self):
+        """`Name` is a SUBSTRING search, so its rows include unrelated regions
+        that merely contain the name (live: `Name="Москва"` returns "Новая
+        Москва" and "Менеуз-Москва"). Only exact-name rows may count toward
+        ambiguity — otherwise an ordinary region would look ambiguous and be
+        refused."""
+        from direct_cli.commands.masters import _resolve_region_ids
+
+        service = Mock()
+        service.post.side_effect = [
+            Mock(
+                data={
+                    "result": {
+                        "GeoRegions": [{"GeoRegionId": 213, "GeoRegionName": "Москва"}]
+                    }
+                }
+            ),
+            Mock(
+                data={
+                    "result": {
+                        "GeoRegions": [
+                            {"GeoRegionId": 162734, "GeoRegionName": "Новая Москва"},
+                            {"GeoRegionId": 176800, "GeoRegionName": "Менеуз-Москва"},
+                        ]
+                    }
+                }
+            ),
+        ]
+        client = Mock()
+        client.dictionaries.return_value = service
+
+        with patch("direct_cli.commands.masters.create_client", return_value=client):
+            result = _resolve_region_ids(_region_ctx(), (213,))
+
+        self.assertEqual(result, [("Москва", 213)])
 
     def test_initial_lookup_without_georegions_key_reports_unknown_ids(self):
         """The same absent-key shape on the FIRST call must surface as the
@@ -13459,8 +13501,7 @@ class TestResolveRegionIds(unittest.TestCase):
         client.dictionaries.return_value = service
 
         with patch("direct_cli.commands.masters.create_client", return_value=client):
-            with patch("direct_cli.commands.masters.print_warning"):
-                result = _resolve_region_ids(_region_ctx(), (213,))
+            result = _resolve_region_ids(_region_ctx(), (213,))
 
         self.assertEqual(result, [("Москва", 213)])
 
