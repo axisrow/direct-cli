@@ -308,6 +308,7 @@ side effect on the campaign itself.
 
 import contextlib
 import difflib
+from collections import Counter
 import json
 import os
 import re
@@ -1288,6 +1289,18 @@ _AUDIENCE_TAG_LISTBOX_TESTID = (
 )
 _AUDIENCE_TAG_TESTID_TEMPLATE = (
     "CustomAudienceAndSearchTermsEditor.TagGroup.tag.{index}"
+)
+# Count-only selector for the same tags ``_AUDIENCE_TAG_TESTID_TEMPLATE``
+# addresses individually — mirrors ``_REGION_TAGS_SELECTOR``'s prefix-plus-
+# :not(.close) shape. ``_read_audience_tags`` has to walk indices serially
+# (it needs each tag's TEXT, and the list length is not known ahead of
+# time), which costs one round-trip per tag plus a 1s sentinel timeout on
+# the terminating index. A stability streak only ever compares COUNTS, so
+# paying that walk once per tick is pure waste: on the 112-tag campaign
+# this module's recon used, one `.count()` replaces ~113 round-trips.
+_AUDIENCE_TAG_COUNT_SELECTOR = (
+    '[data-testid^="CustomAudienceAndSearchTermsEditor.TagGroup.tag."]'
+    ':not([data-testid$=".close"])'
 )
 _AUDIENCE_TAG_CLOSE_TESTID_TEMPLATE = (
     "CustomAudienceAndSearchTermsEditor.TagGroup.tag.{index}.close"
@@ -3787,7 +3800,13 @@ def _wait_for_audience_section(page: "Page") -> None:
 
     def _tag_count_stable() -> bool:
         nonlocal previous_count, stable_streak
-        current_count = len(_read_audience_tags(page))
+        # Counted via a single prefix selector, NOT ``_read_audience_tags``:
+        # this predicate only ever compares counts, and that reader walks
+        # tag indices serially for their text (see
+        # ``_AUDIENCE_TAG_COUNT_SELECTOR``). Widening the streak made the
+        # difference matter — 12 ticks x ~113 round-trips is ~1400 calls
+        # on a large campaign, versus 12.
+        current_count = page.locator(_AUDIENCE_TAG_COUNT_SELECTOR).count()
         if previous_count is not None and current_count == previous_count:
             stable_streak += 1
         else:
@@ -5130,8 +5149,7 @@ def _verify_saved(
     devices: Optional[Set[str]] = None,
     audience_tags_before: Optional[List[str]] = None,
     add_audience_tags: Optional[List[str]] = None,
-    remove_audience_tag_count: int = 0,
-    audience_untouched_but_saved: bool = False,
+    remove_audience_tag_indices: Optional[List[int]] = None,
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
@@ -5152,7 +5170,7 @@ def _verify_saved(
         or age_to_requested
         or devices is not None
         or add_audience_tags
-        or remove_audience_tag_count
+        or remove_audience_tag_indices
     )
     if _audience_touched:
         # Confirmed live (issue #681): reloading immediately after clicking
@@ -5317,48 +5335,37 @@ def _verify_saved(
                 f"{sorted(actual_devices) if actual_devices is not None else None}"
             )
 
-    if (
-        audience_untouched_but_saved
-        and not add_audience_tags
-        and not remove_audience_tag_count
-    ):
-        # Issue #752 (R2-1): a gender/age/device-only update mutates no tag,
-        # but still submits the whole form — so a readiness poll that
-        # settled on a stale/empty tag count could persist that emptiness
-        # and silently drop the campaign's targeting. Assert the untouched
-        # list came back EXACTLY as it went in. Compared as a multiset
-        # rather than a list: the grid has no guaranteed tag ordering, and
-        # a reordering is not data loss.
-        def _tags_unchanged(actual_tags: List[str], _expected: Any) -> bool:
-            return sorted(actual_tags) == sorted(audience_tags_before or [])
-
-        actual_tags = _read_until_matches(
-            page,
-            _read_audience_tags,
-            None,
-            matches=_tags_unchanged,
-            timeout_ms=_AUDIENCE_SECTION_READY_TIMEOUT_MS * 3,
-        )
-        if not _tags_unchanged(actual_tags, None):
-            mismatches.append(
-                "audience_tags: this update touched no tag, so the list "
-                f"should still hold the {len(audience_tags_before or [])} "
-                f"tag(s) read before saving, but the page now shows "
-                f"{len(actual_tags)} — the save may have persisted a "
-                "still-hydrating (stale or empty) audience-tag payload"
-            )
-
-    if add_audience_tags or remove_audience_tag_count:
-        expected_count = (
-            len(audience_tags_before or [])
-            + len(add_audience_tags or [])
-            - remove_audience_tag_count
-        )
+    if audience_tags_before is not None:
+        # ``audience_tags_before is not None`` means the audience section was
+        # touched at all (``update_master`` reads the list precisely then) —
+        # the list's own presence answers "was it read?", so no parallel
+        # flag is threaded for it.
+        #
+        # ONE expected multiset covers every audience shape (issue #752).
+        # This used to be two branches: a count-plus-containment check for
+        # add/remove, and nothing at all when no tag was mutated. Both were
+        # wrong in the same way the target-action predicate was before #756
+        # — a count check plus a positive-going "are the added tags there?"
+        # cannot tell "removed the right tag" from "removed a different
+        # one", and on a pure removal it degrades to a bare count that a
+        # hydration read landing on the coincidentally-right number
+        # satisfies. Deriving the expected multiset from the pre-mutation
+        # baseline instead makes the audience path fail CLOSED exactly like
+        # the target-action path, and the untouched case (#752 R2-1, where a
+        # gender/age/device-only save could silently persist an empty tag
+        # payload) falls out for free as removed = added = {}.
+        #
+        # A multiset, not a list: the grid has no guaranteed tag ordering,
+        # and a reordering is not data loss.
+        expected_tags = Counter(audience_tags_before)
+        for index in remove_audience_tag_indices or []:
+            expected_tags[audience_tags_before[index]] -= 1
+        expected_tags += Counter(add_audience_tags or [])
+        # ``Counter.__iadd__`` already drops non-positive counts, so a tag
+        # removed down to zero disappears rather than lingering as 0.
 
         def _tag_state_matches(actual_tags: List[str], _expected: Any) -> bool:
-            return len(actual_tags) == expected_count and all(
-                tag in actual_tags for tag in (add_audience_tags or [])
-            )
+            return Counter(actual_tags) == expected_tags
 
         # A longer timeout than _VERIFY_FIELD_READ_TIMEOUT_MS's default:
         # _read_audience_tags itself already spends up to
@@ -5375,8 +5382,8 @@ def _verify_saved(
         )
         if not _tag_state_matches(actual_tags, None):
             mismatches.append(
-                f"audience_tags: expected {expected_count} tag(s) including "
-                f"{add_audience_tags!r}, page now shows {actual_tags!r}"
+                f"audience_tags: expected {sorted(expected_tags.elements())!r}, "
+                f"page now shows {sorted(actual_tags)!r}"
             )
 
     if goal_price is not None:
@@ -5954,14 +5961,17 @@ def update_master(
     # Capturing the list here lets _verify_saved assert it came back
     # UNCHANGED, turning a raced audience save into a reported mismatch
     # instead of silent data loss.
-    audience_tags_before = _read_audience_tags(page) if _audience_requested else []
-    _running_tag_count = len(audience_tags_before)  # noqa: SIM113
+    audience_tags_before = _read_audience_tags(page) if _audience_requested else None
+    # Non-None whenever any removal was requested (a removal implies
+    # _audience_requested), so the loop below can index it directly.
+    _tags_before = audience_tags_before or []
+    _running_tag_count = len(_tags_before)  # noqa: SIM113
     for index in sorted(remove_audience_tags or [], reverse=True):
-        if index >= len(audience_tags_before):
+        if index >= len(_tags_before):
             raise BrowserSessionError(
                 f"Audience tag position {index + 1} is out of range — this "
-                f"campaign currently has {len(audience_tags_before)} tag(s) "
-                f"(positions 1-{len(audience_tags_before)})."
+                f"campaign currently has {len(_tags_before)} tag(s) "
+                f"(positions 1-{len(_tags_before)})."
             )
         _remove_audience_tag(page, index)
         # Same "click alone isn't proof" guard as the add-tag verification
@@ -6090,8 +6100,7 @@ def update_master(
             devices=devices,
             audience_tags_before=audience_tags_before,
             add_audience_tags=add_audience_tags,
-            remove_audience_tag_count=len(remove_audience_tags or []),
-            audience_untouched_but_saved=bool(_audience_requested),
+            remove_audience_tag_indices=remove_audience_tags,
             clicked_button_label=clicked_button_label,
         )
     except BrowserAuthError as exc:

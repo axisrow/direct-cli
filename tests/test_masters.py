@@ -335,6 +335,37 @@ class _FakeContentEditableHandle(_FakeLocatorHandle):
             self._on_press(key)
 
 
+class _CountOverrideLocator:
+    """Wraps a REAL locator, optionally forcing ``count()`` to a fixed value
+    and/or recording each call — the shape every "models a hydration dip"
+    test in ``TestUpdateMaster`` needs.
+
+    Those tests all want the same thing: a locator that reports the truthful
+    row count except on the ticks where it should look mid-hydration, with
+    ``nth()`` still delegating so a settled read sees the real rows. Before
+    this helper each test nested its own 10-line class for that (there were
+    seven, four of them byte-identical apart from the name), which made the
+    obvious next step "add an eighth variant" rather than "parameterise".
+
+    ``count=None`` delegates to the real locator; ``count=0`` (or any int)
+    forces that value. ``on_count`` is called before each ``count()`` so a
+    test can count reads or decide the dip's length from outside.
+    """
+
+    def __init__(self, real_locator, count=None, on_count=None):
+        self._real = real_locator
+        self._count = count
+        self._on_count = on_count
+
+    def count(self):
+        if self._on_count is not None:
+            self._on_count()
+        return self._real.count() if self._count is None else self._count
+
+    def nth(self, i):
+        return self._real.nth(i)
+
+
 class _FakeLocator:
     """A Locator for one selector — holds every matched handle for that selector."""
 
@@ -7490,46 +7521,29 @@ class TestUpdateMaster(unittest.TestCase):
         # inside the dip.
         dip_reads = browser_masters._TARGET_ACTION_STABLE_STREAK + 5
 
-        class _RealCountLocator:
-            def __init__(self, real_locator):
-                self._real = real_locator
-
-            def count(self):
-                return self._real.count()
-
-            def nth(self, i):
-                return self._real.nth(i)
-
-        class _EmptyForTheWholeStreakLocator:
-            """Reports 0 for every one of the first ``dip_reads``
-            post-settle acquisitions — a truthful read of a table that has
-            not finished hydrating, never an exception."""
-
-            def __init__(self, real_locator):
-                self._real = real_locator
-
-            def count(self):
-                empty_reads["count"] += 1
-                return 0
-
-            def nth(self, i):
-                return self._real.nth(i)
-
         def _stub_locator(selector):
             if selector == f'[data-testid="{close_testid}"]':
                 return _FakeLocator([_FakeLocatorHandle()])  # click is a no-op
             if selector == row_prefix_selector:
                 locator_acquisitions["count"] += 1
                 real = original_locator(selector)
-                # Acquisitions 1 and 2 are the PRE-mutation snapshot's own
+                # Acquisitions 1-3 are the PRE-mutation snapshot's own
                 # settle + read (issue #756) — they must see the real table
                 # or there would be no baseline to compare against. The
-                # dip models the POST-save reads only.
-                if locator_acquisitions["count"] <= 3:
-                    return _RealCountLocator(real)
-                if empty_reads["count"] < dip_reads:
-                    return _EmptyForTheWholeStreakLocator(real)
-                return _RealCountLocator(real)
+                # dip models the POST-save reads only, reporting 0 for the
+                # first `dip_reads` of them (longer than the whole streak).
+                if (
+                    locator_acquisitions["count"] > 3
+                    and empty_reads["count"] < dip_reads
+                ):
+                    return _CountOverrideLocator(
+                        real,
+                        count=0,
+                        on_count=lambda: empty_reads.__setitem__(
+                            "count", empty_reads["count"] + 1
+                        ),
+                    )
+                return _CountOverrideLocator(real)
             return original_locator(selector)
 
         page.locator = _stub_locator
@@ -7549,43 +7563,6 @@ class TestUpdateMaster(unittest.TestCase):
         # be re-proving the round-2 fix rather than the round-3 one.
         self.assertGreater(empty_reads["count"], 0)
         self.assertGreaterEqual(dip_reads, browser_masters._TARGET_ACTION_STABLE_STREAK)
-
-    def test_a_dip_during_the_pre_mutation_baseline_never_yields_false_success(
-        self,
-    ):
-        """Issue #756, self-check on the fix's own weak point: the baseline
-        snapshot is taken after ``_wait_for_target_actions_settled`` — the
-        SAME probabilistic streak the expected-set check exists to
-        transcend. So the baseline read can itself land in a dip, and the
-        derived expected set is then wrong.
-
-        The invariant that makes that acceptable is DIRECTIONAL: a wrong
-        baseline may reject a good save (false failure — noisy but safe),
-        but must never accept a bad one. This enumerates every baseline
-        corruption against a save that silently did NOT happen, and asserts
-        none of them is accepted. What guarantees it is that ``removed_ok``
-        is an independent second gate reading the POST-save state, which a
-        corrupted baseline cannot weaken."""
-        removed = {"A"}
-        added: set = set()
-        # The removal was a no-op: the goal is still there after saving.
-        observed_after_failed_save = {"A", "B"}
-
-        for baseline in (
-            {"A", "B"},  # baseline read correctly
-            set(),  # baseline landed in a full dip
-            {"A"},  # baseline partially hydrated
-            {"B"},  # baseline partially hydrated, the other way
-        ):
-            with self.subTest(baseline=sorted(baseline)):
-                expected = (baseline - removed) | added
-                set_ok = observed_after_failed_save == expected
-                removed_ok = not (removed & observed_after_failed_save)
-                self.assertFalse(
-                    set_ok and removed_ok,
-                    "a corrupted baseline must never let a no-op removal "
-                    "verify as successful",
-                )
 
     def test_a_dipped_pre_mutation_baseline_does_not_fail_a_good_save(self):
         """Issue #756, adversarial review of the fix itself: the baseline
@@ -7613,29 +7590,6 @@ class TestUpdateMaster(unittest.TestCase):
         )
         acquisitions = {"count": 0}
 
-        class _EmptyLocator:
-            """Reports 0 rows — the baseline landing in a dip that
-            outlasted the settling streak."""
-
-            def __init__(self, real_locator):
-                self._real = real_locator
-
-            def count(self):
-                return 0
-
-            def nth(self, i):
-                return self._real.nth(i)
-
-        class _RealLocator:
-            def __init__(self, real_locator):
-                self._real = real_locator
-
-            def count(self):
-                return self._real.count()
-
-            def nth(self, i):
-                return self._real.nth(i)
-
         def _stub_locator(selector):
             if selector == row_prefix_selector:
                 acquisitions["count"] += 1
@@ -7645,8 +7599,8 @@ class TestUpdateMaster(unittest.TestCase):
                 # (the close click and all post-save reads) sees the real,
                 # fully hydrated table.
                 if acquisitions["count"] <= 2:
-                    return _EmptyLocator(real)
-                return _RealLocator(real)
+                    return _CountOverrideLocator(real, count=0)
+                return _CountOverrideLocator(real)
             return original_locator(selector)
 
         page.locator = _stub_locator
@@ -7691,15 +7645,39 @@ class TestUpdateMaster(unittest.TestCase):
         )
 
     def test_removal_verification_rejects_a_snapshot_missing_untouched_rows(self):
-        """Issue #756, the expected-set check in isolation: a post-save
-        snapshot in which the REQUESTED removal looks correct but an
-        UNTOUCHED row has vanished must be rejected. Both per-goal checks
-        (added present / removed absent) pass on such a snapshot — only the
-        full expected-set comparison catches it, and it is precisely the
-        shape a partial hydration read takes."""
-        actual_after = {159614150: 200.0}  # 159614151 missing, nobody removed it
-        expected = {159614150, 159614151}
-        self.assertNotEqual(set(actual_after), expected)
+        """Issue #756: a post-save snapshot in which the REQUESTED removal
+        looks correct but an UNTOUCHED row has vanished must be rejected.
+        Both per-goal checks (added present / removed absent) pass on such
+        a snapshot — only the full expected-set comparison catches it, and
+        it is precisely the shape a partial hydration read takes.
+
+        Drives the real path: the close-button click removes BOTH the
+        requested goal and an untouched one (modelling a save that dropped
+        more than asked, or a snapshot that never showed the survivor)."""
+        rows = {159614149: "150", 159614150: "200"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        close_testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+
+        def _stub_locator(selector):
+            if selector == f'[data-testid="{close_testid}"]':
+                # Clicking the requested goal's close button ALSO drops the
+                # untouched row — the requested removal looks correct, but
+                # the surviving goal is gone.
+                return _FakeLocator([_FakeLocatorHandle(on_click=lambda: rows.clear())])
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[159614149]
+            )
+
+        self.assertIn("did not save as requested", str(ctx.exception))
+        self.assertIn("159614150", str(ctx.exception))
 
     def test_pre_mutation_snapshot_lets_a_successful_removal_still_verify(self):
         """Issue #756's expected-set check must not make a GENUINE removal
@@ -15002,6 +14980,17 @@ class _FakeAudienceTagsPage(FakePage):
     def locator(self, selector):
         if selector == browser_masters._AUDIENCE_TAG_WRAPPER_TESTID:
             return _FakeLocator([_FakeLocatorHandle()])
+        if selector == browser_masters._AUDIENCE_TAG_COUNT_SELECTOR:
+            # The count-only selector _wait_for_audience_section's streak
+            # predicate uses (it needs a count, not the texts). Consumes one
+            # queue entry per call, the same way a full _read_audience_tags
+            # scan does, so a scripted `counts` queue drives both readers
+            # identically.
+            if self._scan_started:
+                self._call_index += 1
+            self._scan_started = True
+            count = self._counts[min(self._call_index, len(self._counts) - 1)]
+            return _FakeLocator([_FakeLocatorHandle() for _ in range(count)])
         prefix = "CustomAudienceAndSearchTermsEditor.TagGroup.tag."
         if selector.startswith(f'[data-testid="{prefix}') and not selector.endswith(
             '.close"]'
@@ -15121,8 +15110,8 @@ class TestWaitForAudienceSection(unittest.TestCase):
         only ran when a tag add/remove was requested.
 
         Models the loss by driving the REAL ``_verify_saved`` branch: 112
-        tags went in, the page comes back showing 0, no tag flag was
-        passed. It must report a mismatch (which ``update_master`` turns
+        tags went in, the page comes back showing 0, and no tag was
+        mutated. It must report a mismatch (which ``update_master`` turns
         into a raised error) rather than silently accepting the loss."""
         tags_before = [f"тег{i}" for i in range(112)]
         # The page comes back EMPTY — the targeting was dropped.
@@ -15140,28 +15129,27 @@ class TestWaitForAudienceSection(unittest.TestCase):
                 promotion_goal=None,
                 directs_helps=None,
                 audience_tags_before=tags_before,
-                audience_untouched_but_saved=True,
             )
 
         self.assertIn("audience_tags", str(ctx.exception))
-        self.assertIn("touched no tag", str(ctx.exception))
 
     def test_untouched_tag_list_accepts_an_unchanged_list(self):
         """The mirror of the test above: when the untouched list comes back
-        intact, the new check must stay silent rather than failing every
+        intact, the check must stay silent rather than failing every
         gender/age/device update. Compared as a MULTISET — the grid has no
-        guaranteed tag ordering, and a reordering is not data loss."""
-        tags_before = ["йога", "фитнес", "бег"]
+        guaranteed tag ordering, so passing the SAME tags in a different
+        order must still verify."""
         page = _FakeAudienceTagsPage(counts=[3], role_elements=[])
-        # _FakeAudienceTagsPage names its tags by index; match that shape so
-        # the multiset comparison sees an unchanged list.
+        # _FakeAudienceTagsPage names its tags by index; read what the page
+        # actually shows, then hand it back reversed.
         actual = browser_masters._read_audience_tags(page)
+        self.assertEqual(len(actual), 3)
 
         with (
             patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
             patch.object(browser_masters, "_AUDIENCE_SECTION_READY_TIMEOUT_MS", 10),
         ):
-            # Passing the list the page actually shows must NOT raise.
+            # Must NOT raise: same multiset, different order.
             browser_masters._verify_saved(
                 page,
                 42,
@@ -15169,11 +15157,47 @@ class TestWaitForAudienceSection(unittest.TestCase):
                 promotion_goal=None,
                 directs_helps=None,
                 audience_tags_before=list(reversed(actual)),
-                audience_untouched_but_saved=True,
             )
 
-        self.assertEqual(len(actual), 3)
-        self.assertNotEqual(sorted(["йога", "бег"]), sorted(tags_before))
+    def test_removing_a_tag_verifies_by_identity_not_just_count(self):
+        """Issue #752, the audience path's own version of the #756 fix: the
+        old predicate checked the resulting COUNT plus "are the added tags
+        present?". That cannot tell "removed the requested tag" from
+        "removed a different one" — both leave the same count. Deriving the
+        expected multiset from the pre-mutation baseline catches it.
+
+        Baseline [a, b, c], remove position 0 (=a). The page comes back
+        with the RIGHT COUNT (2) but the WRONG tags — 'a' survived and 'b'
+        went instead. A count check passes; the multiset check must not."""
+        page = _FakeAudienceTagsPage(counts=[2], role_elements=[])
+        # A removal makes _verify_saved re-settle the section first, which
+        # polls the gender trigger — give the fake one.
+        page._locators[browser_masters._GENDER_SELECT_TESTID] = _FakeLocator(
+            [_FakeLocatorHandle(text="Любой пол")]
+        )
+        page_tags = browser_masters._read_audience_tags(page)
+        # The fake names tags by index, so the page shows [tag0, tag1].
+        # Claim a baseline whose position 0 is a tag that is STILL there.
+        baseline = [page_tags[0], "удалённый", page_tags[1]]
+
+        with (
+            patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
+            patch.object(browser_masters, "_AUDIENCE_SECTION_READY_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                audience_tags_before=baseline,
+                remove_audience_tag_indices=[0],
+            )
+
+        # Count matches (3 - 1 == 2) — only identity comparison catches it.
+        self.assertEqual(len(page_tags), len(baseline) - 1)
+        self.assertIn("audience_tags", str(ctx.exception))
 
     def test_raises_if_gender_trigger_never_shows_a_label(self):
         page = FakePage(locators={})  # no _GENDER_SELECT_TESTID handle at all

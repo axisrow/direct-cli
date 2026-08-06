@@ -195,17 +195,23 @@ defeats it. Two changes, one structural and one a widening:
   dropping targeting criteria). Settle timeouts raised to keep room for
   several streak attempts.
 
-- **A `--gender`/`--age`/`--device` update now verifies the untouched tag
-  list came back unchanged (#752 R2-1).** Those updates mutate no tag, but
-  still submit the *whole* form — so if the readiness poll settled on a
-  stale/empty tag count, the save could persist that emptiness and silently
-  drop every targeting tag the campaign had. Nothing noticed, because
-  verification only ran when a tag add/remove was requested. The list is now
-  snapshotted before the save and re-checked after it (as a multiset — the
-  grid has no guaranteed tag ordering, and a reordering is not data loss),
-  turning a raced audience save into a reported mismatch. This is a
-  defence-in-depth backstop for the widened window above: if the streak is
-  ever defeated anyway, the loss is now *reported* rather than silent.
+- **Audience-tag verification now compares an expected multiset, covering
+  every audience update shape (#752).** This was two branches, both weak:
+  a count-plus-containment check when tags were added/removed, and *nothing
+  at all* when they weren't. The second gap is R2-1 — a `--gender`/`--age`/
+  `--device` update mutates no tag but still submits the *whole* form, so a
+  readiness poll that settled on a stale/empty count could persist that
+  emptiness and silently drop every targeting tag, unnoticed. The first was
+  the same asymmetry #756 fixed for target actions: a count plus a
+  positive-going "are the added tags present?" cannot distinguish *removed
+  the requested tag* from *removed a different one* — both leave the same
+  count — and on a pure removal it degrades to a bare count check.
+  Both are now one check: expected = `before − removed + added` as a
+  multiset (the grid has no guaranteed tag ordering, so a reordering is not
+  data loss), derived from the pre-mutation baseline. The untouched case
+  falls out for free as `removed = added = {}`. `_verify_saved` takes
+  `remove_audience_tag_indices` instead of a bare count, since identity
+  comparison needs to know *which* positions went.
 
 **This widening reduces, but does not mathematically eliminate, the race.**
 Any fixed window can in principle be defeated by a longer dip. It is the
