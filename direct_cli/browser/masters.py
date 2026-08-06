@@ -8949,20 +8949,22 @@ def _verify_created(
 
     The reload target is ``WIZARD_EDIT_URL``, not the overview URL the click
     redirects to. A freshly LAUNCHED campaign's overview page is the stats
-    dashboard, which has no region widget at all; the edit page is ASSUMED to
-    render "Регион показов" for both DRAFT and non-DRAFT campaigns (a DRAFT
+    dashboard, which has no region widget at all; the edit page renders
+    "Регион показов" for both DRAFT and non-DRAFT campaigns (a DRAFT
     overview happens to render the wizard form too — issue #660 — but
     relying on that would make this check silently status-dependent).
 
-    **That assumption is not field-proven (issue #776).**
-    ``_read_region_tags`` is live-verified on the CREATE page only (#653);
-    no existing command reads region from the edit page (``update_master``
-    has no region option), and the live edit-page fixtures are targeted
-    extracts that neither contain nor exclude the widget. If the assumption
-    is wrong, ``_read_until_matches`` exhausts its budget, returns an empty
-    read, and this raises AFTER the campaign was irreversibly launched — a
-    false failure, not data loss. It cannot be confirmed until goal support
-    makes a successful create possible at all (see ``create_master``).
+    **Confirmed live for a non-DRAFT campaign (issue #776).** Once goal
+    support unblocked a successful create (#777), this was checked directly
+    against an existing production campaign rather than a fresh
+    ``--launch`` — no need to publish new live ads to observe a rendering
+    fact that does not depend on how the campaign got to ACTIVE.
+    ``masters get`` confirmed campaign 713234191's ``Status`` as ``ACTIVE``
+    (real impressions/clicks/cost, not a draft); reloading its
+    ``WIZARD_EDIT_URL`` rendered ``RegionsTreeTagGroup.tags-wrapper``
+    visible (``offsetParent !== null``) with 36 region tags. The edit page
+    does render the region widget for a genuinely launched campaign, so
+    ``_verify_created``'s reload-and-reread approach is sound as written.
 
     Region tags are compared as a SUBSET, not for equality: Yandex renders a
     tag per accepted selection, and selecting a region can bring implied
