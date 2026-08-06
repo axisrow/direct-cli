@@ -18,6 +18,7 @@ GridCampaigns response these tests replay, and FakePage's ``request``/``on``
 additions below for how that replay is faked.
 """
 
+import ast
 import contextlib
 import json
 import time
@@ -1815,6 +1816,55 @@ class TestPollUntil(unittest.TestCase):
         self.assertEqual(page.tick_count, 4)
 
 
+# Real-clock readings that must never back a poll deadline (issue #767).
+# ``perf_counter`` is banned alongside ``monotonic`` because it is the obvious
+# drop-in a future contributor would reach for, and it is just as unreachable
+# by a no-op ``wait_for_timeout`` tick.
+_RAW_CLOCK_FUNCTIONS = frozenset({"monotonic", "perf_counter"})
+
+
+def _raw_clock_calls(source):
+    """Yield ``(lineno, rendered_call)`` for every real-clock read in `source`.
+
+    Parses rather than greps: the original substring check only recognised the
+    literal ``time.monotonic()``, so an aliased import (``import time as _t``
+    → ``_t.monotonic()``) or a from-import (``from time import monotonic`` →
+    ``monotonic()``) reintroduced a busy-spinning deadline that the guard
+    reported as clean — verified at 1.4s → 64s on this file. Resolving the
+    call target through the module's own import bindings closes both spellings,
+    and because only ``ast.Call`` nodes are considered, prose in a docstring is
+    structurally excluded instead of being filtered by a backtick heuristic
+    (which itself exempted any real call sharing a line with a ``…`` comment).
+    """
+    tree = ast.parse(source)
+
+    time_aliases = set()  # names bound to the `time` module itself
+    bare_names = {}  # names bound directly to a banned function
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "time":
+                    time_aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module == "time":
+            for alias in node.names:
+                if alias.name in _RAW_CLOCK_FUNCTIONS:
+                    bare_names[alias.asname or alias.name] = alias.name
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr in _RAW_CLOCK_FUNCTIONS
+            and isinstance(func.value, ast.Name)
+            and func.value.id in time_aliases
+        ):
+            yield node.lineno, f"{func.value.id}.{func.attr}()"
+        elif isinstance(func, ast.Name) and func.id in bare_names:
+            yield node.lineno, f"{func.id}()"
+
+
 class TestBrowserPackageClock(unittest.TestCase):
     """Issue #767: every poll deadline in ``direct_cli/browser/`` must go
     through ``_clock.now()``.
@@ -1836,14 +1886,10 @@ class TestBrowserPackageClock(unittest.TestCase):
         for module_path in sorted(package_dir.glob("*.py")):
             if module_path.name == "_clock.py":
                 continue  # the one legitimate `time.monotonic` reference
-            for lineno, line in enumerate(
-                module_path.read_text().splitlines(), start=1
-            ):
-                if "time.monotonic()" not in line:
-                    continue
-                if "``" in line:
-                    continue  # prose in a docstring, not a call
-                offenders.append(f"{module_path.name}:{lineno}: {line.strip()}")
+            offenders.extend(
+                f"{module_path.name}:{lineno}: {call}"
+                for lineno, call in _raw_clock_calls(module_path.read_text())
+            )
 
         self.assertEqual(
             offenders,
@@ -1853,6 +1899,59 @@ class TestBrowserPackageClock(unittest.TestCase):
             "past their timeout and each one costs its full production "
             "timeout in real seconds (issue #767):\n" + "\n".join(offenders),
         )
+
+    # The detector needs its own coverage: the guard above passes both when
+    # the package is clean and when the detector is blind, so without these
+    # the bypasses below could be reintroduced by a "simplification" of
+    # `_raw_clock_calls` and nothing would go red.
+
+    def test_detects_a_plain_time_monotonic_deadline(self):
+        source = "import time\ndeadline = time.monotonic() + 1\n"
+        self.assertEqual([(2, "time.monotonic()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_deadline_read_through_an_aliased_time_import(self):
+        # The substring guard this replaced missed exactly this spelling; a
+        # live reintroduction in `session.py::_wait_for_marker` took this file
+        # from 1.4s to 64.12s while the guard still reported clean.
+        source = "import time as _t\ndeadline = _t.monotonic() + 1\n"
+        self.assertEqual([(2, "_t.monotonic()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_deadline_read_through_a_from_import(self):
+        source = "from time import monotonic\ndeadline = monotonic() + 1\n"
+        self.assertEqual([(2, "monotonic()")], list(_raw_clock_calls(source)))
+
+    def test_detects_a_renamed_from_import(self):
+        source = "from time import monotonic as _m\ndeadline = _m() + 1\n"
+        self.assertEqual([(2, "_m()")], list(_raw_clock_calls(source)))
+
+    def test_detects_perf_counter_as_well_as_monotonic(self):
+        # Just as unreachable by a no-op `wait_for_timeout` tick, so it is the
+        # obvious drop-in once `monotonic` is guarded.
+        source = "import time\ndeadline = time.perf_counter() + 1\n"
+        self.assertEqual([(2, "time.perf_counter()")], list(_raw_clock_calls(source)))
+
+    def test_ignores_prose_mentioning_the_banned_call(self):
+        # Structurally excluded (not a Call node) rather than filtered by the
+        # old backtick heuristic, which also exempted any REAL call that
+        # happened to share its line with a ``…`` comment.
+        source = '"""Docstring naming ``time.monotonic()`` in prose."""\n'
+        self.assertEqual([], list(_raw_clock_calls(source)))
+
+    def test_ignores_a_real_call_sharing_a_line_with_backtick_prose(self):
+        source = (
+            "import time\n"
+            "deadline = time.monotonic() + 1  # unlike ``_clock.now()``\n"
+        )
+        self.assertEqual([(2, "time.monotonic()")], list(_raw_clock_calls(source)))
+
+    def test_ignores_an_unrelated_monotonic_attribute(self):
+        # `self.monotonic()` / `counter.monotonic()` are not the time module.
+        source = "import time\nvalue = self.monotonic()\n"
+        self.assertEqual([], list(_raw_clock_calls(source)))
+
+    def test_ignores_the_sanctioned_package_clock(self):
+        source = "from . import _clock\ndeadline = _clock.now() + 1\n"
+        self.assertEqual([], list(_raw_clock_calls(source)))
 
 
 class TestFetchMastersList(unittest.TestCase):
