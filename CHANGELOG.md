@@ -160,20 +160,30 @@ completeness with *N consecutive equal reads over a fixed window*. That is a
 probability, not a guarantee — a hydration dip lasting as long as the streak
 defeats it. Two changes, one structural and one a widening:
 
-- **`--remove-target-action`/`--add-target-action` now verify against the
-  full expected row set (#756).** `update_master` snapshots the "Целевые
-  действия" table's goal-id set *before* any mutation, and `_verify_saved`
-  derives the expected post-save set (`before - removed + added`) and
-  requires the observed set to *equal* it. The previous predicate asked two
-  positive-biased questions — "are the added goals present?", "are the
-  removed goals absent?" — and a mid-hydration **empty** snapshot answers the
-  removal half "yes" for free, so on a pure removal `{}` was a full match.
-  That asymmetry is what made every earlier mitigation probabilistic.
-  Comparing the whole set makes an empty or partial read fail **closed**: a
-  structural guarantee for every case where at least one row is expected to
-  survive, independent of how long the dip lasts. A pre-mutation snapshot
-  that cannot be taken (settle timeout) degrades to the previous behaviour
-  rather than aborting the update.
+- **`--remove-target-action` now verifies against the full expected row set
+  (#756).** `update_master` snapshots the "Целевые действия" table's goal-id
+  set *before* the mutation, and `_verify_saved` derives the expected
+  post-save set (`before - removed + added`) and requires the observed set
+  to *equal* it. The previous predicate asked two positive-biased questions
+  — "are the added goals present?", "are the removed goals absent?" — and a
+  mid-hydration **empty** snapshot answers the removal half "yes" for free,
+  so on a pure removal `{}` was a full match. That asymmetry is what made
+  every earlier mitigation probabilistic. Comparing the whole set makes an
+  empty or partial read fail **closed**, independent of how long the dip
+  lasts.
+- The baseline snapshot is guarded by more than the same settling streak it
+  is meant to transcend: a dip outlasting the streak settles at count 0 and
+  reads as a well-formed `[]`, which would under-count the expected set and
+  fail a save that genuinely took effect (and the retry would not be
+  idempotent — `_remove_target_action` raises on an already-absent row). The
+  baseline is therefore additionally required to *contain every goal about
+  to be removed* — rows that provably exist, since their close buttons are
+  about to be clicked — a positive completeness check rather than another
+  timed streak. A baseline failing it degrades to the previous behaviour.
+- The snapshot is taken only when a **removal** is requested. A pure add has
+  no equivalent positive check (added goals are absent beforehand by
+  definition), and its `added_ok` check is already positive-going, so an
+  empty dip cannot satisfy it.
 - **Stability windows widened (#756, #752).** `_TARGET_ACTION_STABLE_STREAK`
   5→**10** at a 400ms tick (~1.5s → ~4s of agreement, past the ~1-1.5s dip
   observed live); `_AUDIENCE_TAG_STABLE_STREAK` 5→**12** at a 500ms tick

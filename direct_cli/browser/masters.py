@@ -5831,23 +5831,55 @@ def update_master(
     # only asking "is the removed goal absent?" — a question a
     # mid-hydration empty read answers "yes" to for free (see
     # _verify_saved's own comment for why that asymmetry made every prior
-    # mitigation probabilistic). Settled first, for the same reason the
-    # post-save read is: an unsettled BASELINE would be just as wrong, and
-    # in the more dangerous direction — a baseline read during the dip
-    # would under-count the expected set and hand verification a bar the
-    # real table can never clear (or, on a pure removal, an empty expected
-    # set that a dip matches). A settle timeout leaves the snapshot None,
-    # degrading verification to the previous streak-only behaviour rather
-    # than aborting an update whose mutations are otherwise fine.
+    # mitigation probabilistic). Settled first, because an unsettled
+    # BASELINE is wrong too: it under-counts the expected set and hands
+    # verification a bar the real table can never clear.
+    #
+    # That mis-hydration fails in the SAFE direction — under-counting only
+    # shrinks the expected set below the true post-save set, so the
+    # observed set is a strict superset and equality rejects it; and
+    # ``removed_ok`` is an independent second gate reading the POST-save
+    # state, which a corrupted baseline cannot weaken. It cannot produce a
+    # false success. But it does produce a false FAILURE on a save that
+    # genuinely took effect, which is not harmless: the mutation has
+    # already committed, and a retry is not idempotent
+    # (``_remove_target_action`` raises on an already-absent row), so the
+    # retry fails too and the user is told a good save failed.
+    #
+    # Settling alone does not rule that out — a dip outlasting the streak
+    # settles at count 0, and ``_read_target_actions_or_none`` then returns
+    # a well-formed ``[]``, not ``None``. So the baseline is additionally
+    # required to CONTAIN every goal about to be removed: those rows
+    # provably exist (``_remove_target_action`` is about to click each
+    # one's close button and raises if it is absent), so a baseline missing
+    # any of them is under-hydrated by construction — a positive check on
+    # the baseline's own completeness rather than another timed streak.
+    # A baseline that fails it (or a settle timeout) leaves the snapshot
+    # None, degrading verification to the previous streak-only behaviour
+    # rather than aborting an update whose mutations are otherwise fine.
+    #
+    # That check only certifies the baseline for a REMOVAL. A pure add has
+    # no equivalent: the added goals are by definition absent beforehand,
+    # so nothing in the request can attest that the baseline saw the rows
+    # it did not mention, and a dipped baseline would under-count the
+    # expected set into a false failure exactly as above. The snapshot is
+    # therefore taken only when a removal is requested — which is also the
+    # case that needs it, since the removal half is the one a mid-hydration
+    # empty read answers "yes" to for free. A pure add keeps the round-2
+    # streak-only verification, whose `added_ok` check is positive-going
+    # (it requires the added goal to be PRESENT) and so is not satisfied by
+    # an empty dip in the first place.
     target_action_goal_ids_before: Optional[List[int]] = None
-    if add_target_actions or remove_target_action_goal_ids:
+    if remove_target_action_goal_ids:
         _rows_before = (
             _read_target_actions_or_none(page)
             if _wait_for_target_actions_settled(page)
             else None
         )
         if _rows_before is not None:
-            target_action_goal_ids_before = [row["GoalId"] for row in _rows_before]
+            _ids_before = [row["GoalId"] for row in _rows_before]
+            if all(goal_id in _ids_before for goal_id in remove_target_action_goal_ids):
+                target_action_goal_ids_before = _ids_before
     for goal_id in remove_target_action_goal_ids or []:
         _remove_target_action(page, goal_id)
     for goal_id, price in (add_target_actions or {}).items():

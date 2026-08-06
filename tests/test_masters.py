@@ -7550,6 +7550,146 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertGreater(empty_reads["count"], 0)
         self.assertGreaterEqual(dip_reads, browser_masters._TARGET_ACTION_STABLE_STREAK)
 
+    def test_a_dip_during_the_pre_mutation_baseline_never_yields_false_success(
+        self,
+    ):
+        """Issue #756, self-check on the fix's own weak point: the baseline
+        snapshot is taken after ``_wait_for_target_actions_settled`` — the
+        SAME probabilistic streak the expected-set check exists to
+        transcend. So the baseline read can itself land in a dip, and the
+        derived expected set is then wrong.
+
+        The invariant that makes that acceptable is DIRECTIONAL: a wrong
+        baseline may reject a good save (false failure — noisy but safe),
+        but must never accept a bad one. This enumerates every baseline
+        corruption against a save that silently did NOT happen, and asserts
+        none of them is accepted. What guarantees it is that ``removed_ok``
+        is an independent second gate reading the POST-save state, which a
+        corrupted baseline cannot weaken."""
+        removed = {"A"}
+        added: set = set()
+        # The removal was a no-op: the goal is still there after saving.
+        observed_after_failed_save = {"A", "B"}
+
+        for baseline in (
+            {"A", "B"},  # baseline read correctly
+            set(),  # baseline landed in a full dip
+            {"A"},  # baseline partially hydrated
+            {"B"},  # baseline partially hydrated, the other way
+        ):
+            with self.subTest(baseline=sorted(baseline)):
+                expected = (baseline - removed) | added
+                set_ok = observed_after_failed_save == expected
+                removed_ok = not (removed & observed_after_failed_save)
+                self.assertFalse(
+                    set_ok and removed_ok,
+                    "a corrupted baseline must never let a no-op removal "
+                    "verify as successful",
+                )
+
+    def test_a_dipped_pre_mutation_baseline_does_not_fail_a_good_save(self):
+        """Issue #756, adversarial review of the fix itself: the baseline
+        snapshot is guarded only by the same probabilistic settling wait,
+        and a dip that outlasts the streak settles at count 0 — at which
+        point ``_read_target_actions_or_none`` returns a well-formed ``[]``,
+        NOT ``None``. An ``is not None`` guard accepts that empty read, and
+        the derived expected set (``{} - removed`` = ``{}``) is a bar the
+        real table can never clear: the removal genuinely succeeds and
+        ``update_master`` reports failure anyway. That is not harmless —
+        the mutation has already committed and a retry is not idempotent
+        (``_remove_target_action`` raises on an already-absent row).
+
+        The baseline is therefore additionally required to CONTAIN every
+        goal about to be removed, which those rows provably do (their close
+        buttons are about to be clicked). Here the baseline read dips
+        empty, the table hydrates before the click, and the removal really
+        happens — verification must SUCCEED."""
+        rows = {159614149: "150", 159614150: "200"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        acquisitions = {"count": 0}
+
+        class _EmptyLocator:
+            """Reports 0 rows — the baseline landing in a dip that
+            outlasted the settling streak."""
+
+            def __init__(self, real_locator):
+                self._real = real_locator
+
+            def count(self):
+                return 0
+
+            def nth(self, i):
+                return self._real.nth(i)
+
+        class _RealLocator:
+            def __init__(self, real_locator):
+                self._real = real_locator
+
+            def count(self):
+                return self._real.count()
+
+            def nth(self, i):
+                return self._real.nth(i)
+
+        def _stub_locator(selector):
+            if selector == row_prefix_selector:
+                acquisitions["count"] += 1
+                real = original_locator(selector)
+                # Acquisition 1 = the baseline's settling wait, 2 = the
+                # baseline's own read. Both dip empty; everything after
+                # (the close click and all post-save reads) sees the real,
+                # fully hydrated table.
+                if acquisitions["count"] <= 2:
+                    return _EmptyLocator(real)
+                return _RealLocator(real)
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        # Must NOT raise: the removal genuinely took effect.
+        result = browser_masters.update_master(
+            page, 42, remove_target_action_goal_ids=[159614149]
+        )
+
+        self.assertEqual(result["RemovedTargetActionGoalIds"], [159614149])
+        self.assertEqual(set(rows), {159614150})
+
+    def test_stability_constants_leave_room_for_a_full_streak(self):
+        """Issue #756/#752: widening a streak without widening the window
+        that has to contain it turns a settle-poll into one that can never
+        succeed — it would time out mid-streak on every single run, which
+        surfaces as a hard failure on every update rather than as a race.
+        Guards the arithmetic on both pairs, plus the verification retry
+        budget that has to fit a full streak of matching reads at
+        ``_read_until_matches``'s own 250ms poll interval even after a dip
+        has consumed the settle timeout."""
+        target_action_span_ms = (
+            browser_masters._TARGET_ACTION_STABLE_STREAK
+            * browser_masters._TARGET_ACTION_STABLE_TICK_MS
+        )
+        self.assertGreater(
+            browser_masters._TARGET_ACTION_SETTLE_TIMEOUT_MS,
+            target_action_span_ms,
+            "the settle timeout must fit at least one full streak",
+        )
+
+        verify_budget_ms = (
+            browser_masters._VERIFY_FIELD_READ_TIMEOUT_MS
+            + browser_masters._TARGET_ACTION_SETTLE_TIMEOUT_MS
+        )
+        streak_at_retry_tick_ms = browser_masters._TARGET_ACTION_STABLE_STREAK * 250
+        self.assertGreater(
+            verify_budget_ms - browser_masters._TARGET_ACTION_SETTLE_TIMEOUT_MS,
+            streak_at_retry_tick_ms,
+            "after a worst-case dip consumes the settle timeout, the retry "
+            "budget must still fit a full streak of matching reads",
+        )
+
     def test_removal_verification_rejects_a_snapshot_missing_untouched_rows(self):
         """Issue #756, the expected-set check in isolation: a post-save
         snapshot in which the REQUESTED removal looks correct but an
