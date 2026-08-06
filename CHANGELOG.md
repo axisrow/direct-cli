@@ -46,6 +46,27 @@ other than DRAFT.
   virtual-scroll container to the row's server-known offset would close
   this gap but is out of scope here; tracked as a follow-up (#791).
 
+**`masters delete` hardened against a TOCTOU race and transient verify
+errors (#793).**
+
+Code review on #782/PR #784 found two edge cases in `delete_master`
+(`direct_cli/browser/masters.py`):
+
+- The DRAFT-only guard was checked once, well before the irreversible
+  `DeleteCampaignAction` click — on a shared/agency account, another
+  session could move the campaign off DRAFT in that window, and nothing
+  re-checked its status right before the click. `delete_master` now
+  re-reads the row a second time immediately before clicking and aborts
+  ("Not clicking 'Удалить'") if the status changed or the row vanished,
+  instead of clicking against an unconfirmed state.
+- The post-click verify loop let any transient error from
+  `fetch_masters_list` (HTTP 5xx, non-JSON, captcha, mid-poll session
+  expiry) propagate immediately, even though the click is immediate and
+  irreversible and the campaign is almost certainly already gone. The loop
+  now tolerates transient errors and keeps polling until the timeout; if
+  every poll still fails, the error explicitly states the click already
+  landed rather than reading like the delete itself failed.
+
 ### BREAKING CHANGES
 
 **`masters add` now requires `--add-target-action` (#777).**

@@ -4406,6 +4406,126 @@ class TestDeleteMaster(unittest.TestCase):
 
         self.assertIn("still reports it present", str(ctx.exception))
 
+    def test_toctou_aborts_without_clicking_when_status_changed_before_click(self):
+        # issue #793 Finding 1: the up-front guard reads DRAFT once, but the
+        # row-menu retry loop takes real time -- another session could move
+        # the campaign off DRAFT before DeleteCampaignAction is clicked.
+        # _find_master_row is called: once for the up-front guard, once for
+        # the TOCTOU re-check right before the click. Flip status on the
+        # second call.
+        calls = {"n": 0}
+        delete_clicked = []
+
+        def _fetch(page, status="all"):
+            calls["n"] += 1
+            status_now = "DRAFT" if calls["n"] == 1 else "MODERATION"
+            return [self._row(status_now)]
+
+        page = self._page_with_row_menu(
+            trigger=_FakeLocatorHandle(),
+            delete_item=_FakeLocatorHandle(on_click=lambda: delete_clicked.append(1)),
+        )
+        page._locators[browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR] = _FakeLocator(
+            [_FakeLocatorHandle()]
+        )
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", side_effect=_fetch):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertIn("is now", str(ctx.exception))
+        self.assertIn("MODERATION", str(ctx.exception))
+        self.assertIn("Not clicking", str(ctx.exception))
+        self.assertEqual(delete_clicked, [])
+
+    def test_toctou_aborts_without_clicking_when_campaign_vanished_before_click(self):
+        # Same TOCTOU window, but the row disappeared entirely (e.g. deleted
+        # by another session) rather than merely changing status.
+        calls = {"n": 0}
+        delete_clicked = []
+
+        def _fetch(page, status="all"):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return [self._row("DRAFT")]
+            return []
+
+        page = self._page_with_row_menu(
+            trigger=_FakeLocatorHandle(),
+            delete_item=_FakeLocatorHandle(on_click=lambda: delete_clicked.append(1)),
+        )
+        page._locators[browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR] = _FakeLocator(
+            [_FakeLocatorHandle()]
+        )
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", side_effect=_fetch):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertIn("no longer", str(ctx.exception))
+        self.assertEqual(delete_clicked, [])
+
+    def test_verify_loop_tolerates_transient_error_then_succeeds(self):
+        # issue #793 Finding 2: a transient BrowserSessionError on the FIRST
+        # poll after a successful, irreversible click must not propagate --
+        # it must be treated as inconclusive and polling must continue.
+        state = {"rows": [self._row("DRAFT")]}
+        poll_calls = {"n": 0}
+
+        def _remove():
+            state["rows"] = []
+
+        def _fetch(page, status="all"):
+            poll_calls["n"] += 1
+            # Call 1: up-front guard. Call 2: TOCTOU re-check. Call 3: first
+            # verify poll -- raise here. Call 4+: verify polls succeed.
+            if poll_calls["n"] == 3:
+                raise BrowserSessionError("Campaigns grid API returned HTTP 500")
+            return list(state["rows"])
+
+        page = self._page_with_row_menu(
+            trigger=_FakeLocatorHandle(),
+            delete_item=_FakeLocatorHandle(on_click=_remove),
+        )
+        page._locators[browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR] = _FakeLocator(
+            [_FakeLocatorHandle()]
+        )
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", side_effect=_fetch):
+            result = browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertEqual(result, {"CampaignId": self.CAMPAIGN_ID, "Deleted": True})
+        self.assertGreaterEqual(poll_calls["n"], 4)
+
+    def test_verify_loop_reports_click_already_landed_when_every_poll_errors(self):
+        # issue #793 Finding 2: if every poll until the deadline errors, the
+        # final message must say the click already landed, not just repeat
+        # a generic "still present" (which would falsely suggest the click
+        # itself may not have worked).
+        page = self._page_with_row_menu(
+            trigger=_FakeLocatorHandle(),
+            delete_item=_FakeLocatorHandle(),
+        )
+        page._locators[browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR] = _FakeLocator(
+            [_FakeLocatorHandle()]
+        )
+
+        calls = {"n": 0}
+
+        def _fetch(page, status="all"):
+            calls["n"] += 1
+            if calls["n"] <= 2:
+                # up-front guard + TOCTOU re-check both see DRAFT.
+                return [self._row("DRAFT")]
+            raise BrowserSessionError("Campaigns grid API returned HTTP 500")
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", side_effect=_fetch):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        self.assertIn("landed", str(ctx.exception))
+        self.assertIn("HTTP 500", str(ctx.exception))
+
 
 class TestMastersDeleteCommand(unittest.TestCase):
     """CLI wiring for `masters delete` (issue #782), including the

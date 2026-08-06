@@ -2872,6 +2872,21 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     (``status=all``, so even an unexpected non-delete outcome like
     "archived instead" would still be caught) before reporting success —
     never trusting the click alone, per this module's dominant convention.
+
+    Re-verifies DRAFT status a SECOND time immediately before the click
+    (issue #793, Finding 1): the up-front guard above and the click are
+    separated by however long the row-menu retry loop takes, which is
+    enough of a window on a shared/agency account for another session to
+    move the campaign off DRAFT — DeleteCampaignAction is never clicked
+    against a row this function has not just re-confirmed is still DRAFT.
+
+    The post-click verify loop tolerates transient ``BrowserSessionError``s
+    from ``_find_master_row`` (issue #793, Finding 2) instead of letting one
+    propagate as a hard failure: the click is immediate and irreversible, so
+    a mid-poll HTTP 5xx/captcha/auth blip must not read as "the delete
+    failed" when it almost certainly already succeeded. If the timeout is
+    reached while every poll errored, the raised message says explicitly
+    that the click already landed.
     """
     existing = _find_master_row(page, campaign_id)
     if existing is None:
@@ -2936,6 +2951,33 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             "scrolled into view manually first."
         ) from last_exc
 
+    # TOCTOU re-check (issue #793, Finding 1): the up-front DRAFT guard above
+    # reads the grid via _find_master_row once, but on a shared/agency
+    # account another session could transition the campaign (DRAFT ->
+    # MODERATION/ACTIVE) in the seconds between that read and this click —
+    # opening the row menu alone takes a retry loop. Re-read the row right
+    # before the irreversible click and abort if it is no longer DRAFT,
+    # rather than clicking DeleteCampaignAction against a row whose current
+    # status this module has never confirmed that action is even safe for
+    # (see the field's own docstring above: "NOT re-confirmed here").
+    current = _find_master_row(page, campaign_id, status="all")
+    if current is None:
+        raise BrowserSessionError(
+            f"Campaign {campaign_id} was DRAFT moments ago but is no longer "
+            "in the campaigns grid at all — it may have just been deleted "
+            "or removed by another session. Not clicking 'Удалить'."
+        )
+    if current["Status"] != "DRAFT":
+        raise BrowserSessionError(
+            f"Campaign {campaign_id} was DRAFT moments ago but is now "
+            f"{current['Status']} — another session likely changed it "
+            "concurrently. Not clicking 'Удалить': whether the grid row "
+            "menu's delete action is even safe for a non-DRAFT campaign is "
+            "unconfirmed (see module docstring). Re-run `masters delete` "
+            "if you still intend to remove it, or use `masters archive` "
+            "for its current status."
+        )
+
     delete_item = page.locator(_GRID_ROW_DELETE_ITEM_SELECTOR).first
     try:
         delete_item.click()
@@ -2946,15 +2988,44 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             "Yandex may have changed the grid's row menu."
         ) from exc
 
+    # Post-click verify loop (issue #793, Finding 2): the click above is
+    # immediate and irreversible (module docstring — no confirmation dialog
+    # exists). _find_master_row can itself raise BrowserSessionError (HTTP
+    # 5xx, non-JSON, captcha, mid-poll session expiry — see
+    # _fetch_grid_campaigns_page/assert_not_captcha/assert_authenticated) on
+    # any individual poll. Treat that as an inconclusive poll, not a fatal
+    # error: the campaign is very likely already gone, and surfacing a raw
+    # transient exception here would read as "the delete failed", pushing a
+    # caller toward a needless retry against a click that already landed.
     deadline = _clock.now() + _DELETE_VERIFY_TIMEOUT_MS / 1000
     still_present = True
+    verify_exc: Optional[Exception] = None
     while _clock.now() < deadline:
-        still_present = _find_master_row(page, campaign_id, status="all") is not None
+        try:
+            still_present = (
+                _find_master_row(page, campaign_id, status="all") is not None
+            )
+            verify_exc = None
+        except BrowserSessionError as exc:
+            verify_exc = exc
+            page.wait_for_timeout(250)
+            continue
         if not still_present:
             break
         page.wait_for_timeout(250)
 
     if still_present:
+        if verify_exc is not None:
+            raise BrowserSessionError(
+                f"Clicked 'Удалить' for campaign {campaign_id} — the click "
+                "itself landed and was NOT rejected, but the campaigns grid "
+                "could not be re-read to confirm the delete within "
+                f"{_DELETE_VERIFY_TIMEOUT_MS / 1000:.0f}s ({verify_exc}). "
+                "Check the campaign's status in the UI before retrying — a "
+                "retry against an already-deleted campaign will report "
+                "'Could not find' instead of double-deleting, but is "
+                "unnecessary if this already succeeded."
+            ) from verify_exc
         raise BrowserSessionError(
             f"Clicked 'Удалить' for campaign {campaign_id}, but the "
             f"campaigns grid still reports it present within "
