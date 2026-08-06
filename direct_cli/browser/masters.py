@@ -1136,18 +1136,31 @@ _TARGET_ACTION_WAIT_TIMEOUT_MS = 5_000
 # dips to 0 (and ``TargetActionsSection`` itself briefly leaves the DOM,
 # ``.count() == 0``) for ~1-1.5s starting around 4-4.5s after
 # ``_wait_for_edit_form`` returns, before the real row set (re)appears
-# around 5-5.5s. No section-scoped loading/spinner ``data-testid`` exists
-# to poll instead (confirmed live: the only "loading"-flavoured markup
-# nearby is an unrelated, always-present ``TextInput_disabled`` addon
-# class on the add-action input, not a completeness signal). A single read
-# landing in that dip is not an exception (``_read_target_actions_or_none``
-# returns a genuinely well-formed ``[]``, not ``None``) — it's a truthful
-# snapshot of a table that has not finished loading, which is exactly the
-# gap ``_wait_for_target_actions_settled`` closes: require
-# ``_TARGET_ACTION_STABLE_STREAK`` consecutive equal row-count reads,
-# ``_TARGET_ACTION_STABLE_TICK_MS`` apart, before trusting any read of this
-# table — mirrors ``_wait_for_audience_section``'s tag-count settling
-# (``_AUDIENCE_TAG_STABLE_STREAK``), same class of race, same fix shape.
+# around 5-5.5s. A single read landing in that dip is not an exception
+# (``_read_target_actions_or_none`` returns a genuinely well-formed ``[]``,
+# not ``None``) — it's a truthful snapshot of a table that has not finished
+# loading, which is exactly the gap ``_wait_for_target_actions_settled``
+# closes: require ``_TARGET_ACTION_STABLE_STREAK`` consecutive equal
+# row-count reads, ``_TARGET_ACTION_STABLE_TICK_MS`` apart, before trusting
+# any read of this table — mirrors ``_wait_for_audience_section``'s tag-
+# count settling (``_AUDIENCE_TAG_STABLE_STREAK``), same class of race,
+# same fix shape.
+#
+# Issue #756 follow-up live recon (2026-08-06, campaign 713277109, 8 fresh
+# navigations, 5 dips caught): the dip is NOT section-scoped — the whole
+# form (including ``CampaignTitles0.textarea``, the marker
+# ``_wait_for_edit_form`` itself polls) briefly leaves the DOM, replaced by
+# a React ``<Suspense>`` fallback with a ``[class*="PageFallback"]`` node.
+# That IS a positive "not ready yet" marker — the earlier "no marker
+# exists" conclusion (still true for a section-scoped signal) missed the
+# page-level one. But it is not sufficient on its own:
+# ``_wait_for_target_actions_ready`` measured the fallback node vanishing
+# 0.27-0.65s BEFORE the real content re-commits, in every one of the 5
+# caught dips — a real, reproducible gap between "spinner gone" and "DOM
+# actually updated", not occasional jitter. So the marker only shortens the
+# wait (skip straight past the fallback phase instead of polling row counts
+# through it) — it does not replace the streak below, which still has to
+# absorb that trailing gap.
 #
 # Issue #756 (Codex round-3 finding on #750) widened this streak and, more
 # importantly, stopped relying on it alone. Two separate changes:
@@ -1175,12 +1188,34 @@ _TARGET_ACTION_WAIT_TIMEOUT_MS = 5_000
 #    longest dip observed live, with the settle timeout raised to keep
 #    room for several streak attempts inside it. This lowers the
 #    probability of the race; it does NOT close it mathematically (any
-#    fixed window can be defeated by a longer dip), and the page offers no
+#    fixed window can be defeated by a longer dip), and — before the
+#    ``PageFallback`` marker above was found — the page appeared to offer no
 #    positive "table finished loading" marker to replace it with
 #    (re-confirmed live, see issue #756's recon).
 _TARGET_ACTION_STABLE_STREAK = 10
 _TARGET_ACTION_STABLE_TICK_MS = 400
 _TARGET_ACTION_SETTLE_TIMEOUT_MS = 20_000
+
+# Issue #756 follow-up: the page-level React ``<Suspense>`` fallback
+# ``_wait_for_target_actions_ready`` polls for. Not scoped to
+# "TargetActions" or even to any particular section — it is the SAME node
+# that gates ``CampaignTitles0.textarea`` and every other form field during
+# the dip (live recon confirmed all of them vanish and reappear together).
+# Substring match on ``class`` (not a stable ``data-testid`` — none exists
+# on this node) because the CSS-module-generated suffix
+# (``PageFallback_main__rYmbP`` at recon time) is a build artifact that
+# will drift across Yandex deploys; the ``PageFallback`` stem is what's
+# meaningful and was stable across all 8 recon navigations that used it.
+_PAGE_FALLBACK_SELECTOR = '[class*="PageFallback"]'
+
+# How long to wait for the ``PageFallback`` node to disappear before giving
+# up and falling through to the row-count streak alone (a timeout here
+# means either the marker's class name has drifted, or this particular
+# navigation never showed one — recon saw dips in only 5 of 8 fresh loads,
+# so "never appeared" is an expected outcome, not a failure). Generous
+# relative to the ~1.5s longest dip duration observed, since a timeout here
+# just means falling back to the pre-existing (also-safe) behaviour.
+_PAGE_FALLBACK_GONE_TIMEOUT_MS = 5_000
 
 # "Аудитория" section (issue #681, Этап C, live recon 2026-08-04 against
 # campaign 713277109, ksamatadirect account — see module docstring for the
@@ -4444,6 +4479,54 @@ def _target_action_row_count(page: "Page") -> int:
     return rows
 
 
+def _wait_for_page_fallback_gone(page: "Page") -> bool:
+    """Best-effort wait for the page-level ``PageFallback`` React Suspense
+    node (see ``_PAGE_FALLBACK_SELECTOR``) to leave the DOM.
+
+    Issue #756 follow-up live recon: this node is present for the full
+    duration of the whole-form hydration dip (not section-scoped — it also
+    gates ``CampaignTitles0.textarea``), so waiting for it to disappear
+    skips straight past the dip's bulk instead of polling row counts
+    through it. It is NOT sufficient on its own — the same recon measured
+    the real content re-committing 0.27-0.65s AFTER this node vanishes, in
+    every one of 5 caught dips — so this is deliberately paired with
+    ``_wait_for_target_actions_settled`` (via
+    ``_wait_for_target_actions_ready``), never called alone as a readiness
+    gate.
+
+    Returns ``True`` if the node was absent already or disappeared within
+    ``_PAGE_FALLBACK_GONE_TIMEOUT_MS``; ``False`` on timeout (the node is
+    still there — e.g. an unusually long dip, or genuine page trouble).
+    Never raises: like every other poll in this module, a mid-tick
+    ``PlaywrightError`` from a racing DOM is treated as "not gone yet",
+    absorbed by ``_poll_until``.
+    """
+    return _poll_until(
+        page,
+        lambda: page.locator(_PAGE_FALLBACK_SELECTOR).count() == 0,
+        _PAGE_FALLBACK_GONE_TIMEOUT_MS,
+        tick_ms=100,
+    )
+
+
+def _wait_for_target_actions_ready(page: "Page") -> bool:
+    """Wait for the "Целевые действия" table to be safe to read: first the
+    page-level hydration dip (if one is happening), then the row-count
+    streak.
+
+    Issue #756 follow-up: replaces bare calls to
+    ``_wait_for_target_actions_settled`` at every call site. Skipping the
+    ``PageFallback`` wait first means a dip that's already showing the
+    fallback doesn't have to be absorbed entirely by the row-count streak's
+    own tick budget — but the streak still runs afterwards regardless of
+    whether the fallback wait found (or waited out) a marker, since its own
+    absence is not proof the DOM has caught up yet (see
+    ``_wait_for_page_fallback_gone``'s docstring for the measured gap).
+    """
+    _wait_for_page_fallback_gone(page)
+    return _wait_for_target_actions_settled(page)
+
+
 def _wait_for_target_actions_settled(page: "Page") -> bool:
     """Block until the "Целевые действия" table's row count has stopped
     changing, so a caller's subsequent read is a settled snapshot rather
@@ -5462,7 +5545,7 @@ def _verify_saved(
         # became visible" case below) rather than raising here, so a
         # genuinely never-settling table is reported through the same
         # single ``_verify_saved`` failure path as every other mismatch.
-        if not _wait_for_target_actions_settled(page):
+        if not _wait_for_target_actions_ready(page):
             mismatches.append(
                 "target actions: the 'Целевые действия' table's row count "
                 f"never settled within {_TARGET_ACTION_SETTLE_TIMEOUT_MS / 1000:.0f}s "
@@ -5912,7 +5995,7 @@ def update_master(
     if remove_target_action_goal_ids:
         _rows_before = (
             _read_target_actions_or_none(page)
-            if _wait_for_target_actions_settled(page)
+            if _wait_for_target_actions_ready(page)
             else None
         )
         if _rows_before is not None:

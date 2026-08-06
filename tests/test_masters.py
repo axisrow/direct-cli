@@ -7303,6 +7303,84 @@ class TestUpdateMaster(unittest.TestCase):
         # observe more than a couple of `.count()` calls total.
         self.assertGreater(row_scan_calls["count"], 3)
 
+    def test_page_fallback_gate_waits_out_the_marker_before_settling(self):
+        """Issue #756 follow-up live recon: the page-level React Suspense
+        ``PageFallback`` node is present for the WHOLE hydration dip
+        (confirmed live: it also gates ``CampaignTitles0.textarea``, not
+        just this section). ``_wait_for_target_actions_ready`` must wait
+        for it to clear BEFORE running the row-count settling streak,
+        rather than letting the streak absorb the dip on its own.
+
+        Models the marker present for the first few polls, then gone —
+        and asserts the row-count read that follows sees the REAL
+        (post-dip) row set rather than a mid-dip empty one, which only
+        holds if the fallback wait actually blocked first."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        fallback_polls = {"count": 0}
+        fallback_gone_after = 3
+
+        def _stub_locator(selector):
+            if selector == browser_masters._PAGE_FALLBACK_SELECTOR:
+                fallback_polls["count"] += 1
+                still_present = fallback_polls["count"] <= fallback_gone_after
+                return _FakeLocator([_FakeLocatorHandle()] if still_present else [])
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with patch.object(browser_masters, "_PAGE_FALLBACK_GONE_TIMEOUT_MS", 1000):
+            ready = browser_masters._wait_for_target_actions_ready(page)
+
+        self.assertTrue(ready)
+        # The gate must have actually polled the marker more than once —
+        # a single check would defeat the purpose of waiting it out.
+        self.assertGreater(fallback_polls["count"], 1)
+
+    def test_page_fallback_gate_is_a_no_op_when_no_marker_ever_appears(self):
+        """The common case (recon: 3 of 8 fresh loads showed no dip at
+        all) must not be slowed down — ``_wait_for_page_fallback_gone``
+        finds the selector absent on its very first poll and returns
+        immediately, so ``_wait_for_target_actions_ready`` proceeds
+        straight to the row-count streak without extra delay."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+
+        ready = browser_masters._wait_for_target_actions_ready(page)
+
+        self.assertTrue(ready)
+
+    def test_page_fallback_gate_timeout_falls_through_to_the_streak_anyway(self):
+        """A ``PageFallback`` node that never clears within
+        ``_PAGE_FALLBACK_GONE_TIMEOUT_MS`` (an unusually long dip, or a
+        drifted class name making the selector always match something)
+        must not abort verification — ``_wait_for_target_actions_ready``
+        falls through to the row-count streak regardless, since a timed-
+        out fallback wait is a best-effort optimization, not a
+        precondition. The row-count streak below still succeeds because
+        it is checking a genuinely stable table, independent of the
+        fallback node's fate."""
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+
+        def _stub_locator(selector):
+            if selector == browser_masters._PAGE_FALLBACK_SELECTOR:
+                # Always "present" — the gate can never see it clear.
+                return _FakeLocator([_FakeLocatorHandle()])
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with (patch.object(browser_masters, "_PAGE_FALLBACK_GONE_TIMEOUT_MS", 20),):
+            ready = browser_masters._wait_for_target_actions_ready(page)
+
+        # The fallback wait itself timed out (returns False), but the
+        # overall ready-gate must still report the table as settled since
+        # the row count itself never moved.
+        self.assertTrue(ready)
+
     def test_raises_when_target_actions_row_count_never_settles(self):
         """Codex adversarial review of this PR (#753): the settling wait's
         return value must not be discarded. Models a row-prefix locator

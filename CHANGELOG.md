@@ -213,13 +213,34 @@ defeats it. Two changes, one structural and one a widening:
   `remove_audience_tag_indices` instead of a bare count, since identity
   comparison needs to know *which* positions went.
 
+- **A positive "not ready yet" marker was found for the target-actions dip,
+  and is now used ahead of the streak (#756 follow-up).** Live recon (8
+  fresh navigations, 5 caught dips) found the earlier "no marker exists"
+  conclusion was true only for a *section-scoped* signal — the dip is
+  actually a whole-form hydration event (it also disappears/reappears
+  `CampaignTitles0.textarea`, the field `_wait_for_edit_form` itself polls),
+  gated by a page-level React `<Suspense>` fallback node
+  (`[class*="PageFallback"]`). `_wait_for_target_actions_ready` now waits
+  for that node to clear *before* running the row-count streak, so a dip
+  that's already showing the fallback doesn't have to be absorbed entirely
+  by the streak's own tick budget. It is a *sufficient-but-not-necessary*
+  optimization, not a replacement for the streak: the same recon measured
+  the real content re-committing 0.27–0.65s *after* the fallback node
+  vanishes in every one of the 5 caught dips, so the streak still runs
+  afterwards regardless of what the fallback wait found. A timed-out
+  fallback wait (node never clears, or was never shown at all — 3 of 8
+  fresh loads showed no dip) is not fatal; it falls through to the
+  pre-existing streak-only behaviour.
+
 **This widening reduces, but does not mathematically eliminate, the race.**
-Any fixed window can in principle be defeated by a longer dip. It is the
-only defence remaining for the one case the expected-set check cannot
+Any fixed window can in principle be defeated by a longer dip, and the
+`PageFallback` gate narrows but does not close the residual gap (the
+0.27–0.65s post-fallback commit delay is still covered by streak alone). It
+remains the only defence for the one case the expected-set check cannot
 discriminate — a genuinely *empty* expected final state, where "every row
 removed" and "table hasn't hydrated" are the same observation — and for the
-audience-tag count, which has no equivalent pre-mutation baseline. Finding a
-real positive completeness signal on Yandex's page remains open.
+audience-tag count, which has no equivalent pre-mutation baseline or known
+positive marker.
 
 **Fixed — `masters suspend`/`resume` never changed the status, and a batch stopped at the first failing ID (#766, #764):**
 
