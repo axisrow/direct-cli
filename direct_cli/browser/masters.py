@@ -48,13 +48,22 @@ permanent failure that repeated CLI runs never fixed, while ``masters
 update``'s "always works on the second try" behaviour comes from the same
 race resolving itself between runs. ``_click_and_wait_for_status_change``
 therefore re-clicks (up to ``_STATUS_CLICK_MAX_ATTEMPTS``) instead of
-waiting longer, checking the status before each attempt so an
+waiting longer, re-reading the status immediately before every retry so an
 already-effective click is never repeated — the same treatment
 ``_click_and_wait_for_popup`` already gives the "⋮" menu and the rename
 modal (issues #723/#725). Once a click does land, the status text follows
 within 1.6–2.3s (measured, n=12 — see ``_STATUS_CHANGE_TIMEOUT_MS``).
 Either action still re-reads the page's status to verify the change really
 happened, never trusting the click alone.
+
+That pre-retry re-read matters because the poll has a deadline: a click
+whose status update arrives after it must not be clicked again, or suspend
+would toggle straight back and unarchive would re-archive. For the same
+reason a button that has *vanished* between the read and the click is
+checked against the status before being reported as missing — for
+``resume`` the page swaps ``.resume`` for ``.stop`` the moment the status
+flips, so "the button is gone" is usually proof the mutation succeeded, not
+evidence of a markup change.
 
 ``archive_master`` (issue #633, live-recon confirmed no separate "delete"
 exists for Мастер кампаний — only archive; see the issue comment). Both
@@ -2051,22 +2060,52 @@ def _click_and_wait_for_status_change(
     saw a permanent failure across repeated CLI runs while the pre-existing
     60s budget (#758/#764) merely made each failure slower.
 
-    Each attempt clicks once, then polls the status for
-    ``_STATUS_CHANGE_TIMEOUT_MS`` (calibrated to the measured 1.6–2.3s real
-    latency, see that constant). Re-clicking is safe because the poll below
-    exits the moment the status does change: an already-effective click is
-    never followed by a second one.
+    Each attempt re-reads the status BEFORE clicking, then clicks once, then
+    polls for ``_STATUS_CHANGE_TIMEOUT_MS`` (calibrated to the measured
+    1.6–2.3s real latency, see that constant).
+
+    The pre-click re-read is what makes re-clicking safe. The poll alone is
+    not enough: it gives up at the 8s deadline, so a click that lands but
+    whose status update arrives late would otherwise be followed by a second
+    click that undoes it. Worse for ``resume`` — once the status flips, the
+    DOM swaps ``CampaignHeader.ActionButton.resume`` for ``.stop``, so the
+    re-click finds neither the testid nor the fallback labels and raises
+    "could not find an action button" for a mutation that actually
+    succeeded. Reading first turns both cases into a plain success.
     """
-    last_seen = current_status
+    last_seen: Optional[str] = current_status
     started = _clock.now()
     for attempt in range(1, _STATUS_CLICK_MAX_ATTEMPTS + 1):
-        _click_action_button(page, button_texts, selector=selector)
+        if attempt > 1:
+            # A previous attempt's click may have landed after its poll gave
+            # up (see docstring) -- check before clicking again, never after.
+            seen = _read_status_text(page)
+            if seen is not None:
+                last_seen = seen
+            if last_seen in target_statuses:
+                _log_timing(f"landed late, before click x{attempt}", started, last_seen)
+                return last_seen  # type: ignore[return-value]
+
+        try:
+            _click_action_button(page, button_texts, selector=selector)
+        except BrowserSessionError:
+            # The button can legitimately vanish between the read above and
+            # this click: the status flipped in that window, and the page
+            # re-rendered the opposite action (resume -> stop). Re-read once
+            # before surfacing this -- "button gone because we already
+            # succeeded" must not be reported as a failure.
+            seen = _read_status_text(page)
+            if seen in target_statuses:
+                _log_timing(f"button gone, already {seen}", started, seen)
+                return seen  # type: ignore[return-value]
+            raise
+
         last_seen = _poll_status(
             page, current_status=current_status, target_statuses=target_statuses
         )
         if last_seen in target_statuses:
             _log_timing(f"action-button click x{attempt}", started, last_seen)
-            return last_seen
+            return last_seen  # type: ignore[return-value]
 
     raise BrowserSessionError(
         f"{action_description} for campaign {campaign_id} "
@@ -2245,12 +2284,34 @@ def _click_menu_item_and_wait_for_status(
     last_seen: Optional[str] = current_status
     started = _clock.now()
     for attempt in range(1, _STATUS_CLICK_MAX_ATTEMPTS + 1):
-        _click_menu_item(
-            page,
-            campaign_id,
-            item_selector=item_selector,
-            item_label=item_label,
-        )
+        if attempt > 1:
+            # Same pre-click re-read as the action-button loop: a click whose
+            # status update arrived after its poll gave up must not be
+            # followed by another one (unarchive is reversible, but a
+            # re-archive would be a real, unwanted mutation).
+            seen = _read_status_text(page)
+            if seen is not None:
+                last_seen = seen
+            if last_seen in target_statuses:
+                _log_timing(f"landed late, before click x{attempt}", started, last_seen)
+                return last_seen  # type: ignore[return-value]
+
+        try:
+            _click_menu_item(
+                page,
+                campaign_id,
+                item_selector=item_selector,
+                item_label=item_label,
+            )
+        except BrowserSessionError:
+            # The menu item disappears once the campaign leaves ARCHIVED --
+            # "gone because it worked" is a success, not a failure.
+            seen = _read_status_text(page)
+            if seen in target_statuses:
+                _log_timing(f"menu item gone, already {seen}", started, seen)
+                return seen  # type: ignore[return-value]
+            raise
+
         last_seen = _poll_status(
             page, current_status=current_status, target_statuses=target_statuses
         )

@@ -31,6 +31,14 @@
   archived campaign as "no status yet", skip the unarchive step, and hunt
   for a resume button an archived page never renders — leaving the campaign
   archived behind a misleading "could not find the button" error.
+- The retry loop now re-reads the status *immediately before* every retry,
+  and treats a vanished button as success when the status already reached
+  its target. Both close the same gap: the poll has a deadline, so a click
+  that lands but whose status update arrives late used to be followed by a
+  second click — which for `suspend` toggles the campaign straight back, and
+  for `resume` finds the page has already swapped `.resume` for `.stop` and
+  reports "could not find an action button" for a mutation that in fact
+  succeeded. The module docstring claimed this check existed; now it does.
 - Temporary, off by default: setting `DIRECT_MASTERS_DEBUG_TIMING=1` prints
   to stderr how long each of these waits actually took and how many clicks a
   status change needed, so the remaining unmeasured budget can be set from

@@ -3009,6 +3009,125 @@ class TestSuspendResumeMaster(unittest.TestCase):
         self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
         self.assertEqual(state["clicks"], 1)
 
+    def test_no_second_click_when_the_first_lands_after_the_poll_deadline(self):
+        """A click whose status update arrives only after the poll gave up
+        must not be clicked again — the retry loop re-reads the status
+        immediately before every retry, so the late-but-successful click is
+        recognised instead of being undone.
+
+        Without that pre-click re-read the loop would click a second time and
+        toggle the campaign straight back to ACTIVE, reporting a failure for
+        a mutation that had in fact succeeded.
+        """
+        state = {"status": "Кампания активна", "clicks": 0, "poll_done": False}
+
+        def _click():
+            state["clicks"] += 1
+            # Each click toggles: a second one would undo the first.
+            state["status"] = (
+                "Кампания остановлена"
+                if state["status"] == "Кампания активна"
+                else "Кампания активна"
+            )
+
+        page = FakePage(
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_click)]
+                )
+            },
+        )
+
+        # Model "the update landed just after the poll's deadline": every read
+        # the first attempt's poll makes still reports the OLD status, so the
+        # poll times out and the loop goes around for a second attempt. Only
+        # then does the real (already-changed) status become visible -- which
+        # is exactly what the pre-click re-read must catch.
+        # Hide the change for exactly as many reads as the first attempt's
+        # poll makes (its full budget, since it never sees a target status),
+        # so the poll times out and the loop goes around. The very next read
+        # is attempt 2's pre-click re-read -- the one under test.
+        poll_reads = int(browser_masters._STATUS_CHANGE_TIMEOUT_MS / 250) + 1
+        reads = {"n": 0}
+
+        def _inner_text(selector=None):
+            if not state["clicks"]:
+                return "Кампания активна"
+            reads["n"] += 1
+            if reads["n"] <= poll_reads:
+                return "Кампания активна"
+            return state["status"]
+
+        page.inner_text = _inner_text
+
+        result = browser_masters.suspend_master(page, 42)
+
+        # The button stays present throughout, so the ONLY thing that can stop
+        # a second (toggling) click is the pre-click re-read -- this test does
+        # not share the vanished-button escape hatch the next one covers.
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+        self.assertEqual(
+            state["clicks"],
+            1,
+            "the late-landing first click must be detected by the pre-retry "
+            "re-read, not followed by a second click that toggles it back",
+        )
+
+    def test_vanished_button_is_success_when_status_already_changed(self):
+        """Once the status flips, the page swaps `.resume` for `.stop` — so a
+        button that disappeared between the status read and the click is
+        proof the mutation succeeded, not a markup change. It must not be
+        reported as "could not find an action button".
+        """
+        state = {"status": "Кампания активна", "clicks": 0}
+
+        def _click():
+            state["clicks"] += 1
+            state["status"] = "Кампания остановлена"
+
+        # Visible for the first click, gone afterwards (as the real page does
+        # once the status flips and it re-renders the opposite action).
+        class _VanishingLocator:
+            def count(self):
+                return 0 if state["clicks"] else 1
+
+            def nth(self, i):
+                return _FakeTextLocatorHandle(visible=True, on_click=_click)
+
+        page = FakePage(
+            text_buttons={"Остановить кампанию": _VanishingLocator()},
+        )
+
+        # Same late-landing shape as the test above, but here the pre-click
+        # re-read is deliberately starved: the status stays hidden until AFTER
+        # that read, so the loop reaches `_click_action_button` and finds the
+        # button gone. That must resolve to success, not "could not find".
+        # Hide the change through the first attempt's whole poll AND through
+        # attempt 2's pre-click re-read, so the loop actually reaches
+        # `_click_action_button` and hits the vanished button. Only the read
+        # inside the resulting rescue path sees the true status -- which is
+        # precisely the branch under test.
+        poll_reads = int(browser_masters._STATUS_CHANGE_TIMEOUT_MS / 250) + 1
+        reads = {"n": 0}
+
+        def _inner_text(selector=None):
+            if not state["clicks"]:
+                return "Кампания активна"
+            reads["n"] += 1
+            # +1 for attempt 2's pre-click re-read, which must NOT be the one
+            # that rescues this case.
+            if reads["n"] <= poll_reads + 1:
+                return "Кампания активна"
+            return state["status"]
+
+        page.inner_text = _inner_text
+
+        result = browser_masters.suspend_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+        self.assertEqual(state["clicks"], 1)
+
     def test_suspend_prefers_the_stable_testid_over_the_text_fallback(self):
         """Issue #766: the action buttons carry live-confirmed testids
         (`CampaignHeader.ActionButton.stop`/`.resume`); the Russian-label
