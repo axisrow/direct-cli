@@ -5901,6 +5901,15 @@ class TestAddTargetAction(unittest.TestCase):
         cannot tell "absent" from "present but not actionable", so the code
         cannot distinguish them — but the message can name both, instead of
         sending the user to audit counter setup that is fine.
+
+        Issue #783 round 3: a positive ``count()`` read ALSO cannot prove
+        the trigger is genuinely actionable — a disabled "Добавить" (e.g.
+        the linked Metrika counter has no goals on offer) satisfies
+        ``count() > 0`` too. So this branch must no longer claim a single
+        cause; it must carry BOTH the hydration-race explanation and the
+        counter/promotion-goal audit steps inline, since a dangling
+        cross-reference to an unreachable branch left the counter-audit
+        diagnosis unreachable from here entirely.
         """
         # Both triggers time out on every attempt — the shape a still-
         # hydrating page presents.
@@ -5929,13 +5938,22 @@ class TestAddTargetAction(unittest.TestCase):
             "bound — on a slow page this sends the user to audit a Metrika "
             "counter that is fine",
         )
-        # A present-but-unresponsive trigger is NOT a counter/promotion-goal
-        # problem, so the error must not lead with that diagnosis.
-        self.assertNotIn(
+        # The counter/promotion-goal audit steps must be reachable from
+        # THIS message directly — no dangling "(see below)" cross-reference
+        # to an unreachable branch (issue #783 finding 1).
+        self.assertIn(
             "max-conversions",
             message,
-            "a trigger that is present but slow was blamed on the campaign's "
-            "promotion goal / Metrika counter setup",
+            "a genuinely-stuck disabled trigger (count()>0 but never "
+            "actionable) must still surface actionable counter/"
+            "promotion-goal audit steps, not just a 're-run' suggestion "
+            "pointing nowhere",
+        )
+        self.assertIn(
+            "targetactions get",
+            message,
+            "the counter-audit command must be named inline, not left "
+            "behind a dangling cross-reference",
         )
 
     def test_still_blames_the_counter_when_no_trigger_is_on_the_page_at_all(self):
@@ -5972,6 +5990,115 @@ class TestAddTargetAction(unittest.TestCase):
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters._add_target_action(page, 226158067, 77)
         self.assertIn("Added goal 226158067", str(ctx.exception))
+
+    def test_does_not_hedge_the_counter_diagnosis_once_the_section_has_settled(
+        self,
+    ):
+        """The counterpart to the two tests below: when the trigger WAS
+        clicked (``ever_clicked=True``) and the "Целевые действия" row count
+        has genuinely settled before the option-wait gives up, the exhausted
+        popup read is a trustworthy observation — the message may keep its
+        confident counter/promotion-goal diagnosis, with no hydration hedge
+        appended (issue #783). Unregistered row-prefix locator here reads a
+        stable 0 on every poll, so ``_wait_for_target_actions_settled``
+        settles immediately."""
+        add_button = _FakeLocatorHandle()
+        page = FakePage(
+            locators={
+                self._add_button_testid(): _FakeLocator([add_button]),
+                self._option_testid(226158067): _FakeLocator(
+                    [_FakeLocatorHandle(visible=False)]
+                ),
+            }
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_target_action(page, 226158067, 77)
+
+        message = str(ctx.exception)
+        self.assertIn("226158067", message)
+        self.assertIn("max-conversions", message)
+        self.assertNotIn(
+            "had not finished settling",
+            message,
+            "a settled section still got the hydration hedge appended, so "
+            "a confident-and-correct diagnosis now reads as uncertain",
+        )
+
+    def test_hedges_the_counter_diagnosis_when_clicked_but_section_never_settled(
+        self,
+    ):
+        """Issue #783 finding 2: ``ever_clicked=True`` observes only that
+        the option did not become visible WITHIN the bound
+        (``_TARGET_ACTION_ADD_OPTION_MAX_ATTEMPTS *
+        _POPUP_APPEAR_TIMEOUT_MS`` = 7500ms), which is shorter than the
+        section's documented hydration bound
+        (``_TARGET_ACTION_SETTLE_TIMEOUT_MS``). If the row count never even
+        settles within that longer bound either, the popup may simply have
+        been slow — the message must not assert the counter/promotion-goal
+        cause alone; it must also carry the hydration-race possibility.
+
+        Models a row-prefix locator whose ``.count()`` never repeats the
+        same value twice in a row, so ``_wait_for_target_actions_settled``
+        can never accumulate a streak and returns ``False``."""
+        add_button = _FakeLocatorHandle()
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+
+        class _NeverStableLocator:
+            def __init__(self):
+                self._n = 0
+
+            def count(self):
+                self._n += 1
+                return self._n % 2
+
+            def nth(self, i):
+                # Only `_target_action_row_count`'s trigger-order hint reads
+                # this (via `.count()` above, always 0 or 1); it is unrelated
+                # to the settling gate under test, so a harmless empty
+                # handle is enough to keep that unrelated call from raising.
+                return _FakeLocatorHandle(attrs={"data-testid": ""})
+
+        page = FakePage(
+            locators={
+                self._add_button_testid(): _FakeLocator([add_button]),
+                self._option_testid(226158067): _FakeLocator(
+                    [_FakeLocatorHandle(visible=False)]
+                ),
+            }
+        )
+        original_locator = page.locator
+        never_stable = _NeverStableLocator()
+
+        def _stub_locator(selector):
+            if selector == row_prefix_selector:
+                return never_stable
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with (
+            patch.object(browser_masters, "_TARGET_ACTION_SETTLE_TIMEOUT_MS", 50),
+            patch.object(browser_masters, "_TARGET_ACTION_STABLE_TICK_MS", 5),
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._add_target_action(page, 226158067, 77)
+
+        message = str(ctx.exception)
+        self.assertIn("226158067", message)
+        # Still names the counter/promotion-goal audit steps — they remain
+        # a real possibility, just no longer the SOLE claimed cause.
+        self.assertIn("max-conversions", message)
+        self.assertRegex(
+            message,
+            r"(?i)had not finished settling|slow to render",
+            "an unsettled section after a clicked trigger must hedge the "
+            "counter/promotion-goal diagnosis with the hydration-race "
+            "possibility, not assert the counter cause alone",
+        )
 
 
 class TestRemoveTargetAction(unittest.TestCase):
