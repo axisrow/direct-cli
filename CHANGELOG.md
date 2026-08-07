@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Fixed
+
+**`masters` — `_metrika_counter_identity` now normalizes surrounding
+whitespace around a non-empty counter id (#809).**
+
+The suggestion-text format (`"{label} • {domain/path} • {numeric counter
+id}"`) and the read-back tag-display format (`"{domain} • {numeric
+counter id}\n{N} целей"`) aren't guaranteed to have identical whitespace
+around the id token on both sides — e.g. a trailing space before the
+newline in the tag-display format. The extracted identity is now
+`.strip()`-ed when non-empty before being returned, so
+`_verify_saved`'s `Counter` comparison no longer reports a false
+save-mismatch for an `--add-metrika-counter` that actually succeeded. The
+existing empty/whitespace-only fallback behavior (return the original
+text unchanged when there's no real id) is unchanged.
+
+Cycle-review round 2 (Codex): stripping is only applied when the result
+is a genuine numeric id (`.isdigit()`) — real counter ids are numeric.
+A stripped non-numeric token falls back to the unstripped original, so
+two malformed non-numeric inputs that differ only by surrounding
+whitespace (e.g. `"Label A •  foo "` vs `"Label B • foo "`) still don't
+collapse to the same identity, preserving the function's documented
+"malformed inputs must not silently match" invariant.
+
 ### Added
 
 **`masters update --add-metrika-counter`/`--remove-metrika-counter` —

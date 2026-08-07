@@ -5328,12 +5328,29 @@ def _metrika_counter_identity(text: str) -> str:
     this, two malformed/unexpected inputs would both collapse to the same
     identity and silently match each other, masking a real mismatch instead
     of failing to match anything (the intended, safe failure mode).
+
+    A non-empty id is also stripped of surrounding whitespace (issue #809):
+    the suggestion format (``"...• 88834924"``) and the two-line tag-display
+    format (``"...• 12345 \\n30 целей"``) aren't guaranteed to have identical
+    whitespace around the id token on both sides, and an unstripped identity
+    would make ``_verify_saved``'s ``Counter`` comparison report a false
+    save-mismatch for an add that actually succeeded. The stripped token is
+    only used as the identity when it's a genuine numeric id (``.isdigit()``
+    — real counter ids are numeric, confirmed live, see above); a stripped
+    NON-numeric token falls back to the unstripped original (cycle-review
+    finding, PR #810 round 2: without this guard, two malformed inputs that
+    differ only by surrounding whitespace around non-numeric text — e.g.
+    ``"Label A •  foo "`` vs ``"Label B • foo "`` — would both collapse to
+    ``"foo"`` and silently match each other, the exact "no false positive
+    for malformed input" failure mode the empty/whitespace-only guard above
+    already exists to prevent).
     """
     first_line = text.split("\n", 1)[0]
     if " • " not in first_line:
         return text
-    identity = first_line.rsplit(" • ", 1)[1]
-    return identity if identity.strip() else text
+    raw_identity = first_line.rsplit(" • ", 1)[1]
+    stripped_identity = raw_identity.strip()
+    return stripped_identity if stripped_identity.isdigit() else text
 
 
 def _read_metrika_counters(page: "Page") -> List[str]:
