@@ -83,6 +83,20 @@ messages no longer unconditionally claim "the video set has NOT been
 changed" when one or more `--remove-video` removals already ran earlier in
 the same `masters update` call.
 
+**Wording fix (cycle-review round 2):** the round-1 message above still
+overclaimed certainty it did not have — it asserted prior removals
+"already ran and are NOT affected by this failure", but whether
+`--remove-video`'s close-button click actually commits without the page's
+own Save is itself unverified (see the honesty note above). The message
+now says the removals ran but their commit status is unconfirmed, and
+tells the user to verify manually. The upload-landing timeout message is
+similarly softened: it polls the same page-level video list
+`--remove-video` uses, not a modal-internal list (unlike images, which
+have a confirmed-live modal-internal list precisely because the page-level
+one only updates on Save) — if videos behave the same way, this poll can
+never succeed, and the error message now says so instead of implying only
+"processing" was slow.
+
 **`masters delete` — remove a DRAFT Мастер кампаний campaign (#782).**
 
 A DRAFT campaign was previously a one-way door: its overview page has no

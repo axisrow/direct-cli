@@ -10283,12 +10283,24 @@ def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
 
     ``prior_removals`` (issue #648 cycle-review round 1 of PR #806): the
     caller passes the count of ``--remove-video`` calls that already ran in
-    this same ``update_master`` invocation, since removal happens directly
-    on the edit page (no modal, no Save gate — see ``_remove_video``'s
-    docstring) and is therefore already committed by the time this function
-    runs. Every error message below is worded accordingly — it must never
-    claim "the video set has NOT been changed" when a prior removal may
-    already have taken effect.
+    this same ``update_master`` invocation. Every error message below is
+    worded accordingly — it must never claim "the video set has NOT been
+    changed" when a prior removal may already have taken effect.
+
+    NOT LIVE-VERIFIED (cycle-review round 2 of PR #806): whether
+    ``_remove_video``'s click actually commits without the page's Save is
+    itself unverified (see that function's docstring), so when
+    ``prior_removals`` is nonzero this function cannot assert the removals
+    are safely committed — only that they already ran and their outcome is
+    unconfirmed. Likewise the upload-landing poll below reads
+    ``_read_videos``, the same page-level list ``_remove_video`` polls —
+    unlike images, where the modal has its own confirmed-live
+    modal-internal list (``_read_modal_selected_thumb_urls``) precisely
+    because the page-level list only updates on Save. No modal-internal
+    video list has been found or confirmed, so this poll's assumption that
+    an uploaded video shows up in the page-level list before Save is
+    unverified and, if wrong, ``--add-video`` fails after every real
+    upload.
     """
     _wait_for_videos_editor(page)
     before_urls = _read_videos(page)
@@ -10308,9 +10320,11 @@ def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
         if not prior_removals
         else (
             f"NOTE: {prior_removals} --remove-video removal(s) requested "
-            "earlier in this same command already ran and are NOT "
-            "affected by this failure — removal happens directly on the "
-            "edit page, with no Save gate of its own. Verify the "
+            "earlier in this same command already ran, but this add "
+            "failure happened before the modal's Save — whether those "
+            "removals are actually committed on Yandex's side is NOT "
+            "LIVE-VERIFIED (they may require the page's own Save like "
+            "every other field, or may already be final). Verify the "
             "campaign's current video set manually before retrying."
         )
     )
@@ -10332,10 +10346,12 @@ def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
     ):
         raise BrowserSessionError(
             f"Uploaded {path!r} inside the video manager modal, but no new "
-            f"video appeared there within {_VIDEO_UPLOAD_TIMEOUT_MS / 1000:.0f}s "
-            "— Yandex's asynchronous processing may have failed or be "
-            "unusually slow, or this command's assumptions about the "
-            f"modal's markup may simply be wrong (NOT LIVE-VERIFIED). "
+            f"video appeared within {_VIDEO_UPLOAD_TIMEOUT_MS / 1000:.0f}s "
+            "in the page-level video list this command polls — Yandex's "
+            "asynchronous processing may have failed or be unusually "
+            "slow, or (NOT LIVE-VERIFIED) the uploaded video may only be "
+            "staged inside the modal and never promoted to that list "
+            "until Save, in which case this poll can never succeed. "
             f"{no_change_note}"
         )
 
