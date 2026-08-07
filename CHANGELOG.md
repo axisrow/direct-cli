@@ -26,6 +26,38 @@ whitespace (e.g. `"Label A •  foo "` vs `"Label B • foo "`) still don't
 collapse to the same identity, preserving the function's documented
 "malformed inputs must not silently match" invariant.
 
+**`masters update --add-video`/`--remove-video` — corrected guessed video
+upload-modal testids to their real values (#788 follow-up to #806).**
+
+PR #806 shipped `--add-video`/`--remove-video` with the upload modal's own
+DOM (its testid, file-input testid, Save button testid) modeled purely by
+analogy with `--image`'s modal — explicitly flagged NOT LIVE-VERIFIED. Live
+read-only recon (2026-08-07, campaign 713234191: opened the modal,
+inspected its DOM, clicked Cancel — no upload, no Save) found three of
+those guesses were wrong:
+
+- Modal testid: `VideoSuggestionsEditorModal` (guessed) →
+  `VideoSuggestionsEditor.Modal` (real)
+- File input testid: `VideoSuggestionsEditorModal.UploadZone.filePicker`
+  (guessed) → `VideoSuggestionsEditor.UploadZone.FileUploader.FileUploaderInput`
+  (real)
+- Save button testid: `VideoSuggestionsEditorModal.Save` (guessed) →
+  `VideoSuggestionsEditor.Save` (real)
+
+Also widened `_VIDEO_UPLOAD_SUFFIXES` from the guessed `{.mp4, .mov, .avi}`
+to `{.mp4, .webm, .mov, .flv, .avi}`, matching the file input's real
+`accept="video/mp4,video/webm,video/quicktime,video/x-flv,video/avi"`
+attribute read live. Confirmed the modal's UPLOAD tab is active by default
+(no extra tab click needed before `set_input_files`) and that it has a
+working `VideoSuggestionsEditor.Cancel` button PR #806 never modeled.
+
+**Still NOT LIVE-VERIFIED**: an actual file upload was never attempted (no
+rollback available on this account), so the upload-then-poll-then-Save
+sequence itself, and whether `--remove-video`'s click commits without a
+page-level Save, remain unconfirmed. See the module comments above
+`_VIDEOS_MODAL_SELECTOR` in `direct_cli/browser/masters.py` for the full
+before/after correction table.
+
 ### Added
 
 **`masters update --add-metrika-counter`/`--remove-metrika-counter` —
