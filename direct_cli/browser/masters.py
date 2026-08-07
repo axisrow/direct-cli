@@ -2992,6 +2992,8 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             campaign_id,
             expected_status="SUSPENDED",
             action_label="Архивировать",
+            not_found_hint="Check `masters list` to see whether it was "
+            "already archived or removed by another session.",
             changed_status_hint="Re-run `masters archive` if you still "
             "intend to archive it.",
         )
@@ -3521,6 +3523,8 @@ def copy_master(
         campaign_id,
         expected_status=existing["Status"],
         action_label="Клонировать",
+        not_found_hint="Check `masters list` to see whether it was already "
+        "removed by another session.",
         changed_status_hint="Re-run `masters copy` if you still intend to "
         "clone it — this is not idempotent, so check first whether an "
         "earlier attempt already created a copy.",
