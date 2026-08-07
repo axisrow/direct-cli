@@ -1026,6 +1026,37 @@ def _validate_image_files(paths: "tuple[str, ...]") -> None:
         _validate_image_path(raw_path, option_name="--image-file", context="")
 
 
+def _validate_video_path(raw_path: str) -> None:
+    """Reject an ``--add-video`` path that doesn't exist or that this
+    command doesn't recognize as a video file.
+
+    Mirrors ``_validate_image_path``, but the extension allowlist
+    (``_VIDEO_UPLOAD_SUFFIXES``) is NOT a confirmed-live reading of the
+    video modal's file input the way ``_IMAGE_UPLOAD_SUFFIXES`` is for
+    images — see that constant's module comment in
+    ``direct_cli/browser/masters.py``. It is a conservative guess (common
+    Yandex video-creative formats), so this check may reject a file Yandex
+    would actually accept, or (less likely) accept one it would reject.
+    """
+    from ..browser.masters import _VIDEO_UPLOAD_SUFFIXES
+
+    path = Path(raw_path)
+    if not path.is_file():
+        raise click.UsageError(
+            f"--add-video path {raw_path!r} does not exist or is not a file."
+        )
+    if path.suffix.lower() not in _VIDEO_UPLOAD_SUFFIXES:
+        raise click.UsageError(
+            f"--add-video path {raw_path!r} has an unsupported extension "
+            f"{path.suffix!r}. This command expects one of "
+            f"{sorted(_VIDEO_UPLOAD_SUFFIXES)} — NOTE this list is not "
+            "live-confirmed against Yandex's actual upload widget (see "
+            "direct_cli/browser/masters.py's _VIDEO_UPLOAD_SUFFIXES "
+            "comment), so a genuinely valid video file may still be "
+            "rejected here."
+        )
+
+
 @masters.group("adimages")
 def adimages():
     """Manage a Мастер кампаний campaign's image set (browser-driven, no API)
@@ -1566,6 +1597,34 @@ def audience_get(
     ),
 )
 @click.option(
+    "--add-video",
+    help=(
+        "Upload a local video file, appending it to the 'Варианты видео' "
+        "section (Yandex's own UI states a maximum of 2 videos per "
+        "campaign — NOT independently verified by exceeding it). Refused "
+        "if the campaign already has 2 videos. UNLIKE --image, this is a "
+        "plain add, not a positional replacement — Yandex assigns the new "
+        "video's URL, which is not known ahead of time. NOTE: this "
+        "command's video-upload flow (the modal it opens, the fields "
+        "inside it) has NOT been confirmed against the real Yandex UI — "
+        "only the section itself and its open button were observed live; "
+        "see direct_cli/browser/masters.py's module comments above "
+        "_VIDEOS_SLOT_COUNT for exactly what is/isn't confirmed."
+    ),
+)
+@click.option(
+    "--remove-video",
+    "remove_videos",
+    multiple=True,
+    help=(
+        "Remove a video by its exact URL as shown on the edit page (repeat "
+        "for multiple). There is no CLI command yet to list a campaign's "
+        "current video URLs — inspect the edit page directly (e.g. "
+        "--headful) to find them. Refused if the URL is not currently in "
+        "the campaign's video set."
+    ),
+)
+@click.option(
     "--gender",
     type=click.Choice(sorted(_GENDER_CHOICES)),
     help="Target gender (Пол)",
@@ -1711,6 +1770,8 @@ def update(
     clear_headlines,
     clear_texts,
     images,
+    add_video,
+    remove_videos,
     gender,
     age_from,
     age_to,
@@ -1788,9 +1849,26 @@ def update(
     rationale. ``--image`` additionally has NO in-place replacement at all
     on Yandex's side — see its own help text and
     ``direct_cli/browser/masters.py::_set_image`` for why the image set's
-    order changes as a result. Later fields (sitelinks, budget adaptation)
-    and video (a separate follow-up issue) are tracked separately, see
-    issue #648.
+    order changes as a result. Later fields (sitelinks, Metrika
+    counters/goals, budget adaptation) are tracked separately, see issue
+    #648.
+
+    ``--add-video``/``--remove-video`` (issue #648, Этап D) manage the
+    "Варианты видео" section — UNLIKE ``--image``, this is a plain
+    add/remove pair rather than a positional point-replacement (Yandex's
+    own UI caps this at 2 videos per campaign, and 2026-08-06 recon found
+    the remove control lives outside any modal, directly on the edit
+    page — see ``direct_cli/browser/masters.py::update_master``'s
+    docstring for the full reasoning). ``--add-video`` takes a local file
+    path and is refused once the campaign already has 2 videos.
+    ``--remove-video`` takes the video's exact URL (repeat for multiple);
+    there is no CLI command yet to list a campaign's current video URLs.
+    **Large parts of this flag's implementation are NOT LIVE-VERIFIED** —
+    only the section and its open button were confirmed against a real
+    campaign; the upload modal itself is assumed by analogy with
+    ``--image``'s modal and could be wrong. See
+    ``direct_cli/browser/masters.py``'s module comments above
+    ``_VIDEOS_SLOT_COUNT`` for the exact confirmed-vs-assumed breakdown.
 
     ``--clear-headline``/``--clear-text`` (issue #786) DELETE an existing
     headline/ad-text variant by its 1-based slot number, the counterpart
@@ -1866,6 +1944,8 @@ def update(
         and not clear_headlines
         and not clear_texts
         and not images
+        and add_video is None
+        and not remove_videos
         and gender is None
         and age_from is None
         and age_to is None
@@ -1882,8 +1962,9 @@ def update(
             "--goal-price, --target-action-price, --add-target-action, "
             "--remove-target-action, --directs-helps/--no-directs-helps, "
             "--name, --landing-url, --tracking-params, --headline, --text, "
-            "--clear-headline, --clear-text, --image, --gender, --age-from, "
-            "--age-to, --device, --add-audience-tag, --remove-audience-tag, "
+            "--clear-headline, --clear-text, --image, --add-video, "
+            "--remove-video, --gender, --age-from, --age-to, --device, "
+            "--add-audience-tag, --remove-audience-tag, "
             "--add-metrika-counter, --remove-metrika-counter, "
             "--add-sitelink, --remove-sitelink."
         )
@@ -1977,6 +2058,8 @@ def update(
         ),
     )
     _validate_image_paths(parsed_images)
+    if add_video is not None:
+        _validate_video_path(add_video)
 
     parsed_age_from = int(age_from) if age_from is not None else None
     parsed_age_to = (
@@ -2014,6 +2097,8 @@ def update(
             clear_headlines=parsed_clear_headlines or None,
             clear_texts=parsed_clear_texts or None,
             images=parsed_images,
+            add_video=add_video,
+            remove_videos=list(remove_videos) or None,
             gender=gender,
             age_from=parsed_age_from,
             age_from_requested=age_from is not None,

@@ -934,6 +934,70 @@ _IMAGES_EDITOR_TIMEOUT_MS = 60_000
 # pays this as fixed latency once per edit-page visit.
 _IMAGES_GHOST_GRACE_S = 20.0
 
+# Video variants ("Варианты видео", issue #648 Этап D). CONFIRMED LIVE
+# 2026-08-06 (campaign 713277109, one existing video at recon time) — but
+# ONLY the testids OUTSIDE the modal, in a general page-wide testid dump that
+# never clicked ``VideoSuggestionsEditor.Open``:
+#
+#   VideoSuggestionsEditor                                    (section, DIV)
+#   VideoSuggestionsEditor.Open                                (open button)
+#   VideoSuggestionsEditor.CampaignContents                    (list container)
+#   VideoSuggestionsEditor.CampaignContents.<video_url>        (one video's
+#       card — the testid's suffix is the FULL video URL, e.g.
+#       "https://storage.mds.yandex.net/get-bstor/.../foo.mp4", not a
+#       Yandex-assigned short id the way images use a content id)
+#   VideoSuggestionsEditor.CampaignContents.VideoThumb.<video_url>
+#   VideoSuggestionsEditor.CampaignContents.VideoThumb.<video_url>.Content
+#   VideoSuggestionsEditor.CampaignContents.VideoThumb.<video_url>.VideoElement
+#   VideoSuggestionsEditor.CampaignContents.VideoThumb.<video_url>.PlayButton
+#   VideoSuggestionsEditor.CampaignContents.CloseButton.<video_url>
+#
+# The recon dump showed ``CloseButton.<video_url>`` present OUTSIDE the modal,
+# directly on the edit page — unlike images, where both add AND remove only
+# exist inside ``ImageSuggestionsEditorModal``. This module therefore models
+# removal as a direct click on the page, no modal — see ``_remove_video``.
+# NOT LIVE-VERIFIED: the click itself was never exercised (recon only
+# enumerated testids), so this is "the button exists" confirmed, not "the
+# button works as expected" confirmed.
+_VIDEOS_EDITOR_SELECTOR = '[data-testid="VideoSuggestionsEditor"]'
+_VIDEOS_CONTENT_TESTID_PREFIX = "VideoSuggestionsEditor.CampaignContents."
+_VIDEOS_OPEN_MODAL_SELECTOR = '[data-testid="VideoSuggestionsEditor.Open"]'
+_VIDEOS_CLOSE_BUTTON_TESTID_TEMPLATE = (
+    "VideoSuggestionsEditor.CampaignContents.CloseButton.{video_url}"
+)
+# UI copy next to the section reads "Максимум 2 видео" — an upper bound
+# stated in the page's own text, NOT live-verified by actually attempting a
+# 3rd upload. Mirrors ``_HEADLINES_SLOT_COUNT``/``_TEXTS_SLOT_COUNT`` in
+# spirit (a fixed cap used for a fail-fast CLI/browser-layer check) but,
+# like ``_IMAGES_MAX_COUNT``, only bounds "attempt to add more than this" —
+# the real per-campaign state is always ``len(_read_videos(page))``, read
+# fresh from the page.
+_VIDEOS_SLOT_COUNT = 2
+#
+# EVERYTHING BELOW THIS POINT IS ZERO-LIVE-CONFIRMATION, ASSUMED PURELY BY
+# ANALOGY WITH THE IMAGES MODAL (``ImageSuggestionsEditorModal`` and its
+# constants above). The 2026-08-06 recon that found the testids above was a
+# byproduct of an unrelated sitelinks recon pass and never clicked
+# ``VideoSuggestionsEditor.Open`` — so none of the modal's own markup,
+# including whether it is even called ``VideoSuggestionsEditorModal``, has
+# ever been observed. Treat every name below as a best-effort guess that
+# code review / a future live pass may need to correct outright.
+_VIDEOS_MODAL_SELECTOR = '[data-testid="VideoSuggestionsEditorModal"]'
+_VIDEOS_MODAL_FILE_INPUT_SELECTOR = (
+    '[data-testid="VideoSuggestionsEditorModal.UploadZone.filePicker"]'
+)
+_VIDEOS_MODAL_SAVE_SELECTOR = '[data-testid="VideoSuggestionsEditorModal.Save"]'
+# Yandex's own docs for video creatives commonly cite MP4/MOV/AVI; picked as
+# a conservative, documented-elsewhere starting point, but the modal file
+# input's real ``accept=`` attribute has never been observed live (unlike
+# ``_IMAGE_UPLOAD_SUFFIXES``, which IS a confirmed-live reading of the
+# images modal's file input). Re-verify against the real input before
+# relying on this list to reject anything Yandex would actually accept.
+_VIDEO_UPLOAD_SUFFIXES = frozenset({".mp4", ".mov", ".avi"})
+_VIDEO_MODAL_OPEN_TIMEOUT_MS = 10_000
+_VIDEO_UPLOAD_TIMEOUT_MS = 60_000
+_VIDEOS_EDITOR_TIMEOUT_MS = 60_000
+
 # Region picker (issue #653 re-recon, 2026-08-02): Yandex replaced the old
 # text-combobox-with-suggestions flow with a tree/tag-group widget
 # (``data-testid="RegionsTreeEditor"``). Confirmed live: the tag group's
@@ -6589,6 +6653,9 @@ def _verify_saved(
     texts: Optional[Dict[int, str]] = None,
     images_before_ids: Optional[List[str]] = None,
     images_replaced_ids: Optional[Set[str]] = None,
+    videos_before_urls: Optional[List[str]] = None,
+    video_added: bool = False,
+    videos_removed: Optional[List[str]] = None,
     goal_price: Optional[float] = None,
     target_action_prices: Optional[Dict[int, float]] = None,
     add_target_actions: Optional[Dict[int, float]] = None,
@@ -7251,6 +7318,14 @@ def _verify_saved(
             replaced_ids=images_replaced_ids or set(),
         )
     )
+    mismatches.extend(
+        _verify_video_mismatches(
+            page,
+            before_urls=videos_before_urls or [],
+            added=video_added,
+            removed_urls=videos_removed or [],
+        )
+    )
 
     if mismatches:
         raise BrowserSessionError(
@@ -7281,6 +7356,8 @@ def update_master(
     clear_headlines: Optional[List[int]] = None,
     clear_texts: Optional[List[int]] = None,
     images: Optional[Dict[int, str]] = None,
+    add_video: Optional[str] = None,
+    remove_videos: Optional[List[str]] = None,
     gender: Optional[str] = None,
     age_from: Optional[int] = None,
     age_from_requested: bool = False,
@@ -7371,6 +7448,31 @@ def update_master(
     empty set, or to a position beyond the campaign's actual image count,
     raises ``BrowserSessionError``.
 
+    ``add_video``/``remove_videos`` (issue #648, Этап D) cover the
+    "Варианты видео" section — the UI's own copy states a cap of
+    ``_VIDEOS_SLOT_COUNT`` (2) videos per campaign, NOT independently
+    live-verified by exceeding it. Unlike ``images``, this is deliberately
+    a SIMPLE add/remove pair, not a positional point-replacement:
+    2026-08-06 recon (see the module comment above ``_VIDEOS_SLOT_COUNT``)
+    found the per-video close button lives OUTSIDE the (assumed) video
+    manager modal, directly on the edit page — a materially different
+    shape from images, where both remove and add only happen inside
+    ``ImageSuggestionsEditorModal``. With a hard cap of 2 and remove being
+    a plain identity-based operation (by video URL, via `masters update`'s
+    own read of the set, no position resolution needed), a synthetic
+    remove+add point-replacement composed the way ``_set_image`` composes
+    it would only be adding complexity images needed and videos have not
+    been shown to. ``add_video`` is a single local file path — Yandex
+    processes uploads asynchronously (same pattern as images), and this
+    refuses up front if the set is already at the cap. ``remove_videos``
+    lists video URLs to remove (see `masters update`'s own read via
+    ``_read_videos``, exposed by no CLI reader command yet — retrieving
+    the current set today means inspecting the edit page directly, e.g.
+    ``--headful``). **NOT LIVE-VERIFIED beyond the section/open-button
+    testids** — see ``_add_video``/``_remove_video``/module comments for
+    exactly which pieces are confirmed live vs. assumed by analogy with
+    images.
+
     ``gender``/``age_from``/``age_to``/``devices``/``add_audience_tags``/
     ``remove_audience_tags`` (issue #681, Этап C) cover the "Аудитория"
     section's manual-targeting fields — see ``_set_gender``/
@@ -7428,8 +7530,14 @@ def update_master(
     if/when added, or re-read via ``_read_sitelinks``) — removed
     high-to-low internally, same reasoning as ``remove_audience_tags``.
 
-    Later Этап C fields — goals, budget adaptation — plus video (a separate
-    follow-up issue, different upload control/pipeline) are out of scope
+    ``add_video``/``remove_videos`` (issue #648, Этап D) manage the campaign's
+    video variants in the "Варианты видео" section. ``add_video`` takes a
+    local file PATH and uploads it; ``remove_videos`` takes a list of video
+    URLs to remove. See ``_add_video``, ``_remove_video``, ``_verify_video_mismatches``
+    for implementation details. Not fully live-verified (see the module comment
+    above ``_VIDEOS_SLOT_COUNT`` for the confirmed-vs-assumed breakdown).
+
+    Later Этап C fields — goals, budget adaptation — remain out of scope
     for this function; see issue #648.
 
     ``launch`` (issue #668) matters only when ``campaign_id`` is currently a
@@ -7497,6 +7605,8 @@ def update_master(
         and not clear_headlines
         and not clear_texts
         and not images
+        and add_video is None
+        and not remove_videos
         and gender is None
         and not age_from_requested
         and not age_to_requested
@@ -7514,8 +7624,8 @@ def update_master(
             "target_action_prices, add_target_actions, "
             "remove_target_action_goal_ids, directs_helps, name, "
             "landing_url, tracking_params, headlines, texts, "
-            "clear_headlines, clear_texts, images, "
-            "gender, age_from, age_to, devices, "
+            "clear_headlines, clear_texts, images, add_video, "
+            "remove_videos, gender, age_from, age_to, devices, "
             "add_audience_tags, remove_audience_tags, "
             "add_metrika_counters, remove_metrika_counters, "
             "add_sitelinks, remove_sitelinks)."
@@ -7927,6 +8037,53 @@ def update_master(
         images_replaced_ids.add(target_content_id)
         _set_image(page, index, path, target_content_id=target_content_id)
 
+    # Snapshotted BEFORE any video mutation, same reasoning as
+    # ``images_before_ids`` above — ``_verify_saved`` needs the pre-mutation
+    # set to derive the expected post-save state. Unlike images, there is no
+    # per-item resolution step here (add/remove are both identity-based by
+    # URL, not position — see ``update_master``'s own docstring for why),
+    # so this is a simple snapshot rather than an index->id map.
+    if add_video is not None or remove_videos:
+        _wait_for_videos_editor(page)
+    videos_before_urls = (
+        _read_videos(page) if (add_video is not None or remove_videos) else []
+    )
+    # Preflight ALL --remove-video URLs against the pre-mutation snapshot
+    # before clicking anything — mirrors _set_image's "resolve every target
+    # up front" rule for identity-based (not position-based) removal. A
+    # duplicate URL, or a valid URL followed by an invalid one, must never
+    # let an earlier _remove_video click go through before the batch is
+    # known to be entirely valid: unlike sitelinks/metrika-counters/
+    # audience-tags (position-based, removed high-to-low against a fixed-
+    # length list), a video's identity is its URL, and only one close
+    # button exists for it — re-checking mid-loop against a snapshot that
+    # is never updated would let a duplicate URL wrongly appear "still
+    # present" after its first removal already ran.
+    if remove_videos:
+        seen: Set[str] = set()
+        duplicates: Set[str] = set()
+        for url in remove_videos:
+            if url in seen:
+                duplicates.add(url)
+            else:
+                seen.add(url)
+        if duplicates:
+            raise BrowserSessionError(
+                "Duplicate URL(s) in --remove-video: "
+                f"{', '.join(repr(url) for url in sorted(duplicates))} — each video "
+                "can only be removed once per command."
+            )
+        missing = [url for url in remove_videos if url not in videos_before_urls]
+        if missing:
+            raise BrowserSessionError(
+                "Video(s) not present in this campaign's current video "
+                f"set — nothing to remove: {', '.join(repr(url) for url in missing)}."
+            )
+    for video_url in remove_videos or []:
+        _remove_video(page, video_url)
+    if add_video is not None:
+        _add_video(page, add_video, prior_removals=len(remove_videos or []))
+
     # was_draft was captured right after _wait_for_edit_form, above — reused
     # here rather than re-derived, for the same reason _click_save takes it
     # as an explicit argument instead of re-querying the DOM itself.
@@ -7974,6 +8131,9 @@ def update_master(
             texts=verify_texts or None,
             images_before_ids=images_before_ids,
             images_replaced_ids=images_replaced_ids,
+            videos_before_urls=videos_before_urls,
+            video_added=add_video is not None,
+            videos_removed=remove_videos,
             goal_price=goal_price,
             target_action_prices=target_action_prices,
             add_target_actions=add_target_actions,
@@ -8002,7 +8162,7 @@ def update_master(
             "but the session was invalidated while verifying the save — "
             "the requested changes were likely already applied; check "
             f"campaign {campaign_id} manually rather than retrying "
-            "(image replacements are not idempotent)."
+            "(image/video replacements are not idempotent)."
         ) from exc
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
@@ -8036,6 +8196,10 @@ def update_master(
         result["ClearedTexts"] = sorted(clear_texts)
     if images:
         result["Images"] = images
+    if add_video is not None:
+        result["AddedVideo"] = add_video
+    if remove_videos:
+        result["RemovedVideos"] = list(remove_videos)
     if gender is not None:
         result["Gender"] = gender
     if age_from_requested:
@@ -9989,6 +10153,326 @@ def _verify_image_set_mismatches(
     if len(actual_ids) != expected_size:
         mismatches.append(
             f"image set now has {len(actual_ids)} image(s), expected "
+            f"{expected_size}"
+        )
+    return mismatches
+
+
+def _wait_for_videos_editor(page: "Page") -> None:
+    """Block until the "Варианты видео" section has actually rendered.
+
+    Modeled directly on ``_wait_for_images_editor`` — same SPA-hydration
+    hazard (an empty read before the section mounts is indistinguishable
+    from a campaign that genuinely has zero videos) — but WITHOUT that
+    function's stub/ghost-render handling: the multi-stage render sequence
+    ``_wait_for_images_editor`` guards against was only ever observed for
+    the images section specifically (issue #687), and there is no live
+    evidence the videos section behaves the same way. This only waits for
+    ``_VIDEOS_EDITOR_SELECTOR`` itself to appear — a strictly weaker
+    guarantee than the images function provides. If the videos section
+    turns out to have its own stub/ghost render stages, this will need the
+    same fix ``_wait_for_images_editor`` already went through; nothing here
+    rules that out, it simply has not been observed yet.
+    """
+    if _poll_until(
+        page,
+        lambda: page.locator(_VIDEOS_EDITOR_SELECTOR).first.count() > 0,
+        _VIDEOS_EDITOR_TIMEOUT_MS,
+    ):
+        return
+
+    raise BrowserSessionError(
+        "The edit page's 'Варианты видео' section did not finish rendering "
+        f"within {_VIDEOS_EDITOR_TIMEOUT_MS / 1000:.0f}s, so this command "
+        "cannot tell whether the campaign has videos or not. Yandex may "
+        "have changed the page's markup, or the page may still be loading. "
+        "Re-run with --headful to inspect the page."
+    )
+
+
+def _read_videos(page: "Page") -> List[str]:
+    """Read the campaign's current video set as an ordered list of video
+    URLs.
+
+    Confirmed live 2026-08-06 (campaign 713277109, recon dump, NOT a
+    targeted video recon — see the module comment above
+    ``_VIDEOS_SLOT_COUNT``) that each video renders FOUR testids sharing the
+    same ``<video_url>`` suffix under ``VideoSuggestionsEditor.
+    CampaignContents.``: the bare card
+    (``VideoSuggestionsEditor.CampaignContents.<video_url>``), plus
+    ``VideoThumb.<video_url>``, ``VideoThumb.<video_url>.Content``, and
+    ``VideoThumb.<video_url>.VideoElement``/``.PlayButton`` nested under
+    that, and a sibling ``CloseButton.<video_url>``. Only the bare card
+    (no further ``.`` after the URL... except the URL itself contains no
+    ``.`` -delimited testid segments beyond its own scheme/host/path, which
+    ``_read_testid_suffixes`` cannot tell apart from a deliberate suffix) —
+    so, mirroring ``_read_modal_selected_thumb_urls``'s skip-list approach
+    for images, every suffix that STARTS WITH one of the known nested-testid
+    prefixes (``VideoThumb.`` or ``CloseButton.``) is treated as a
+    sub-element of a card already counted via its own bare-URL entry, not a
+    distinct video.
+    """
+    suffixes = _read_testid_suffixes(page, _VIDEOS_CONTENT_TESTID_PREFIX)
+    return [
+        suffix
+        for suffix in suffixes
+        if not suffix.startswith("VideoThumb.")
+        and not suffix.startswith("CloseButton.")
+    ]
+
+
+def _open_videos_modal(page: "Page") -> None:
+    """Click the video section's "Open" button and wait for the video
+    manager modal to render.
+
+    NOT LIVE-VERIFIED. Modeled directly on ``_open_images_modal`` — the only
+    confirmed-live piece here is that ``_VIDEOS_OPEN_MODAL_SELECTOR``
+    (``VideoSuggestionsEditor.Open``) exists on the page before any click
+    (2026-08-06 recon). Whether clicking it opens a modal at all, and
+    whether that modal is really called ``VideoSuggestionsEditorModal``, is
+    a pure analogy with images — see the module comment above
+    ``_VIDEOS_MODAL_SELECTOR``.
+    """
+    open_button = page.locator(_VIDEOS_OPEN_MODAL_SELECTOR).first
+    try:
+        open_button.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find/click the video section's 'Open' button — "
+            "Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page."
+        ) from exc
+
+    if _poll_until(
+        page,
+        lambda: page.locator(_VIDEOS_MODAL_SELECTOR).first.count() > 0,
+        _VIDEO_MODAL_OPEN_TIMEOUT_MS,
+    ):
+        return
+
+    raise BrowserSessionError(
+        "Clicked the video section's 'Open' button but the video manager "
+        f"modal (assumed testid, NOT live-verified) did not appear within "
+        f"{_VIDEO_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s — Yandex may have "
+        "changed the page's markup, or this command's assumption about the "
+        "modal's testid is simply wrong. Re-run with --headful to inspect "
+        "the page."
+    )
+
+
+def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
+    """Upload a new video file, appending it to the campaign's video set.
+
+    NOT LIVE-VERIFIED beyond the section/open-button testids confirmed by
+    the 2026-08-06 recon (see module comments above ``_VIDEOS_SLOT_COUNT``/
+    ``_VIDEOS_MODAL_SELECTOR``). Modeled directly on ``_set_image``'s
+    upload half (open modal, upload via hidden file input, poll for the new
+    card, click Save) — but WITHOUT the remove step, since videos have no
+    point-replacement here: the caller (``update_master``) treats video as
+    simple add/remove-by-URL, not position-indexed replacement (see
+    ``update_master``'s docstring for why: the confirmed-live recon found
+    ``CloseButton.<video_url>`` OUTSIDE the modal, on the edit page itself,
+    which is a materially different shape from images' remove-only-inside-
+    the-modal behaviour — a synthetic remove+add point-replacement would be
+    inventing complexity images needed and videos have not been shown to).
+
+    Refuses up front if the set is already at ``_VIDEOS_SLOT_COUNT`` — a
+    real cap enforced ahead of any upload attempt, though the number itself
+    is only sourced from the page's own "Максимум 2 видео" copy, not from
+    actually trying to exceed it live.
+
+    ``prior_removals`` (issue #648 cycle-review round 1 of PR #806): the
+    caller passes the count of ``--remove-video`` calls that already ran in
+    this same ``update_master`` invocation. Every error message below is
+    worded accordingly — it must never claim "the video set has NOT been
+    changed" when a prior removal may already have taken effect.
+
+    NOT LIVE-VERIFIED (cycle-review round 2 of PR #806): whether
+    ``_remove_video``'s click actually commits without the page's Save is
+    itself unverified (see that function's docstring), so when
+    ``prior_removals`` is nonzero this function cannot assert the removals
+    are safely committed — only that they already ran and their outcome is
+    unconfirmed. Likewise the upload-landing poll below reads
+    ``_read_videos``, the same page-level list ``_remove_video`` polls —
+    unlike images, where the modal has its own confirmed-live
+    modal-internal list (``_read_modal_selected_thumb_urls``) precisely
+    because the page-level list only updates on Save. No modal-internal
+    video list has been found or confirmed, so this poll's assumption that
+    an uploaded video shows up in the page-level list before Save is
+    unverified and, if wrong, ``--add-video`` fails after every real
+    upload.
+    """
+    _wait_for_videos_editor(page)
+    before_urls = _read_videos(page)
+
+    if len(before_urls) >= _VIDEOS_SLOT_COUNT:
+        raise BrowserSessionError(
+            f"This campaign already has {len(before_urls)} video(s) — "
+            f"Yandex's own UI states a maximum of {_VIDEOS_SLOT_COUNT} "
+            "per campaign. Remove one first with --remove-video."
+        )
+
+    _open_videos_modal(page)
+
+    no_change_note = (
+        "The campaign's saved video set has NOT been changed (the "
+        "modal was never saved)."
+        if not prior_removals
+        else (
+            f"NOTE: {prior_removals} --remove-video removal(s) requested "
+            "earlier in this same command already ran, but this add "
+            "failure happened before the modal's Save — whether those "
+            "removals are actually committed on Yandex's side is NOT "
+            "LIVE-VERIFIED (they may require the page's own Save like "
+            "every other field, or may already be final). Verify the "
+            "campaign's current video set manually before retrying."
+        )
+    )
+
+    try:
+        page.locator(_VIDEOS_MODAL_FILE_INPUT_SELECTOR).first.set_input_files(path)
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not upload {path!r} inside the video manager modal "
+            "(assumed testid, NOT live-verified) — Yandex may have changed "
+            f"the page's markup. Re-run with --headful to inspect the page. "
+            f"{no_change_note}"
+        ) from exc
+
+    if not _poll_until(
+        page,
+        lambda: len(_read_videos(page)) > len(before_urls),
+        _VIDEO_UPLOAD_TIMEOUT_MS,
+    ):
+        raise BrowserSessionError(
+            f"Uploaded {path!r} inside the video manager modal, but no new "
+            f"video appeared within {_VIDEO_UPLOAD_TIMEOUT_MS / 1000:.0f}s "
+            "in the page-level video list this command polls — Yandex's "
+            "asynchronous processing may have failed or be unusually "
+            "slow, or (NOT LIVE-VERIFIED) the uploaded video may only be "
+            "staged inside the modal and never promoted to that list "
+            "until Save, in which case this poll can never succeed. "
+            f"{no_change_note}"
+        )
+
+    try:
+        page.locator(_VIDEOS_MODAL_SAVE_SELECTOR).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find/click the video manager modal's Save button "
+            "(assumed testid, NOT live-verified) — Yandex may have changed "
+            f"the page's markup. Re-run with --headful to inspect the page. "
+            f"{no_change_note}"
+        ) from exc
+
+    if _poll_until(
+        page,
+        lambda: page.locator(_VIDEOS_MODAL_SELECTOR).first.count() == 0,
+        _VIDEO_MODAL_OPEN_TIMEOUT_MS,
+    ):
+        return
+
+    raise BrowserSessionError(
+        "Clicked the video manager modal's Save button but it did not "
+        f"close within {_VIDEO_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s — the "
+        "commit may not have completed. Verify manually before retrying."
+    )
+
+
+def _remove_video(page: "Page", video_url: str) -> None:
+    """Remove one video by its URL, directly on the edit page — NO modal.
+
+    Confirmed live 2026-08-06 (recon dump, campaign 713277109): the close
+    button (``VideoSuggestionsEditor.CampaignContents.CloseButton.
+    <video_url>``) is present OUTSIDE the modal, on the edit page itself,
+    unlike images where removal only happens inside
+    ``ImageSuggestionsEditorModal``. This is the one part of the video
+    surface simpler than images as a direct consequence of that recon
+    finding.
+
+    NOT LIVE-VERIFIED: the click itself, and whether it actually removes
+    the video (as opposed to, say, opening a confirmation dialog first, or
+    doing nothing until some other action commits it) — the recon only
+    enumerated testids present in the DOM, it never clicked anything video-
+    related. This function assumes a direct click removes the video
+    immediately, mirroring the confirmed-live click-and-poll shape used
+    throughout this module (e.g. ``_clear_repeating_value``), but that
+    assumption itself is unverified for this specific button.
+    """
+    close_selector = (
+        f'[data-testid="'
+        f"{_VIDEOS_CLOSE_BUTTON_TESTID_TEMPLATE.format(video_url=video_url)}"
+        f'"]'
+    )
+    try:
+        page.locator(close_selector).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not find/click the close button for video {video_url!r} "
+            "— it may already have been removed, or Yandex may have "
+            "changed the page's markup. Re-run with --headful to inspect "
+            "the page."
+        ) from exc
+
+    if _poll_until(
+        page,
+        lambda: video_url not in _read_videos(page),
+        _VIDEO_MODAL_OPEN_TIMEOUT_MS,
+    ):
+        return
+
+    raise BrowserSessionError(
+        f"Clicked the close button for video {video_url!r}, but it is "
+        f"still shown on the page after "
+        f"{_VIDEO_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s. Yandex may have "
+        "rejected the removal, or this command's assumption that the "
+        "click removes it immediately (NOT LIVE-VERIFIED) may be wrong."
+    )
+
+
+def _verify_video_mismatches(
+    page: "Page",
+    *,
+    before_urls: List[str],
+    added: bool,
+    removed_urls: "Sequence[str]",
+) -> List[str]:
+    """Re-read the campaign's saved video set and confirm it matches the
+    expected end state after ``update_master``'s add/remove.
+
+    Modeled on ``_verify_image_set_mismatches``'s absolute-end-state check
+    (removed URLs gone, kept URLs still present, size matches), adapted for
+    video's simple add/remove-by-URL semantics (no positional replacement —
+    see ``_add_video``'s docstring for why). A newly added video's URL is
+    not known ahead of time (Yandex assigns it during upload, same
+    limitation ``_verify_image_set_mismatches`` already documents for
+    images' content ids), so ``added`` only asserts a COUNT increase of
+    exactly one, never identity.
+    """
+    if not added and not removed_urls:
+        return []
+
+    _wait_for_videos_editor(page)
+    actual_urls = _read_videos(page)
+
+    mismatches = []
+    still_present = [url for url in removed_urls if url in actual_urls]
+    if still_present:
+        mismatches.append(
+            "video(s) that should have been removed are still present: "
+            + ", ".join(still_present)
+        )
+    expected_kept = [url for url in before_urls if url not in removed_urls]
+    missing_kept = [url for url in expected_kept if url not in actual_urls]
+    if missing_kept:
+        mismatches.append(
+            "video(s) that should have been left untouched are now "
+            "missing: " + ", ".join(missing_kept)
+        )
+    expected_size = len(expected_kept) + (1 if added else 0)
+    if len(actual_urls) != expected_size:
+        mismatches.append(
+            f"video set now has {len(actual_urls)} video(s), expected "
             f"{expected_size}"
         )
     return mismatches

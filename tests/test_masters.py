@@ -9983,6 +9983,183 @@ class TestUpdateMaster(unittest.TestCase):
         # implying nothing happened.
         self.assertIn("42", str(ctx.exception))
 
+    def test_raises_value_error_when_only_empty_remove_videos_list_provided(self):
+        page = FakePage()
+
+        with self.assertRaises(ValueError):
+            browser_masters.update_master(page, 42, remove_videos=[])
+
+    def test_update_master_adds_a_video(self):
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"],
+            upload_urls=["https://a.test/new.mp4"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(page, 42, add_video="/tmp/fake.mp4")
+
+        self.assertEqual(page.urls, ["https://a.test/1.mp4", "https://a.test/new.mp4"])
+        self.assertEqual(len(page_save_clicks), 1)
+        self.assertEqual(result, {"CampaignId": 42, "AddedVideo": "/tmp/fake.mp4"})
+
+    def test_update_master_removes_a_video(self):
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4", "https://a.test/2.mp4"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(
+            page, 42, remove_videos=["https://a.test/1.mp4"]
+        )
+
+        self.assertEqual(page.urls, ["https://a.test/2.mp4"])
+        self.assertEqual(len(page_save_clicks), 1)
+        self.assertEqual(
+            result,
+            {"CampaignId": 42, "RemovedVideos": ["https://a.test/1.mp4"]},
+        )
+
+    def test_update_master_raises_when_removing_a_video_not_present(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, remove_videos=["https://nonexistent.test/x.mp4"]
+            )
+
+        self.assertIn("not present", str(ctx.exception).lower())
+
+    def test_update_master_raises_before_mutating_when_a_later_remove_url_is_invalid(
+        self,
+    ):
+        # Preflight: with two --remove-video URLs where the first is valid
+        # and the second is not, nothing on the page should be clicked —
+        # the whole batch is validated against the pre-mutation snapshot
+        # before any _remove_video call, mirroring _set_image's "resolve
+        # every target up front" pattern for identity-based (not
+        # position-based) removal.
+        page = _FakeVideosPage(["https://a.test/1.mp4", "https://a.test/2.mp4"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page,
+                42,
+                remove_videos=[
+                    "https://a.test/1.mp4",
+                    "https://nonexistent.test/x.mp4",
+                ],
+            )
+
+        self.assertIn("not present", str(ctx.exception).lower())
+        self.assertEqual(page.urls, ["https://a.test/1.mp4", "https://a.test/2.mp4"])
+
+    def test_update_master_raises_when_remove_videos_has_a_duplicate_url(self):
+        # A duplicate URL in --remove-video must not be treated as "still
+        # present" by a stale snapshot re-check — it must be rejected
+        # up front as a caller error, the same way _set_image treats a
+        # content ID that already disappeared earlier in the same batch.
+        page = _FakeVideosPage(["https://a.test/1.mp4", "https://a.test/2.mp4"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page,
+                42,
+                remove_videos=["https://a.test/1.mp4", "https://a.test/1.mp4"],
+            )
+
+        self.assertIn("duplicate", str(ctx.exception).lower())
+        self.assertEqual(page.urls, ["https://a.test/1.mp4", "https://a.test/2.mp4"])
+
+    def test_add_video_failure_after_a_prior_remove_does_not_claim_no_change(self):
+        # A --remove-video is committed directly on the page, with no Save
+        # gate of its own (see _remove_video's docstring) — so if a
+        # following --add-video then fails, the error must not claim "the
+        # video set has NOT been changed": the removal already ran.
+        page = _FakeVideosPage(["https://a.test/1.mp4", "https://a.test/2.mp4"])
+        original_locator = page.locator
+
+        def _locator(selector):
+            if selector == browser_masters._VIDEOS_MODAL_FILE_INPUT_SELECTOR:
+                return _FakeLocator([_FakeLocatorHandle(raises=True)])
+            return original_locator(selector)
+
+        page.locator = _locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page,
+                42,
+                remove_videos=["https://a.test/1.mp4"],
+                add_video="/tmp/fake.mp4",
+            )
+
+        message = str(ctx.exception)
+        self.assertNotIn("has NOT been changed", message)
+        self.assertIn("1 --remove-video removal(s)", message)
+        self.assertEqual(page.urls, ["https://a.test/2.mp4"])
+
+    def test_update_master_raises_when_saved_video_set_does_not_match(self):
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"],
+            upload_urls=["https://a.test/new.mp4"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+        original_click = save_handle._on_click
+
+        def _click():
+            original_click()
+            page.urls = ["https://a.test/1.mp4"]  # revert, as if not saved
+
+        save_handle._on_click = _click
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, add_video="/tmp/fake.mp4")
+
+        self.assertEqual(len(page_save_clicks), 1)
+        self.assertIn("did not save as requested", str(ctx.exception))
+
+    def test_auth_error_during_post_save_video_verification_is_not_retried(self):
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"],
+            upload_urls=["https://a.test/new.mp4"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        original_assert_authenticated = browser_masters.assert_authenticated
+
+        def _assert_authenticated(content):
+            if page_save_clicks:
+                raise BrowserAuthError("stale session, detected mid-body")
+            return original_assert_authenticated(content)
+
+        with patch.object(
+            browser_masters,
+            "assert_authenticated",
+            side_effect=_assert_authenticated,
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.update_master(page, 42, add_video="/tmp/fake.mp4")
+
+        self.assertNotIsInstance(ctx.exception, BrowserAuthError)
+        self.assertEqual(len(page_save_clicks), 1)
+        self.assertIn("42", str(ctx.exception))
+
 
 class TestMastersUpdateCommand(unittest.TestCase):
     """CLI wiring for `masters update` (issue #631, Этап A)."""
@@ -11195,6 +11372,117 @@ class TestMastersUpdateCommand(unittest.TestCase):
 
                 self.assertEqual(result.exit_code, 0, result.output)
                 self.assertEqual(mock_update.call_args.kwargs["images"], {1: f.name})
+
+    def test_documents_add_video_and_remove_video_flags(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--add-video", result.output)
+        self.assertIn("--remove-video", result.output)
+
+    def test_rejects_a_nonexistent_video_path(self):
+        result = self.runner.invoke(
+            cli, ["masters", "update", "42", "--add-video", "/no/such/file.mp4"]
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("does not exist", result.output.lower())
+
+    def test_rejects_an_unsupported_video_extension(self):
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".txt") as f:
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--add-video", f.name]
+            )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("unsupported extension", result.output.lower())
+
+    def test_video_format_errors_do_not_open_a_browser_session(self):
+        with patch("direct_cli.commands.masters._with_session") as mock_with_session:
+            result = self.runner.invoke(
+                cli, ["masters", "update", "42", "--add-video", "/no/such/file.mp4"]
+            )
+        self.assertNotEqual(result.exit_code, 0)
+        mock_with_session.assert_not_called()
+
+    def test_add_video_flag_alone_satisfies_the_at_least_one_field_guard(self):
+        import tempfile
+
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            with tempfile.NamedTemporaryFile(suffix=".mp4") as f:
+                result = self.runner.invoke(
+                    cli, ["masters", "update", "42", "--add-video", f.name]
+                )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_remove_video_flag_alone_satisfies_the_at_least_one_field_guard(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--remove-video",
+                    "https://a.test/1.mp4",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_calls_update_master_with_add_video_path(self):
+        import tempfile
+
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            with tempfile.NamedTemporaryFile(suffix=".mov") as f:
+                result = self.runner.invoke(
+                    cli, ["masters", "update", "42", "--add-video", f.name]
+                )
+
+                self.assertEqual(result.exit_code, 0, result.output)
+                self.assertEqual(mock_update.call_args.kwargs["add_video"], f.name)
+                self.assertIsNone(mock_update.call_args.kwargs["remove_videos"])
+
+    def test_calls_update_master_with_remove_video_urls(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--remove-video",
+                    "https://a.test/1.mp4",
+                    "--remove-video",
+                    "https://a.test/2.mp4",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            mock_update.call_args.kwargs["remove_videos"],
+            ["https://a.test/1.mp4", "https://a.test/2.mp4"],
+        )
+        self.assertIsNone(mock_update.call_args.kwargs["add_video"])
 
 
 class TestMastersAdimagesCommand(unittest.TestCase):
@@ -13116,6 +13404,353 @@ class _FakeImagesPage(FakePage):
             new_id = f"uploaded-{self._upload_call}"
         self._upload_call += 1
         self.ids.append(new_id)
+
+
+class _FakeVideosPage(FakePage):
+    """Models the "Варианты видео" section + its (assumed) modal (issue
+    #648, Этап D).
+
+    Modeled directly on ``_FakeImagesPage``, with the same caveat the
+    production code carries: only the section/open-button/close-button
+    shape is grounded in a live recon (2026-08-06, campaign 713277109); the
+    modal internals (file input, Save button) are pure analogy with
+    images' fake, not a confirmed shape. ``urls`` doubles as both the
+    page-level video list AND (once open) the modal's own state — real
+    Playwright behaviour for the modal was never observed, so there is
+    nothing to model differently there yet.
+
+    Unlike ``_FakeImagesPage``, the close button lives on ``page`` itself,
+    not gated behind ``modal_open`` — mirrors the recon finding that
+    removal needs no modal at all.
+    """
+
+    def __init__(self, urls, *, save_clicks=None, upload_urls=None, **kwargs):
+        kwargs.setdefault(
+            "role_elements",
+            [
+                (
+                    "button",
+                    browser_masters._SAVE_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(visible=True),
+                )
+            ],
+        )
+        super().__init__(**kwargs)
+        self.urls = list(urls)
+        self.modal_open = False
+        self.save_clicks = save_clicks if save_clicks is not None else []
+        # URLs assigned to successive set_input_files() uploads, one per
+        # call, in order.
+        self._upload_urls = list(upload_urls or [])
+        self._upload_call = 0
+        self.upload_paths = []
+
+    def locator(self, selector):
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        if selector == edit_form_ready_selector:
+            return _FakeLocator([_FakeLocatorHandle()])
+        if selector == browser_masters._VIDEOS_EDITOR_SELECTOR:
+            return _FakeLocator([_FakeLocatorHandle()])
+        if not self.modal_open and selector == browser_masters._VIDEOS_MODAL_SELECTOR:
+            return _FakeLocator([])
+        if self.modal_open and selector == browser_masters._VIDEOS_MODAL_SELECTOR:
+            return _FakeLocator([_FakeLocatorHandle()])
+        if selector == browser_masters._VIDEOS_OPEN_MODAL_SELECTOR:
+            return _FakeLocator(
+                [_FakeLocatorHandle(on_click=lambda: setattr(self, "modal_open", True))]
+            )
+        if selector == browser_masters._VIDEOS_MODAL_FILE_INPUT_SELECTOR:
+            return _FakeLocator([_FakeLocatorHandle(on_upload=self._upload)])
+        if selector == browser_masters._VIDEOS_MODAL_SAVE_SELECTOR:
+            return _FakeLocator(
+                [
+                    _FakeLocatorHandle(
+                        on_click=lambda: (
+                            self.save_clicks.append(True),
+                            setattr(self, "modal_open", False),
+                        )
+                    )
+                ]
+            )
+        content_prefix = (
+            f'[data-testid^="{browser_masters._VIDEOS_CONTENT_TESTID_PREFIX}"]'
+        )
+        if selector == content_prefix:
+            return _FakeLocator(
+                [
+                    _FakeLocatorHandle(attrs={"data-testid": self._content_testid(url)})
+                    for url in self.urls
+                ]
+            )
+        for url in self.urls:
+            close_testid = browser_masters._VIDEOS_CLOSE_BUTTON_TESTID_TEMPLATE.format(
+                video_url=url
+            )
+            close_selector = f'[data-testid="{close_testid}"]'
+            if selector == close_selector:
+                bound_url = url
+                return _FakeLocator(
+                    [
+                        _FakeLocatorHandle(
+                            on_click=lambda bound_url=bound_url: self.urls.remove(
+                                bound_url
+                            )
+                        )
+                    ]
+                )
+        return super().locator(selector)
+
+    def _content_testid(self, url):
+        return f"{browser_masters._VIDEOS_CONTENT_TESTID_PREFIX}{url}"
+
+    def _upload(self, path):
+        self.upload_paths.append(path)
+        if self._upload_call < len(self._upload_urls):
+            new_url = self._upload_urls[self._upload_call]
+        else:
+            new_url = f"https://example.test/uploaded-{self._upload_call}.mp4"
+        self._upload_call += 1
+        self.urls.append(new_url)
+
+
+class TestReadVideos(unittest.TestCase):
+    """``_read_videos`` (issue #648, Этап D)."""
+
+    def test_reads_urls_in_dom_order(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4", "https://a.test/2.mp4"])
+
+        self.assertEqual(
+            browser_masters._read_videos(page),
+            ["https://a.test/1.mp4", "https://a.test/2.mp4"],
+        )
+
+    def test_empty_set_reads_as_empty_list(self):
+        page = _FakeVideosPage([])
+
+        self.assertEqual(browser_masters._read_videos(page), [])
+
+    def test_ignores_nested_videothumb_and_closebutton_suffixes(self):
+        """A real page also renders VideoThumb.<url>[.Content/.VideoElement/
+        .PlayButton] and CloseButton.<url> under the same prefix — only the
+        bare <url> entry should count as one video (see _read_videos'
+        docstring)."""
+        url = "https://a.test/1.mp4"
+        page = FakePage()
+        prefix = browser_masters._VIDEOS_CONTENT_TESTID_PREFIX
+
+        def _locator(selector):
+            if selector == f'[data-testid^="{prefix}"]':
+                testids = [
+                    f"{prefix}{url}",
+                    f"{prefix}VideoThumb.{url}",
+                    f"{prefix}VideoThumb.{url}.Content",
+                    f"{prefix}VideoThumb.{url}.VideoElement",
+                    f"{prefix}VideoThumb.{url}.PlayButton",
+                    f"{prefix}CloseButton.{url}",
+                ]
+                return _FakeLocator(
+                    [_FakeLocatorHandle(attrs={"data-testid": t}) for t in testids]
+                )
+            return _FakeLocator([])
+
+        page.locator = _locator
+
+        self.assertEqual(browser_masters._read_videos(page), [url])
+
+
+class TestWaitForVideosEditor(unittest.TestCase):
+    """``_wait_for_videos_editor`` (issue #648, Этап D)."""
+
+    def test_returns_once_section_present(self):
+        page = _FakeVideosPage([])
+        browser_masters._wait_for_videos_editor(page)  # must not raise
+
+    def test_raises_when_section_never_appears(self):
+        page = FakePage()  # no _VIDEOS_EDITOR_SELECTOR registered
+        with patch.object(browser_masters, "_VIDEOS_EDITOR_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._wait_for_videos_editor(page)
+        self.assertIn("варианты видео", str(ctx.exception).lower())
+
+
+class TestOpenVideosModal(unittest.TestCase):
+    """``_open_videos_modal`` (issue #648, Этап D) — NOT LIVE-VERIFIED, see
+    its own docstring."""
+
+    def test_opens_modal_on_click(self):
+        page = _FakeVideosPage([])
+        browser_masters._open_videos_modal(page)
+        self.assertTrue(page.modal_open)
+
+    def test_raises_when_modal_never_appears(self):
+        page = _FakeVideosPage([])
+        # Sabotage: clicking Open never actually sets modal_open.
+        original_locator = page.locator
+
+        def _locator(selector):
+            if selector == browser_masters._VIDEOS_OPEN_MODAL_SELECTOR:
+                return _FakeLocator([_FakeLocatorHandle(on_click=lambda: None)])
+            return original_locator(selector)
+
+        page.locator = _locator
+        with patch.object(browser_masters, "_VIDEO_MODAL_OPEN_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._open_videos_modal(page)
+        self.assertIn("did not appear", str(ctx.exception))
+
+
+class TestAddVideo(unittest.TestCase):
+    """``_add_video`` (issue #648, Этап D) — NOT LIVE-VERIFIED, see module
+    comments above ``_VIDEOS_SLOT_COUNT``."""
+
+    def test_uploads_and_appends_to_the_set(self):
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"], upload_urls=["https://a.test/new.mp4"]
+        )
+
+        browser_masters._add_video(page, "/tmp/fake.mp4")
+
+        self.assertEqual(page.urls, ["https://a.test/1.mp4", "https://a.test/new.mp4"])
+        self.assertEqual(len(page.save_clicks), 1)
+        self.assertFalse(page.modal_open)
+        self.assertEqual(page.upload_paths, ["/tmp/fake.mp4"])
+
+    def test_refuses_when_already_at_slot_count(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4", "https://a.test/2.mp4"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_video(page, "/tmp/fake.mp4")
+
+        self.assertIn("already has 2", str(ctx.exception).lower())
+        self.assertEqual(page.save_clicks, [])
+        self.assertFalse(page.modal_open)
+
+    def test_does_not_save_when_upload_never_appears(self):
+        page = _FakeVideosPage([], upload_urls=[])
+        original_locator = page.locator
+
+        def _locator(selector):
+            if selector == browser_masters._VIDEOS_MODAL_FILE_INPUT_SELECTOR:
+                return _FakeLocator([_FakeLocatorHandle(on_upload=lambda path: None)])
+            return original_locator(selector)
+
+        page.locator = _locator
+        with patch.object(browser_masters, "_VIDEO_UPLOAD_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._add_video(page, "/tmp/fake.mp4")
+
+        self.assertIn("no new", str(ctx.exception).lower())
+        self.assertEqual(page.save_clicks, [])
+
+
+class TestRemoveVideo(unittest.TestCase):
+    """``_remove_video`` (issue #648, Этап D) — the close-button-testid
+    presence is confirmed live; the click's EFFECT is NOT (see
+    ``_remove_video``'s docstring)."""
+
+    def test_removes_the_named_video(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4", "https://a.test/2.mp4"])
+
+        browser_masters._remove_video(page, "https://a.test/1.mp4")
+
+        self.assertEqual(page.urls, ["https://a.test/2.mp4"])
+
+    def test_does_not_open_a_modal(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4"])
+
+        browser_masters._remove_video(page, "https://a.test/1.mp4")
+
+        self.assertFalse(page.modal_open)
+        self.assertEqual(page.save_clicks, [])
+
+    def test_raises_when_close_button_missing(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._remove_video(page, "https://nonexistent.test/x.mp4")
+
+        self.assertIn("could not find", str(ctx.exception).lower())
+
+    def test_raises_when_click_does_not_actually_remove_it(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4"])
+        original_locator = page.locator
+
+        def _locator(selector):
+            close_testid = browser_masters._VIDEOS_CLOSE_BUTTON_TESTID_TEMPLATE.format(
+                video_url="https://a.test/1.mp4"
+            )
+            close_selector = f'[data-testid="{close_testid}"]'
+            if selector == close_selector:
+                return _FakeLocator([_FakeLocatorHandle(on_click=lambda: None)])
+            return original_locator(selector)
+
+        page.locator = _locator
+        with patch.object(browser_masters, "_VIDEO_MODAL_OPEN_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._remove_video(page, "https://a.test/1.mp4")
+
+        self.assertIn("still shown", str(ctx.exception).lower())
+
+
+class TestVerifyVideoMismatches(unittest.TestCase):
+    """``_verify_video_mismatches`` (issue #648, Этап D)."""
+
+    def test_no_op_when_nothing_touched(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4"])
+
+        result = browser_masters._verify_video_mismatches(
+            page, before_urls=["https://a.test/1.mp4"], added=False, removed_urls=[]
+        )
+
+        self.assertEqual(result, [])
+
+    def test_flags_a_still_present_removed_video(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4"])  # removal didn't take
+
+        result = browser_masters._verify_video_mismatches(
+            page,
+            before_urls=["https://a.test/1.mp4"],
+            added=False,
+            removed_urls=["https://a.test/1.mp4"],
+        )
+
+        self.assertTrue(any("still present" in m for m in result))
+
+    def test_flags_a_missing_kept_video(self):
+        # An untouched video (position 0) vanished even though only
+        # position 1 was requested for removal.
+        page = _FakeVideosPage([])
+        result = browser_masters._verify_video_mismatches(
+            page,
+            before_urls=["https://a.test/1.mp4", "https://a.test/2.mp4"],
+            added=False,
+            removed_urls=["https://a.test/2.mp4"],
+        )
+
+        self.assertTrue(any("missing" in m for m in result))
+
+    def test_flags_a_size_mismatch_when_add_did_not_take(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4"])  # no new video appeared
+
+        result = browser_masters._verify_video_mismatches(
+            page, before_urls=["https://a.test/1.mp4"], added=True, removed_urls=[]
+        )
+
+        self.assertTrue(any("expected 2" in m for m in result))
+
+    def test_passes_when_add_and_remove_both_took_effect(self):
+        page = _FakeVideosPage(["https://a.test/2.mp4", "https://a.test/new.mp4"])
+
+        result = browser_masters._verify_video_mismatches(
+            page,
+            before_urls=["https://a.test/1.mp4", "https://a.test/2.mp4"],
+            added=True,
+            removed_urls=["https://a.test/1.mp4"],
+        )
+
+        self.assertEqual(result, [])
 
 
 class TestReadImageContentIds(unittest.TestCase):

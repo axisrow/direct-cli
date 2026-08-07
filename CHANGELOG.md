@@ -36,6 +36,67 @@ issue #796's target-action price popup). Treat add/remove itself as an
 implementation-by-pattern pending a later live mutation verification pass,
 not a confirmed-working feature.
 
+**`masters update --add-video`/`--remove-video` — manage a campaign's video
+variants (#648, Этап D).**
+
+The "Варианты видео" section's add/remove is a materially different shape
+from `--image`'s point-replacement: a 2026-08-06 recon (a byproduct of an
+unrelated sitelinks recon pass, campaign 713277109) found the per-video
+remove control (`VideoSuggestionsEditor.CampaignContents.CloseButton.
+<video_url>`) rendered OUTSIDE any modal, directly on the edit page —
+unlike images, where both add and remove only happen inside
+`ImageSuggestionsEditorModal`. `--add-video`/`--remove-video` are therefore
+a plain add/remove pair (by video URL, not by position), not a synthetic
+point-replacement:
+
+- `--add-video PATH` uploads a local video file, appending it to the set.
+  Refused once the campaign already has 2 videos (Yandex's own UI states
+  "Максимум 2 видео" — NOT independently verified by exceeding it).
+- `--remove-video URL` removes one video by its exact URL (repeat for
+  multiple). There is no CLI command yet to list a campaign's current
+  video URLs.
+- New browser-layer primitives: `_read_videos`, `_wait_for_videos_editor`,
+  `_open_videos_modal`, `_add_video`, `_remove_video`,
+  `_verify_video_mismatches` (`direct_cli/browser/masters.py`).
+
+**Honesty note on live verification:** only the section itself
+(`VideoSuggestionsEditor`), its open button, and the per-video close
+button's presence outside the modal are confirmed live. The (assumed)
+upload modal's own markup — including whether it is really called
+`VideoSuggestionsEditorModal`, its file input, and its Save button — is
+**pure analogy with the images modal, with zero live confirmation**. The
+close button's CLICK EFFECT (does it really remove the video immediately?)
+is likewise unverified — only its presence in the DOM was observed. See
+the module comments above `_VIDEOS_SLOT_COUNT` in
+`direct_cli/browser/masters.py` for the full confirmed-vs-assumed
+breakdown before relying on this against a real account.
+
+**Preflight fix (cycle-review round 1):** because `--remove-video`'s close
+button commits directly on the edit page with no Save gate of its own —
+unlike images, where remove+add both happen inside a modal and an
+abandoned modal means nothing was mutated — a multiple `--remove-video`
+batch now validates every URL (duplicates and unknown URLs alike) against
+the pre-mutation snapshot up front, before clicking anything. A single
+invalid or repeated URL used to let earlier, valid removals in the same
+batch already execute before the error was raised. `_add_video`'s failure
+messages no longer unconditionally claim "the video set has NOT been
+changed" when one or more `--remove-video` removals already ran earlier in
+the same `masters update` call.
+
+**Wording fix (cycle-review round 2):** the round-1 message above still
+overclaimed certainty it did not have — it asserted prior removals
+"already ran and are NOT affected by this failure", but whether
+`--remove-video`'s close-button click actually commits without the page's
+own Save is itself unverified (see the honesty note above). The message
+now says the removals ran but their commit status is unconfirmed, and
+tells the user to verify manually. The upload-landing timeout message is
+similarly softened: it polls the same page-level video list
+`--remove-video` uses, not a modal-internal list (unlike images, which
+have a confirmed-live modal-internal list precisely because the page-level
+one only updates on Save) — if videos behave the same way, this poll can
+never succeed, and the error message now says so instead of implying only
+"processing" was slow.
+
 **`masters delete` — remove a DRAFT Мастер кампаний campaign (#782).**
 
 A DRAFT campaign was previously a one-way door: its overview page has no
