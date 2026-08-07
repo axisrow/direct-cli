@@ -2953,6 +2953,87 @@ def _scroll_grid_to_row(page: "Page", campaign_id: int) -> bool:
         return False
 
 
+def _open_grid_row_menu(page: "Page", campaign_id: int) -> None:
+    """Open ``campaign_id``'s row menu in the campaigns grid (currently
+    ``delete_master``'s only caller — the row menu with "Удалить" is a
+    separate menu from the overview page's "⋮", see
+    ``_GRID_ROW_ACTIONS_TRIGGER_SELECTOR``).
+
+    Extracted from ``delete_master`` (issue #805, cycle-review-caught, same
+    root cause PR #799 fixed for ``archive_master``/``copy_master``'s
+    overview-page "⋮" menu): ``delete_master``'s own TOCTOU re-check
+    (``_find_master_row``) unconditionally navigates the page
+    (``_capture_grid_campaigns_request``'s ``page.goto(GRID_URL)``), which
+    destroys any row menu already open on the grid page — the SAME page the
+    re-check itself reloads. A caller needs to run this function a SECOND
+    time, right before its own click, after such a re-check — see
+    ``delete_master`` for that call site. Idempotent to call twice in a
+    row: the grid's virtualized-row scroll (``_scroll_grid_to_row``) and
+    the trigger-click retry loop both re-run from scratch against
+    whatever the current page state actually is, never assuming a prior
+    call's locators/scroll position survived.
+
+    Raises ``BrowserSessionError`` if the menu never opens within
+    ``_POPUP_CLICK_MAX_ATTEMPTS`` attempts.
+    """
+    row_selector = _GRID_ROW_SELECTOR_TEMPLATE.format(campaign_id=campaign_id)
+    row = page.locator(row_selector).first
+    trigger = row.locator(_GRID_ROW_ACTIONS_TRIGGER_SELECTOR).first
+    popup = page.locator(_GRID_ROW_ACTIONS_POPUP_SELECTOR).first
+
+    # The grid is a virtualized SPA (module docstring, issues #639/#671) --
+    # a row outside the currently rendered window is simply absent from the
+    # DOM, not just off-screen. _scroll_grid_to_row (issue #791) drives the
+    # grid's own virtual-scroll container until the row actually appears —
+    # unlike scroll_into_view_if_needed() below, which only works on an
+    # element that has already resolved and cannot make an unrendered row
+    # appear on its own. Both are best-effort: a row genuinely unreachable
+    # (removed from the grid's current filter/view entirely) still falls
+    # through to the retry loop below, which raises an honest error rather
+    # than a bare "Yandex changed the markup" misdiagnosis. Always re-run,
+    # even on a second call for the same campaign_id in the same
+    # delete_master invocation (see this function's own docstring) — a
+    # fresh page.goto(GRID_URL) resets the grid's scroll position, so a
+    # prior call's scroll progress cannot be assumed to still hold.
+    _scroll_grid_to_row(page, campaign_id)
+    with contextlib.suppress(PlaywrightError):
+        row.scroll_into_view_if_needed(timeout=_POPUP_APPEAR_TIMEOUT_MS)
+
+    last_exc: Optional[Exception] = None
+    opened = False
+    for _ in range(_POPUP_CLICK_MAX_ATTEMPTS):
+        try:
+            popup.wait_for(state="visible", timeout=1)
+            opened = True
+            break
+        except PlaywrightError:
+            pass
+
+        try:
+            trigger.click()
+        except PlaywrightError as exc:
+            last_exc = exc
+            continue
+
+        try:
+            popup.wait_for(state="visible", timeout=_POPUP_APPEAR_TIMEOUT_MS)
+            opened = True
+            break
+        except PlaywrightError as exc:
+            last_exc = exc
+            continue
+
+    if not opened:
+        raise BrowserSessionError(
+            f"Could not open the campaigns grid row menu for {campaign_id} "
+            f"({row_selector!r} / {_GRID_ROW_ACTIONS_TRIGGER_SELECTOR!r}) — "
+            "either Yandex changed the grid's markup, or this row is not "
+            "currently rendered in the grid's viewport (the grid is a "
+            "virtualized SPA, see module docstring) and needs to be "
+            "scrolled into view manually first."
+        ) from last_exc
+
+
 def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     """Permanently delete a DRAFT Мастер кампаний via the campaigns grid's
     own row menu (issue #782).
@@ -3015,58 +3096,7 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             "archive). Use `masters archive` instead."
         )
 
-    row_selector = _GRID_ROW_SELECTOR_TEMPLATE.format(campaign_id=campaign_id)
-    row = page.locator(row_selector).first
-    trigger = row.locator(_GRID_ROW_ACTIONS_TRIGGER_SELECTOR).first
-    popup = page.locator(_GRID_ROW_ACTIONS_POPUP_SELECTOR).first
-
-    # The grid is a virtualized SPA (module docstring, issues #639/#671) --
-    # a row outside the currently rendered window is simply absent from the
-    # DOM, not just off-screen. _scroll_grid_to_row (issue #791) drives the
-    # grid's own virtual-scroll container until the row actually appears —
-    # unlike scroll_into_view_if_needed() below, which only works on an
-    # element that has already resolved and cannot make an unrendered row
-    # appear on its own. Both are best-effort: a row genuinely unreachable
-    # (removed from the grid's current filter/view entirely) still falls
-    # through to the retry loop below, which raises an honest error rather
-    # than a bare "Yandex changed the markup" misdiagnosis.
-    _scroll_grid_to_row(page, campaign_id)
-    with contextlib.suppress(PlaywrightError):
-        row.scroll_into_view_if_needed(timeout=_POPUP_APPEAR_TIMEOUT_MS)
-
-    last_exc: Optional[Exception] = None
-    opened = False
-    for _ in range(_POPUP_CLICK_MAX_ATTEMPTS):
-        try:
-            popup.wait_for(state="visible", timeout=1)
-            opened = True
-            break
-        except PlaywrightError:
-            pass
-
-        try:
-            trigger.click()
-        except PlaywrightError as exc:
-            last_exc = exc
-            continue
-
-        try:
-            popup.wait_for(state="visible", timeout=_POPUP_APPEAR_TIMEOUT_MS)
-            opened = True
-            break
-        except PlaywrightError as exc:
-            last_exc = exc
-            continue
-
-    if not opened:
-        raise BrowserSessionError(
-            f"Could not open the campaigns grid row menu for {campaign_id} "
-            f"({row_selector!r} / {_GRID_ROW_ACTIONS_TRIGGER_SELECTOR!r}) — "
-            "either Yandex changed the grid's markup, or this row is not "
-            "currently rendered in the grid's viewport (the grid is a "
-            "virtualized SPA, see module docstring) and needs to be "
-            "scrolled into view manually first."
-        ) from last_exc
+    _open_grid_row_menu(page, campaign_id)
 
     # TOCTOU re-check (issue #793, Finding 1): the up-front DRAFT guard above
     # reads the grid via _find_master_row once, but on a shared/agency
@@ -3094,6 +3124,20 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             "if you still intend to remove it, or use `masters archive` "
             "for its current status."
         )
+
+    # The TOCTOU re-check above just navigated the page (issue #805,
+    # cycle-review-caught, same root cause PR #799 fixed for
+    # archive_master/copy_master's own "⋮" popup): _find_master_row ->
+    # fetch_masters_list -> _capture_grid_campaigns_request unconditionally
+    # does page.goto(GRID_URL) to capture the grid's own data request, and
+    # that navigation destroys the row menu popup _open_grid_row_menu just
+    # opened above -- delete_item's locator would otherwise target an
+    # element that no longer exists on the freshly-reloaded grid page,
+    # making delete_master fail EVERY time with a "found but not
+    # clickable" timeout, exactly as issue #805 live-confirmed (campaign
+    # 713359607, 4/4 live attempts). Re-open the row menu fresh before
+    # clicking, mirroring PR #799's own fix for the overview page's menu.
+    _open_grid_row_menu(page, campaign_id)
 
     delete_item = page.locator(_GRID_ROW_DELETE_ITEM_SELECTOR).first
     try:

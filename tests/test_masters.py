@@ -4412,7 +4412,13 @@ class TestDeleteMaster(unittest.TestCase):
         ):
             browser_masters.delete_master(page, self.CAMPAIGN_ID)
 
-        self.assertEqual(len(scroll_calls), 1)
+        # TWO scroll_into_view_if_needed calls, not one (issue #805,
+        # cycle-review-caught): _open_grid_row_menu runs twice -- once to
+        # open the menu initially, once more to re-open it after the
+        # TOCTOU re-check's own fetch_masters_list call (a real
+        # page.goto(GRID_URL) in production) would otherwise have left the
+        # just-opened menu on a page that no longer exists.
+        self.assertEqual(len(scroll_calls), 2)
 
     def test_virtual_scroll_runs_before_scroll_into_view(self):
         # issue #791: _scroll_grid_to_row must run BEFORE
@@ -4457,7 +4463,19 @@ class TestDeleteMaster(unittest.TestCase):
         ):
             browser_masters.delete_master(page, self.CAMPAIGN_ID)
 
-        self.assertEqual(call_order, ["virtual_scroll", "scroll_into_view"])
+        # The pair repeats (issue #805, cycle-review-caught): _open_grid_
+        # row_menu runs twice (initial open + re-open after the TOCTOU
+        # re-check), and each run must still do virtual_scroll before
+        # scroll_into_view within itself.
+        self.assertEqual(
+            call_order,
+            [
+                "virtual_scroll",
+                "scroll_into_view",
+                "virtual_scroll",
+                "scroll_into_view",
+            ],
+        )
 
     def test_virtual_scroll_failure_does_not_abort_delete(self):
         # _scroll_grid_to_row swallows its own PlaywrightError (mirrors
@@ -4632,6 +4650,57 @@ class TestDeleteMaster(unittest.TestCase):
 
         self.assertIn("no longer", str(ctx.exception))
         self.assertEqual(delete_clicked, [])
+
+    def test_reopens_row_menu_after_toctou_recheck_before_clicking(self):
+        # issue #805 (cycle-review-caught, same root cause PR #799 fixed
+        # for archive_master/copy_master's overview-page "⋮" menu): the
+        # TOCTOU re-check's own fetch_masters_list call
+        # (_capture_grid_campaigns_request) unconditionally does
+        # page.goto(GRID_URL) in production -- which unloads the grid
+        # page, destroying the row menu popup _open_grid_row_menu had just
+        # opened above. Clicking the (now-stale) delete_item locator
+        # straight after the re-check would target an element that no
+        # longer exists. delete_master must re-open the row menu (a second
+        # _open_grid_row_menu call) after the re-check runs, before the
+        # actual delete click.
+        #
+        # A DOM-click-count assertion can't distinguish this from the
+        # pre-fix behavior here: this fake's locators are static dicts
+        # with no real page.goto() side effect, so the popup's own
+        # "already visible, don't re-click the trigger" fast path would
+        # make a second real call look identical to zero calls at the DOM
+        # level (see PR #799's own equivalent test for archive_master).
+        # Assert on the call COUNT of _open_grid_row_menu itself instead.
+        page = self._page_with_row_menu(
+            trigger=_FakeLocatorHandle(),
+            delete_item=_FakeLocatorHandle(),
+        )
+        page._locators[browser_masters._GRID_ROW_ACTIONS_POPUP_SELECTOR] = _FakeLocator(
+            [_FakeLocatorHandle()]
+        )
+
+        with (
+            patch(
+                "direct_cli.browser.masters.fetch_masters_list",
+                return_value=[self._row("DRAFT")],
+            ),
+            patch.object(
+                browser_masters,
+                "_open_grid_row_menu",
+                wraps=browser_masters._open_grid_row_menu,
+            ) as open_menu_spy,
+            patch.object(browser_masters, "_DELETE_VERIFY_TIMEOUT_MS", 10),
+        ):
+            # Status stays DRAFT forever (never disappears from the grid),
+            # so this raises the post-click verify timeout -- the point
+            # here isn't the final result, it's that the re-open sequence
+            # ran to completion (the delete click itself) before that.
+            with self.assertRaises(BrowserSessionError):
+                browser_masters.delete_master(page, self.CAMPAIGN_ID)
+
+        # _open_grid_row_menu: once to open the menu initially, once more
+        # to re-open it after the TOCTOU re-check.
+        self.assertEqual(open_menu_spy.call_count, 2)
 
     def test_verify_loop_tolerates_transient_error_then_succeeds(self):
         # issue #793 Finding 2: a transient BrowserSessionError on the FIRST
