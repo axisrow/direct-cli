@@ -1853,7 +1853,7 @@ def update(
     counters/goals, budget adaptation) are tracked separately, see issue
     #648.
 
-    ``--add-video``/``--remove-video`` (issue #648, Этап D) manage the
+    ``--add-video``/``--remove-video`` (issue #648, Этап D / #788) manage the
     "Варианты видео" section — UNLIKE ``--image``, this is a plain
     add/remove pair rather than a positional point-replacement (Yandex's
     own UI caps this at 2 videos per campaign, and 2026-08-06 recon found
@@ -1863,10 +1863,14 @@ def update(
     path and is refused once the campaign already has 2 videos.
     ``--remove-video`` takes the video's exact URL (repeat for multiple);
     there is no CLI command yet to list a campaign's current video URLs.
-    **Large parts of this flag's implementation are NOT LIVE-VERIFIED** —
-    only the section and its open button were confirmed against a real
-    campaign; the upload modal itself is assumed by analogy with
-    ``--image``'s modal and could be wrong. See
+    The upload modal's own DOM (open, Save/Cancel, file input, accepted
+    MIME types) is now CONFIRMED LIVE (2026-08-07, #788 follow-up) — see
+    ``direct_cli/browser/masters.py``'s module comment above
+    ``_VIDEOS_MODAL_SELECTOR`` for the corrections this made to PR #806's
+    original guesses. **Still NOT LIVE-VERIFIED**: an actual file upload
+    was never attempted (no rollback on this account), so the upload
+    poll → Save sequence, and whether ``--remove-video``'s click commits
+    immediately or needs the page's own Save, remain unconfirmed — see
     ``direct_cli/browser/masters.py``'s module comments above
     ``_VIDEOS_SLOT_COUNT`` for the exact confirmed-vs-assumed breakdown.
 

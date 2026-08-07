@@ -934,10 +934,10 @@ _IMAGES_EDITOR_TIMEOUT_MS = 60_000
 # pays this as fixed latency once per edit-page visit.
 _IMAGES_GHOST_GRACE_S = 20.0
 
-# Video variants ("Варианты видео", issue #648 Этап D). CONFIRMED LIVE
-# 2026-08-06 (campaign 713277109, one existing video at recon time) — but
-# ONLY the testids OUTSIDE the modal, in a general page-wide testid dump that
-# never clicked ``VideoSuggestionsEditor.Open``:
+# Video variants ("Варианты видео", issue #648 Этап D / #788). CONFIRMED LIVE
+# 2026-08-06 (campaign 713277109, one existing video at recon time) — the
+# testids OUTSIDE the modal, in a general page-wide testid dump that never
+# clicked ``VideoSuggestionsEditor.Open``:
 #
 #   VideoSuggestionsEditor                                    (section, DIV)
 #   VideoSuggestionsEditor.Open                                (open button)
@@ -956,9 +956,9 @@ _IMAGES_GHOST_GRACE_S = 20.0
 # directly on the edit page — unlike images, where both add AND remove only
 # exist inside ``ImageSuggestionsEditorModal``. This module therefore models
 # removal as a direct click on the page, no modal — see ``_remove_video``.
-# NOT LIVE-VERIFIED: the click itself was never exercised (recon only
-# enumerated testids), so this is "the button exists" confirmed, not "the
-# button works as expected" confirmed.
+# The click itself (does it actually remove immediately, vs. needing Save)
+# is still NOT LIVE-VERIFIED — the 2026-08-07 modal recon below only opened/
+# canceled the modal, it did not exercise remove.
 _VIDEOS_EDITOR_SELECTOR = '[data-testid="VideoSuggestionsEditor"]'
 _VIDEOS_CONTENT_TESTID_PREFIX = "VideoSuggestionsEditor.CampaignContents."
 _VIDEOS_OPEN_MODAL_SELECTOR = '[data-testid="VideoSuggestionsEditor.Open"]'
@@ -974,26 +974,38 @@ _VIDEOS_CLOSE_BUTTON_TESTID_TEMPLATE = (
 # fresh from the page.
 _VIDEOS_SLOT_COUNT = 2
 #
-# EVERYTHING BELOW THIS POINT IS ZERO-LIVE-CONFIRMATION, ASSUMED PURELY BY
-# ANALOGY WITH THE IMAGES MODAL (``ImageSuggestionsEditorModal`` and its
-# constants above). The 2026-08-06 recon that found the testids above was a
-# byproduct of an unrelated sitelinks recon pass and never clicked
-# ``VideoSuggestionsEditor.Open`` — so none of the modal's own markup,
-# including whether it is even called ``VideoSuggestionsEditorModal``, has
-# ever been observed. Treat every name below as a best-effort guess that
-# code review / a future live pass may need to correct outright.
-_VIDEOS_MODAL_SELECTOR = '[data-testid="VideoSuggestionsEditorModal"]'
+# CONFIRMED LIVE 2026-08-07 (issue #788 follow-up, campaign 713234191,
+# SUSPENDED throwaway, read-only — clicked ``VideoSuggestionsEditor.Open``,
+# inspected the modal's DOM, then clicked its own Cancel button; no upload,
+# no Save). This CORRECTS three names PR #806 had guessed purely by analogy
+# with the images modal — none of the guessed testids below actually exist:
+#
+#   guessed (PR #806, WRONG)                   real (confirmed 2026-08-07)
+#   ------------------------------------------  --------------------------------
+#   VideoSuggestionsEditorModal                 VideoSuggestionsEditor.Modal
+#   ...Modal.UploadZone.filePicker               VideoSuggestionsEditor.UploadZone.
+#                                                   FileUploader.FileUploaderInput
+#   VideoSuggestionsEditorModal.Save             VideoSuggestionsEditor.Save
+#
+# The modal also has a real Cancel button (``VideoSuggestionsEditor.Cancel``,
+# confirmed live — clicking it closed the modal with no mutation) that PR
+# #806 never modeled at all. It additionally renders a
+# ``VideoSuggestionsEditor.CreativeSourcePanel`` with UPLOAD/USER/NEURO/
+# GENERATION_BY_IMAGE tabs — UPLOAD (``aria-selected="true"``) is the default
+# active tab, and the file input is already visible without clicking a tab,
+# so no extra tab-selection step is needed before ``set_input_files``.
+_VIDEOS_MODAL_SELECTOR = '[data-testid="VideoSuggestionsEditor.Modal"]'
 _VIDEOS_MODAL_FILE_INPUT_SELECTOR = (
-    '[data-testid="VideoSuggestionsEditorModal.UploadZone.filePicker"]'
+    '[data-testid="VideoSuggestionsEditor.UploadZone.FileUploader.FileUploaderInput"]'
 )
-_VIDEOS_MODAL_SAVE_SELECTOR = '[data-testid="VideoSuggestionsEditorModal.Save"]'
-# Yandex's own docs for video creatives commonly cite MP4/MOV/AVI; picked as
-# a conservative, documented-elsewhere starting point, but the modal file
-# input's real ``accept=`` attribute has never been observed live (unlike
-# ``_IMAGE_UPLOAD_SUFFIXES``, which IS a confirmed-live reading of the
-# images modal's file input). Re-verify against the real input before
-# relying on this list to reject anything Yandex would actually accept.
-_VIDEO_UPLOAD_SUFFIXES = frozenset({".mp4", ".mov", ".avi"})
+_VIDEOS_MODAL_SAVE_SELECTOR = '[data-testid="VideoSuggestionsEditor.Save"]'
+# Real ``accept=`` attribute read live 2026-08-07 from the file input above:
+# "video/mp4,video/webm,video/quicktime,video/x-flv,video/avi" — wider than
+# PR #806's guessed MP4/MOV/AVI-only list (adds webm, flv). MIME-to-suffix
+# mapping below is a reasonable inference, not itself a live-confirmed
+# server-side accept/reject test (a real upload was not attempted this
+# session — see the module's Этап D docstring for why).
+_VIDEO_UPLOAD_SUFFIXES = frozenset({".mp4", ".webm", ".mov", ".flv", ".avi"})
 _VIDEO_MODAL_OPEN_TIMEOUT_MS = 10_000
 _VIDEO_UPLOAD_TIMEOUT_MS = 60_000
 _VIDEOS_EDITOR_TIMEOUT_MS = 60_000
@@ -7465,15 +7477,15 @@ def update_master(
     empty set, or to a position beyond the campaign's actual image count,
     raises ``BrowserSessionError``.
 
-    ``add_video``/``remove_videos`` (issue #648, Этап D) cover the
+    ``add_video``/``remove_videos`` (issue #648, Этап D / #788) cover the
     "Варианты видео" section — the UI's own copy states a cap of
     ``_VIDEOS_SLOT_COUNT`` (2) videos per campaign, NOT independently
     live-verified by exceeding it. Unlike ``images``, this is deliberately
     a SIMPLE add/remove pair, not a positional point-replacement:
     2026-08-06 recon (see the module comment above ``_VIDEOS_SLOT_COUNT``)
-    found the per-video close button lives OUTSIDE the (assumed) video
-    manager modal, directly on the edit page — a materially different
-    shape from images, where both remove and add only happen inside
+    found the per-video close button lives OUTSIDE the video manager modal,
+    directly on the edit page — a materially different shape from images,
+    where both remove and add only happen inside
     ``ImageSuggestionsEditorModal``. With a hard cap of 2 and remove being
     a plain identity-based operation (by video URL, via `masters update`'s
     own read of the set, no position resolution needed), a synthetic
@@ -7485,10 +7497,16 @@ def update_master(
     lists video URLs to remove (see `masters update`'s own read via
     ``_read_videos``, exposed by no CLI reader command yet — retrieving
     the current set today means inspecting the edit page directly, e.g.
-    ``--headful``). **NOT LIVE-VERIFIED beyond the section/open-button
-    testids** — see ``_add_video``/``_remove_video``/module comments for
-    exactly which pieces are confirmed live vs. assumed by analogy with
-    images.
+    ``--headful``). The upload modal's own DOM (open/Save/Cancel, file
+    input, accepted MIME types) is now CONFIRMED LIVE 2026-08-07 (#788
+    follow-up, campaign 713234191, read-only — the modal was opened,
+    inspected, and canceled without uploading or saving), correcting three
+    guessed testids from PR #806 — see the module comment above
+    ``_VIDEOS_MODAL_SELECTOR`` for the exact correction table. **Still NOT
+    LIVE-VERIFIED**: an actual upload was never attempted (no rollback on
+    this account), so the upload-poll → Save sequence and whether
+    ``_remove_video``'s click commits immediately remain unconfirmed — see
+    ``_add_video``/``_remove_video``'s own docstrings for specifics.
 
     ``gender``/``age_from``/``age_to``/``devices``/``add_audience_tags``/
     ``remove_audience_tags`` (issue #681, Этап C) cover the "Аудитория"
@@ -10242,13 +10260,13 @@ def _open_videos_modal(page: "Page") -> None:
     """Click the video section's "Open" button and wait for the video
     manager modal to render.
 
-    NOT LIVE-VERIFIED. Modeled directly on ``_open_images_modal`` — the only
-    confirmed-live piece here is that ``_VIDEOS_OPEN_MODAL_SELECTOR``
-    (``VideoSuggestionsEditor.Open``) exists on the page before any click
-    (2026-08-06 recon). Whether clicking it opens a modal at all, and
-    whether that modal is really called ``VideoSuggestionsEditorModal``, is
-    a pure analogy with images — see the module comment above
-    ``_VIDEOS_MODAL_SELECTOR``.
+    CONFIRMED LIVE 2026-08-07 (issue #788 follow-up, campaign 713234191,
+    read-only): clicking ``VideoSuggestionsEditor.Open`` does open a real
+    modal, and it really is ``VideoSuggestionsEditor.Modal`` — see the
+    module comment above ``_VIDEOS_MODAL_SELECTOR`` for the full
+    guessed-vs-real correction table. The modal takes several seconds to
+    finish rendering its default UPLOAD tab; this was observed settling
+    within ~6s in the live check.
     """
     open_button = page.locator(_VIDEOS_OPEN_MODAL_SELECTOR).first
     try:
@@ -10269,10 +10287,9 @@ def _open_videos_modal(page: "Page") -> None:
 
     raise BrowserSessionError(
         "Clicked the video section's 'Open' button but the video manager "
-        f"modal (assumed testid, NOT live-verified) did not appear within "
+        f"modal did not appear within "
         f"{_VIDEO_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s — Yandex may have "
-        "changed the page's markup, or this command's assumption about the "
-        "modal's testid is simply wrong. Re-run with --headful to inspect "
+        "changed the page's markup. Re-run with --headful to inspect "
         "the page."
     )
 
@@ -10280,11 +10297,16 @@ def _open_videos_modal(page: "Page") -> None:
 def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
     """Upload a new video file, appending it to the campaign's video set.
 
-    NOT LIVE-VERIFIED beyond the section/open-button testids confirmed by
-    the 2026-08-06 recon (see module comments above ``_VIDEOS_SLOT_COUNT``/
-    ``_VIDEOS_MODAL_SELECTOR``). Modeled directly on ``_set_image``'s
-    upload half (open modal, upload via hidden file input, poll for the new
-    card, click Save) — but WITHOUT the remove step, since videos have no
+    The modal itself (open, DOM shape, file input, Save/Cancel testids) is
+    now CONFIRMED LIVE 2026-08-07 (issue #788 follow-up, campaign 713234191)
+    — see the module comment above ``_VIDEOS_MODAL_SELECTOR`` for the
+    guessed-vs-real correction table PR #806 needed. What that recon did
+    NOT exercise: an actual file upload (``set_input_files`` was never
+    called, to avoid mutating a real account with no rollback), so the
+    upload-then-poll-then-Save sequence below is still unverified past the
+    point of opening the modal. Modeled on ``_set_image``'s upload half
+    (open modal, upload via hidden file input, poll for the new card, click
+    Save) — but WITHOUT the remove step, since videos have no
     point-replacement here: the caller (``update_master``) treats video as
     simple add/remove-by-URL, not position-indexed replacement (see
     ``update_master``'s docstring for why: the confirmed-live recon found
@@ -10350,10 +10372,9 @@ def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
         page.locator(_VIDEOS_MODAL_FILE_INPUT_SELECTOR).first.set_input_files(path)
     except PlaywrightError as exc:
         raise BrowserSessionError(
-            f"Could not upload {path!r} inside the video manager modal "
-            "(assumed testid, NOT live-verified) — Yandex may have changed "
-            f"the page's markup. Re-run with --headful to inspect the page. "
-            f"{no_change_note}"
+            f"Could not upload {path!r} inside the video manager modal — "
+            "Yandex may have changed the page's markup. Re-run with "
+            f"--headful to inspect the page. {no_change_note}"
         ) from exc
 
     if not _poll_until(
@@ -10376,10 +10397,9 @@ def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
         page.locator(_VIDEOS_MODAL_SAVE_SELECTOR).first.click()
     except PlaywrightError as exc:
         raise BrowserSessionError(
-            "Could not find/click the video manager modal's Save button "
-            "(assumed testid, NOT live-verified) — Yandex may have changed "
-            f"the page's markup. Re-run with --headful to inspect the page. "
-            f"{no_change_note}"
+            "Could not find/click the video manager modal's Save button — "
+            "Yandex may have changed the page's markup. Re-run with "
+            f"--headful to inspect the page. {no_change_note}"
         ) from exc
 
     if _poll_until(
