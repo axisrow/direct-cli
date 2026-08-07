@@ -16608,6 +16608,64 @@ class TestWaitForAudienceSection(unittest.TestCase):
         self.assertEqual(len(page_tags), len(baseline) - 1)
         self.assertIn("audience_tags", str(ctx.exception))
 
+    def test_add_metrika_counter_does_not_false_positive_on_format_mismatch(self):
+        """Cycle-review finding, issue #648: the pre-fix code compared
+        add_metrika_counters' raw suggestion text ("{label} • {domain/path}
+        • {id}", one line) directly against _read_metrika_counters' raw
+        tag-display text ("{domain} • {id}\\n{N} целей", two lines) — two
+        different string formats for the SAME counter, which can never be
+        multiset-equal. Every successful add used to raise a false
+        BrowserSessionError here. The page shows the counter linked, in its
+        own two-line display format that differs from the one-line
+        suggestion text used to add it — this must NOT raise."""
+        page = FakePage(
+            locators={
+                browser_masters._METRIKA_COUNTER_WRAPPER_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                '[data-testid="MetrikaCountersTagGroup.tag.0"]': _FakeLocator(
+                    [_FakeLocatorHandle(text="gc.ksamata.ru • 72112213\n30 целей")]
+                ),
+            }
+        )
+
+        with patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None):
+            # Must NOT raise despite the format mismatch between the add
+            # text and the read-back tag text -- both share id "72112213".
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                metrika_counters_before=[],
+                add_metrika_counters=["Ксамата • yandex.ru/maps • 72112213"],
+            )
+
+    def test_add_metrika_counter_still_catches_a_genuinely_missing_counter(self):
+        """The mirror of the test above: if the added counter's id truly
+        never shows up on the page (e.g. the add silently failed), the
+        mismatch must still be reported -- the identity-based comparison
+        must not become a tautology that never fails."""
+        page = FakePage(locators={})  # no wrapper -> _read_metrika_counters returns []
+
+        with (
+            patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
+            patch.object(browser_masters, "_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                metrika_counters_before=[],
+                add_metrika_counters=["Ксамата • yandex.ru/maps • 72112213"],
+            )
+
+        self.assertIn("metrika_counters", str(ctx.exception))
+
     def test_raises_if_gender_trigger_never_shows_a_label(self):
         page = FakePage(locators={})  # no _GENDER_SELECT_TESTID handle at all
 
@@ -17116,6 +17174,34 @@ class TestAddMetrikaCounter(unittest.TestCase):
             self.assertRaises(BrowserSessionError),
         ):
             browser_masters._add_metrika_counter(page, "nomatch.ru")
+
+
+class TestMetrikaCounterIdentity(unittest.TestCase):
+    """``_metrika_counter_identity`` (cycle-review finding, issue #648):
+    extracts the stable numeric counter id shared by both of this widget's
+    text formats, so ``_verify_saved`` can compare an add's suggestion text
+    against a read-back tag's display text without a false mismatch."""
+
+    def test_extracts_id_from_suggestion_format(self):
+        self.assertEqual(
+            browser_masters._metrika_counter_identity(
+                "Ксамата • yandex.ru/maps • 88834924"
+            ),
+            "88834924",
+        )
+
+    def test_extracts_id_from_two_line_tag_display_format(self):
+        self.assertEqual(
+            browser_masters._metrika_counter_identity(
+                "gc.ksamata.ru • 72112213\n30 целей"
+            ),
+            "72112213",
+        )
+
+    def test_returns_text_unchanged_when_no_separator(self):
+        self.assertEqual(
+            browser_masters._metrika_counter_identity("nomatch"), "nomatch"
+        )
 
 
 class TestParseRemoveMetrikaCounterOptions(unittest.TestCase):

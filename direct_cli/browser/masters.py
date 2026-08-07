@@ -4788,6 +4788,31 @@ def _remove_audience_tag(page: "Page", index: int) -> None:
         ) from exc
 
 
+def _metrika_counter_identity(text: str) -> str:
+    """Extract the stable numeric counter id from either of this widget's
+    TWO different text formats (cycle-review finding, issue #648): the
+    autocomplete suggestion ``add_metrika_counter`` is given
+    (``"{label} • {domain/path} • {numeric counter id}"``, one line) and
+    ``_read_metrika_counters``'s read-back of an already-linked tag
+    (``"{domain} • {numeric counter id}\\n{N} целей"``, two lines) are NOT
+    the same string — comparing them for equality (as ``_verify_saved``
+    used to) can never match, so every ``--add-metrika-counter`` reported a
+    false save failure even though the add succeeded. Both formats share
+    one thing: their first line's LAST ``" • "``-delimited token is the
+    counter's own numeric id (confirmed live, issue #648 recon —
+    ``"...88834924"``/``"...72112213"``), which is what actually identifies
+    a counter, unlike the label/domain text that can differ between the
+    suggestion and the tag display for the exact same counter. Returns the
+    input text unchanged if it doesn't contain a `` • `` separator at all
+    (defensive: an id-less string just fails to match anything, the same
+    "no false positive" outcome as before this existed).
+    """
+    first_line = text.split("\n", 1)[0]
+    if " • " not in first_line:
+        return text
+    return first_line.rsplit(" • ", 1)[1]
+
+
 def _read_metrika_counters(page: "Page") -> List[str]:
     """Read every currently linked Metrika counter's display text in
     "Счетчики Яндекс Метрики" (in on-page order).
@@ -6189,13 +6214,33 @@ def _verify_saved(
         # unconfirmed multiplier the way the audience-tags block's
         # ``_AUDIENCE_SECTION_READY_TIMEOUT_MS * 3`` does from its own
         # live-measured settle time.
-        expected_counters = Counter(metrika_counters_before)
+        # Built from _metrika_counter_identity(...), NOT the raw text
+        # (cycle-review finding, issue #648): add_metrika_counters is the
+        # user-supplied autocomplete-suggestion text
+        # ("{label} • {domain/path} • {id}", one line), while
+        # _read_metrika_counters returns the linked tag's read-back display
+        # text ("{domain} • {id}\n{N} целей", two lines) — comparing those
+        # two formats directly can never match, so every successful add
+        # used to raise a false "did not save as requested" error. Both
+        # formats agree on the counter's numeric id (see
+        # _metrika_counter_identity's own docstring), which is the actual
+        # identity a caller cares about.
+        expected_counters = Counter(
+            _metrika_counter_identity(c) for c in metrika_counters_before
+        )
         for index in remove_metrika_counter_indices or []:
-            expected_counters[metrika_counters_before[index]] -= 1
-        expected_counters += Counter(add_metrika_counters or [])
+            expected_counters[
+                _metrika_counter_identity(metrika_counters_before[index])
+            ] -= 1
+        expected_counters += Counter(
+            _metrika_counter_identity(c) for c in (add_metrika_counters or [])
+        )
 
         def _counter_state_matches(actual_counters: List[str], _expected: Any) -> bool:
-            return Counter(actual_counters) == expected_counters
+            return (
+                Counter(_metrika_counter_identity(c) for c in actual_counters)
+                == expected_counters
+            )
 
         actual_counters = _read_until_matches(
             page,
@@ -6205,7 +6250,7 @@ def _verify_saved(
         )
         if not _counter_state_matches(actual_counters, None):
             mismatches.append(
-                "metrika_counters: expected "
+                "metrika_counters: expected counter ids "
                 f"{sorted(expected_counters.elements())!r}, page now shows "
                 f"{sorted(actual_counters)!r}"
             )
