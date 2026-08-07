@@ -18,6 +18,14 @@ save-mismatch for an `--add-metrika-counter` that actually succeeded. The
 existing empty/whitespace-only fallback behavior (return the original
 text unchanged when there's no real id) is unchanged.
 
+Cycle-review round 2 (Codex): stripping is only applied when the result
+is a genuine numeric id (`.isdigit()`) — real counter ids are numeric.
+A stripped non-numeric token falls back to the unstripped original, so
+two malformed non-numeric inputs that differ only by surrounding
+whitespace (e.g. `"Label A •  foo "` vs `"Label B • foo "`) still don't
+collapse to the same identity, preserving the function's documented
+"malformed inputs must not silently match" invariant.
+
 ### Added
 
 **`masters update --add-metrika-counter`/`--remove-metrika-counter` —

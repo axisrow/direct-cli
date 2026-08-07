@@ -19313,6 +19313,30 @@ class TestMetrikaCounterIdentity(unittest.TestCase):
         )
         self.assertEqual(suggestion, tag_display)
 
+    def test_non_numeric_whitespace_padded_malformed_tokens_stay_distinct(self):
+        """cycle-review finding (PR #810 round 2): stripping whitespace
+        around a non-empty token must NOT extend to non-numeric malformed
+        tokens -- only a genuine numeric id (real counter ids are numeric)
+        is normalized. Without an .isdigit() guard, "Label A •  foo " and
+        "Label B • foo " would both collapse to "foo" and silently match
+        each other in _verify_saved's Counter comparison, the exact
+        "malformed inputs must not silently match" failure mode the
+        empty/whitespace-only guard already exists to prevent -- just for
+        a narrower, non-numeric class of malformed input."""
+        a = browser_masters._metrika_counter_identity("Label A •  foo ")
+        b = browser_masters._metrika_counter_identity("Label B • foo ")
+        self.assertNotEqual(a, b)
+        self.assertEqual(a, "Label A •  foo ")
+        self.assertEqual(b, "Label B • foo ")
+
+    def test_numeric_id_still_stripped_when_padded(self):
+        """Sanity check that the .isdigit() guard doesn't regress the
+        original issue #809 fix for genuine numeric ids."""
+        self.assertEqual(
+            browser_masters._metrika_counter_identity("domain •  88834924 "),
+            "88834924",
+        )
+
 
 class TestParseRemoveMetrikaCounterOptions(unittest.TestCase):
     """``_parse_remove_metrika_counter_options`` (issue #648) — mirrors
