@@ -3208,68 +3208,29 @@ def _scroll_grid_to_row(page: "Page", campaign_id: int) -> bool:
         return False
 
 
-def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
-    """Permanently delete a DRAFT Мастер кампаний via the campaigns grid's
-    own row menu (issue #782).
+def _open_grid_row_menu(page: "Page", campaign_id: int) -> None:
+    """Open ``campaign_id``'s row menu in the campaigns grid (currently
+    ``delete_master``'s only caller — the row menu with "Удалить" is a
+    separate menu from the overview page's "⋮", see
+    ``_GRID_ROW_ACTIONS_TRIGGER_SELECTOR``).
 
-    Unlike ``archive_master`` (the only lifecycle action for a non-DRAFT
-    campaign — see its own docstring and #633), a DRAFT campaign's overview
-    page has no "⋮" menu at all (issue #660) and Yandex has no "unarchive"
-    equivalent for a draft either — so a DRAFT created by mistake (e.g. via
-    ``masters add --draft``) was previously permanently stuck. Live recon
-    for #782 found the campaigns GRID's row menu (a separate menu from the
-    overview page's, see ``_GRID_ROW_ACTIONS_TRIGGER_SELECTOR``) DOES offer
-    "Удалить" for a DRAFT row — #633's original recon evidently only checked
-    non-DRAFT rows, before DRAFT support (#668) existed.
+    Extracted from ``delete_master`` (issue #805, cycle-review-caught, same
+    root cause PR #799 fixed for ``archive_master``/``copy_master``'s
+    overview-page "⋮" menu): ``delete_master``'s own TOCTOU re-check
+    (``_find_master_row``) unconditionally navigates the page
+    (``_capture_grid_campaigns_request``'s ``page.goto(GRID_URL)``), which
+    destroys any row menu already open on the grid page — the SAME page the
+    re-check itself reloads. A caller needs to run this function a SECOND
+    time, right before its own click, after such a re-check — see
+    ``delete_master`` for that call site. Idempotent to call twice in a
+    row: the grid's virtualized-row scroll (``_scroll_grid_to_row``) and
+    the trigger-click retry loop both re-run from scratch against
+    whatever the current page state actually is, never assuming a prior
+    call's locators/scroll position survived.
 
-    Refuses anything but DRAFT up front: whether the same row menu also
-    deletes a non-DRAFT campaign is unconfirmed, and #633's conclusion
-    ("no delete, only archive") stays this module's working assumption for
-    every other status — a caller with a non-DRAFT campaign is pointed at
-    ``masters archive`` instead.
-
-    Deletion is immediate and irreversible: unlike every other menu action
-    in this module, Yandex shows NO confirmation dialog after
-    ``DeleteCampaignAction`` is clicked (live-confirmed against 713337891) —
-    the campaign is gone by the time the click returns. This function does
-    not itself prompt for confirmation; that responsibility belongs to the
-    CLI command calling it, exactly like every other irreversible action in
-    this codebase asks its own question at the command layer, not here.
-
-    Verifies via ``fetch_masters_list`` that the campaign is actually gone
-    (``status=all``, so even an unexpected non-delete outcome like
-    "archived instead" would still be caught) before reporting success —
-    never trusting the click alone, per this module's dominant convention.
-
-    Re-verifies DRAFT status a SECOND time immediately before the click
-    (issue #793, Finding 1): the up-front guard above and the click are
-    separated by however long the row-menu retry loop takes, which is
-    enough of a window on a shared/agency account for another session to
-    move the campaign off DRAFT — DeleteCampaignAction is never clicked
-    against a row this function has not just re-confirmed is still DRAFT.
-
-    The post-click verify loop tolerates transient ``BrowserSessionError``s
-    from ``_find_master_row`` (issue #793, Finding 2) instead of letting one
-    propagate as a hard failure: the click is immediate and irreversible, so
-    a mid-poll HTTP 5xx/captcha/auth blip must not read as "the delete
-    failed" when it almost certainly already succeeded. If the timeout is
-    reached while every poll errored, the raised message says explicitly
-    that the click already landed.
+    Raises ``BrowserSessionError`` if the menu never opens within
+    ``_POPUP_CLICK_MAX_ATTEMPTS`` attempts.
     """
-    existing = _find_master_row(page, campaign_id)
-    if existing is None:
-        raise BrowserSessionError(
-            f"Could not find Мастер кампаний {campaign_id} in the campaigns "
-            "grid — check the ID, or it may already be deleted."
-        )
-    if existing["Status"] != "DRAFT":
-        raise BrowserSessionError(
-            f"Campaign {campaign_id} is {existing['Status']}, not DRAFT — "
-            "`masters delete` only removes a DRAFT campaign (issue #633: "
-            "Мастер кампаний has no delete for any other status, only "
-            "archive). Use `masters archive` instead."
-        )
-
     row_selector = _GRID_ROW_SELECTOR_TEMPLATE.format(campaign_id=campaign_id)
     row = page.locator(row_selector).first
     trigger = row.locator(_GRID_ROW_ACTIONS_TRIGGER_SELECTOR).first
@@ -3284,7 +3245,11 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     # appear on its own. Both are best-effort: a row genuinely unreachable
     # (removed from the grid's current filter/view entirely) still falls
     # through to the retry loop below, which raises an honest error rather
-    # than a bare "Yandex changed the markup" misdiagnosis.
+    # than a bare "Yandex changed the markup" misdiagnosis. Always re-run,
+    # even on a second call for the same campaign_id in the same
+    # delete_master invocation (see this function's own docstring) — a
+    # fresh page.goto(GRID_URL) resets the grid's scroll position, so a
+    # prior call's scroll progress cannot be assumed to still hold.
     _scroll_grid_to_row(page, campaign_id)
     with contextlib.suppress(PlaywrightError):
         row.scroll_into_view_if_needed(timeout=_POPUP_APPEAR_TIMEOUT_MS)
@@ -3323,15 +3288,93 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             "scrolled into view manually first."
         ) from last_exc
 
-    # TOCTOU re-check (issue #793, Finding 1): the up-front DRAFT guard above
-    # reads the grid via _find_master_row once, but on a shared/agency
-    # account another session could transition the campaign (DRAFT ->
-    # MODERATION/ACTIVE) in the seconds between that read and this click —
-    # opening the row menu alone takes a retry loop. Re-read the row right
-    # before the irreversible click and abort if it is no longer DRAFT,
-    # rather than clicking DeleteCampaignAction against a row whose current
-    # status this module has never confirmed that action is even safe for
-    # (see the field's own docstring above: "NOT re-confirmed here").
+
+def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Permanently delete a DRAFT Мастер кампаний via the campaigns grid's
+    own row menu (issue #782).
+
+    Unlike ``archive_master`` (the only lifecycle action for a non-DRAFT
+    campaign — see its own docstring and #633), a DRAFT campaign's overview
+    page has no "⋮" menu at all (issue #660) and Yandex has no "unarchive"
+    equivalent for a draft either — so a DRAFT created by mistake (e.g. via
+    ``masters add --draft``) was previously permanently stuck. Live recon
+    for #782 found the campaigns GRID's row menu (a separate menu from the
+    overview page's, see ``_GRID_ROW_ACTIONS_TRIGGER_SELECTOR``) DOES offer
+    "Удалить" for a DRAFT row — #633's original recon evidently only checked
+    non-DRAFT rows, before DRAFT support (#668) existed.
+
+    Refuses anything but DRAFT up front: whether the same row menu also
+    deletes a non-DRAFT campaign is unconfirmed, and #633's conclusion
+    ("no delete, only archive") stays this module's working assumption for
+    every other status — a caller with a non-DRAFT campaign is pointed at
+    ``masters archive`` instead.
+
+    Deletion is immediate and irreversible: unlike every other menu action
+    in this module, Yandex shows NO confirmation dialog after
+    ``DeleteCampaignAction`` is clicked (live-confirmed against 713337891) —
+    the campaign is gone by the time the click returns. This function does
+    not itself prompt for confirmation; that responsibility belongs to the
+    CLI command calling it, exactly like every other irreversible action in
+    this codebase asks its own question at the command layer, not here.
+
+    Verifies via ``fetch_masters_list`` that the campaign is actually gone
+    (``status=all``, so even an unexpected non-delete outcome like
+    "archived instead" would still be caught) before reporting success —
+    never trusting the click alone, per this module's dominant convention.
+
+    Re-verifies DRAFT status a SECOND time before opening the row menu
+    (issue #793, Finding 1; reordered issue #807 cycle-review round 2,
+    teammate-caught): the up-front guard above and this re-check are
+    separated by nothing but the initial ``_find_master_row`` call itself,
+    but on a shared/agency account another session can still transition
+    the campaign (DRAFT -> MODERATION/ACTIVE) between the two reads —
+    DeleteCampaignAction is never clicked against a row this function has
+    not just re-confirmed is still DRAFT.
+
+    The re-check runs BEFORE ``_open_grid_row_menu``, not after (unlike
+    ``archive_master``/``copy_master``'s own re-checks in PR #799, which
+    run between opening the "⋮" menu and clicking an item on the overview
+    page). Both re-checks share the identical root constraint —
+    ``_find_master_row`` -> ``fetch_masters_list`` ->
+    ``_capture_grid_campaigns_request`` unconditionally navigates
+    (``page.goto(GRID_URL)``), which destroys any menu already open on the
+    page the navigation lands on — but ``delete_master``'s menu lives on
+    the SAME grid page the re-check itself reloads (unlike the overview
+    page's menu, which is on a different page entirely), so there is no
+    reason to open the menu before the re-check here: ordering the
+    re-check first means the menu only ever needs to be opened ONCE, right
+    before the click, with the re-check immediately preceding it — instead
+    of open-menu -> re-check -> re-open-menu -> click, which both wastes
+    the first open (thrown away by the re-check's own navigation on every
+    single call, not just a rare retry path) and reintroduces a real delay
+    between the re-check and the click that the "immediately before"
+    guarantee is supposed to close.
+
+    The post-click verify loop tolerates transient ``BrowserSessionError``s
+    from ``_find_master_row`` (issue #793, Finding 2) instead of letting one
+    propagate as a hard failure: the click is immediate and irreversible, so
+    a mid-poll HTTP 5xx/captcha/auth blip must not read as "the delete
+    failed" when it almost certainly already succeeded. If the timeout is
+    reached while every poll errored, the raised message says explicitly
+    that the click already landed.
+    """
+    existing = _find_master_row(page, campaign_id)
+    if existing is None:
+        raise BrowserSessionError(
+            f"Could not find Мастер кампаний {campaign_id} in the campaigns "
+            "grid — check the ID, or it may already be deleted."
+        )
+    if existing["Status"] != "DRAFT":
+        raise BrowserSessionError(
+            f"Campaign {campaign_id} is {existing['Status']}, not DRAFT — "
+            "`masters delete` only removes a DRAFT campaign (issue #633: "
+            "Мастер кампаний has no delete for any other status, only "
+            "archive). Use `masters archive` instead."
+        )
+
+    # TOCTOU re-check (issue #793, Finding 1) — see this function's own
+    # docstring for why this now runs BEFORE _open_grid_row_menu rather
+    # than between opening the menu and clicking (issue #805/#807 round 2).
     current = _find_master_row(page, campaign_id, status="all")
     if current is None:
         raise BrowserSessionError(
@@ -3349,6 +3392,14 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             "if you still intend to remove it, or use `masters archive` "
             "for its current status."
         )
+
+    # Open the row menu exactly once, right before the click — the
+    # re-check above already ran on the SAME grid page this opens the menu
+    # on, so nothing between here and the click below can navigate the
+    # page (issue #805/#807 round 2: opening the menu before the re-check,
+    # as the original #805 fix did, wastes that entire open on every call,
+    # since the re-check's own navigation immediately destroys it).
+    _open_grid_row_menu(page, campaign_id)
 
     delete_item = page.locator(_GRID_ROW_DELETE_ITEM_SELECTOR).first
     try:
