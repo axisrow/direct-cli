@@ -61,14 +61,16 @@ It always reads the logged-in browser session's own account — there is no
 `masters add` creates a new Мастер кампаний. Besides `--headline`/`--text`
 and one of `--region`/`--region-id`, it **requires `--add-target-action`**
 (`"goal_id=price"`, repeatable — the same flag name and syntax as
-`masters update --add-target-action`): Yandex's create form refuses to submit
-without at least one Яндекс Метрика conversion goal, and refuses *silently* —
+`masters update --add-target-action`) **and `--weekly-budget`**: Yandex's
+create form refuses to submit without at least one Яндекс Метрика conversion
+goal, or without a weekly budget, and refuses *silently* in both cases —
 both terminal buttons keep reporting visible/enabled with no `aria-disabled`,
-so a goal-less attempt would otherwise fail as an unexplained timeout after
-the whole form was filled in. The goals on offer come from the Metrika counter
-Yandex auto-discovers from the landing page's domain, so a domain with no
-counter installed cannot be used here. There is no sandbox and no rollback for
-Мастер кампаний — double-check every flag before running it for real.
+so a goal-less or budget-less attempt would otherwise fail as an unexplained
+timeout after the whole form was filled in. The goals on offer come from the
+Metrika counter Yandex auto-discovers from the landing page's domain, so a
+domain with no counter installed cannot be used here. There is no sandbox and
+no rollback for Мастер кампаний — double-check every flag before running it
+for real.
 
 `masters update` edits a single Мастер кампаний's settings page. It currently
 covers the simplest scalar fields (Этап A of a larger, staged rollout — see

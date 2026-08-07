@@ -48,8 +48,8 @@ direct masters adimages add 72349978 --image-file /path/to/a.png --image-file /p
 direct masters adimages delete 72349978 --position 2
 direct masters adimages delete 72349978 --all
 direct masters adimages set 72349978 --image-file /path/to/a.png --image-file /path/to/b.png
-direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --weekly-budget 50000 --draft
-direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --weekly-budget 50000 --draft
+direct masters add https://example.com/ --headline "Заголовок 1" --headline "Заголовок 2" --text "Текст объявления" --region Москва --add-target-action "236386933=150" --weekly-budget 50000 --draft
+direct masters add https://example.com/ --headline "Заголовок 1" --text "Текст объявления" --region-id 213 --add-target-action "236386933=150" --weekly-budget 50000 --draft
 direct masters copy 72349978
 direct masters copy 72349978 --launch
 ```

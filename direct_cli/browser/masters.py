@@ -3950,11 +3950,29 @@ def _close_target_actions_search_popup(page: "Page") -> None:
     positive signal is the create/save actually succeeding, verified by
     the caller's own post-click checks; swallowing a click failure here
     just means one less mitigation was applied, not a hard error.
+
+    The heading-text match is deliberately unscoped (page-wide, not
+    confined to the "Целевые действия" section's own container — see the
+    module comment above ``_TARGET_ACTIONS_HEADING_TEXT``'s definition for
+    why the section's testid doesn't cover the H2 itself) because live
+    recon confirmed exactly one match on the create page. That is an
+    empirical, not structural, guarantee — cycle-review of #796 raised the
+    risk that a SECOND exact match elsewhere on the page (e.g. a nav item,
+    breadcrumb, or a variant that also has this text) would make ``.first``
+    click the wrong node, and a successful-but-wrong click is not a
+    ``PlaywrightError`` so ``contextlib.suppress`` below would not catch
+    it. Guarding with ``count() == 1`` closes that gap directly: multiple
+    (or zero) matches skip the click outright rather than guessing which
+    one is safe, preserving the same best-effort contract without ever
+    clicking an unverified target. This also covers the edit page (called
+    via ``update_master``'s ``_set_target_action_price`` loop, before its
+    own add/remove baseline snapshot), which was never separately
+    recon'd for this specific invariant.
     """
     with contextlib.suppress(PlaywrightError):
-        page.get_by_text(_TARGET_ACTIONS_HEADING_TEXT, exact=True).first.click(
-            timeout=_POPUP_APPEAR_TIMEOUT_MS
-        )
+        heading = page.get_by_text(_TARGET_ACTIONS_HEADING_TEXT, exact=True)
+        if heading.count() == 1:
+            heading.first.click(timeout=_POPUP_APPEAR_TIMEOUT_MS)
 
 
 def _set_target_action_price(page: "Page", goal_id: int, price: float) -> None:

@@ -5973,6 +5973,38 @@ class TestSetTargetActionPrice(unittest.TestCase):
 
         browser_masters._set_target_action_price(page, 159614149, 200)  # must not raise
 
+    def test_skips_click_when_heading_text_matches_more_than_once(self):
+        # cycle-review of #796: the heading-text match is page-wide, not
+        # scoped to the "Целевые действия" section's own container, on the
+        # empirical (live-recon, not structural) assumption that it's the
+        # ONLY exact match on the page. If that assumption ever breaks
+        # (e.g. a second nav item/breadcrumb/tooltip with the same exact
+        # text), .first would click an unverified — possibly interactive —
+        # element instead of the section heading, and a successful click
+        # on the wrong element is not a PlaywrightError, so
+        # contextlib.suppress would not catch it. Must skip the click
+        # outright on ANY count other than exactly 1, not guess.
+        field = _FakeLocatorHandle()
+        field.fill = lambda value: None
+        price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        heading_clicks = []
+        heading_a = _FakeLocatorHandle(on_click=lambda: heading_clicks.append("a"))
+        heading_b = _FakeLocatorHandle(on_click=lambda: heading_clicks.append("b"))
+        page = FakePage(
+            locators={f'[data-testid="{price_testid}"]': _FakeLocator([field])},
+            text_buttons={
+                browser_masters._TARGET_ACTIONS_HEADING_TEXT: _FakeGetByTextLocator(
+                    [heading_a, heading_b]
+                )
+            },
+        )
+
+        browser_masters._set_target_action_price(page, 159614149, 200)  # must not raise
+
+        self.assertEqual(heading_clicks, [])
+
     def test_raises_when_row_not_present(self):
         page = FakePage(locators={})
 
