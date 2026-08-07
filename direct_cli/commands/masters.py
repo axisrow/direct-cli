@@ -2349,10 +2349,10 @@ def add(
     --weekly-budget is required (issue #796): the SAME silent-rejection
     shape as the goal requirement above — Yandex's create form refuses to
     submit without a weekly budget, with no visible error until AFTER a
-    submit attempt (a `data-form-error` element reading "Не задан
-    недельный бюджет" only appears in the DOM post-click), so an
-    unset-budget run previously surfaced only as an unexplained redirect
-    timeout with no campaign ever created.
+    submit attempt (a `[data-testid="BudgetWithSuggest.ErrorMessage"]`
+    element reading "Не задан недельный бюджет" only appears in the DOM
+    post-click), so an unset-budget run previously surfaced only as an
+    unexplained redirect timeout with no campaign ever created.
 
     By default the campaign is launched immediately (--launch). Pass
     --draft to save it as a draft instead (Сохранить как черновик) without

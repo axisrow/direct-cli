@@ -16014,6 +16014,32 @@ class TestMastersAddCommand(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("--region/--region-id", result.output)
 
+    def test_weekly_budget_is_required(self):
+        """Issue #796: the SAME silent-rejection shape as #777's
+        --add-target-action requirement — Yandex's create form is silently
+        rejected without a weekly budget, so a budget-less invocation must
+        be refused at the CLI boundary (Click's required=True) rather than
+        driven through a whole browser session that can only end in an
+        unexplained redirect timeout."""
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "add",
+                "https://ksamata.ru/",
+                "--headline",
+                "h",
+                "--text",
+                "t",
+                "--region",
+                "Москва",
+                "--add-target-action",
+                "236386933=150",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--weekly-budget", result.output)
+
     def test_add_target_action_is_required(self):
         """Issue #777: Yandex's create form is silently rejected without a
         conversion goal — both terminal buttons keep reporting
