@@ -7770,6 +7770,22 @@ def update_master(
                 f"{_running_sitelink_count} — the click may not have "
                 "committed. Verify manually before retrying."
             )
+    # Populated with the ACTUALLY-OBSERVED card for each successful add
+    # (read back via _read_sitelinks right after its own commit-confirmation
+    # below), not the raw CLI input — cycle-review finding (Codex): Yandex's
+    # displayed Title/Href is NOT LIVE-VERIFIED to equal the raw input
+    # byte-for-byte (protocol stripping, trailing slash, host casing are
+    # all plausible normalizations a real page could apply). Building
+    # _verify_saved's expected multiset from the raw input meant ANY such
+    # normalization would make an already-successful add report a false
+    # "did not save as requested" AFTER the irreversible save — and because
+    # update_master's own retry re-reads the (now-updated) baseline and
+    # re-applies the same add_sitelinks, a naive retry would then create a
+    # DUPLICATE sitelink. Comparing against what the page itself reports
+    # right after the add succeeds sidesteps the whole class of mismatch —
+    # mirrors _metrika_counter_identity's identical "compare what actually
+    # got read back, not the raw request" fix for the same failure shape.
+    add_sitelinks_observed: "list[dict[str, str]]" = []
     for sitelink in add_sitelinks or []:
         _add_sitelink(
             page,
@@ -7782,18 +7798,22 @@ def update_master(
         # sitelink list is a hard error here too, not a silent no-op.
         _running_sitelink_count += 1
         deadline = _clock.now() + _SITELINK_ROW_TIMEOUT_MS / 1000
-        actual_count = len(_read_sitelinks(page))
-        while actual_count != _running_sitelink_count and _clock.now() < deadline:
+        current_sitelinks = _read_sitelinks(page)
+        while (
+            len(current_sitelinks) != _running_sitelink_count
+            and _clock.now() < deadline
+        ):
             page.wait_for_timeout(250)
-            actual_count = len(_read_sitelinks(page))
-        if actual_count != _running_sitelink_count:
+            current_sitelinks = _read_sitelinks(page)
+        if len(current_sitelinks) != _running_sitelink_count:
             raise BrowserSessionError(
                 f"Added a sitelink titled {sitelink['Title']!r}, but the "
-                f"sitelink list still shows {actual_count} sitelink(s) "
-                f"instead of the expected {_running_sitelink_count} — the "
-                "add may not have committed. Verify manually before "
-                "retrying."
+                f"sitelink list still shows {len(current_sitelinks)} "
+                f"sitelink(s) instead of the expected "
+                f"{_running_sitelink_count} — the add may not have "
+                "committed. Verify manually before retrying."
             )
+        add_sitelinks_observed.append(current_sitelinks[-1])
 
     # Mirrors the audience-tags block immediately above, field-for-field —
     # same pre-mutation-baseline-snapshot rationale (needed both for
@@ -7965,7 +7985,7 @@ def update_master(
             add_metrika_counters=add_metrika_counters,
             remove_metrika_counter_indices=remove_metrika_counters,
             sitelinks_before=sitelinks_before,
-            add_sitelinks=add_sitelinks,
+            add_sitelinks=add_sitelinks_observed,
             remove_sitelink_indices=remove_sitelinks,
             clicked_button_label=clicked_button_label,
         )

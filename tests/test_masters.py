@@ -18061,6 +18061,60 @@ class TestUpdateMasterSitelinkCommitConfirmation(unittest.TestCase):
 
         self.assertEqual(save_clicks, [True])
 
+    def test_verifies_against_the_displayed_card_not_the_raw_cli_input(self):
+        # cycle-review finding (Codex, cycle 2): Yandex's displayed Href is
+        # NOT LIVE-VERIFIED to equal the raw CLI input byte-for-byte (e.g.
+        # a trailing slash could be added/stripped on display). Comparing
+        # _verify_saved's expected multiset against the raw input would
+        # make this successful add report a false "did not save as
+        # requested" -- add_sitelinks_observed must carry the DISPLAYED
+        # Href ("https://example.com/new/", with a trailing slash) forward
+        # to _verify_saved, not the raw CLI Href ("https://example.com/new",
+        # without one).
+        raw_href = "https://example.com/new"
+        displayed_href = "https://example.com/new/"  # Yandex added a slash
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: save_clicks.append(True)
+        )
+        page = FakePage(
+            locators={edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()])},
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+        # Empty BEFORE the add, one card (with the DISPLAYED href) after --
+        # models the real "add committed" state transition, since
+        # sitelinks_before is also read via this same mocked function.
+        cards = {"count": 0}
+
+        def _read_sitelinks_stub(_page):
+            if cards["count"] == 0:
+                return []
+            return [{"Title": "New", "Href": displayed_href}]
+
+        def _add_sitelink_stub(_page, _title, _href, _desc):
+            cards["count"] = 1
+
+        with (
+            patch.object(browser_masters, "_SITELINK_ROW_TIMEOUT_MS", 5_000),
+            patch.object(browser_masters, "_read_sitelinks", _read_sitelinks_stub),
+            patch.object(browser_masters, "_add_sitelink", _add_sitelink_stub),
+        ):
+            # Must NOT raise: the multiset is built from the DISPLAYED
+            # value (with the slash), which is exactly what the final
+            # _verify_saved re-read also reports -- so it matches.
+            browser_masters.update_master(
+                page,
+                42,
+                add_sitelinks=[
+                    {"Title": "New", "Href": raw_href, "Description": "Desc"}
+                ],
+            )
+
+        self.assertEqual(save_clicks, [True])
+
 
 class TestRemoveSitelink(unittest.TestCase):
     """``_remove_sitelink`` (issue #648, Этап C) — unlike
