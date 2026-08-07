@@ -5122,18 +5122,18 @@ def _metrika_counter_identity(text: str) -> str:
     input text unchanged if it doesn't contain a `` • `` separator at all
     (defensive: an id-less string just fails to match anything, the same
     "no false positive" outcome as before this existed). Also returns the
-    input unchanged if the last `` • ``-delimited token is EMPTY (a
-    trailing separator with nothing after it, e.g. ``"Label • "``) —
-    cycle-review finding: without this, two malformed/unexpected inputs
-    would both collapse to the same empty-string identity and silently
-    match each other, masking a real mismatch instead of failing to match
-    anything (the intended, safe failure mode).
+    input unchanged if the last `` • ``-delimited token is EMPTY or
+    whitespace-only (a trailing separator with nothing meaningful after it,
+    e.g. ``"Label • "`` or ``"Label •  "``) — cycle-review finding: without
+    this, two malformed/unexpected inputs would both collapse to the same
+    identity and silently match each other, masking a real mismatch instead
+    of failing to match anything (the intended, safe failure mode).
     """
     first_line = text.split("\n", 1)[0]
     if " • " not in first_line:
         return text
     identity = first_line.rsplit(" • ", 1)[1]
-    return identity if identity else text
+    return identity if identity.strip() else text
 
 
 def _read_metrika_counters(page: "Page") -> List[str]:
