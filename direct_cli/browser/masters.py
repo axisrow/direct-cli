@@ -5328,12 +5328,19 @@ def _metrika_counter_identity(text: str) -> str:
     this, two malformed/unexpected inputs would both collapse to the same
     identity and silently match each other, masking a real mismatch instead
     of failing to match anything (the intended, safe failure mode).
+
+    A non-empty id is also stripped of surrounding whitespace (issue #809):
+    the suggestion format (``"...• 88834924"``) and the two-line tag-display
+    format (``"...• 12345 \\n30 целей"``) aren't guaranteed to have identical
+    whitespace around the id token on both sides, and an unstripped identity
+    would make ``_verify_saved``'s ``Counter`` comparison report a false
+    save-mismatch for an add that actually succeeded.
     """
     first_line = text.split("\n", 1)[0]
     if " • " not in first_line:
         return text
-    identity = first_line.rsplit(" • ", 1)[1]
-    return identity if identity.strip() else text
+    identity = first_line.rsplit(" • ", 1)[1].strip()
+    return identity if identity else text
 
 
 def _read_metrika_counters(page: "Page") -> List[str]:

@@ -19284,6 +19284,35 @@ class TestMetrikaCounterIdentity(unittest.TestCase):
         b = browser_masters._metrika_counter_identity("Label B •  ")
         self.assertNotEqual(a, b)
 
+    def test_strips_trailing_whitespace_around_a_real_id(self):
+        """issue #809: a real id with incidental trailing whitespace (e.g.
+        from the two-line tag-display format's first line) must normalize
+        to the same identity as the same id with no surrounding
+        whitespace, or _verify_saved's Counter comparison false-mismatches
+        an add that actually succeeded."""
+        self.assertEqual(
+            browser_masters._metrika_counter_identity("domain • 12345 "),
+            "12345",
+        )
+
+    def test_strips_leading_whitespace_around_a_real_id(self):
+        self.assertEqual(
+            browser_masters._metrika_counter_identity("domain •  12345"),
+            "12345",
+        )
+
+    def test_suggestion_and_whitespace_padded_tag_display_share_identity(self):
+        """The exact scenario from issue #809: suggestion text has no
+        padding, read-back tag-display text has incidental whitespace
+        around the same id -- both must normalize to the same identity."""
+        suggestion = browser_masters._metrika_counter_identity(
+            "label • domain/path • 12345"
+        )
+        tag_display = browser_masters._metrika_counter_identity(
+            "domain • 12345 \n30 целей"
+        )
+        self.assertEqual(suggestion, tag_display)
+
 
 class TestParseRemoveMetrikaCounterOptions(unittest.TestCase):
     """``_parse_remove_metrika_counter_options`` (issue #648) — mirrors
