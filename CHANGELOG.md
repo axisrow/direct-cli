@@ -4,6 +4,38 @@
 
 ### Added
 
+**`masters update --add-metrika-counter`/`--remove-metrika-counter` —
+"Счетчики Яндекс Метрики" section (#648, Этап C).**
+
+Offline implementation mirroring `--add-audience-tag`/`--remove-audience-tag`
+(#681) field-for-field: `--add-metrika-counter TEXT` types into the
+section's search input and clicks the matching autocomplete suggestion by
+its first line of text; `--remove-metrika-counter POSITION` removes a
+counter by its 0-based position via its close button. Testid shapes
+(`MetrikaCountersTagGroup.*`) were confirmed via live read-only recon
+(2026-08-06, campaign 713277109) covering the DOM before and immediately
+after opening the section's editor.
+
+**`--add-metrika-counter`'s expected text CONFIRMED LIVE** (2026-08-06, via
+`mcp claude-in-chrome` against a real Chrome session — separate from the
+Playwright/Chrome-for-Testing browser this module normally drives): a
+suggestion's accessible text is one line shaped `"{label} • {domain/path}
+• {numeric counter id}"` (e.g. `"Ксамата • yandex.ru/maps • 88834924"`).
+Typing just the label is enough to surface the right suggestion
+interactively, but this flag needs the WHOLE string for the exact-match
+lookup to succeed.
+
+**Still NOT LIVE-VERIFIED**: whether `match.click()` actually commits the
+counter into the list and whether that persists through a save — the recon
+session closed the suggestion popup with Escape and reloaded the edit page
+without saving, specifically to avoid mutating this production campaign's
+counter set. See the `_add_metrika_counter` docstring in
+`direct_cli/browser/masters.py` for details, including a possible
+"leftover text after Escape" gap discovered during the same recon (mirrors
+issue #796's target-action price popup). Treat add/remove itself as an
+implementation-by-pattern pending a later live mutation verification pass,
+not a confirmed-working feature.
+
 **`masters delete` — remove a DRAFT Мастер кампаний campaign (#782).**
 
 A DRAFT campaign was previously a one-way door: its overview page has no

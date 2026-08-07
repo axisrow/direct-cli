@@ -1493,6 +1493,69 @@ _AUDIENCE_TAG_STABLE_STREAK = 12
 _AUDIENCE_TAG_STABLE_TICK_MS = 500
 _AUDIENCE_TAG_STABLE_WINDOW_MS = 20_000
 
+# "Счетчики Яндекс Метрики" (MetrikaCountersTagGroup) — issue #648 Этап C.
+# Testid shapes confirmed via LIVE READ-ONLY RECON 2026-08-06, campaign
+# 713277109, mirroring the "Интересы и поисковые запросы"
+# (CustomAudienceAndSearchTermsEditor.TagGroup) widget's own testid family
+# one component name over: ``...tags-wrapper``, ``...tag.{index}``,
+# ``...tag.{index}.close``, ``...editor.Textinput``, ``...editor.listBox``
+# all exist under the ``MetrikaCountersTagGroup`` prefix instead. Recon only
+# covered the DOM BEFORE and immediately after clicking
+# ``MetrikaCountersTagGroup.launcher`` — the actual add/remove COMMIT
+# behaviour (whether a click reliably grows/shrinks the tag list, whether a
+# save persists it) is NOT live-verified, unlike the audience-tag functions
+# this module mirrors. Treat every function below as an offline
+# implementation-by-pattern pending live verification, not a confirmed-
+# working feature.
+#
+# One confirmed STRUCTURAL difference from audience tags: each "tag" here is
+# a whole Metrika counter (domain + numeric counter id + goal count), not a
+# single word/phrase — recon showed each ``...tag.{index}`` div containing
+# TWO separate ``[data-testid="Text"]`` spans, e.g. "gc.ksamata.ru •
+# 72112213" and "30 целей". ``_read_metrika_counters`` returns each tag's
+# whole ``inner_text()`` (both lines, newline-joined) rather than picking one
+# line, since which line (if either) is the "identity" a caller would want
+# to match on is not determined by recon — returning the full text is the
+# only choice that doesn't discard information un-verified.
+#
+# The other confirmed difference: unlike the audience-tag wrapper (always
+# clicked directly to mount its input), the Metrika counters wrapper
+# (``...tags-wrapper``) was already visible in the BEFORE-click recon
+# snapshot with a SEPARATE ``...launcher`` button alongside it — recon did
+# not click the wrapper itself, only the launcher. ``_add_metrika_counter``
+# therefore clicks the launcher, not the wrapper (see
+# ``_add_audience_tag``'s docstring for why ITS wrapper needs a
+# bottom-right-corner click instead of a plain center click on a large
+# campaign — that reasoning doesn't carry over here since recon never
+# exercised the wrapper-click path for this widget at all).
+#
+# Matching a typed suggestion in the popup: same "first line of the option's
+# text, not a constructed testid" convention as
+# ``_AUDIENCE_TAG_LISTBOX_TESTID`` (see that constant's module comment) —
+# recon found one example option testid containing a numeric id
+# (``editor.listBox.88834924``), but never confirmed whether that number is
+# the counter id (usable to build a locator) or something else (e.g. an
+# internal suggestion-row id), so this module does NOT construct a testid
+# from it, deliberately erring on the same conservative side
+# ``_add_audience_tag`` already established for exactly this kind of
+# unconfirmed numeric-id testid.
+_METRIKA_COUNTER_WRAPPER_TESTID = '[data-testid="MetrikaCountersTagGroup.tags-wrapper"]'
+_METRIKA_COUNTER_LAUNCHER_TESTID = '[data-testid="MetrikaCountersTagGroup.launcher"]'
+_METRIKA_COUNTER_INPUT_TESTID = (
+    '[data-testid="MetrikaCountersTagGroup.editor.Textinput"]'
+)
+_METRIKA_COUNTER_LISTBOX_TESTID = (
+    '[data-testid="MetrikaCountersTagGroup.editor.listBox"]'
+)
+_METRIKA_COUNTER_TESTID_TEMPLATE = "MetrikaCountersTagGroup.tag.{index}"
+_METRIKA_COUNTER_CLOSE_TESTID_TEMPLATE = "MetrikaCountersTagGroup.tag.{index}.close"
+
+# Reuses the same 5s budget ``_AUDIENCE_TAG_SUGGEST_TIMEOUT_MS`` uses for its
+# own autocomplete popup — no live timing recon exists yet for THIS widget's
+# popup specifically, so borrowing the sibling widget's already-calibrated
+# value is a more defensible default than inventing an unverified number.
+_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS = _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS
+
 # "Устройства пользователей" (DeviceEditor): a multi-select popup with
 # exactly three checkboxes, confirmed live all pre-checked by default
 # ("Любые" = all three checked, not a fourth distinct value) — mobile,
@@ -5041,6 +5104,231 @@ def _remove_audience_tag(page: "Page", index: int) -> None:
         ) from exc
 
 
+def _metrika_counter_identity(text: str) -> str:
+    """Extract the stable numeric counter id from either of this widget's
+    TWO different text formats (cycle-review finding, issue #648): the
+    autocomplete suggestion ``add_metrika_counter`` is given
+    (``"{label} • {domain/path} • {numeric counter id}"``, one line) and
+    ``_read_metrika_counters``'s read-back of an already-linked tag
+    (``"{domain} • {numeric counter id}\\n{N} целей"``, two lines) are NOT
+    the same string — comparing them for equality (as ``_verify_saved``
+    used to) can never match, so every ``--add-metrika-counter`` reported a
+    false save failure even though the add succeeded. Both formats share
+    one thing: their first line's LAST ``" • "``-delimited token is the
+    counter's own numeric id (confirmed live, issue #648 recon —
+    ``"...88834924"``/``"...72112213"``), which is what actually identifies
+    a counter, unlike the label/domain text that can differ between the
+    suggestion and the tag display for the exact same counter. Returns the
+    input text unchanged if it doesn't contain a `` • `` separator at all
+    (defensive: an id-less string just fails to match anything, the same
+    "no false positive" outcome as before this existed).
+    """
+    first_line = text.split("\n", 1)[0]
+    if " • " not in first_line:
+        return text
+    return first_line.rsplit(" • ", 1)[1]
+
+
+def _read_metrika_counters(page: "Page") -> List[str]:
+    """Read every currently linked Metrika counter's display text in
+    "Счетчики Яндекс Метрики" (in on-page order).
+
+    Mirrors ``_read_audience_tags``: the count isn't known ahead of time, so
+    this reads index 0, 1, 2, ... until a slot's ``inner_text()`` raises,
+    then stops. Each counter tag's text is TWO lines (domain + counter id on
+    the first, "N целей" on the second, per live recon — see the module
+    comment above ``_METRIKA_COUNTER_WRAPPER_TESTID``) — this returns the
+    WHOLE ``inner_text()`` (both lines) as one list entry rather than
+    splitting it, since recon never determined which line (if either) is a
+    caller-meaningful identity to isolate.
+
+    Waits for the tags-wrapper CONTAINER first, same hydration-race guard
+    ``_read_audience_tags`` uses — returns ``[]`` if it never appears rather
+    than raising, since an edit page whose audience section hasn't hydrated
+    yet is a normal, retriable state, not a markup-drift signal.
+    """
+    try:
+        page.locator(_METRIKA_COUNTER_WRAPPER_TESTID).first.wait_for(
+            state="attached", timeout=_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS
+        )
+    except PlaywrightError:
+        return []
+
+    counters: List[str] = []
+    index = 0
+    while True:
+        selector = (
+            f'[data-testid="{_METRIKA_COUNTER_TESTID_TEMPLATE.format(index=index)}"]'
+        )
+        try:
+            text = page.locator(selector).first.inner_text(timeout=1_000).strip()
+        except PlaywrightError:
+            break
+        if not text:
+            break
+        counters.append(text)
+        index += 1
+    return counters
+
+
+def _add_metrika_counter(page: "Page", text: str) -> None:
+    """Add one Metrika counter to "Счетчики Яндекс Метрики" by typing
+    ``text`` into the counter search input and clicking the suggestion row
+    whose FIRST LINE exactly matches it.
+
+    ``text`` FORMAT CONFIRMED LIVE (issue #648, 2026-08-06, campaign
+    713277109, via ``mcp__claude-in-chrome`` — real Chrome, not the
+    Playwright session): typing a partial query (e.g. just the counter's
+    label, "Ксамата") still surfaces the SAME suggestion as typing the full
+    string, but the suggestion's accessible text is exactly ONE line —
+    ``"{label} • {domain/path} • {numeric counter id}"`` (confirmed:
+    ``"Ксамата • yandex.ru/maps • 88834924"``), no newline anywhere in it.
+    Since ``_find_matching_option`` below splits on the first ``"\n"`` and
+    compares for EQUALITY against the whole (single-line) result, the
+    caller-supplied ``text`` must be that ENTIRE string verbatim — passing
+    only the label (e.g. ``"Ксамата"``) will NOT match, even though it's
+    enough to surface the right suggestion while typing interactively.
+    ``masters update``'s own help text/docstring should say this plainly
+    rather than describe it as "an autocomplete suggestion's text" in the
+    abstract.
+
+    Still NOT LIVE-VERIFIED: whether ``match.click()`` actually commits the
+    counter into the "tags-wrapper" list and whether that persists through
+    the campaign's save — the recon session closed the popup with Escape
+    and reloaded the page without saving, precisely to avoid mutating this
+    live campaign's counter set. Also unconfirmed: whether ``Escape`` alone
+    (with no fill-clear afterwards) can leave the search input holding
+    stale, non-committed text the way ``_set_target_action_price`` was
+    found to leave its own popup open in issue #796 — the live recon here
+    hit the SAME visual symptom (Escape closed the suggestion list but left
+    the typed text sitting in the input) and had to explicitly clear the
+    field before navigating away. Worth revisiting whether ``_add_metrika_
+    counter``'s error path below needs the same explicit-clear treatment,
+    not just an ``Escape`` press, once this is exercised end to end.
+
+    Unlike ``_add_audience_tag``, this clicks the dedicated
+    ``_METRIKA_COUNTER_LAUNCHER_TESTID`` button to open the editor rather
+    than the tags-wrapper itself — recon found a separate launcher button
+    for this widget (see the module comment above
+    ``_METRIKA_COUNTER_WRAPPER_TESTID``), so there is no equivalent of
+    ``_add_audience_tag``'s "click near the wrapper's bottom-right corner"
+    workaround to replicate here.
+
+    Raises ``BrowserSessionError`` if the launcher/input can't be
+    found/clicked/typed into, or if no suggestion whose first line matches
+    appears within ``_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS``.
+    """
+    launcher = page.locator(_METRIKA_COUNTER_LAUNCHER_TESTID).first
+    try:
+        launcher.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not click the 'Счетчики Яндекс Метрики' launcher button "
+            "on the campaign edit page — Yandex may have changed the "
+            "page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+
+    field = page.locator(_METRIKA_COUNTER_INPUT_TESTID).first
+    try:
+        field.click()
+        cleared = _clear_text_field(field)
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not click the 'Счетчики Яндекс Метрики' counter input "
+            "on the campaign edit page — Yandex may have changed the "
+            "page's markup. Re-run with --headful to inspect the page."
+        ) from exc
+    if not cleared:
+        raise BrowserSessionError(
+            "Could not clear the 'Счетчики Яндекс Метрики' counter input "
+            "before typing. This usually means Playwright is older than "
+            "1.44 (the version that added the 'ControlOrMeta' modifier) — "
+            "upgrade with 'pip install -U playwright'."
+        )
+    try:
+        field.type(text)
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not type {text!r} into the 'Счетчики Яндекс Метрики' "
+            "counter input on the campaign edit page — Yandex may have "
+            "changed the page's markup. Re-run with --headful to inspect "
+            "the page."
+        ) from exc
+
+    listbox = page.locator(_METRIKA_COUNTER_LISTBOX_TESTID).first
+    options = listbox.get_by_role("option")
+
+    def _find_matching_option():
+        try:
+            count = options.count()
+        except PlaywrightError:
+            return None
+        for i in range(count):
+            option = options.nth(i)
+            try:
+                first_line = option.inner_text(timeout=500).split("\n", 1)[0]
+            except PlaywrightError:
+                continue
+            if first_line == text:
+                return option
+        return None
+
+    deadline = _clock.now() + _METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000
+    match = None
+    while _clock.now() < deadline:
+        match = _find_matching_option()
+        if match is not None:
+            break
+        page.wait_for_timeout(250)
+
+    if match is None:
+        with contextlib.suppress(PlaywrightError):
+            page.keyboard.press("Escape")
+        raise BrowserSessionError(
+            f"No suggestion exactly matching {text!r} appeared in the "
+            "'Счетчики Яндекс Метрики' autocomplete within "
+            f"{_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000:.0f}s — this may "
+            "not be a valid Metrika counter on Yandex's side, or its "
+            "suggestion label differs from the exact text passed. Re-run "
+            "with --headful to see the actual suggestion list."
+        )
+
+    try:
+        match.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Found a matching suggestion for {text!r} in the 'Счетчики "
+            "Яндекс Метрики' autocomplete but could not click it — Yandex "
+            "may have changed the page's markup. Re-run with --headful to "
+            "inspect the page."
+        ) from exc
+
+
+def _remove_metrika_counter(page: "Page", index: int) -> None:
+    """Remove the Metrika counter currently at position ``index`` in
+    "Счетчики Яндекс Метрики" by clicking its close button.
+
+    ``index`` must reference an EXISTING counter (see
+    ``_read_metrika_counters``) — mirrors ``_remove_audience_tag``'s own
+    position-based (not text-based) removal, for the same reason: two
+    entries could in principle share identical display text, and only a
+    position is guaranteed to identify one specific counter.
+    """
+    selector = (
+        f'[data-testid="'
+        f'{_METRIKA_COUNTER_CLOSE_TESTID_TEMPLATE.format(index=index)}"]'
+    )
+    try:
+        page.locator(selector).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not remove the Metrika counter at position {index + 1} "
+            f"via {selector!r} on the campaign edit page — Yandex may have "
+            "changed the page's markup, or that position no longer exists. "
+            "Re-run with --headful to inspect the page."
+        ) from exc
+
+
 def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
     """Read the "Целевые действия" table's current rows.
 
@@ -5962,6 +6250,9 @@ def _verify_saved(
     audience_tags_before: Optional[List[str]] = None,
     add_audience_tags: Optional[List[str]] = None,
     remove_audience_tag_indices: Optional[List[int]] = None,
+    metrika_counters_before: Optional[List[str]] = None,
+    add_metrika_counters: Optional[List[str]] = None,
+    remove_metrika_counter_indices: Optional[List[int]] = None,
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
@@ -5984,7 +6275,17 @@ def _verify_saved(
         or add_audience_tags
         or remove_audience_tag_indices
     )
-    if _audience_touched:
+    # cycle-review finding, issue #648: the pre-reload settle wait below was
+    # scoped to `_audience_touched` only, so a metrika-counters-only save
+    # skipped it entirely. The Metrika counters widget shares the exact
+    # same structural pattern as audience tags (same tag-group DOM shape,
+    # same add/remove-by-position mechanics) — no live recon has confirmed
+    # whether it shares the SAME server-side save-commit race issue #681
+    # found for audience tags, but there's no basis to assume it doesn't
+    # either, and this wait is cheap insurance against the identical
+    # false-negative-mismatch failure mode.
+    _metrika_touched = bool(add_metrika_counters or remove_metrika_counter_indices)
+    if _audience_touched or _metrika_touched:
         # Confirmed live (issue #681): reloading immediately after clicking
         # 'Сохранить кампанию' can race the server-side commit for this
         # section specifically — a reload landing too soon reads back the
@@ -5997,8 +6298,8 @@ def _verify_saved(
         # fully closed (see this function's own docstring "false negative"
         # note and issue #681's follow-up). No other field this module
         # verifies has shown this same race, so the delay is scoped to
-        # audience-touching saves only rather than slowing down every
-        # update_master call.
+        # audience/metrika-touching saves only rather than slowing down
+        # every update_master call.
         page.wait_for_timeout(5_000)
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
@@ -6225,6 +6526,59 @@ def _verify_saved(
             mismatches.append(
                 f"audience_tags: expected {sorted(expected_tags.elements())!r}, "
                 f"page now shows {sorted(actual_tags)!r}"
+            )
+
+    if metrika_counters_before is not None:
+        # Mirrors the audience-tags block immediately above verbatim (same
+        # "expected multiset derived from the pre-mutation baseline, so an
+        # untouched save is asserted UNCHANGED rather than left
+        # unverified" reasoning applies here too) — see that block's own
+        # comments for the full rationale. Not live-verified: this section
+        # has no confirmed settle-timing recon of its own (see the module
+        # comment above ``_METRIKA_COUNTER_WRAPPER_TESTID``), so this uses
+        # the shared default read budget rather than inventing an
+        # unconfirmed multiplier the way the audience-tags block's
+        # ``_AUDIENCE_SECTION_READY_TIMEOUT_MS * 3`` does from its own
+        # live-measured settle time.
+        # Built from _metrika_counter_identity(...), NOT the raw text
+        # (cycle-review finding, issue #648): add_metrika_counters is the
+        # user-supplied autocomplete-suggestion text
+        # ("{label} • {domain/path} • {id}", one line), while
+        # _read_metrika_counters returns the linked tag's read-back display
+        # text ("{domain} • {id}\n{N} целей", two lines) — comparing those
+        # two formats directly can never match, so every successful add
+        # used to raise a false "did not save as requested" error. Both
+        # formats agree on the counter's numeric id (see
+        # _metrika_counter_identity's own docstring), which is the actual
+        # identity a caller cares about.
+        expected_counters = Counter(
+            _metrika_counter_identity(c) for c in metrika_counters_before
+        )
+        for index in remove_metrika_counter_indices or []:
+            expected_counters[
+                _metrika_counter_identity(metrika_counters_before[index])
+            ] -= 1
+        expected_counters += Counter(
+            _metrika_counter_identity(c) for c in (add_metrika_counters or [])
+        )
+
+        def _counter_state_matches(actual_counters: List[str], _expected: Any) -> bool:
+            return (
+                Counter(_metrika_counter_identity(c) for c in actual_counters)
+                == expected_counters
+            )
+
+        actual_counters = _read_until_matches(
+            page,
+            _read_metrika_counters,
+            None,
+            matches=_counter_state_matches,
+        )
+        if not _counter_state_matches(actual_counters, None):
+            mismatches.append(
+                "metrika_counters: expected counter ids "
+                f"{sorted(expected_counters.elements())!r}, page now shows "
+                f"{sorted(actual_counters)!r}"
             )
 
     if goal_price is not None:
@@ -6533,6 +6887,8 @@ def update_master(
     devices: Optional[Set[str]] = None,
     add_audience_tags: Optional[List[str]] = None,
     remove_audience_tags: Optional[List[int]] = None,
+    add_metrika_counters: Optional[List[str]] = None,
+    remove_metrika_counters: Optional[List[int]] = None,
     launch: bool = False,
 ) -> Dict[str, Any]:
     """Update one or more Этап A/B/D fields (plus the campaign name) and save.
@@ -6636,9 +6992,25 @@ def update_master(
     positions) — removed low-to-high internally so earlier removals don't
     shift the position of a later one still pending.
 
-    Later Этап C fields — sitelinks, Metrika counters/goals, budget
-    adaptation — plus video (a separate follow-up issue, different upload
-    control/pipeline) are out of scope for this function; see issue #648.
+    ``add_metrika_counters``/``remove_metrika_counters`` (issue #648, Этап
+    C) cover the "Счетчики Яндекс Метрики" section, mirroring
+    ``add_audience_tags``/``remove_audience_tags`` above field-for-field —
+    see ``_add_metrika_counter``/``_remove_metrika_counter``/
+    ``_read_metrika_counters`` for the mechanics. NOT LIVE-VERIFIED (see the
+    module comment above ``_METRIKA_COUNTER_WRAPPER_TESTID``): this is an
+    offline implementation following the audience-tags pattern, pending a
+    later live confirmation pass. ``add_metrika_counters`` appends counters
+    by typing text into the section's search input and clicking the
+    suggestion whose first line matches exactly — a value with no matching
+    suggestion raises rather than silently no-op'ing, same as
+    ``add_audience_tags``. ``remove_metrika_counters`` takes 0-based
+    POSITIONS into the counter list as it exists BEFORE this call, removed
+    high-to-low internally for the same "don't shift a later pending
+    position" reason as ``remove_audience_tags``.
+
+    Later Этап C fields — sitelinks, goals, budget adaptation — plus video
+    (a separate follow-up issue, different upload control/pipeline) are out
+    of scope for this function; see issue #648.
 
     ``launch`` (issue #668) matters only when ``campaign_id`` is currently a
     DRAFT: that edit page has no "Сохранить кампанию" button at all, only a
@@ -6711,6 +7083,8 @@ def update_master(
         and devices is None
         and not add_audience_tags
         and not remove_audience_tags
+        and not add_metrika_counters
+        and not remove_metrika_counters
     ):
         raise ValueError(
             "update_master requires at least one field to update "
@@ -6720,7 +7094,8 @@ def update_master(
             "landing_url, tracking_params, headlines, texts, "
             "clear_headlines, clear_texts, images, "
             "gender, age_from, age_to, devices, "
-            "add_audience_tags, remove_audience_tags)."
+            "add_audience_tags, remove_audience_tags, "
+            "add_metrika_counters, remove_metrika_counters)."
         )
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)
@@ -6940,6 +7315,59 @@ def update_master(
                 "Verify manually before retrying."
             )
 
+    # Mirrors the audience-tags block immediately above, field-for-field —
+    # same pre-mutation-baseline-snapshot rationale (needed both for
+    # _verify_saved's expected multiset and so remove_metrika_counters below
+    # can remove high-to-low without an earlier removal shifting a later
+    # requested position), and same "capture even on an untouched save" R2-1
+    # guard against silently persisting a stale/empty read. NOT LIVE-
+    # VERIFIED — see the module comment above
+    # _METRIKA_COUNTER_WRAPPER_TESTID.
+    _metrika_requested = bool(add_metrika_counters or remove_metrika_counters)
+    metrika_counters_before = (
+        _read_metrika_counters(page) if _metrika_requested else None
+    )
+    _counters_before = metrika_counters_before or []
+    _running_counter_count = len(_counters_before)  # noqa: SIM113
+    for index in sorted(remove_metrika_counters or [], reverse=True):
+        if index >= len(_counters_before):
+            raise BrowserSessionError(
+                f"Metrika counter position {index + 1} is out of range — "
+                f"this campaign currently has {len(_counters_before)} "
+                f"counter(s) (positions 1-{len(_counters_before)})."
+            )
+        _remove_metrika_counter(page, index)
+        _running_counter_count -= 1
+        deadline = _clock.now() + _METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000
+        actual_count = len(_read_metrika_counters(page))
+        while actual_count != _running_counter_count and _clock.now() < deadline:
+            page.wait_for_timeout(250)
+            actual_count = len(_read_metrika_counters(page))
+        if actual_count != _running_counter_count:
+            raise BrowserSessionError(
+                f"Clicked the close button for the Metrika counter at "
+                f"position {index + 1}, but the counter list still shows "
+                f"{actual_count} counter(s) instead of the expected "
+                f"{_running_counter_count} — the click may not have "
+                "committed. Verify manually before retrying."
+            )
+    for text in add_metrika_counters or []:
+        _add_metrika_counter(page, text)
+        _running_counter_count += 1
+        deadline = _clock.now() + _METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000
+        actual_count = len(_read_metrika_counters(page))
+        while actual_count != _running_counter_count and _clock.now() < deadline:
+            page.wait_for_timeout(250)
+            actual_count = len(_read_metrika_counters(page))
+        if actual_count != _running_counter_count:
+            raise BrowserSessionError(
+                f"Clicked the matching suggestion for {text!r} in "
+                "'Счетчики Яндекс Метрики', but the counter list still "
+                f"shows {actual_count} counter(s) instead of the expected "
+                f"{_running_counter_count} — the click may not have "
+                "committed. Verify manually before retrying."
+            )
+
     for index, value in (headlines or {}).items():
         _set_repeating_value(
             page, _HEADLINES_TESTID_TEMPLATE, _HEADLINES_SLOT_COUNT, index, value
@@ -7053,6 +7481,9 @@ def update_master(
             audience_tags_before=audience_tags_before,
             add_audience_tags=add_audience_tags,
             remove_audience_tag_indices=remove_audience_tags,
+            metrika_counters_before=metrika_counters_before,
+            add_metrika_counters=add_metrika_counters,
+            remove_metrika_counter_indices=remove_metrika_counters,
             clicked_button_label=clicked_button_label,
         )
     except BrowserAuthError as exc:
@@ -7107,6 +7538,10 @@ def update_master(
         result["AddedAudienceTags"] = add_audience_tags
     if remove_audience_tags:
         result["RemovedAudienceTagPositions"] = sorted(remove_audience_tags)
+    if add_metrika_counters:
+        result["AddedMetrikaCounters"] = add_metrika_counters
+    if remove_metrika_counters:
+        result["RemovedMetrikaCounterPositions"] = sorted(remove_metrika_counters)
     if was_draft and launch:
         # Issue #721: the DRAFT edit page's launch click redirects away from
         # /edit/ (already awaited by _click_draft_terminal_button inside
