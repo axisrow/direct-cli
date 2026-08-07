@@ -10037,6 +10037,75 @@ class TestUpdateMaster(unittest.TestCase):
 
         self.assertIn("not present", str(ctx.exception).lower())
 
+    def test_update_master_raises_before_mutating_when_a_later_remove_url_is_invalid(
+        self,
+    ):
+        # Preflight: with two --remove-video URLs where the first is valid
+        # and the second is not, nothing on the page should be clicked —
+        # the whole batch is validated against the pre-mutation snapshot
+        # before any _remove_video call, mirroring _set_image's "resolve
+        # every target up front" pattern for identity-based (not
+        # position-based) removal.
+        page = _FakeVideosPage(["https://a.test/1.mp4", "https://a.test/2.mp4"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page,
+                42,
+                remove_videos=[
+                    "https://a.test/1.mp4",
+                    "https://nonexistent.test/x.mp4",
+                ],
+            )
+
+        self.assertIn("not present", str(ctx.exception).lower())
+        self.assertEqual(page.urls, ["https://a.test/1.mp4", "https://a.test/2.mp4"])
+
+    def test_update_master_raises_when_remove_videos_has_a_duplicate_url(self):
+        # A duplicate URL in --remove-video must not be treated as "still
+        # present" by a stale snapshot re-check — it must be rejected
+        # up front as a caller error, the same way _set_image treats a
+        # content ID that already disappeared earlier in the same batch.
+        page = _FakeVideosPage(["https://a.test/1.mp4", "https://a.test/2.mp4"])
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page,
+                42,
+                remove_videos=["https://a.test/1.mp4", "https://a.test/1.mp4"],
+            )
+
+        self.assertIn("duplicate", str(ctx.exception).lower())
+        self.assertEqual(page.urls, ["https://a.test/1.mp4", "https://a.test/2.mp4"])
+
+    def test_add_video_failure_after_a_prior_remove_does_not_claim_no_change(self):
+        # A --remove-video is committed directly on the page, with no Save
+        # gate of its own (see _remove_video's docstring) — so if a
+        # following --add-video then fails, the error must not claim "the
+        # video set has NOT been changed": the removal already ran.
+        page = _FakeVideosPage(["https://a.test/1.mp4", "https://a.test/2.mp4"])
+        original_locator = page.locator
+
+        def _locator(selector):
+            if selector == browser_masters._VIDEOS_MODAL_FILE_INPUT_SELECTOR:
+                return _FakeLocator([_FakeLocatorHandle(raises=True)])
+            return original_locator(selector)
+
+        page.locator = _locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page,
+                42,
+                remove_videos=["https://a.test/1.mp4"],
+                add_video="/tmp/fake.mp4",
+            )
+
+        message = str(ctx.exception)
+        self.assertNotIn("has NOT been changed", message)
+        self.assertIn("1 --remove-video removal(s)", message)
+        self.assertEqual(page.urls, ["https://a.test/2.mp4"])
+
     def test_update_master_raises_when_saved_video_set_does_not_match(self):
         page_save_clicks = []
         save_handle = _FakeTextLocatorHandle(

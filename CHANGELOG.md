@@ -71,6 +71,18 @@ the module comments above `_VIDEOS_SLOT_COUNT` in
 `direct_cli/browser/masters.py` for the full confirmed-vs-assumed
 breakdown before relying on this against a real account.
 
+**Preflight fix (cycle-review round 1):** because `--remove-video`'s close
+button commits directly on the edit page with no Save gate of its own —
+unlike images, where remove+add both happen inside a modal and an
+abandoned modal means nothing was mutated — a multiple `--remove-video`
+batch now validates every URL (duplicates and unknown URLs alike) against
+the pre-mutation snapshot up front, before clicking anything. A single
+invalid or repeated URL used to let earlier, valid removals in the same
+batch already execute before the error was raised. `_add_video`'s failure
+messages no longer unconditionally claim "the video set has NOT been
+changed" when one or more `--remove-video` removals already ran earlier in
+the same `masters update` call.
+
 **`masters delete` — remove a DRAFT Мастер кампаний campaign (#782).**
 
 A DRAFT campaign was previously a one-way door: its overview page has no

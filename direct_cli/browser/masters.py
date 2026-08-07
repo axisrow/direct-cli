@@ -8048,15 +8048,38 @@ def update_master(
     videos_before_urls = (
         _read_videos(page) if (add_video is not None or remove_videos) else []
     )
-    for video_url in remove_videos or []:
-        if video_url not in videos_before_urls:
+    # Preflight ALL --remove-video URLs against the pre-mutation snapshot
+    # before clicking anything — mirrors _set_image's "resolve every target
+    # up front" rule for identity-based (not position-based) removal. A
+    # duplicate URL, or a valid URL followed by an invalid one, must never
+    # let an earlier _remove_video click go through before the batch is
+    # known to be entirely valid: unlike sitelinks/metrika-counters/
+    # audience-tags (position-based, removed high-to-low against a fixed-
+    # length list), a video's identity is its URL, and only one close
+    # button exists for it — re-checking mid-loop against a snapshot that
+    # is never updated would let a duplicate URL wrongly appear "still
+    # present" after its first removal already ran.
+    if remove_videos:
+        seen: Set[str] = set()
+        duplicates = sorted(
+            {url for url in remove_videos if url in seen or seen.add(url)}
+        )
+        if duplicates:
             raise BrowserSessionError(
-                f"Video {video_url!r} is not present in this campaign's "
-                "current video set — nothing to remove."
+                "Duplicate URL(s) in --remove-video: "
+                f"{', '.join(repr(url) for url in duplicates)} — each video "
+                "can only be removed once per command."
             )
+        missing = [url for url in remove_videos if url not in videos_before_urls]
+        if missing:
+            raise BrowserSessionError(
+                "Video(s) not present in this campaign's current video "
+                f"set — nothing to remove: {', '.join(repr(url) for url in missing)}."
+            )
+    for video_url in remove_videos or []:
         _remove_video(page, video_url)
     if add_video is not None:
-        _add_video(page, add_video)
+        _add_video(page, add_video, prior_removals=len(remove_videos or []))
 
     # was_draft was captured right after _wait_for_edit_form, above — reused
     # here rather than re-derived, for the same reason _click_save takes it
@@ -10234,7 +10257,7 @@ def _open_videos_modal(page: "Page") -> None:
     )
 
 
-def _add_video(page: "Page", path: str) -> None:
+def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
     """Upload a new video file, appending it to the campaign's video set.
 
     NOT LIVE-VERIFIED beyond the section/open-button testids confirmed by
@@ -10254,6 +10277,15 @@ def _add_video(page: "Page", path: str) -> None:
     real cap enforced ahead of any upload attempt, though the number itself
     is only sourced from the page's own "Максимум 2 видео" copy, not from
     actually trying to exceed it live.
+
+    ``prior_removals`` (issue #648 cycle-review round 1 of PR #806): the
+    caller passes the count of ``--remove-video`` calls that already ran in
+    this same ``update_master`` invocation, since removal happens directly
+    on the edit page (no modal, no Save gate — see ``_remove_video``'s
+    docstring) and is therefore already committed by the time this function
+    runs. Every error message below is worded accordingly — it must never
+    claim "the video set has NOT been changed" when a prior removal may
+    already have taken effect.
     """
     _wait_for_videos_editor(page)
     before_urls = _read_videos(page)
@@ -10267,15 +10299,27 @@ def _add_video(page: "Page", path: str) -> None:
 
     _open_videos_modal(page)
 
+    no_change_note = (
+        "The campaign's saved video set has NOT been changed (the "
+        "modal was never saved)."
+        if not prior_removals
+        else (
+            f"NOTE: {prior_removals} --remove-video removal(s) requested "
+            "earlier in this same command already ran and are NOT "
+            "affected by this failure — removal happens directly on the "
+            "edit page, with no Save gate of its own. Verify the "
+            "campaign's current video set manually before retrying."
+        )
+    )
+
     try:
         page.locator(_VIDEOS_MODAL_FILE_INPUT_SELECTOR).first.set_input_files(path)
     except PlaywrightError as exc:
         raise BrowserSessionError(
             f"Could not upload {path!r} inside the video manager modal "
             "(assumed testid, NOT live-verified) — Yandex may have changed "
-            "the page's markup. Re-run with --headful to inspect the page. "
-            "The campaign's saved video set has NOT been changed (the "
-            "modal was never saved)."
+            f"the page's markup. Re-run with --headful to inspect the page. "
+            f"{no_change_note}"
         ) from exc
 
     if not _poll_until(
@@ -10288,9 +10332,8 @@ def _add_video(page: "Page", path: str) -> None:
             f"video appeared there within {_VIDEO_UPLOAD_TIMEOUT_MS / 1000:.0f}s "
             "— Yandex's asynchronous processing may have failed or be "
             "unusually slow, or this command's assumptions about the "
-            "modal's markup may simply be wrong (NOT LIVE-VERIFIED). The "
-            "campaign's saved video set has NOT been changed (the modal "
-            "was never saved) — close the browser and retry."
+            f"modal's markup may simply be wrong (NOT LIVE-VERIFIED). "
+            f"{no_change_note}"
         )
 
     try:
@@ -10299,9 +10342,8 @@ def _add_video(page: "Page", path: str) -> None:
         raise BrowserSessionError(
             "Could not find/click the video manager modal's Save button "
             "(assumed testid, NOT live-verified) — Yandex may have changed "
-            "the page's markup. Re-run with --headful to inspect the page. "
-            "The campaign's saved video set has NOT been changed (the "
-            "modal was never saved)."
+            f"the page's markup. Re-run with --headful to inspect the page. "
+            f"{no_change_note}"
         ) from exc
 
     if _poll_until(
