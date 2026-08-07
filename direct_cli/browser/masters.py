@@ -6634,7 +6634,15 @@ def _verify_saved(
     # either, and this wait is cheap insurance against the identical
     # false-negative-mismatch failure mode.
     _metrika_touched = bool(add_metrika_counters or remove_metrika_counter_indices)
-    if _audience_touched or _metrika_touched:
+    # Same reasoning as `_metrika_touched` immediately above — sitelinks
+    # share the same "no live recon confirming/denying issue #681's race,
+    # so no basis to assume it doesn't apply" position, and this wait is
+    # cheap insurance either way. (cycle-review finding, this PR: `_verify_
+    # saved` already gained `sitelinks_before`/`add_sitelinks`/`remove_
+    # sitelink_indices` params and a full post-save verify block, but this
+    # settle-wait guard was left scoped to audience/metrika only.)
+    _sitelinks_touched = bool(add_sitelinks or remove_sitelink_indices)
+    if _audience_touched or _metrika_touched or _sitelinks_touched:
         # Confirmed live (issue #681): reloading immediately after clicking
         # 'Сохранить кампанию' can race the server-side commit for this
         # section specifically — a reload landing too soon reads back the
@@ -7731,6 +7739,7 @@ def update_master(
     _sitelinks_requested = bool(add_sitelinks or remove_sitelinks)
     sitelinks_before = _read_sitelinks(page) if _sitelinks_requested else None
     _sitelinks_before_list = sitelinks_before or []
+    _running_sitelink_count = len(_sitelinks_before_list)  # noqa: SIM113
     for index in sorted(remove_sitelinks or [], reverse=True):
         if index >= len(_sitelinks_before_list):
             raise BrowserSessionError(
@@ -7739,6 +7748,28 @@ def update_master(
                 f"sitelink(s) (positions 1-{len(_sitelinks_before_list)})."
             )
         _remove_sitelink(page, index)
+        # Same "click alone isn't proof" guard as the audience-tag/Metrika-
+        # counter loops above — confirmed live (issue #681) a save
+        # immediately after a click that hadn't actually committed to the
+        # DOM yet reloaded with the change missing (there, a still-present
+        # tag; here, symmetrically, a still-present or wrongly-shifted
+        # card). Without this, removing multiple sitelinks high-to-low
+        # could target a stale DOM if an earlier click hasn't committed
+        # yet, removing the WRONG card.
+        _running_sitelink_count -= 1
+        deadline = _clock.now() + _SITELINK_ROW_TIMEOUT_MS / 1000
+        actual_count = len(_read_sitelinks(page))
+        while actual_count != _running_sitelink_count and _clock.now() < deadline:
+            page.wait_for_timeout(250)
+            actual_count = len(_read_sitelinks(page))
+        if actual_count != _running_sitelink_count:
+            raise BrowserSessionError(
+                f"Clicked the remove button for the sitelink at position "
+                f"{index + 1}, but the sitelink list still shows "
+                f"{actual_count} sitelink(s) instead of the expected "
+                f"{_running_sitelink_count} — the click may not have "
+                "committed. Verify manually before retrying."
+            )
     for sitelink in add_sitelinks or []:
         _add_sitelink(
             page,
@@ -7746,6 +7777,23 @@ def update_master(
             sitelink["Href"],
             sitelink.get("Description", ""),
         )
+        # Mirrors the removal guard immediately above and the audience-tag
+        # add loop's own guard — a click that doesn't visibly grow the
+        # sitelink list is a hard error here too, not a silent no-op.
+        _running_sitelink_count += 1
+        deadline = _clock.now() + _SITELINK_ROW_TIMEOUT_MS / 1000
+        actual_count = len(_read_sitelinks(page))
+        while actual_count != _running_sitelink_count and _clock.now() < deadline:
+            page.wait_for_timeout(250)
+            actual_count = len(_read_sitelinks(page))
+        if actual_count != _running_sitelink_count:
+            raise BrowserSessionError(
+                f"Added a sitelink titled {sitelink['Title']!r}, but the "
+                f"sitelink list still shows {actual_count} sitelink(s) "
+                f"instead of the expected {_running_sitelink_count} — the "
+                "add may not have committed. Verify manually before "
+                "retrying."
+            )
 
     # Mirrors the audience-tags block immediately above, field-for-field —
     # same pre-mutation-baseline-snapshot rationale (needed both for

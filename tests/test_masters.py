@@ -17388,6 +17388,46 @@ class TestWaitForAudienceSection(unittest.TestCase):
 
         self.assertIn(5_000, wait_calls)
 
+    def test_sitelinks_only_save_gets_the_same_pre_reload_settle_wait(self):
+        """cycle-review finding (this PR): the pre-reload settle wait
+        (issue #681's confirmed-live save-commit race) was extended to
+        `_metrika_touched` above but `_sitelinks_touched` was left out of
+        the same guard, even though this same PR wires up sitelinks_before/
+        add_sitelinks/remove_sitelink_indices as _verify_saved params right
+        next to it. A sitelinks-only call (no audience/metrika fields
+        touched) must still trigger the 5s wait."""
+        page = FakePage(
+            locators={
+                browser_masters._SITELINKS_EDITOR_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._SITELINK_CARD_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(text="Title\nhttps://example.com")]
+                ),
+            }
+        )
+        wait_calls = []
+        page.wait_for_timeout = lambda timeout: wait_calls.append(timeout)
+
+        with patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None):
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                sitelinks_before=[],
+                add_sitelinks=[
+                    {
+                        "Title": "Title",
+                        "Href": "https://example.com",
+                        "Description": "Desc",
+                    }
+                ],
+            )
+
+        self.assertIn(5_000, wait_calls)
+
     def test_raises_if_gender_trigger_never_shows_a_label(self):
         page = FakePage(locators={})  # no _GENDER_SELECT_TESTID handle at all
 
@@ -17889,6 +17929,137 @@ class TestAddSitelink(unittest.TestCase):
             )
 
         self.assertIn("title", str(ctx.exception))
+
+
+class TestUpdateMasterSitelinkCommitConfirmation(unittest.TestCase):
+    """``update_master``'s sitelink add/remove loop (cycle-review finding,
+    Codex, this PR) — mirrors the audience-tag/Metrika-counter loops in the
+    same function: after each click, poll ``_read_sitelinks`` until the
+    on-page count reflects the change, raising BEFORE the save click if it
+    never does (issue #681: a save immediately after a non-committed click
+    reloaded with the change missing). Unlike ``TestRemoveSitelink``/
+    ``TestAddSitelink`` (which test ``_remove_sitelink``/``_add_sitelink``
+    in isolation), this exercises the polling loop that wraps them inside
+    ``update_master`` itself."""
+
+    def setUp(self):
+        self._patches = [
+            patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
+            patch.object(
+                browser_masters, "_wait_for_draft_status", lambda *a, **k: False
+            ),
+            patch.object(browser_masters, "_SITELINK_ROW_TIMEOUT_MS", 1),
+        ]
+        for p in self._patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_raises_before_save_when_removal_click_never_commits(self):
+        # _read_sitelinks always reports the ORIGINAL 2 cards -- models a
+        # remove-button click that fires with no error but never actually
+        # shrinks the on-page list (the exact issue #681 failure mode).
+        baseline = [
+            {"Title": "a", "Href": "https://example.com/a"},
+            {"Title": "b", "Href": "https://example.com/b"},
+        ]
+        save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: save_clicks.append(True)
+        )
+        page = FakePage(
+            locators={},
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        with (
+            patch.object(browser_masters, "_read_sitelinks", lambda p: list(baseline)),
+            patch.object(browser_masters, "_remove_sitelink", lambda p, i: None),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters.update_master(page, 42, remove_sitelinks=[0])
+
+        self.assertIn("may not have committed", str(ctx.exception).lower())
+        # The save click must NOT have fired -- the whole point of this
+        # guard is to catch the problem BEFORE the irreversible save.
+        self.assertEqual(save_clicks, [])
+
+    def test_raises_before_save_when_add_click_never_commits(self):
+        # _read_sitelinks always reports the ORIGINAL empty list -- models
+        # an add that fires with no error but never actually grows the
+        # on-page list.
+        save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: save_clicks.append(True)
+        )
+        page = FakePage(
+            locators={},
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        with (
+            patch.object(browser_masters, "_read_sitelinks", lambda p: []),
+            patch.object(
+                browser_masters, "_add_sitelink", lambda p, title, href, desc: None
+            ),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters.update_master(
+                page,
+                42,
+                add_sitelinks=[
+                    {
+                        "Title": "New",
+                        "Href": "https://example.com/new",
+                        "Description": "Desc",
+                    }
+                ],
+            )
+
+        self.assertIn("may not have committed", str(ctx.exception).lower())
+        self.assertEqual(save_clicks, [])
+
+    def test_does_not_raise_when_removal_commits_after_a_few_ticks(self):
+        # The commit check must tolerate a DOM update landing a beat after
+        # the click resolves (the normal case), not just an instantaneous
+        # change -- mirrors _clear_repeating_value's own equivalent test.
+        # The reader keeps returning the post-removal state once the
+        # scripted reads are exhausted (mirrors _read_until_matches'
+        # callers elsewhere in this file) since _verify_saved re-reads
+        # again after this loop's own commit-confirmation succeeds.
+        baseline = [
+            {"Title": "a", "Href": "https://example.com/a"},
+            {"Title": "b", "Href": "https://example.com/b"},
+        ]
+        reads = iter([list(baseline), list(baseline)])
+        after_removal = [baseline[0]]
+
+        def _next_read(_page):
+            try:
+                return next(reads)
+            except StopIteration:
+                return list(after_removal)
+
+        save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: save_clicks.append(True)
+        )
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        page = FakePage(
+            locators={edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()])},
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        with (
+            patch.object(browser_masters, "_SITELINK_ROW_TIMEOUT_MS", 5_000),
+            patch.object(browser_masters, "_read_sitelinks", _next_read),
+            patch.object(browser_masters, "_remove_sitelink", lambda p, i: None),
+        ):
+            # Does not raise -- the second read shows the removal committed.
+            browser_masters.update_master(page, 42, remove_sitelinks=[1])
+
+        self.assertEqual(save_clicks, [True])
 
 
 class TestRemoveSitelink(unittest.TestCase):
