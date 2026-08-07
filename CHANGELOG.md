@@ -188,6 +188,46 @@ re-reading it from a separate page (goal 236386933 at price 150).
   delete`, see the "Added" section above), which found and used the
   campaigns grid's own row menu to remove 713337891 for good instead.
 
+**`masters add` now requires `--weekly-budget` (#796).**
+
+Live recon (2026-08-06/07, ksamatadirect account, 5+ repro attempts) found
+the **exact same silent-rejection shape** #777's `--add-target-action`
+requirement above already documents, just for a different field: Yandex's
+create form refuses to submit without a weekly budget, and refuses
+*silently* — no error is visible anywhere in the DOM before the terminal
+button is clicked. Only AFTER the click does a
+`[data-testid="BudgetWithSuggest.ErrorMessage"]` element appear, reading
+"Не задан недельный бюджет". A full network trace of the click confirmed
+the click handler DOES run (its own analytics beacon,
+`yandex.ru/clck/click/.../path=submit.campaign.save`, fires), but no
+create/save request is ever sent to Yandex's backend — so an unset budget
+previously surfaced only as `_wait_for_created_campaign_id`'s opaque
+redirect-timeout error, indistinguishable from a markup change or a
+genuine network problem.
+
+- New required option `masters add --weekly-budget <amount>` (account
+  currency). `create_master`'s `weekly_budget` parameter changes from
+  `Optional[int] = None` to a required `int` — a **breaking change** for
+  any direct API caller, mirroring `target_actions`'s own #777 change.
+- **Migration:** add `--weekly-budget <amount>` to existing `masters add`
+  invocations. The result dict's `WeeklyBudget` key, previously present
+  only when the flag was passed, is now always present.
+
+Live-verified end to end (2026-08-07): with the budget passed, a `--draft`
+create was accepted by Yandex and produced campaign 713359607, confirmed
+via a grid diff (79 rows → 80).
+
+An initially plausible but ultimately **unrelated** finding from the same
+investigation: `_set_target_action_price`'s price-input click leaves a
+separate "Поиск" search/autocomplete combobox open (confirmed live: up to
+24 `[role="option"]` elements stay in the DOM), never closed by
+`_add_target_action`/`create_master` before this fix. Closing it alone
+(via a click on the "Целевые действия" section's own heading —
+`page.keyboard.press("Escape")` does NOT close it, confirmed live) did
+**not** fix the create failure on its own; the popup fix is kept as a real,
+live-confirmed defensive improvement (`_close_target_actions_search_popup`),
+not because it was this issue's root cause.
+
 **Added — `masters update --clear-headline`/`--clear-text` (#786, Этап B follow-up):**
 
 `masters update --headline`/`--text` (#665) can only *replace* an existing

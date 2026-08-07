@@ -1210,6 +1210,18 @@ _TARGET_ACTION_ADD_BUTTON_EMPTY_TESTID_TEMPLATE = (
 )
 _TARGET_ACTION_ADD_OPTION_TESTID_TEMPLATE = "AddTargetAction.{category}.{goal_id}"
 
+# "Целевые действия" (issue #796): the section's own H2 heading text, used
+# ONLY to close the leftover "Поиск" combobox left open after filling a
+# price input — see _close_target_actions_search_popup for why this is
+# needed and why THIS specific element is the click target. Deliberately a
+# page-wide text match, not scoped inside _TARGET_ACTIONS_SECTION_TESTID:
+# live recon (issue #796) found that testid wraps only the goals TABLE
+# (starts at the "Цель"/"Средняя цена..." column headers), not the H2
+# heading above it — a locator scoped to that container therefore never
+# matches this text at all. Confirmed live exactly one match on both the
+# create and edit pages.
+_TARGET_ACTIONS_HEADING_TEXT = "Целевые действия"
+
 # How many times ``_click_and_wait_for_popup``-style retries are attempted
 # for the add-popup's option to become visible/clickable — same hydration
 # race as every other menu/modal trigger in this module (issues #723/#725),
@@ -4150,6 +4162,61 @@ def _set_goal_price(page: "Page", goal_price: float) -> None:
         ) from exc
 
 
+def _close_target_actions_search_popup(page: "Page") -> None:
+    """Best-effort close of the "Поиск" combobox left open by interacting
+    with a target-action price input (issue #796).
+
+    Live-confirmed 2026-08-06 (campaign creation recon, ksamatadirect
+    account): clicking a ``*.PriceInput`` field (``_set_target_action_price``
+    below) leaves a SEPARATE search/autocomplete combobox open beneath the
+    "Целевые действия" table — up to 24 ``[role="option"]`` elements
+    (other goals from the linked Metrika counter) stay visible in the DOM.
+    Neither ``_set_target_action_price`` nor ``_add_target_action`` ever
+    closed it before this fix — issue #717's own recon comment even notes
+    "[the add popup] list stays open after a click (no auto-close) —
+    irrelevant here", written before it was known that this specific
+    leftover popup is what blocks the create page's terminal click (issue
+    #796: 5/5 live ``masters add --draft`` attempts silently failed to
+    create a campaign, redirect-timing out with no server-side create at
+    all — the same DOM-gives-no-"rejected"-signal shape already documented
+    for issue #777's goal-less-submit case).
+
+    ``page.keyboard.press("Escape")`` does NOT close it (live-confirmed:
+    24 options open before, 24 still open after) — Yandex's combobox
+    apparently doesn't wire the standard close-on-Escape behaviour here.
+    What DOES close it, confirmed live: clicking the section's own H2
+    heading text (``_TARGET_ACTIONS_HEADING_TEXT``) — a plain blur/
+    click-away, not a component-specific close action. This function is
+    best-effort (mirrors ``_scroll_grid_to_row``'s contract) — a failure
+    to close is not itself proof the popup matters here, since the actual
+    positive signal is the create/save actually succeeding, verified by
+    the caller's own post-click checks; swallowing a click failure here
+    just means one less mitigation was applied, not a hard error.
+
+    The heading-text match is deliberately unscoped (page-wide, not
+    confined to the "Целевые действия" section's own container — see the
+    module comment above ``_TARGET_ACTIONS_HEADING_TEXT``'s definition for
+    why the section's testid doesn't cover the H2 itself) because live
+    recon confirmed exactly one match on the create page. That is an
+    empirical, not structural, guarantee — cycle-review of #796 raised the
+    risk that a SECOND exact match elsewhere on the page (e.g. a nav item,
+    breadcrumb, or a variant that also has this text) would make ``.first``
+    click the wrong node, and a successful-but-wrong click is not a
+    ``PlaywrightError`` so ``contextlib.suppress`` below would not catch
+    it. Guarding with ``count() == 1`` closes that gap directly: multiple
+    (or zero) matches skip the click outright rather than guessing which
+    one is safe, preserving the same best-effort contract without ever
+    clicking an unverified target. This also covers the edit page (called
+    via ``update_master``'s ``_set_target_action_price`` loop, before its
+    own add/remove baseline snapshot), which was never separately
+    recon'd for this specific invariant.
+    """
+    with contextlib.suppress(PlaywrightError):
+        heading = page.get_by_text(_TARGET_ACTIONS_HEADING_TEXT, exact=True)
+        if heading.count() == 1:
+            heading.first.click(timeout=_POPUP_APPEAR_TIMEOUT_MS)
+
+
 def _set_target_action_price(page: "Page", goal_id: int, price: float) -> None:
     """Fill the "Целевые действия" table's price input for an EXISTING goal row.
 
@@ -4166,6 +4233,11 @@ def _set_target_action_price(page: "Page", goal_id: int, price: float) -> None:
     reasoning as ``_set_goal_price``: this section sits even lower on the
     edit page and can still be hydrating when ``_wait_for_edit_form``
     returns.
+
+    Closes the search combobox the price-input click leaves open (issue
+    #796, see ``_close_target_actions_search_popup``) before returning —
+    every caller of this function eventually reaches a terminal
+    save/create click, and that leftover popup is what silently blocks it.
     """
     testid = _TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
         category=_TARGET_ACTIONS_CATEGORY, goal_id=goal_id
@@ -4186,6 +4258,8 @@ def _set_target_action_price(page: "Page", goal_id: int, price: float) -> None:
             "already be there, Yandex may have changed the page's markup — "
             "re-run with --headful to inspect the page."
         ) from exc
+
+    _close_target_actions_search_popup(page)
 
 
 def _add_target_action(page: "Page", goal_id: int, price: float) -> None:
@@ -9732,7 +9806,7 @@ def create_master(
     texts: List[str],
     regions: "Sequence[Union[str, Tuple[str, Optional[int]]]]",
     target_actions: Dict[int, float],
-    weekly_budget: Optional[int] = None,
+    weekly_budget: int,
     launch: bool = True,
 ) -> Dict[str, Any]:
     """Create a new Мастер кампаний ("Конверсии и трафик" type) end to end.
@@ -9774,6 +9848,31 @@ def create_master(
     from ``url``'s domain, so a domain with no counter installed has none
     to pick and cannot be used here at all.
 
+    ``weekly_budget`` is REQUIRED (issue #796) — a **breaking change** from
+    the previous ``Optional[int] = None`` signature. Live recon
+    (2026-08-06/07, campaign 713231614's account, 5+ repro attempts) found
+    the EXACT same silent-rejection shape ``target_actions`` above already
+    documents, just for a different field: leaving the create page's
+    "Недельный бюджет" input empty makes Yandex refuse the submit with
+    **no DOM signal whatsoever before the click** — no error text, no
+    ``aria-invalid``, no disabled button. Only AFTER the terminal button is
+    clicked does a ``[data-testid="BudgetWithSuggest.ErrorMessage"]``
+    element appear, reading "Не задан недельный бюджет" — confirmed live by
+    network-tracing the click: the click's own analytics beacon
+    (``yandex.ru/clck/click/.../path=submit.campaign.save``) fires, proving
+    the click handler DID run, but no create/save POST is ever sent to
+    Yandex's backend. Before this fix, an unset budget could only ever
+    surface as ``_wait_for_created_campaign_id``'s opaque redirect-timeout
+    error — exactly the false "Yandex may have changed the page's markup"
+    diagnosis issue #796's reporter chased for two days before a full
+    network trace isolated the real cause. A leftover "Поиск"
+    search-combobox left open by ``_set_target_action_price`` (see
+    ``_close_target_actions_search_popup``) was an initially plausible but
+    ultimately UNRELATED finding from the same investigation — closing it
+    alone did not fix the create failure; it's kept as a real, live-
+    confirmed defensive improvement, not because it was the root cause
+    here.
+
     Returns the created campaign's ``CampaignId``, read from the post-click
     redirect (``_wait_for_created_campaign_id``), which also gives
     ``_verify_created`` a page to reload for the display-region check.
@@ -9808,6 +9907,19 @@ def create_master(
             "goal): Yandex's create form silently refuses to submit without "
             "one."
         )
+    if weekly_budget is None:
+        raise ValueError(
+            "create_master requires weekly_budget: Yandex's create form "
+            "silently refuses to submit without one (issue #796) — the "
+            "same silent-rejection shape as target_actions above."
+        )
+    if weekly_budget <= 0:
+        raise ValueError(
+            f"create_master requires a positive weekly_budget, got "
+            f"{weekly_budget!r}. A zero/negative value is not a real "
+            "budget and is not known to be distinguishable from a missing "
+            "one by Yandex's own silent-rejection check (issue #796)."
+        )
 
     # ``wait_until="commit"``, not ``domcontentloaded`` (issue #685):
     # confirmed live the create page can take long enough to hydrate that
@@ -9839,8 +9951,7 @@ def create_master(
     # default actionability wait covers the ~0.4s gap observed live). No
     # markup change was needed.
     _set_region(page, regions)
-    if weekly_budget is not None:
-        _set_weekly_budget_on_create(page, weekly_budget)
+    _set_weekly_budget_on_create(page, weekly_budget)
 
     # Issue #777: at least one conversion goal, or Yandex silently rejects
     # the terminal click below. Live recon (2026-08-06) confirmed the create
@@ -9915,15 +10026,15 @@ def create_master(
         regions=regions,
     )
 
-    result: Dict[str, Any] = {
+    return {
         "CampaignId": campaign_id,
         "LandingUrl": url,
         "Headlines": headlines,
         "Texts": texts,
         "Regions": regions,
         "TargetActions": target_actions,
+        # weekly_budget is required (issue #796) — always present, unlike
+        # the pre-#796 conditional key this replaced.
+        "WeeklyBudget": weekly_budget,
         "Launched": launch,
     }
-    if weekly_budget is not None:
-        result["WeeklyBudget"] = weekly_budget
-    return result

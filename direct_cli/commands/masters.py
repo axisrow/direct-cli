@@ -2284,7 +2284,13 @@ def _resolve_region_ids(
 @click.option(
     "--weekly-budget",
     type=int,
-    help="Weekly budget in account currency (Недельный бюджет)",
+    required=True,
+    help=(
+        "Weekly budget in account currency (Недельный бюджет). REQUIRED "
+        "(issue #796) — Yandex's create form silently refuses to submit "
+        "without one, the same silent-rejection shape as the target-action "
+        "goal requirement above."
+    ),
 )
 @click.option(
     "--draft/--launch",
@@ -2339,6 +2345,14 @@ def add(
     rejected state, so a goal-less run could only ever surface as an
     unexplained timeout. It takes the same "goal_id=price" syntax as
     `masters update --add-target-action`.
+
+    --weekly-budget is required (issue #796): the SAME silent-rejection
+    shape as the goal requirement above — Yandex's create form refuses to
+    submit without a weekly budget, with no visible error until AFTER a
+    submit attempt (a `[data-testid="BudgetWithSuggest.ErrorMessage"]`
+    element reading "Не задан недельный бюджет" only appears in the DOM
+    post-click), so an unset-budget run previously surfaced only as an
+    unexplained redirect timeout with no campaign ever created.
 
     By default the campaign is launched immediately (--launch). Pass
     --draft to save it as a draft instead (Сохранить как черновик) without

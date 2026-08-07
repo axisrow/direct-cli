@@ -48,12 +48,14 @@ non-critical campaign, confirming before/after state in the web UI):
   - direct masters launch <campaign_id>
     (publishes a DRAFT campaign -- irreversible, there is no `masters unlaunch`)
   - direct masters add <url> --headline ... --text ... --region ...
-      --add-target-action "<goal_id>=<price>"
+      --add-target-action "<goal_id>=<price>" --weekly-budget ...
     (creates a brand-new campaign -- NOT idempotent, a second run creates a
     second campaign; verify with --draft first, then delete/archive the
     test campaign by hand after checking it in the web UI.
-    --add-target-action is REQUIRED since 0.6.0 -- Yandex's create form
-    silently refuses a campaign with no conversion goal. Note a --draft
+    --add-target-action is REQUIRED (issue #777) -- Yandex's create form
+    silently refuses a campaign with no conversion goal. --weekly-budget is
+    also REQUIRED (issue #796) for the same reason -- the create form
+    silently refuses to submit without a weekly budget too. Note a --draft
     created this way cannot be archived (issue #660) but can be removed
     via `masters delete`, see issue #782)
   - direct masters copy <campaign_id> [--launch/--draft]

@@ -600,6 +600,19 @@ class _FakeGetByTextLocator:
     def nth(self, i):
         return self._handles[i]
 
+    @property
+    def first(self):
+        # Mirrors real Playwright's Locator.first (and _FakeLocator.first's
+        # own identical fallback) — issue #796's
+        # _close_target_actions_search_popup uses it on a get_by_text()
+        # result the same way every other locator in this module does. An
+        # empty match returns a handle that raises on use, not an
+        # IndexError on attribute access, so callers wrapped in
+        # contextlib.suppress(PlaywrightError) (as that function is) see
+        # the same "best-effort, no-op on absence" behaviour a real empty
+        # Locator's timeout would produce.
+        return self._handles[0] if self._handles else _FakeLocatorHandle(raises=True)
+
 
 class FakePage:
     """A Page whose ``locator(selector)`` result is pre-scripted per selector."""
@@ -6319,6 +6332,78 @@ class TestSetTargetActionPrice(unittest.TestCase):
         browser_masters._set_target_action_price(page, 159614149, 200)
 
         self.assertEqual(state["value"], "200")
+
+    def test_closes_leftover_search_popup_after_filling(self):
+        # issue #796: clicking the price field leaves a separate search
+        # combobox open, which silently blocks the create/save page's
+        # terminal click. This must be closed before returning.
+        field = _FakeLocatorHandle()
+        field.fill = lambda value: None
+        price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        heading_clicks = []
+        heading = _FakeLocatorHandle(on_click=lambda: heading_clicks.append(1))
+        page = FakePage(
+            locators={f'[data-testid="{price_testid}"]': _FakeLocator([field])},
+            text_buttons={
+                browser_masters._TARGET_ACTIONS_HEADING_TEXT: _FakeGetByTextLocator(
+                    [heading]
+                )
+            },
+        )
+
+        browser_masters._set_target_action_price(page, 159614149, 200)
+
+        self.assertEqual(heading_clicks, [1])
+
+    def test_missing_heading_does_not_raise(self):
+        # _close_target_actions_search_popup is best-effort (issue #796) --
+        # a page/fixture with no matching heading (e.g. Yandex changed the
+        # markup, or a test that doesn't care about this) must not turn
+        # _set_target_action_price itself into a failure.
+        field = _FakeLocatorHandle()
+        field.fill = lambda value: None
+        price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        page = FakePage(
+            locators={f'[data-testid="{price_testid}"]': _FakeLocator([field])}
+        )
+
+        browser_masters._set_target_action_price(page, 159614149, 200)  # must not raise
+
+    def test_skips_click_when_heading_text_matches_more_than_once(self):
+        # cycle-review of #796: the heading-text match is page-wide, not
+        # scoped to the "Целевые действия" section's own container, on the
+        # empirical (live-recon, not structural) assumption that it's the
+        # ONLY exact match on the page. If that assumption ever breaks
+        # (e.g. a second nav item/breadcrumb/tooltip with the same exact
+        # text), .first would click an unverified — possibly interactive —
+        # element instead of the section heading, and a successful click
+        # on the wrong element is not a PlaywrightError, so
+        # contextlib.suppress would not catch it. Must skip the click
+        # outright on ANY count other than exactly 1, not guess.
+        field = _FakeLocatorHandle()
+        field.fill = lambda value: None
+        price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
+        )
+        heading_clicks = []
+        heading_a = _FakeLocatorHandle(on_click=lambda: heading_clicks.append("a"))
+        heading_b = _FakeLocatorHandle(on_click=lambda: heading_clicks.append("b"))
+        page = FakePage(
+            locators={f'[data-testid="{price_testid}"]': _FakeLocator([field])},
+            text_buttons={
+                browser_masters._TARGET_ACTIONS_HEADING_TEXT: _FakeGetByTextLocator(
+                    [heading_a, heading_b]
+                )
+            },
+        )
+
+        browser_masters._set_target_action_price(page, 159614149, 200)  # must not raise
+
+        self.assertEqual(heading_clicks, [])
 
     def test_raises_when_row_not_present(self):
         page = FakePage(locators={})
@@ -15606,6 +15691,7 @@ class TestCreateMaster(unittest.TestCase):
             texts=["Текст объявления"],
             regions=["Москва"],
             target_actions={self.GOAL_ID: self.GOAL_PRICE},
+            weekly_budget=1000,
         )
 
         self.assertEqual(state["url"]["url"], "https://ksamata.ru/")
@@ -15627,6 +15713,8 @@ class TestCreateMaster(unittest.TestCase):
                 # required, echoed back so the caller can see which CPA was
                 # actually published.
                 "TargetActions": {self.GOAL_ID: self.GOAL_PRICE},
+                # Issue #796: weekly_budget is required, always echoed back.
+                "WeeklyBudget": 1000,
                 "Launched": True,
             },
         )
@@ -15652,6 +15740,7 @@ class TestCreateMaster(unittest.TestCase):
             texts=["Текст объявления"],
             regions=["Москва"],
             target_actions={self.GOAL_ID: self.GOAL_PRICE},
+            weekly_budget=1000,
             launch=False,
         )
 
@@ -15675,19 +15764,59 @@ class TestCreateMaster(unittest.TestCase):
         self.assertEqual(state["budget"]["value"], "50000")
         self.assertEqual(result["WeeklyBudget"], 50000)
 
-    def test_omits_weekly_budget_key_when_not_given(self):
-        page, _ = self._full_page()
+    def test_raises_value_error_when_no_weekly_budget(self):
+        """Issue #796: the SAME silent-rejection shape as target_actions
+        above (test_raises_value_error_when_no_target_actions) — Yandex's
+        create form refuses to submit without a weekly budget, and refuses
+        SILENTLY: no error appears in the DOM until AFTER a submit attempt
+        (a `[data-testid="BudgetWithSuggest.ErrorMessage"]` element reading
+        "Не задан недельный бюджет"), so a budget-less call must be refused
+        outright rather than driven through the whole form and left to fail
+        as an opaque redirect timeout."""
+        page, state = self._full_page()
 
-        result = browser_masters.create_master(
-            page,
-            "https://ksamata.ru/",
-            headlines=["Заголовок"],
-            texts=["Текст объявления"],
-            regions=["Москва"],
-            target_actions={self.GOAL_ID: self.GOAL_PRICE},
-        )
+        with self.assertRaises(ValueError):
+            browser_masters.create_master(
+                page,
+                "https://ksamata.ru/",
+                headlines=["Заголовок"],
+                texts=["Текст объявления"],
+                regions=["Москва"],
+                target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                weekly_budget=None,  # type: ignore[arg-type]
+            )
 
-        self.assertNotIn("WeeklyBudget", result)
+        # Fails fast: nothing was published, and no browser work was done.
+        self.assertEqual(state["launch_clicks"], [])
+        self.assertEqual(state["draft_clicks"], [])
+        self.assertEqual(page.navigated_to, [])
+
+    def test_raises_value_error_when_weekly_budget_is_not_positive(self):
+        """A zero/negative weekly_budget passes both Click's `required=True`
+        (it only checks presence, not value) and the `is None` check above —
+        the DOM comparison in `_read_created_form_mismatches` reads the
+        field back as the same 0, so it would NOT be caught as a mismatch
+        even if Yandex's own form silently rejected it exactly like a
+        missing budget. Refuse it outright, the same fail-fast shape as the
+        None case."""
+        page, state = self._full_page()
+
+        for bad_value in (0, -1):
+            with self.assertRaises(ValueError):
+                browser_masters.create_master(
+                    page,
+                    "https://ksamata.ru/",
+                    headlines=["Заголовок"],
+                    texts=["Текст объявления"],
+                    regions=["Москва"],
+                    target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                    weekly_budget=bad_value,
+                )
+
+        # Fails fast: nothing was published, and no browser work was done.
+        self.assertEqual(state["launch_clicks"], [])
+        self.assertEqual(state["draft_clicks"], [])
+        self.assertEqual(page.navigated_to, [])
 
     def test_raises_value_error_when_no_target_actions(self):
         """Issue #777: Yandex silently swallows the terminal click when the
@@ -15704,6 +15833,7 @@ class TestCreateMaster(unittest.TestCase):
                 texts=["Текст объявления"],
                 regions=["Москва"],
                 target_actions={},
+                weekly_budget=1000,
             )
 
         # Fails fast: nothing was published, and no browser work was done.
@@ -15725,6 +15855,7 @@ class TestCreateMaster(unittest.TestCase):
             texts=["Текст объявления"],
             regions=["Москва"],
             target_actions={self.GOAL_ID: 250},
+            weekly_budget=1000,
         )
 
         self.assertEqual(state["goal_prices"], {self.GOAL_ID: "250"})
@@ -15741,6 +15872,7 @@ class TestCreateMaster(unittest.TestCase):
             texts=["Текст объявления"],
             regions=["Москва"],
             target_actions={self.GOAL_ID: 250, second_goal: 75},
+            weekly_budget=1000,
         )
 
         self.assertEqual(state["goal_prices"], {self.GOAL_ID: "250", second_goal: "75"})
@@ -15762,6 +15894,7 @@ class TestCreateMaster(unittest.TestCase):
             texts=["Текст объявления"],
             regions=["Москва"],
             target_actions={self.GOAL_ID: self.GOAL_PRICE},
+            weekly_budget=1000,
         )
 
         self.assertEqual(len(state["launch_clicks"]), 1)
@@ -15786,6 +15919,7 @@ class TestCreateMaster(unittest.TestCase):
             texts=["Текст объявления"],
             regions=["Москва"],
             target_actions={self.GOAL_ID: self.GOAL_PRICE},
+            weekly_budget=1000,
         )
 
         self.assertEqual(state["goal_prices"], {self.GOAL_ID: "150"})
@@ -15805,6 +15939,7 @@ class TestCreateMaster(unittest.TestCase):
                 texts=["Текст объявления"],
                 regions=["Москва"],
                 target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                weekly_budget=1000,
             )
 
         self.assertEqual(state["launch_clicks"], [])
@@ -15831,6 +15966,7 @@ class TestCreateMaster(unittest.TestCase):
                 texts=["Текст объявления"],
                 regions=["Москва"],
                 target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                weekly_budget=1000,
             )
 
         self.assertIn("Целевые действия", str(ctx.exception))
@@ -15854,6 +15990,7 @@ class TestCreateMaster(unittest.TestCase):
                 texts=["Текст объявления"],
                 regions=["Москва"],
                 target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                weekly_budget=1000,
             )
 
         self.assertIn(str(self.GOAL_ID), str(ctx.exception))
@@ -15871,6 +16008,7 @@ class TestCreateMaster(unittest.TestCase):
                 texts=["t"],
                 regions=["r"],
                 target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                weekly_budget=1000,
             )
 
     def test_raises_value_error_when_no_texts(self):
@@ -15884,6 +16022,7 @@ class TestCreateMaster(unittest.TestCase):
                 texts=[],
                 regions=["r"],
                 target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                weekly_budget=1000,
             )
 
     def test_raises_value_error_when_no_regions(self):
@@ -15897,6 +16036,7 @@ class TestCreateMaster(unittest.TestCase):
                 texts=["t"],
                 regions=[],
                 target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                weekly_budget=1000,
             )
 
     def test_invalid_url_stops_before_step2(self):
@@ -15913,6 +16053,7 @@ class TestCreateMaster(unittest.TestCase):
                 texts=["t"],
                 regions=["Москва"],
                 target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                weekly_budget=1000,
             )
 
     def test_step1_timeout_raises_when_url_field_never_renders(self):
@@ -15935,6 +16076,7 @@ class TestCreateMaster(unittest.TestCase):
                     texts=["t"],
                     regions=["Москва"],
                     target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                    weekly_budget=1000,
                 )
         self.assertIn("step 1", str(ctx.exception))
 
@@ -15979,6 +16121,7 @@ class TestCreateMaster(unittest.TestCase):
                 texts=["Текст объявления"],
                 regions=["Москва"],
                 target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                weekly_budget=1000,
             )
         # The whole point: caught BEFORE the irreversible click, not after.
         self.assertEqual(len(state["launch_clicks"]), 0)
@@ -16027,6 +16170,7 @@ class TestCreateMaster(unittest.TestCase):
                 texts=["Текст объявления"],
                 regions=["Москва"],
                 target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                weekly_budget=1000,
             )
         self.assertEqual(len(state["launch_clicks"]), 1)  # the click DID happen
         self.assertIn("did not take effect as requested", str(ctx.exception))
@@ -16048,6 +16192,7 @@ class TestCreateMaster(unittest.TestCase):
             texts=["Текст объявления"],
             regions=["Москва"],
             target_actions={self.GOAL_ID: self.GOAL_PRICE},
+            weekly_budget=1000,
         )
 
         self.assertEqual(result["CampaignId"], 713299123)
@@ -16070,6 +16215,7 @@ class TestCreateMaster(unittest.TestCase):
                     texts=["Текст объявления"],
                     regions=["Москва"],
                     target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                    weekly_budget=1000,
                 )
 
         self.assertEqual(len(state["launch_clicks"]), 1)  # the click DID happen
@@ -16100,6 +16246,7 @@ class TestCreateMaster(unittest.TestCase):
                     texts=["Текст объявления"],
                     regions=["Москва"],
                     target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                    weekly_budget=1000,
                 )
 
         self.assertEqual(len(state["launch_clicks"]), 1)  # the click DID happen
@@ -16128,6 +16275,7 @@ class TestCreateMaster(unittest.TestCase):
             texts=["Текст объявления"],
             regions=["Москва"],
             target_actions={self.GOAL_ID: self.GOAL_PRICE},
+            weekly_budget=1000,
         )  # must not raise
 
         self.assertEqual(result["CampaignId"], self.CREATED_ID)
@@ -16149,6 +16297,7 @@ class TestCreateMaster(unittest.TestCase):
             texts=["Текст объявления"],
             regions=[("Москва", 213)],
             target_actions={self.GOAL_ID: self.GOAL_PRICE},
+            weekly_budget=1000,
         )  # must not raise
 
         self.assertEqual(result["Regions"], [("Москва", 213)])
@@ -16227,6 +16376,8 @@ class TestMastersAddCommand(unittest.TestCase):
                     "236386933=150",
                     "--region",
                     "Москва",
+                    "--weekly-budget",
+                    "1000",
                 ],
             )
 
@@ -16263,6 +16414,8 @@ class TestMastersAddCommand(unittest.TestCase):
                     "236386933=150",
                     "--region",
                     "Москва",
+                    "--weekly-budget",
+                    "1000",
                     "--draft",
                 ],
             )
@@ -16314,10 +16467,38 @@ class TestMastersAddCommand(unittest.TestCase):
                 "t",
                 "--add-target-action",
                 "236386933=150",
+                "--weekly-budget",
+                "1000",
             ],
         )
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("--region/--region-id", result.output)
+
+    def test_weekly_budget_is_required(self):
+        """Issue #796: the SAME silent-rejection shape as #777's
+        --add-target-action requirement — Yandex's create form is silently
+        rejected without a weekly budget, so a budget-less invocation must
+        be refused at the CLI boundary (Click's required=True) rather than
+        driven through a whole browser session that can only end in an
+        unexplained redirect timeout."""
+        result = self.runner.invoke(
+            cli,
+            [
+                "masters",
+                "add",
+                "https://ksamata.ru/",
+                "--headline",
+                "h",
+                "--text",
+                "t",
+                "--region",
+                "Москва",
+                "--add-target-action",
+                "236386933=150",
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("--weekly-budget", result.output)
 
     def test_add_target_action_is_required(self):
         """Issue #777: Yandex's create form is silently rejected without a
@@ -16360,6 +16541,8 @@ class TestMastersAddCommand(unittest.TestCase):
                 "Москва",
                 "--add-target-action",
                 "236386933",
+                "--weekly-budget",
+                "1000",
             ],
         )
         self.assertNotEqual(result.exit_code, 0)
@@ -16398,6 +16581,8 @@ class TestMastersAddCommand(unittest.TestCase):
                     "236386933=150",
                     "--region-id",
                     "213",
+                    "--weekly-budget",
+                    "1000",
                 ],
             )
 
@@ -16445,6 +16630,8 @@ class TestMastersAddCommand(unittest.TestCase):
                     "Москва",
                     "--region-id",
                     "2",
+                    "--weekly-budget",
+                    "1000",
                 ],
             )
 
@@ -16478,6 +16665,8 @@ class TestMastersAddCommand(unittest.TestCase):
                     "236386933=150",
                     "--region-id",
                     "999999",
+                    "--weekly-budget",
+                    "1000",
                 ],
             )
 
