@@ -8061,13 +8061,16 @@ def update_master(
     # present" after its first removal already ran.
     if remove_videos:
         seen: Set[str] = set()
-        duplicates = sorted(
-            {url for url in remove_videos if url in seen or seen.add(url)}
-        )
+        duplicates: Set[str] = set()
+        for url in remove_videos:
+            if url in seen:
+                duplicates.add(url)
+            else:
+                seen.add(url)
         if duplicates:
             raise BrowserSessionError(
                 "Duplicate URL(s) in --remove-video: "
-                f"{', '.join(repr(url) for url in duplicates)} — each video "
+                f"{', '.join(repr(url) for url in sorted(duplicates))} — each video "
                 "can only be removed once per command."
             )
         missing = [url for url in remove_videos if url not in videos_before_urls]
