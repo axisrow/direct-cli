@@ -3488,11 +3488,17 @@ def copy_master(
     quietly changed underneath this function is a worse failure mode than
     for an idempotent action, since a caller who retries after a false
     failure risks creating an unwanted duplicate campaign. The re-check
-    requires the status to still match what this function itself just read
-    (``expected_status=existing["Status"]``) — unlike
-    ``archive_master``/``delete_master``, cloning has no single required
-    status, so "changed at all" (not "changed to some specific wrong
-    value") is the signal this function treats as unsafe to click through.
+    requires the status to still match a status read from the SAME source
+    (the overview page's own status text, via ``_wait_for_recognised_status``
+    right after ``_goto_overview_page``) — not the up-front guard's grid
+    read: the grid's ``primaryStatus`` vocabulary is broader than and can
+    lag the overview page's four recognised values (cycle-review finding,
+    module docstring documents a 45+s DRAFT->MODERATION lag), so comparing
+    across sources would false-abort a legitimate, unchanged clone whenever
+    the two disagree. Unlike ``archive_master``/``delete_master``, cloning
+    has no single required status, so "changed at all" (not "changed to
+    some specific wrong value") is the signal this function treats as
+    unsafe to click through.
     """
     existing = _find_master_row(page, campaign_id)
     if existing is None:
@@ -3502,6 +3508,25 @@ def copy_master(
         )
 
     _goto_overview_page(page, campaign_id)
+
+    # The re-check below compares against THIS overview-page read, not
+    # `existing["Status"]` (cycle-review finding on issue #797): the grid's
+    # primaryStatus vocabulary is broader than and can lag
+    # _read_status_text's four recognised values (module docstring
+    # documents a 45+s DRAFT->MODERATION lag) -- comparing a grid-derived
+    # expected status against an overview-derived current status would
+    # false-abort a legitimate, unchanged clone whenever the two sources
+    # disagree, exactly the "another session changed it" false positive the
+    # re-check exists to avoid. Reading both sides from the overview page,
+    # like archive_master already does (SUSPENDED-vs-SUSPENDED, both from
+    # the overview), eliminates the cross-source mismatch entirely.
+    starting_status = _wait_for_recognised_status(page)
+    if starting_status is None:
+        raise BrowserSessionError(
+            f"Could not determine campaign {campaign_id}'s status from its "
+            "overview page — Yandex may have changed the page's markup, or "
+            "the campaign is in a status this tool does not recognise."
+        )
 
     try:
         _click_and_wait_for_popup(
@@ -3521,7 +3546,7 @@ def copy_master(
     _reverify_status_or_raise(
         page,
         campaign_id,
-        expected_status=existing["Status"],
+        expected_status=starting_status,
         action_label="Клонировать",
         not_found_hint="Check `masters list` to see whether it was already "
         "removed by another session.",

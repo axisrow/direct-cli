@@ -5293,6 +5293,7 @@ class TestCopyMaster(unittest.TestCase):
         terminal_button_text=None,
         redirect_on_click=True,
         body_text="Кампания остановлена",
+        page_class=FakePage,
     ):
         locators = {}
         if menu_trigger is not None:
@@ -5312,8 +5313,10 @@ class TestCopyMaster(unittest.TestCase):
         # status text (_read_status_text), NOT the campaigns grid -- see
         # _reverify_status_or_raise's docstring. Defaults to SOURCE_ID's
         # default "STOPPED" grid status normalized to SUSPENDED's own
-        # _read_status_text marker.
-        page = FakePage(locators=locators, body_text=body_text)
+        # _read_status_text marker. page_class lets a test model the
+        # overview status text changing between the up-front read and the
+        # re-check's own read (both now come from the overview page).
+        page = page_class(locators=locators, body_text=body_text)
 
         if terminal_button_text is not None:
 
@@ -5356,6 +5359,40 @@ class TestCopyMaster(unittest.TestCase):
             page.navigated_to[0],
             browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=self.SOURCE_ID),
         )
+
+    def test_toctou_recheck_does_not_false_abort_on_grid_overview_status_mismatch(
+        self,
+    ):
+        # cycle-review finding (codex) on issue #797: the grid's
+        # primaryStatus vocabulary is broader than and can lag
+        # _read_status_text's four recognised values (module docstring
+        # documents a 45+s DRAFT->MODERATION lag) -- comparing the up-front
+        # grid-derived status against the re-check's overview-derived
+        # status would false-abort a legitimate, unchanged clone whenever
+        # the two sources disagree. Model that disagreement directly: the
+        # grid reports a status _read_status_text can't recognise at all
+        # (e.g. TEMPORARILY_PAUSED), while the overview page's own status
+        # text is a perfectly valid, UNCHANGING "Кампания остановлена". The
+        # re-check must compare against the overview's own up-front read
+        # (also "Кампания остановлена"), not the grid's, so it must NOT
+        # abort here.
+        page = self._page(
+            menu_trigger=_FakeLocatorHandle(),
+            clone_item=_FakeLocatorHandle(),
+            terminal_button_text=browser_masters._SAVE_DRAFT_BUTTON_TEXT,
+            body_text="Кампания остановлена",
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": [
+                self._source_row(status="TEMPORARILY_PAUSED"),
+                self._new_row(),
+            ],
+        ):
+            result = browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertEqual(result["CampaignId"], self.NEW_ID)
 
     def test_launch_true_clicks_launch_button(self):
         page = self._page(
@@ -5491,22 +5528,34 @@ class TestCopyMaster(unittest.TestCase):
 
     def test_toctou_aborts_without_clicking_when_status_changed_before_click(self):
         # issue #797 Finding 1 (same TOCTOU shape as delete_master, issue
-        # #793 Finding 1): the up-front guard reads the source campaign's
-        # status once via fetch_masters_list, but opening the "⋮" menu
-        # (_click_and_wait_for_popup's own retry loop) takes real time --
-        # another session could change the campaign before 'Клонировать' is
-        # clicked. The TOCTOU re-check itself reads the overview page's own
-        # status text (_read_status_text), not the grid (see
-        # _reverify_status_or_raise's docstring) -- flip the page's body
-        # text to ARCHIVED to model that concurrent change. copy_master has
-        # no single required status, so ANY change from what was first read
-        # is what this re-check refuses to click through.
+        # #793 Finding 1): the up-front status read (_wait_for_recognised_
+        # status, right after _goto_overview_page -- cycle-review finding:
+        # this must come from the SAME overview-page source the re-check
+        # itself reads, not the up-front grid guard) happens once, but
+        # opening the "⋮" menu (_click_and_wait_for_popup's own retry loop)
+        # takes real time -- another session could change the campaign
+        # before 'Клонировать' is clicked. Flip the page's body text to
+        # ARCHIVED on the SECOND read (the re-check) to model that
+        # concurrent change; the first read (up-front) still sees SUSPENDED.
+        # copy_master has no single required status, so ANY change from
+        # what was first read is what this re-check refuses to click
+        # through.
         clone_clicked = []
+        reads = {"n": 0}
+
+        class _StatusChangesPage(FakePage):
+            def inner_text(self, selector=None):
+                reads["n"] += 1
+                return (
+                    "Кампания остановлена"
+                    if reads["n"] == 1
+                    else "Кампания в\xa0архиве"
+                )
 
         page = self._page(
             menu_trigger=_FakeLocatorHandle(),
             clone_item=_FakeLocatorHandle(on_click=lambda: clone_clicked.append(1)),
-            body_text="Кампания в\xa0архиве",
+            page_class=_StatusChangesPage,
         )
 
         with patch(
@@ -5524,13 +5573,21 @@ class TestCopyMaster(unittest.TestCase):
     def test_toctou_aborts_without_clicking_when_campaign_vanished_before_click(self):
         # Same TOCTOU window, but the overview page no longer shows a
         # recognised status text (e.g. deleted or archived-and-purged by
-        # another session) rather than merely showing a different one.
+        # another session) rather than merely showing a different one. The
+        # up-front read still sees SUSPENDED; only the re-check's read goes
+        # unrecognised.
         clone_clicked = []
+        reads = {"n": 0}
+
+        class _StatusVanishesPage(FakePage):
+            def inner_text(self, selector=None):
+                reads["n"] += 1
+                return "Кампания остановлена" if reads["n"] == 1 else ""
 
         page = self._page(
             menu_trigger=_FakeLocatorHandle(),
             clone_item=_FakeLocatorHandle(on_click=lambda: clone_clicked.append(1)),
-            body_text="",
+            page_class=_StatusVanishesPage,
         )
 
         with patch(
