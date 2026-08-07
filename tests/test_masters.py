@@ -4313,6 +4313,49 @@ class TestArchiveMaster(unittest.TestCase):
             with self.assertRaises(BrowserAuthError):
                 browser_masters.archive_master(page, 42)
 
+    def test_toctou_recheck_tolerates_status_text_hydration_lag(self):
+        # cycle-review finding (codex) on issue #797: _goto_overview_page
+        # only guarantees the title rendered (issue #683), not the status
+        # element -- _wait_for_recognised_status's own docstring documents
+        # it as a separate render pass that "routinely reads as None for a
+        # moment" right after. A single unguarded _read_status_text at the
+        # TOCTOU re-check would misattribute that hydration lag to
+        # "another session changed it" and abort a legitimate archive.
+        # This page's status text is empty for the first two reads (the
+        # lag), then hydrates to the real SUSPENDED marker -- the re-check
+        # must tolerate that instead of failing closed on the first read.
+        reads = {"n": 0}
+        archive_clicked = []
+
+        class _SlowStatusPage(FakePage):
+            def inner_text(self, selector=None):
+                reads["n"] += 1
+                if reads["n"] <= 2:
+                    return ""
+                return "Кампания остановлена"
+
+        page = _SlowStatusPage(
+            locators={
+                browser_masters._MENU_TRIGGER_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._ARCHIVE_MENU_ITEM_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: archive_clicked.append(1))]
+                ),
+            }
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": [
+                self._row("ARCHIVED" if archive_clicked else "SUSPENDED")
+            ],
+        ):
+            result = browser_masters.archive_master(page, 42)
+
+        self.assertEqual(result, self._row("ARCHIVED"))
+        self.assertEqual(archive_clicked, [1])
+
 
 class TestMastersArchiveCommand(unittest.TestCase):
     """CLI wiring for `masters archive` (issue #633)."""

@@ -2782,23 +2782,32 @@ def _reverify_status_or_raise(
     ``page.goto(GRID_URL)``s (a cross-page navigation away from the
     overview page the menu belongs to), destroying the just-opened menu and
     making the caller's very next click target a locator that no longer
-    exists in the DOM. ``_read_status_text`` reads the same normalized
-    ``"SUSPENDED"``/``"ACTIVE"``/``"MODERATION"``/``"ARCHIVED"`` values
-    straight from the overview page's own body text, exactly like
+    exists in the DOM. ``_wait_for_recognised_status`` reads the same
+    normalized ``"SUSPENDED"``/``"ACTIVE"``/``"MODERATION"``/``"ARCHIVED"``
+    values straight from the overview page's own body text, exactly like
     ``suspend_master``/``resume_master`` already do around their own
-    clicks, so the re-check never navigates at all.
+    clicks, so the re-check never navigates at all — and, cycle-review
+    finding on issue #797, polls for a moment (like every other status
+    branch in this module) rather than reading once: ``_goto_overview_page``
+    only guarantees the *title* rendered, not the status element, which is
+    documented (see ``_wait_for_recognised_status``'s own docstring) as a
+    separate render pass that routinely reads as unrecognised for a moment
+    right after. A single unguarded ``_read_status_text`` here would
+    misattribute that hydration lag to "another session changed it" and
+    abort a perfectly legitimate archive/clone.
 
     Raises ``BrowserSessionError`` naming ``action_label`` (e.g.
-    "Архивировать", "Клонировать") if the overview page's status text no
-    longer reads as ``expected_status`` (including an unrecognised/missing
-    status, treated the same as "changed" — this function has no way to
-    tell a vanished campaign apart from unrecognised markup once already on
-    its overview page, so it fails closed either way) — appending
-    ``not_found_hint``/``changed_status_hint`` respectively, for a
+    "Архивировать", "Клонировать") if the overview page's status text still
+    does not read as ``expected_status`` once hydration is given a chance to
+    catch up (including a status that never becomes recognised at all,
+    treated the same as "changed" — this function has no way to tell a
+    vanished campaign apart from persistently unrecognised markup once
+    already on its overview page, so it fails closed either way) —
+    appending ``not_found_hint``/``changed_status_hint`` respectively, for a
     caller-specific pointer to the right next step (mirrors
     ``delete_master``'s own "use `masters archive` instead" hint).
     """
-    current_status = _read_status_text(page)
+    current_status = _wait_for_recognised_status(page)
     if current_status is None:
         hint = f" {not_found_hint}" if not_found_hint else ""
         raise BrowserSessionError(
