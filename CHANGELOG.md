@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+### Docs
+
+**`masters` images (Мастер кампаний) — live-verify testids and the batched
+multi-file upload primitive (#648, Этап D follow-up).**
+
+Live re-recon (2026-08-08, DRAFT campaign 713234191) against everything
+`masters update --image` / `masters adimages get/add/delete/set` (#670,
+#672, #673, #675-#677) depends on:
+
+- Every `ImageSuggestionsEditor*`/`ImageSuggestionsEditorModal*` testid
+  constant in `direct_cli/browser/masters.py` matched the live DOM exactly
+  — no corrections needed. Unlike `--add-video`/`--remove-video` (#806),
+  whose testids were pure by-analogy guesses later found wrong live
+  (#811), images' testids were already live-confirmed at #670's original
+  recon and remain accurate.
+- `_apply_image_operations`'s previously "not live-verified" risk —
+  uploading multiple files via a single `set_input_files([path1, path2])`
+  call — now IS confirmed live: Yandex's modal panel grew from 3 to 5
+  selected images after one such call with two valid images. The function
+  still issues one `set_input_files` call per path (kept for per-file
+  error attribution), not because batching was found broken.
+- Also observed live: Yandex's upload endpoint (`POST /web-api/uac/content`)
+  rejects a too-small synthetic image with a plain HTTP 400 and no
+  distinguishing toast text — a genuine per-image server-side validation,
+  not a selector/testid problem.
+- No "add a new slot" affordance exists beyond what `masters adimages
+  add`/`set` already implement (#675-#677) — a genuine variable-length
+  add/remove for images already ships as that dedicated command group
+  rather than `masters update --add-image`/`--remove-image` flags, a
+  deliberate design split made when #670 scoped point-replacement only
+  (`--image`) and #675-#677 later filled in add/delete/set as their own
+  vocabulary — see those issues' own scope sections. No new CLI flags
+  were added by this change.
+
+All real-page interactions in this recon pass were abandoned via the
+modal's Cancel button (never Save) — the campaign's saved image set is
+confirmed unchanged before and after.
+
 ### Fixed
 
 **`masters` — `_metrika_counter_identity` now normalizes surrounding
