@@ -3067,12 +3067,33 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     "archived instead" would still be caught) before reporting success —
     never trusting the click alone, per this module's dominant convention.
 
-    Re-verifies DRAFT status a SECOND time immediately before the click
-    (issue #793, Finding 1): the up-front guard above and the click are
-    separated by however long the row-menu retry loop takes, which is
-    enough of a window on a shared/agency account for another session to
-    move the campaign off DRAFT — DeleteCampaignAction is never clicked
-    against a row this function has not just re-confirmed is still DRAFT.
+    Re-verifies DRAFT status a SECOND time before opening the row menu
+    (issue #793, Finding 1; reordered issue #807 cycle-review round 2,
+    teammate-caught): the up-front guard above and this re-check are
+    separated by nothing but the initial ``_find_master_row`` call itself,
+    but on a shared/agency account another session can still transition
+    the campaign (DRAFT -> MODERATION/ACTIVE) between the two reads —
+    DeleteCampaignAction is never clicked against a row this function has
+    not just re-confirmed is still DRAFT.
+
+    The re-check runs BEFORE ``_open_grid_row_menu``, not after (unlike
+    ``archive_master``/``copy_master``'s own re-checks in PR #799, which
+    run between opening the "⋮" menu and clicking an item on the overview
+    page). Both re-checks share the identical root constraint —
+    ``_find_master_row`` -> ``fetch_masters_list`` ->
+    ``_capture_grid_campaigns_request`` unconditionally navigates
+    (``page.goto(GRID_URL)``), which destroys any menu already open on the
+    page the navigation lands on — but ``delete_master``'s menu lives on
+    the SAME grid page the re-check itself reloads (unlike the overview
+    page's menu, which is on a different page entirely), so there is no
+    reason to open the menu before the re-check here: ordering the
+    re-check first means the menu only ever needs to be opened ONCE, right
+    before the click, with the re-check immediately preceding it — instead
+    of open-menu -> re-check -> re-open-menu -> click, which both wastes
+    the first open (thrown away by the re-check's own navigation on every
+    single call, not just a rare retry path) and reintroduces a real delay
+    between the re-check and the click that the "immediately before"
+    guarantee is supposed to close.
 
     The post-click verify loop tolerates transient ``BrowserSessionError``s
     from ``_find_master_row`` (issue #793, Finding 2) instead of letting one
@@ -3096,17 +3117,9 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             "archive). Use `masters archive` instead."
         )
 
-    _open_grid_row_menu(page, campaign_id)
-
-    # TOCTOU re-check (issue #793, Finding 1): the up-front DRAFT guard above
-    # reads the grid via _find_master_row once, but on a shared/agency
-    # account another session could transition the campaign (DRAFT ->
-    # MODERATION/ACTIVE) in the seconds between that read and this click —
-    # opening the row menu alone takes a retry loop. Re-read the row right
-    # before the irreversible click and abort if it is no longer DRAFT,
-    # rather than clicking DeleteCampaignAction against a row whose current
-    # status this module has never confirmed that action is even safe for
-    # (see the field's own docstring above: "NOT re-confirmed here").
+    # TOCTOU re-check (issue #793, Finding 1) — see this function's own
+    # docstring for why this now runs BEFORE _open_grid_row_menu rather
+    # than between opening the menu and clicking (issue #805/#807 round 2).
     current = _find_master_row(page, campaign_id, status="all")
     if current is None:
         raise BrowserSessionError(
@@ -3125,18 +3138,12 @@ def delete_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             "for its current status."
         )
 
-    # The TOCTOU re-check above just navigated the page (issue #805,
-    # cycle-review-caught, same root cause PR #799 fixed for
-    # archive_master/copy_master's own "⋮" popup): _find_master_row ->
-    # fetch_masters_list -> _capture_grid_campaigns_request unconditionally
-    # does page.goto(GRID_URL) to capture the grid's own data request, and
-    # that navigation destroys the row menu popup _open_grid_row_menu just
-    # opened above -- delete_item's locator would otherwise target an
-    # element that no longer exists on the freshly-reloaded grid page,
-    # making delete_master fail EVERY time with a "found but not
-    # clickable" timeout, exactly as issue #805 live-confirmed (campaign
-    # 713359607, 4/4 live attempts). Re-open the row menu fresh before
-    # clicking, mirroring PR #799's own fix for the overview page's menu.
+    # Open the row menu exactly once, right before the click — the
+    # re-check above already ran on the SAME grid page this opens the menu
+    # on, so nothing between here and the click below can navigate the
+    # page (issue #805/#807 round 2: opening the menu before the re-check,
+    # as the original #805 fix did, wastes that entire open on every call,
+    # since the re-check's own navigation immediately destroys it).
     _open_grid_row_menu(page, campaign_id)
 
     delete_item = page.locator(_GRID_ROW_DELETE_ITEM_SELECTOR).first
