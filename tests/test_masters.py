@@ -18616,6 +18616,39 @@ class TestMetrikaCounterIdentity(unittest.TestCase):
             browser_masters._metrika_counter_identity("nomatch"), "nomatch"
         )
 
+    def test_returns_text_unchanged_when_trailing_separator_has_no_id(self):
+        """cycle-review finding: a trailing " • " with nothing after it
+        (e.g. malformed/unexpected markup) must NOT collapse to an empty
+        identity -- two different malformed inputs would otherwise both
+        become "" and falsely match each other in _verify_saved's Counter
+        comparison, masking a real mismatch."""
+        self.assertEqual(
+            browser_masters._metrika_counter_identity("Label • "), "Label • "
+        )
+
+    def test_two_malformed_inputs_do_not_collapse_to_the_same_identity(self):
+        a = browser_masters._metrika_counter_identity("Label A • ")
+        b = browser_masters._metrika_counter_identity("Label B • ")
+        self.assertNotEqual(a, b)
+
+    def test_returns_text_unchanged_when_trailing_separator_has_only_whitespace(self):
+        """cycle-review finding (PR #808 round 2): a trailing " • " followed
+        only by whitespace (e.g. "Label •  ") is truthy in Python, so the
+        bare `if identity` guard let it through as an identity instead of
+        falling back to `text` -- the same collapse-to-one-identity bug the
+        exactly-empty guard above already fixed, one whitespace-only
+        character class narrower."""
+        self.assertEqual(
+            browser_masters._metrika_counter_identity("Label •  "), "Label •  "
+        )
+
+    def test_two_whitespace_only_malformed_inputs_do_not_collapse_to_the_same_identity(
+        self,
+    ):
+        a = browser_masters._metrika_counter_identity("Label A •  ")
+        b = browser_masters._metrika_counter_identity("Label B •  ")
+        self.assertNotEqual(a, b)
+
 
 class TestParseRemoveMetrikaCounterOptions(unittest.TestCase):
     """``_parse_remove_metrika_counter_options`` (issue #648) — mirrors
