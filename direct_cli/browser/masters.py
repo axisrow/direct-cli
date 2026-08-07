@@ -2763,47 +2763,57 @@ def _reverify_status_or_raise(
     action_label: str,
     not_found_hint: str = "",
     changed_status_hint: str = "",
-) -> Dict[str, Any]:
-    """Re-read ``campaign_id``'s row right before an irreversible click and
-    abort if it is no longer ``expected_status`` (TOCTOU guard, issue #797,
-    same shape as ``delete_master``'s own re-check, issue #793 Finding 1).
+) -> None:
+    """Re-read the overview page's own status text right before an
+    irreversible click and abort if it is no longer ``expected_status``
+    (TOCTOU guard, issue #797, same shape as ``delete_master``'s own
+    re-check, issue #793 Finding 1).
 
     An up-front status guard, read once at the top of a function, can go
     stale by the time that function's own irreversible click actually
     fires — everything in between (navigating to the overview page, opening
     the "⋮" menu, waiting for a popup to render) is real elapsed time in
     which another session on a shared/agency account could transition the
-    campaign. Re-reading via ``_find_master_row(..., status="all")``
-    (so even an unexpected status is still caught, not silently excluded by
-    a narrower filter) immediately before the click closes that window,
-    mirroring ``delete_master``'s "never click against an unconfirmed
-    state" convention.
+    campaign. Both callers of this helper (``archive_master``,
+    ``copy_master``) run it AFTER the overview page's "⋮" menu is already
+    open and IMMEDIATELY before clicking one of its items — re-reading via
+    ``_find_master_row``/``fetch_masters_list`` here would call
+    ``_capture_grid_campaigns_request``, which unconditionally
+    ``page.goto(GRID_URL)``s (a cross-page navigation away from the
+    overview page the menu belongs to), destroying the just-opened menu and
+    making the caller's very next click target a locator that no longer
+    exists in the DOM. ``_read_status_text`` reads the same normalized
+    ``"SUSPENDED"``/``"ACTIVE"``/``"MODERATION"``/``"ARCHIVED"`` values
+    straight from the overview page's own body text, exactly like
+    ``suspend_master``/``resume_master`` already do around their own
+    clicks, so the re-check never navigates at all.
 
-    Returns the freshly re-read row on success. Raises
-    ``BrowserSessionError`` naming ``action_label`` (e.g. "Архивировать",
-    "Клонировать") if the row vanished entirely or its status no longer
-    matches ``expected_status`` — appending ``not_found_hint``/
-    ``changed_status_hint`` to each case respectively, for a caller-specific
-    pointer to the right next step (mirrors ``delete_master``'s own
-    "use `masters archive` instead" hint).
+    Raises ``BrowserSessionError`` naming ``action_label`` (e.g.
+    "Архивировать", "Клонировать") if the overview page's status text no
+    longer reads as ``expected_status`` (including an unrecognised/missing
+    status, treated the same as "changed" — this function has no way to
+    tell a vanished campaign apart from unrecognised markup once already on
+    its overview page, so it fails closed either way) — appending
+    ``not_found_hint``/``changed_status_hint`` respectively, for a
+    caller-specific pointer to the right next step (mirrors
+    ``delete_master``'s own "use `masters archive` instead" hint).
     """
-    current = _find_master_row(page, campaign_id, status="all")
-    if current is None:
+    current_status = _read_status_text(page)
+    if current_status is None:
         hint = f" {not_found_hint}" if not_found_hint else ""
         raise BrowserSessionError(
             f"Campaign {campaign_id} was {expected_status} moments ago but "
-            "is no longer in the campaigns grid at all — it may have just "
-            f"been removed by another session. Not clicking "
-            f"'{action_label}'.{hint}"
+            "its overview page no longer shows a recognised status — "
+            "another session may have just changed or removed it. Not "
+            f"clicking '{action_label}'.{hint}"
         )
-    if current["Status"] != expected_status:
+    if current_status != expected_status:
         hint = f" {changed_status_hint}" if changed_status_hint else ""
         raise BrowserSessionError(
             f"Campaign {campaign_id} was {expected_status} moments ago but "
-            f"is now {current['Status']} — another session likely changed "
-            f"it concurrently. Not clicking '{action_label}'.{hint}"
+            f"is now {current_status} — another session likely changed it "
+            f"concurrently. Not clicking '{action_label}'.{hint}"
         )
-    return current
 
 
 def _poll_master_row_tolerant(
@@ -2993,6 +3003,20 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     )
 
     if updated is None or updated["Status"] != "ARCHIVED":
+        if isinstance(verify_exc, BrowserAuthError):
+            # Unlike copy_master (not idempotent -- a retried click would
+            # create a SECOND campaign, so it deliberately re-wraps this as
+            # a plain BrowserSessionError below), archive_master itself is
+            # idempotent (see the ARCHIVED early-return above): re-raising
+            # BrowserAuthError here lets _with_session
+            # (direct_cli/commands/masters.py) retry the whole call under a
+            # fresh session -- if the archive already landed, the retry
+            # just returns the already-ARCHIVED row without clicking again.
+            # _poll_master_row_tolerant tolerating every BrowserSessionError
+            # (issue #797 Finding 2) would otherwise silently swallow this
+            # into a generic timeout, losing that fast auto-heal path for a
+            # session that expired mid-poll.
+            raise verify_exc
         if verify_exc is not None:
             raise BrowserSessionError(
                 f"Clicked 'Архивировать' for campaign {campaign_id} — the "
