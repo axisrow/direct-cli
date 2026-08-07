@@ -5959,7 +5959,17 @@ def _verify_saved(
         or add_audience_tags
         or remove_audience_tag_indices
     )
-    if _audience_touched:
+    # cycle-review finding, issue #648: the pre-reload settle wait below was
+    # scoped to `_audience_touched` only, so a metrika-counters-only save
+    # skipped it entirely. The Metrika counters widget shares the exact
+    # same structural pattern as audience tags (same tag-group DOM shape,
+    # same add/remove-by-position mechanics) — no live recon has confirmed
+    # whether it shares the SAME server-side save-commit race issue #681
+    # found for audience tags, but there's no basis to assume it doesn't
+    # either, and this wait is cheap insurance against the identical
+    # false-negative-mismatch failure mode.
+    _metrika_touched = bool(add_metrika_counters or remove_metrika_counter_indices)
+    if _audience_touched or _metrika_touched:
         # Confirmed live (issue #681): reloading immediately after clicking
         # 'Сохранить кампанию' can race the server-side commit for this
         # section specifically — a reload landing too soon reads back the
@@ -5972,8 +5982,8 @@ def _verify_saved(
         # fully closed (see this function's own docstring "false negative"
         # note and issue #681's follow-up). No other field this module
         # verifies has shown this same race, so the delay is scoped to
-        # audience-touching saves only rather than slowing down every
-        # update_master call.
+        # audience/metrika-touching saves only rather than slowing down
+        # every update_master call.
         page.wait_for_timeout(5_000)
 
     url = WIZARD_EDIT_URL.format(campaign_id=campaign_id)

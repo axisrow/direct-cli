@@ -16666,6 +16666,40 @@ class TestWaitForAudienceSection(unittest.TestCase):
 
         self.assertIn("metrika_counters", str(ctx.exception))
 
+    def test_metrika_only_save_gets_the_same_pre_reload_settle_wait_as_audience(self):
+        """cycle-review finding, issue #648: the pre-reload settle wait
+        (issue #681's confirmed-live save-commit race) was scoped to
+        `_audience_touched` only, so a metrika-counters-only save skipped
+        it entirely -- even though the Metrika counters widget shares the
+        exact same tag-group DOM pattern that race was found on. A
+        metrika-only call (no audience fields touched) must still trigger
+        the 5s wait."""
+        page = FakePage(
+            locators={
+                browser_masters._METRIKA_COUNTER_WRAPPER_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                '[data-testid="MetrikaCountersTagGroup.tag.0"]': _FakeLocator(
+                    [_FakeLocatorHandle(text="gc.ksamata.ru • 72112213\n30 целей")]
+                ),
+            }
+        )
+        wait_calls = []
+        page.wait_for_timeout = lambda timeout: wait_calls.append(timeout)
+
+        with patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None):
+            browser_masters._verify_saved(
+                page,
+                42,
+                weekly_budget=None,
+                promotion_goal=None,
+                directs_helps=None,
+                metrika_counters_before=[],
+                add_metrika_counters=["Ксамата • yandex.ru/maps • 72112213"],
+            )
+
+        self.assertIn(5_000, wait_calls)
+
     def test_raises_if_gender_trigger_never_shows_a_label(self):
         page = FakePage(locators={})  # no _GENDER_SELECT_TESTID handle at all
 
