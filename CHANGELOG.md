@@ -36,6 +36,41 @@ issue #796's target-action price popup). Treat add/remove itself as an
 implementation-by-pattern pending a later live mutation verification pass,
 not a confirmed-working feature.
 
+**`masters update --add-video`/`--remove-video` — manage a campaign's video
+variants (#648, Этап D).**
+
+The "Варианты видео" section's add/remove is a materially different shape
+from `--image`'s point-replacement: a 2026-08-06 recon (a byproduct of an
+unrelated sitelinks recon pass, campaign 713277109) found the per-video
+remove control (`VideoSuggestionsEditor.CampaignContents.CloseButton.
+<video_url>`) rendered OUTSIDE any modal, directly on the edit page —
+unlike images, where both add and remove only happen inside
+`ImageSuggestionsEditorModal`. `--add-video`/`--remove-video` are therefore
+a plain add/remove pair (by video URL, not by position), not a synthetic
+point-replacement:
+
+- `--add-video PATH` uploads a local video file, appending it to the set.
+  Refused once the campaign already has 2 videos (Yandex's own UI states
+  "Максимум 2 видео" — NOT independently verified by exceeding it).
+- `--remove-video URL` removes one video by its exact URL (repeat for
+  multiple). There is no CLI command yet to list a campaign's current
+  video URLs.
+- New browser-layer primitives: `_read_videos`, `_wait_for_videos_editor`,
+  `_open_videos_modal`, `_add_video`, `_remove_video`,
+  `_verify_video_mismatches` (`direct_cli/browser/masters.py`).
+
+**Honesty note on live verification:** only the section itself
+(`VideoSuggestionsEditor`), its open button, and the per-video close
+button's presence outside the modal are confirmed live. The (assumed)
+upload modal's own markup — including whether it is really called
+`VideoSuggestionsEditorModal`, its file input, and its Save button — is
+**pure analogy with the images modal, with zero live confirmation**. The
+close button's CLICK EFFECT (does it really remove the video immediately?)
+is likewise unverified — only its presence in the DOM was observed. See
+the module comments above `_VIDEOS_SLOT_COUNT` in
+`direct_cli/browser/masters.py` for the full confirmed-vs-assumed
+breakdown before relying on this against a real account.
+
 **`masters delete` — remove a DRAFT Мастер кампаний campaign (#782).**
 
 A DRAFT campaign was previously a one-way door: its overview page has no
