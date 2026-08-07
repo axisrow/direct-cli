@@ -15336,10 +15336,10 @@ class TestCreateMaster(unittest.TestCase):
         above (test_raises_value_error_when_no_target_actions) — Yandex's
         create form refuses to submit without a weekly budget, and refuses
         SILENTLY: no error appears in the DOM until AFTER a submit attempt
-        (a data-form-error element reading "Не задан недельный бюджет"),
-        so a budget-less call must be refused outright rather than driven
-        through the whole form and left to fail as an opaque redirect
-        timeout."""
+        (a `[data-testid="BudgetWithSuggest.ErrorMessage"]` element reading
+        "Не задан недельный бюджет"), so a budget-less call must be refused
+        outright rather than driven through the whole form and left to fail
+        as an opaque redirect timeout."""
         page, state = self._full_page()
 
         with self.assertRaises(ValueError):
@@ -15352,6 +15352,33 @@ class TestCreateMaster(unittest.TestCase):
                 target_actions={self.GOAL_ID: self.GOAL_PRICE},
                 weekly_budget=None,  # type: ignore[arg-type]
             )
+
+        # Fails fast: nothing was published, and no browser work was done.
+        self.assertEqual(state["launch_clicks"], [])
+        self.assertEqual(state["draft_clicks"], [])
+        self.assertEqual(page.navigated_to, [])
+
+    def test_raises_value_error_when_weekly_budget_is_not_positive(self):
+        """A zero/negative weekly_budget passes both Click's `required=True`
+        (it only checks presence, not value) and the `is None` check above —
+        the DOM comparison in `_read_created_form_mismatches` reads the
+        field back as the same 0, so it would NOT be caught as a mismatch
+        even if Yandex's own form silently rejected it exactly like a
+        missing budget. Refuse it outright, the same fail-fast shape as the
+        None case."""
+        page, state = self._full_page()
+
+        for bad_value in (0, -1):
+            with self.assertRaises(ValueError):
+                browser_masters.create_master(
+                    page,
+                    "https://ksamata.ru/",
+                    headlines=["Заголовок"],
+                    texts=["Текст объявления"],
+                    regions=["Москва"],
+                    target_actions={self.GOAL_ID: self.GOAL_PRICE},
+                    weekly_budget=bad_value,
+                )
 
         # Fails fast: nothing was published, and no browser work was done.
         self.assertEqual(state["launch_clicks"], [])

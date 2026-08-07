@@ -9653,6 +9653,13 @@ def create_master(
             "silently refuses to submit without one (issue #796) — the "
             "same silent-rejection shape as target_actions above."
         )
+    if weekly_budget <= 0:
+        raise ValueError(
+            f"create_master requires a positive weekly_budget, got "
+            f"{weekly_budget!r}. A zero/negative value is not a real "
+            "budget and is not known to be distinguishable from a missing "
+            "one by Yandex's own silent-rejection check (issue #796)."
+        )
 
     # ``wait_until="commit"``, not ``domcontentloaded`` (issue #685):
     # confirmed live the create page can take long enough to hydrate that
