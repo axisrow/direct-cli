@@ -2755,12 +2755,129 @@ def _find_master_row(
     return None
 
 
+def _reverify_status_or_raise(
+    page: "Page",
+    campaign_id: int,
+    *,
+    expected_status: str,
+    action_label: str,
+    not_found_hint: str = "",
+    changed_status_hint: str = "",
+) -> None:
+    """Re-read the overview page's own status text right before an
+    irreversible click and abort if it is no longer ``expected_status``
+    (TOCTOU guard, issue #797, same shape as ``delete_master``'s own
+    re-check, issue #793 Finding 1).
+
+    An up-front status guard, read once at the top of a function, can go
+    stale by the time that function's own irreversible click actually
+    fires — everything in between (navigating to the overview page, opening
+    the "⋮" menu, waiting for a popup to render) is real elapsed time in
+    which another session on a shared/agency account could transition the
+    campaign. Both callers of this helper (``archive_master``,
+    ``copy_master``) run it AFTER the overview page's "⋮" menu is already
+    open and IMMEDIATELY before clicking one of its items — re-reading via
+    ``_find_master_row``/``fetch_masters_list`` here would call
+    ``_capture_grid_campaigns_request``, which unconditionally
+    ``page.goto(GRID_URL)``s (a cross-page navigation away from the
+    overview page the menu belongs to), destroying the just-opened menu and
+    making the caller's very next click target a locator that no longer
+    exists in the DOM. ``_wait_for_recognised_status`` reads the same
+    normalized ``"SUSPENDED"``/``"ACTIVE"``/``"MODERATION"``/``"ARCHIVED"``
+    values straight from the overview page's own body text, exactly like
+    ``suspend_master``/``resume_master`` already do around their own
+    clicks, so the re-check never navigates at all — and, cycle-review
+    finding on issue #797, polls for a moment (like every other status
+    branch in this module) rather than reading once: ``_goto_overview_page``
+    only guarantees the *title* rendered, not the status element, which is
+    documented (see ``_wait_for_recognised_status``'s own docstring) as a
+    separate render pass that routinely reads as unrecognised for a moment
+    right after. A single unguarded ``_read_status_text`` here would
+    misattribute that hydration lag to "another session changed it" and
+    abort a perfectly legitimate archive/clone.
+
+    Raises ``BrowserSessionError`` naming ``action_label`` (e.g.
+    "Архивировать", "Клонировать") if the overview page's status text still
+    does not read as ``expected_status`` once hydration is given a chance to
+    catch up (including a status that never becomes recognised at all,
+    treated the same as "changed" — this function has no way to tell a
+    vanished campaign apart from persistently unrecognised markup once
+    already on its overview page, so it fails closed either way) —
+    appending ``not_found_hint``/``changed_status_hint`` respectively, for a
+    caller-specific pointer to the right next step (mirrors
+    ``delete_master``'s own "use `masters archive` instead" hint).
+    """
+    current_status = _wait_for_recognised_status(page)
+    if current_status is None:
+        hint = f" {not_found_hint}" if not_found_hint else ""
+        raise BrowserSessionError(
+            f"Campaign {campaign_id} was {expected_status} moments ago but "
+            "its overview page no longer shows a recognised status — "
+            "another session may have just changed or removed it. Not "
+            f"clicking '{action_label}'.{hint}"
+        )
+    if current_status != expected_status:
+        hint = f" {changed_status_hint}" if changed_status_hint else ""
+        raise BrowserSessionError(
+            f"Campaign {campaign_id} was {expected_status} moments ago but "
+            f"is now {current_status} — another session likely changed it "
+            f"concurrently. Not clicking '{action_label}'.{hint}"
+        )
+
+
+def _poll_master_row_tolerant(
+    page: "Page",
+    campaign_id: int,
+    *,
+    timeout_ms: int,
+    is_done: "Callable[[Optional[Dict[str, Any]]], bool]",
+) -> Tuple[Optional[Dict[str, Any]], Optional[BrowserSessionError]]:
+    """Poll ``_find_master_row`` until ``is_done`` is satisfied or
+    ``timeout_ms`` elapses, tolerating transient ``BrowserSessionError``s
+    instead of letting the first one abort the loop (issue #797, same shape
+    as ``delete_master``'s own tolerant verify loop, issue #793 Finding 2).
+
+    The caller's own click has already happened by the time this runs —
+    immediate and, for every ``masters`` action but ``suspend``/``resume``,
+    irreversible — so a mid-poll ``BrowserSessionError`` from
+    ``_find_master_row`` (HTTP 5xx, non-JSON, captcha, mid-poll session
+    expiry) must not read as "the action failed" when it almost certainly
+    already succeeded. Each error is treated as an inconclusive poll: the
+    loop keeps going until the deadline rather than propagating immediately.
+
+    Returns ``(last_row, last_error)``. ``last_row`` is the most recent
+    successful read (``None`` if every poll errored, or if the row
+    genuinely was not found while ``is_done`` kept requesting more).
+    ``last_error`` is the most recent ``BrowserSessionError``, cleared back
+    to ``None`` on the next successful poll — so a caller can tell "timed
+    out with a transient error on the final poll" (report that error, per
+    ``delete_master``'s "click already landed" message) apart from "timed
+    out with a clean but not-yet-matching read" (report a plain timeout).
+    """
+    deadline = _clock.now() + timeout_ms / 1000
+    last_row: Optional[Dict[str, Any]] = None
+    last_error: Optional[BrowserSessionError] = None
+    while _clock.now() < deadline:
+        try:
+            last_row = _find_master_row(page, campaign_id, status="all")
+            last_error = None
+        except BrowserSessionError as exc:
+            last_error = exc
+            page.wait_for_timeout(250)
+            continue
+        if is_done(last_row):
+            break
+        page.wait_for_timeout(250)
+    return last_row, last_error
+
+
 def _click_menu_item(
     page: "Page",
     campaign_id: int,
     *,
     item_selector: str,
     item_label: str,
+    pre_click_check: "Optional[Callable[[], None]]" = None,
 ) -> None:
     """Open the overview page's "⋮" menu and click ``item_selector``.
 
@@ -2770,6 +2887,14 @@ def _click_menu_item(
     ``data-testid`` selectors, not guessed text (see module docstring).
     Reuses ``_click_and_wait_for_popup`` for its hydration-race retries
     (issues #723/#725) rather than duplicating that click logic here.
+
+    ``pre_click_check`` (issue #797), if given, runs AFTER the menu is
+    confirmed open but BEFORE ``item_selector`` is clicked — the narrowest
+    possible window for a caller's own TOCTOU re-check (e.g.
+    ``archive_master``'s ``_reverify_status_or_raise``) to still catch a
+    status change that happened while the menu was opening, without
+    re-introducing the wider window a re-check placed before this whole
+    function would leave between itself and the actual click.
     """
     try:
         _click_and_wait_for_popup(
@@ -2784,6 +2909,9 @@ def _click_menu_item(
             f"'{item_label}' ({_MENU_TRIGGER_SELECTOR!r} / {item_selector!r}) "
             "— Yandex may have changed the overview page's markup."
         ) from exc
+
+    if pre_click_check is not None:
+        pre_click_check()
 
     item = page.locator(item_selector).first
     try:
@@ -2817,6 +2945,23 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     and re-reads the campaigns grid via ``fetch_masters_list`` to confirm
     ``Status == "ARCHIVED"`` before reporting success — never trusting the
     click alone.
+
+    Re-verifies SUSPENDED status a SECOND time immediately before the click
+    (issue #797, same TOCTOU shape as ``delete_master``'s own re-check,
+    issue #793 Finding 1): the up-front guard above and the click are
+    separated by ``_goto_overview_page``, an optional ``suspend_master``
+    round trip, and the "⋮" menu's own open-then-find retry loop — real
+    elapsed time in which another session on a shared/agency account could
+    move the campaign again. "Архивировать" is never clicked against a row
+    this function has not just re-confirmed is still SUSPENDED (see
+    ``_reverify_status_or_raise``).
+
+    The post-click verify loop tolerates transient ``BrowserSessionError``s
+    from ``_find_master_row`` (issue #797, same tolerant-poll shape as
+    issue #793 Finding 2, via ``_poll_master_row_tolerant``) instead of
+    letting one propagate as a hard failure: the click is immediate, so a
+    mid-poll HTTP 5xx/captcha/auth blip must not read as "the archive
+    failed" when it may have already succeeded.
     """
     existing = _find_master_row(page, campaign_id)
     if existing is None:
@@ -2841,22 +2986,57 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         suspend_master(page, campaign_id)
         _goto_overview_page(page, campaign_id)
 
+    def _reverify_suspended():
+        _reverify_status_or_raise(
+            page,
+            campaign_id,
+            expected_status="SUSPENDED",
+            action_label="Архивировать",
+            not_found_hint="Check `masters list` to see whether it was "
+            "already archived or removed by another session.",
+            changed_status_hint="Re-run `masters archive` if you still "
+            "intend to archive it.",
+        )
+
     _click_menu_item(
         page,
         campaign_id,
         item_selector=_ARCHIVE_MENU_ITEM_SELECTOR,
         item_label="Архивировать",
+        pre_click_check=_reverify_suspended,
     )
 
-    deadline = _clock.now() + _ARCHIVE_VERIFY_TIMEOUT_MS / 1000
-    updated = existing
-    while _clock.now() < deadline:
-        updated = _find_master_row(page, campaign_id)
-        if updated is not None and updated["Status"] == "ARCHIVED":
-            break
-        page.wait_for_timeout(250)
+    updated, verify_exc = _poll_master_row_tolerant(
+        page,
+        campaign_id,
+        timeout_ms=_ARCHIVE_VERIFY_TIMEOUT_MS,
+        is_done=lambda row: row is not None and row["Status"] == "ARCHIVED",
+    )
 
     if updated is None or updated["Status"] != "ARCHIVED":
+        if isinstance(verify_exc, BrowserAuthError):
+            # Unlike copy_master (not idempotent -- a retried click would
+            # create a SECOND campaign, so it deliberately re-wraps this as
+            # a plain BrowserSessionError below), archive_master itself is
+            # idempotent (see the ARCHIVED early-return above): re-raising
+            # BrowserAuthError here lets _with_session
+            # (direct_cli/commands/masters.py) retry the whole call under a
+            # fresh session -- if the archive already landed, the retry
+            # just returns the already-ARCHIVED row without clicking again.
+            # _poll_master_row_tolerant tolerating every BrowserSessionError
+            # (issue #797 Finding 2) would otherwise silently swallow this
+            # into a generic timeout, losing that fast auto-heal path for a
+            # session that expired mid-poll.
+            raise verify_exc
+        if verify_exc is not None:
+            raise BrowserSessionError(
+                f"Clicked 'Архивировать' for campaign {campaign_id} — the "
+                "click itself landed and was NOT rejected, but the "
+                "campaigns grid could not be re-read to confirm the "
+                f"archive within {_ARCHIVE_VERIFY_TIMEOUT_MS / 1000:.0f}s "
+                f"({verify_exc}). Check the campaign's status in the UI "
+                "before retrying."
+            ) from verify_exc
         raise BrowserSessionError(
             f"Clicked 'Архивировать' for campaign {campaign_id}, but the "
             f"campaigns grid did not report it as ARCHIVED within "
@@ -3295,6 +3475,30 @@ def copy_master(
     created but not launched, mirroring ``masters add``'s ``--draft``
     default. ``launch=True`` clicks "Запустить кампанию" instead, launching
     the copy immediately in production.
+
+    Re-verifies the source campaign's status a SECOND time immediately
+    before the "Клонировать" click (issue #797, same TOCTOU shape as
+    ``delete_master``'s own re-check, issue #793 Finding 1, via the shared
+    ``_reverify_status_or_raise``): the up-front guard above and this click
+    are separated by ``_goto_overview_page`` and the "⋮" menu's own
+    open-then-find retry loop — real elapsed time in which another session
+    on a shared/agency account could change or remove the campaign. This
+    matters more here than for archive/delete: ``copy_master`` is
+    explicitly non-idempotent (see above) — clicking against a row that
+    quietly changed underneath this function is a worse failure mode than
+    for an idempotent action, since a caller who retries after a false
+    failure risks creating an unwanted duplicate campaign. The re-check
+    requires the status to still match a status read from the SAME source
+    (the overview page's own status text, via ``_wait_for_recognised_status``
+    right after ``_goto_overview_page``) — not the up-front guard's grid
+    read: the grid's ``primaryStatus`` vocabulary is broader than and can
+    lag the overview page's four recognised values (cycle-review finding,
+    module docstring documents a 45+s DRAFT->MODERATION lag), so comparing
+    across sources would false-abort a legitimate, unchanged clone whenever
+    the two disagree. Unlike ``archive_master``/``delete_master``, cloning
+    has no single required status, so "changed at all" (not "changed to
+    some specific wrong value") is the signal this function treats as
+    unsafe to click through.
     """
     existing = _find_master_row(page, campaign_id)
     if existing is None:
@@ -3304,6 +3508,25 @@ def copy_master(
         )
 
     _goto_overview_page(page, campaign_id)
+
+    # The re-check below compares against THIS overview-page read, not
+    # `existing["Status"]` (cycle-review finding on issue #797): the grid's
+    # primaryStatus vocabulary is broader than and can lag
+    # _read_status_text's four recognised values (module docstring
+    # documents a 45+s DRAFT->MODERATION lag) -- comparing a grid-derived
+    # expected status against an overview-derived current status would
+    # false-abort a legitimate, unchanged clone whenever the two sources
+    # disagree, exactly the "another session changed it" false positive the
+    # re-check exists to avoid. Reading both sides from the overview page,
+    # like archive_master already does (SUSPENDED-vs-SUSPENDED, both from
+    # the overview), eliminates the cross-source mismatch entirely.
+    starting_status = _wait_for_recognised_status(page)
+    if starting_status is None:
+        raise BrowserSessionError(
+            f"Could not determine campaign {campaign_id}'s status from its "
+            "overview page — Yandex may have changed the page's markup, or "
+            "the campaign is in a status this tool does not recognise."
+        )
 
     try:
         _click_and_wait_for_popup(
@@ -3319,6 +3542,18 @@ def copy_master(
             f"{_CLONE_MENU_ITEM_SELECTOR!r}) — Yandex may have changed the "
             "overview page's markup."
         ) from exc
+
+    _reverify_status_or_raise(
+        page,
+        campaign_id,
+        expected_status=starting_status,
+        action_label="Клонировать",
+        not_found_hint="Check `masters list` to see whether it was already "
+        "removed by another session.",
+        changed_status_hint="Re-run `masters copy` if you still intend to "
+        "clone it — this is not idempotent, so check first whether an "
+        "earlier attempt already created a copy.",
+    )
 
     clone_item = page.locator(_CLONE_MENU_ITEM_SELECTOR).first
     try:
@@ -3360,31 +3595,38 @@ def copy_master(
     # The clone/terminal-button click above already happened — irreversible,
     # not idempotent (a retry would re-click and create a SECOND copy). If
     # the saved session is invalidated in exactly this window,
-    # fetch_masters_list's own assert_authenticated raises BrowserAuthError;
-    # letting that propagate as-is would make _with_session
+    # fetch_masters_list's own assert_authenticated raises BrowserAuthError
+    # — a narrower subclass of BrowserSessionError, which _poll_master_row_
+    # tolerant below already treats as a tolerable transient poll error, not
+    # just this specific subclass (issue #797, same "any BrowserSessionError
+    # is transient, not just BrowserAuthError" fix as archive_master; the
+    # previous version here only caught BrowserAuthError, so a plain
+    # transient HTTP 5xx/captcha still propagated raw). Letting any such
+    # error propagate unguarded would make _with_session
     # (direct_cli/commands/masters.py) retry this ENTIRE function under a
-    # fresh session, silently duplicating the campaign. Re-raise as a plain
-    # BrowserSessionError so that retry does not trigger, and name new_id so
+    # fresh session, silently duplicating the campaign — so a timeout while
+    # every poll errored still raises a plain BrowserSessionError (never a
+    # BrowserAuthError) so that retry does not trigger, and names new_id so
     # the caller can check the clone that already exists instead of losing
     # track of it.
-    updated = None
-    deadline = _clock.now() + _CLONE_VERIFY_TIMEOUT_MS / 1000
-    try:
-        while _clock.now() < deadline:
-            updated = _find_master_row(page, new_id, status="all")
-            if updated is not None:
-                break
-            page.wait_for_timeout(250)
-    except BrowserAuthError as exc:
-        raise BrowserSessionError(
-            f"Yandex redirected to campaign {new_id} after cloning "
-            f"{campaign_id}, but the session was invalidated while "
-            "verifying it in the campaigns grid — the clone was likely "
-            f"created; check campaign {new_id} manually rather than "
-            "retrying (this is not idempotent)."
-        ) from exc
+    updated, verify_exc = _poll_master_row_tolerant(
+        page,
+        new_id,
+        timeout_ms=_CLONE_VERIFY_TIMEOUT_MS,
+        is_done=lambda row: row is not None,
+    )
 
     if updated is None:
+        if verify_exc is not None:
+            raise BrowserSessionError(
+                f"Yandex redirected to campaign {new_id} after cloning "
+                f"{campaign_id} — the redirect itself happened and the "
+                "clone was likely created, but the campaigns grid could "
+                f"not be re-read to confirm it within "
+                f"{_CLONE_VERIFY_TIMEOUT_MS / 1000:.0f}s ({verify_exc}). "
+                f"Check campaign {new_id} manually rather than retrying "
+                "(this is not idempotent)."
+            ) from verify_exc
         raise BrowserSessionError(
             f"Yandex redirected to campaign {new_id} after cloning "
             f"{campaign_id}, but it did not appear in the campaigns grid "

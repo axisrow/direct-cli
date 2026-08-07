@@ -3955,7 +3955,9 @@ class TestArchiveMaster(unittest.TestCase):
             "StartDate": "2025-01-01",
         }
 
-    def _page_with_menu(self, menu_trigger=None, archive_item=None):
+    def _page_with_menu(
+        self, menu_trigger=None, archive_item=None, body_text="Кампания остановлена"
+    ):
         locators = {}
         if menu_trigger is not None:
             locators[browser_masters._MENU_TRIGGER_SELECTOR] = _FakeLocator(
@@ -3965,17 +3967,28 @@ class TestArchiveMaster(unittest.TestCase):
             locators[browser_masters._ARCHIVE_MENU_ITEM_SELECTOR] = _FakeLocator(
                 [archive_item]
             )
-        return FakePage(locators=locators)
+        return FakePage(locators=locators, body_text=body_text)
 
     def test_archives_and_verifies_via_grid(self):
-        state = {"status": "STOPPED"}
+        # "SUSPENDED" (not the raw grid "STOPPED") -- see the comment on
+        # test_raises_when_menu_trigger_not_found for why this must match
+        # fetch_masters_list's own normalized value (issue #797's TOCTOU
+        # re-check compares against it before the click).
+        state = {"status": "SUSPENDED"}
 
         def _flip():
             state["status"] = "ARCHIVED"
 
+        # The TOCTOU re-check (issue #797) reads the overview page's own
+        # status text (_read_status_text), NOT the campaigns grid --
+        # navigating to the grid mid-recheck would destroy the "⋮" menu this
+        # test's archive_item click depends on (see _reverify_status_or_raise's
+        # docstring). "Кампания остановлена" is _read_status_text's own
+        # SUSPENDED marker.
         page = self._page_with_menu(
             menu_trigger=_FakeLocatorHandle(),
             archive_item=_FakeLocatorHandle(on_click=_flip),
+            body_text="Кампания остановлена",
         )
 
         with patch(
@@ -4019,9 +4032,15 @@ class TestArchiveMaster(unittest.TestCase):
     def test_raises_when_menu_trigger_not_found(self):
         page = self._page_with_menu()  # no menu_trigger locator registered
 
+        # "SUSPENDED" (not the raw grid "STOPPED") -- fetch_masters_list
+        # itself normalizes STOPPED -> SUSPENDED (_PRIMARY_STATUS_TO_CLI_
+        # STATUS) before archive_master ever sees a row, and issue #797's
+        # TOCTOU re-check (_reverify_status_or_raise) now compares against
+        # that normalized value, so the fixture must match what the real
+        # function returns, not the pre-normalization grid string.
         with patch(
             "direct_cli.browser.masters.fetch_masters_list",
-            return_value=[self._row("STOPPED")],
+            return_value=[self._row("SUSPENDED")],
         ):
             with self.assertRaises(BrowserSessionError) as ctx:
                 browser_masters.archive_master(page, 42)
@@ -4033,7 +4052,7 @@ class TestArchiveMaster(unittest.TestCase):
 
         with patch(
             "direct_cli.browser.masters.fetch_masters_list",
-            return_value=[self._row("STOPPED")],
+            return_value=[self._row("SUSPENDED")],
         ):
             with self.assertRaises(BrowserSessionError) as ctx:
                 browser_masters.archive_master(page, 42)
@@ -4041,16 +4060,17 @@ class TestArchiveMaster(unittest.TestCase):
         self.assertIn("Архивировать", str(ctx.exception))
 
     def test_raises_when_status_never_becomes_archived(self):
-        # The click succeeds but the grid keeps reporting STOPPED -- must not
-        # report success on the click alone.
+        # The click succeeds but the grid keeps reporting SUSPENDED -- must
+        # not report success on the click alone.
         page = self._page_with_menu(
             menu_trigger=_FakeLocatorHandle(),
             archive_item=_FakeLocatorHandle(),
+            body_text="Кампания остановлена",
         )
 
         with patch(
             "direct_cli.browser.masters.fetch_masters_list",
-            return_value=[self._row("STOPPED")],
+            return_value=[self._row("SUSPENDED")],
         ):
             with self.assertRaises(BrowserSessionError) as ctx:
                 browser_masters.archive_master(page, 42)
@@ -4111,13 +4131,21 @@ class TestArchiveMaster(unittest.TestCase):
         # for SUSPENDED, THEN open the menu and click "Архивировать".
         page, state = self._active_page_with_suspend_and_menu("Остановить кампанию")
 
+        # Grid status by state, mirroring fetch_masters_list's own
+        # normalized "SUSPENDED" (issue #797's TOCTOU re-check,
+        # _reverify_status_or_raise, requires the grid to actually report
+        # SUSPENDED once suspend_master's own poll sees the overview page's
+        # "Кампания остановлена" text -- not still ACTIVE).
+        def _status_for_grid():
+            if state["status"] == "ARCHIVED_VIA_MENU":
+                return "ARCHIVED"
+            if state["status"] == "Кампания остановлена":
+                return "SUSPENDED"
+            return "ACTIVE"
+
         with patch(
             "direct_cli.browser.masters.fetch_masters_list",
-            side_effect=lambda page, status="all": [
-                self._row(
-                    "ARCHIVED" if state["status"] == "ARCHIVED_VIA_MENU" else "ACTIVE"
-                )
-            ],
+            side_effect=lambda page, status="all": [self._row(_status_for_grid())],
         ):
             result = browser_masters.archive_master(page, 42)
 
@@ -4127,19 +4155,206 @@ class TestArchiveMaster(unittest.TestCase):
         page, state = self._active_page_with_suspend_and_menu("Остановить кампанию")
         state["status"] = "Кампания на\xa0модерации"
 
+        def _status_for_grid():
+            if state["status"] == "ARCHIVED_VIA_MENU":
+                return "ARCHIVED"
+            if state["status"] == "Кампания остановлена":
+                return "SUSPENDED"
+            return "MODERATION"
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": [self._row(_status_for_grid())],
+        ):
+            result = browser_masters.archive_master(page, 42)
+
+        self.assertEqual(result, self._row("ARCHIVED"))
+
+    def test_toctou_aborts_without_clicking_when_status_changed_before_click(self):
+        # issue #797 Finding 1 (same TOCTOU shape as delete_master, issue
+        # #793 Finding 1): the up-front guard reads SUSPENDED once via
+        # fetch_masters_list, but opening the "⋮" menu
+        # (_click_and_wait_for_popup's own retry loop) takes real time --
+        # another session could move the campaign off SUSPENDED before
+        # 'Архивировать' is clicked. The TOCTOU re-check itself reads the
+        # overview page's own status text (_read_status_text), not the grid
+        # (see _reverify_status_or_raise's docstring for why) -- flip the
+        # page's body text to ACTIVE to model that concurrent change.
+        archive_clicked = []
+
+        page = self._page_with_menu(
+            menu_trigger=_FakeLocatorHandle(),
+            archive_item=_FakeLocatorHandle(on_click=lambda: archive_clicked.append(1)),
+            body_text="Кампания активна",
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("SUSPENDED")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.archive_master(page, 42)
+
+        self.assertIn("is now", str(ctx.exception))
+        self.assertIn("ACTIVE", str(ctx.exception))
+        self.assertIn("Not clicking", str(ctx.exception))
+        self.assertEqual(archive_clicked, [])
+
+    def test_toctou_aborts_without_clicking_when_campaign_vanished_before_click(self):
+        # Same TOCTOU window, but the overview page no longer shows a
+        # recognised status text (e.g. archived or deleted by another
+        # session) rather than merely showing a different one.
+        archive_clicked = []
+
+        page = self._page_with_menu(
+            menu_trigger=_FakeLocatorHandle(),
+            archive_item=_FakeLocatorHandle(on_click=lambda: archive_clicked.append(1)),
+            body_text="",
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._row("SUSPENDED")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.archive_master(page, 42)
+
+        self.assertIn("no longer shows a recognised status", str(ctx.exception))
+        self.assertEqual(archive_clicked, [])
+
+    def test_verify_loop_tolerates_transient_error_then_succeeds(self):
+        # issue #797 Finding 2 (same tolerant-poll shape as delete_master,
+        # issue #793 Finding 2): a transient BrowserSessionError on the
+        # FIRST poll after a successful, irreversible click must not
+        # propagate -- it must be treated as inconclusive and polling must
+        # continue. The TOCTOU re-check (before the click) reads the
+        # overview page's own status text, not fetch_masters_list, so every
+        # fetch_masters_list call here is a POST-click verify poll.
+        state = {"status": "SUSPENDED"}
+        poll_calls = {"n": 0}
+
+        def _archive():
+            state["status"] = "ARCHIVED"
+
+        def _fetch(page, status="all"):
+            poll_calls["n"] += 1
+            # Call 1: up-front guard. Call 2: first verify poll -- raise
+            # here. Call 3+: verify polls succeed.
+            if poll_calls["n"] == 2:
+                raise BrowserSessionError("Campaigns grid API returned HTTP 500")
+            return [self._row(state["status"])]
+
+        page = self._page_with_menu(
+            menu_trigger=_FakeLocatorHandle(),
+            archive_item=_FakeLocatorHandle(on_click=_archive),
+            body_text="Кампания остановлена",
+        )
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", side_effect=_fetch):
+            result = browser_masters.archive_master(page, 42)
+
+        self.assertEqual(result, self._row("ARCHIVED"))
+        self.assertGreaterEqual(poll_calls["n"], 3)
+
+    def test_verify_loop_reports_click_already_landed_when_every_poll_errors(self):
+        # issue #797 Finding 2: if every poll until the deadline errors, the
+        # final message must say the click already landed, not just repeat
+        # a generic "did not report it as ARCHIVED" (which would falsely
+        # suggest the click itself may not have worked).
+        page = self._page_with_menu(
+            menu_trigger=_FakeLocatorHandle(),
+            archive_item=_FakeLocatorHandle(),
+            body_text="Кампания остановлена",
+        )
+
+        calls = {"n": 0}
+
+        def _fetch(page, status="all"):
+            calls["n"] += 1
+            if calls["n"] <= 1:
+                # up-front guard sees SUSPENDED (the TOCTOU re-check reads
+                # the overview page's own status text, not the grid).
+                return [self._row("SUSPENDED")]
+            raise BrowserSessionError("Campaigns grid API returned HTTP 500")
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", side_effect=_fetch):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.archive_master(page, 42)
+
+        self.assertIn("landed", str(ctx.exception))
+        self.assertIn("HTTP 500", str(ctx.exception))
+
+    def test_verify_loop_reraises_auth_error_for_with_sessions_auto_heal(self):
+        # cycle-review finding on issue #797: unlike copy_master (not
+        # idempotent -- a retried click would create a SECOND campaign, so
+        # it deliberately keeps BrowserAuthError wrapped as a plain
+        # BrowserSessionError), archive_master IS idempotent (see the
+        # already-ARCHIVED early return). _poll_master_row_tolerant
+        # tolerates every BrowserSessionError including BrowserAuthError
+        # (issue #797 Finding 2), so without this re-raise a session that
+        # expires mid-poll would surface as a generic timeout instead of
+        # letting _with_session (direct_cli/commands/masters.py) retry the
+        # whole idempotent call under a fresh session.
+        page = self._page_with_menu(
+            menu_trigger=_FakeLocatorHandle(),
+            archive_item=_FakeLocatorHandle(),
+            body_text="Кампания остановлена",
+        )
+
+        calls = {"n": 0}
+
+        def _fetch(page, status="all"):
+            calls["n"] += 1
+            if calls["n"] <= 1:
+                return [self._row("SUSPENDED")]
+            raise BrowserAuthError("stale session, detected mid-poll")
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", side_effect=_fetch):
+            with self.assertRaises(BrowserAuthError):
+                browser_masters.archive_master(page, 42)
+
+    def test_toctou_recheck_tolerates_status_text_hydration_lag(self):
+        # cycle-review finding (codex) on issue #797: _goto_overview_page
+        # only guarantees the title rendered (issue #683), not the status
+        # element -- _wait_for_recognised_status's own docstring documents
+        # it as a separate render pass that "routinely reads as None for a
+        # moment" right after. A single unguarded _read_status_text at the
+        # TOCTOU re-check would misattribute that hydration lag to
+        # "another session changed it" and abort a legitimate archive.
+        # This page's status text is empty for the first two reads (the
+        # lag), then hydrates to the real SUSPENDED marker -- the re-check
+        # must tolerate that instead of failing closed on the first read.
+        reads = {"n": 0}
+        archive_clicked = []
+
+        class _SlowStatusPage(FakePage):
+            def inner_text(self, selector=None):
+                reads["n"] += 1
+                if reads["n"] <= 2:
+                    return ""
+                return "Кампания остановлена"
+
+        page = _SlowStatusPage(
+            locators={
+                browser_masters._MENU_TRIGGER_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                browser_masters._ARCHIVE_MENU_ITEM_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: archive_clicked.append(1))]
+                ),
+            }
+        )
+
         with patch(
             "direct_cli.browser.masters.fetch_masters_list",
             side_effect=lambda page, status="all": [
-                self._row(
-                    "ARCHIVED"
-                    if state["status"] == "ARCHIVED_VIA_MENU"
-                    else "MODERATION"
-                )
+                self._row("ARCHIVED" if archive_clicked else "SUSPENDED")
             ],
         ):
             result = browser_masters.archive_master(page, 42)
 
         self.assertEqual(result, self._row("ARCHIVED"))
+        self.assertEqual(archive_clicked, [1])
 
 
 class TestMastersArchiveCommand(unittest.TestCase):
@@ -5052,7 +5267,7 @@ class TestCopyMaster(unittest.TestCase):
     SOURCE_ID = 42
     NEW_ID = 4200
 
-    def _source_row(self, status="STOPPED"):
+    def _source_row(self, status="SUSPENDED"):
         return {
             "CampaignId": self.SOURCE_ID,
             "Name": "Мастер тестовый",
@@ -5077,6 +5292,8 @@ class TestCopyMaster(unittest.TestCase):
         step2_ready=True,
         terminal_button_text=None,
         redirect_on_click=True,
+        body_text="Кампания остановлена",
+        page_class=FakePage,
     ):
         locators = {}
         if menu_trigger is not None:
@@ -5092,7 +5309,14 @@ class TestCopyMaster(unittest.TestCase):
                 _FakeLocator([_FakeLocatorHandle()])
             )
 
-        page = FakePage(locators=locators)
+        # The TOCTOU re-check (issue #797) reads the overview page's own
+        # status text (_read_status_text), NOT the campaigns grid -- see
+        # _reverify_status_or_raise's docstring. Defaults to SOURCE_ID's
+        # default "STOPPED" grid status normalized to SUSPENDED's own
+        # _read_status_text marker. page_class lets a test model the
+        # overview status text changing between the up-front read and the
+        # re-check's own read (both now come from the overview page).
+        page = page_class(locators=locators, body_text=body_text)
 
         if terminal_button_text is not None:
 
@@ -5135,6 +5359,40 @@ class TestCopyMaster(unittest.TestCase):
             page.navigated_to[0],
             browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=self.SOURCE_ID),
         )
+
+    def test_toctou_recheck_does_not_false_abort_on_grid_overview_status_mismatch(
+        self,
+    ):
+        # cycle-review finding (codex) on issue #797: the grid's
+        # primaryStatus vocabulary is broader than and can lag
+        # _read_status_text's four recognised values (module docstring
+        # documents a 45+s DRAFT->MODERATION lag) -- comparing the up-front
+        # grid-derived status against the re-check's overview-derived
+        # status would false-abort a legitimate, unchanged clone whenever
+        # the two sources disagree. Model that disagreement directly: the
+        # grid reports a status _read_status_text can't recognise at all
+        # (e.g. TEMPORARILY_PAUSED), while the overview page's own status
+        # text is a perfectly valid, UNCHANGING "Кампания остановлена". The
+        # re-check must compare against the overview's own up-front read
+        # (also "Кампания остановлена"), not the grid's, so it must NOT
+        # abort here.
+        page = self._page(
+            menu_trigger=_FakeLocatorHandle(),
+            clone_item=_FakeLocatorHandle(),
+            terminal_button_text=browser_masters._SAVE_DRAFT_BUTTON_TEXT,
+            body_text="Кампания остановлена",
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": [
+                self._source_row(status="TEMPORARILY_PAUSED"),
+                self._new_row(),
+            ],
+        ):
+            result = browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertEqual(result["CampaignId"], self.NEW_ID)
 
     def test_launch_true_clicks_launch_button(self):
         page = self._page(
@@ -5248,11 +5506,13 @@ class TestCopyMaster(unittest.TestCase):
         calls = []
 
         def _fetch_masters_list(page, status="all"):
-            # First call (before the click) looks up the source campaign and
-            # must succeed; only the post-click lookup (finding new_id) hits
-            # the invalidated session.
+            # Call 1: the up-front source-campaign lookup (the TOCTOU
+            # re-check reads the overview page's own status text, not
+            # fetch_masters_list -- see _reverify_status_or_raise's
+            # docstring). Only the post-click lookup (finding new_id), call
+            # 2+, hits the invalidated session.
             calls.append(status)
-            if len(calls) == 1:
+            if len(calls) <= 1:
                 return [self._source_row()]
             raise BrowserAuthError("stale session, detected mid-body")
 
@@ -5265,6 +5525,146 @@ class TestCopyMaster(unittest.TestCase):
 
         self.assertNotIsInstance(ctx.exception, BrowserAuthError)
         self.assertIn(str(self.NEW_ID), str(ctx.exception))
+
+    def test_toctou_aborts_without_clicking_when_status_changed_before_click(self):
+        # issue #797 Finding 1 (same TOCTOU shape as delete_master, issue
+        # #793 Finding 1): the up-front status read (_wait_for_recognised_
+        # status, right after _goto_overview_page -- cycle-review finding:
+        # this must come from the SAME overview-page source the re-check
+        # itself reads, not the up-front grid guard) happens once, but
+        # opening the "⋮" menu (_click_and_wait_for_popup's own retry loop)
+        # takes real time -- another session could change the campaign
+        # before 'Клонировать' is clicked. Flip the page's body text to
+        # ARCHIVED on the SECOND read (the re-check) to model that
+        # concurrent change; the first read (up-front) still sees SUSPENDED.
+        # copy_master has no single required status, so ANY change from
+        # what was first read is what this re-check refuses to click
+        # through.
+        clone_clicked = []
+        reads = {"n": 0}
+
+        class _StatusChangesPage(FakePage):
+            def inner_text(self, selector=None):
+                reads["n"] += 1
+                return (
+                    "Кампания остановлена"
+                    if reads["n"] == 1
+                    else "Кампания в\xa0архиве"
+                )
+
+        page = self._page(
+            menu_trigger=_FakeLocatorHandle(),
+            clone_item=_FakeLocatorHandle(on_click=lambda: clone_clicked.append(1)),
+            page_class=_StatusChangesPage,
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._source_row(status="STOPPED")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertIn("is now", str(ctx.exception))
+        self.assertIn("ARCHIVED", str(ctx.exception))
+        self.assertIn("Not clicking", str(ctx.exception))
+        self.assertEqual(clone_clicked, [])
+
+    def test_toctou_aborts_without_clicking_when_campaign_vanished_before_click(self):
+        # Same TOCTOU window, but the overview page no longer shows a
+        # recognised status text (e.g. deleted or archived-and-purged by
+        # another session) rather than merely showing a different one. The
+        # up-front read still sees SUSPENDED; only the re-check's read goes
+        # unrecognised.
+        clone_clicked = []
+        reads = {"n": 0}
+
+        class _StatusVanishesPage(FakePage):
+            def inner_text(self, selector=None):
+                reads["n"] += 1
+                return "Кампания остановлена" if reads["n"] == 1 else ""
+
+        page = self._page(
+            menu_trigger=_FakeLocatorHandle(),
+            clone_item=_FakeLocatorHandle(on_click=lambda: clone_clicked.append(1)),
+            page_class=_StatusVanishesPage,
+        )
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            return_value=[self._source_row(status="STOPPED")],
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertIn("no longer shows a recognised status", str(ctx.exception))
+        self.assertEqual(clone_clicked, [])
+
+    def test_new_campaign_verify_loop_tolerates_transient_error_then_succeeds(self):
+        # issue #797 Finding 2 (same tolerant-poll shape as delete_master,
+        # issue #793 Finding 2, and the same fix this module's own
+        # test_auth_error_during_post_click_verification_is_not_retried
+        # already covers for BrowserAuthError specifically): a transient
+        # plain BrowserSessionError on the FIRST post-click poll must not
+        # propagate -- it must be treated as inconclusive and polling must
+        # continue, unlike the pre-#797 code which only tolerated
+        # BrowserAuthError here.
+        page = self._page(
+            menu_trigger=_FakeLocatorHandle(),
+            clone_item=_FakeLocatorHandle(),
+            terminal_button_text=browser_masters._SAVE_DRAFT_BUTTON_TEXT,
+        )
+
+        calls = {"n": 0}
+
+        def _fetch(page, status="all"):
+            calls["n"] += 1
+            # Call 1: up-front guard (the TOCTOU re-check reads the
+            # overview page's own status text, not fetch_masters_list).
+            # Call 2: first post-click poll for NEW_ID -- raise here
+            # (transient, NOT an auth error). Call 3+: succeeds.
+            if calls["n"] == 2:
+                raise BrowserSessionError("Campaigns grid API returned HTTP 500")
+            return [self._source_row(), self._new_row()]
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", side_effect=_fetch):
+            result = browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertEqual(result["CampaignId"], self.NEW_ID)
+        self.assertGreaterEqual(calls["n"], 3)
+
+    def test_new_campaign_verify_loop_reports_click_already_landed_when_every_poll_errors(  # noqa: E501
+        self,
+    ):
+        # issue #797 Finding 2: if every post-click poll until the deadline
+        # errors with a plain (non-auth) BrowserSessionError, the final
+        # message must say the clone was likely created, not just repeat a
+        # generic "did not appear in the campaigns grid" (which would
+        # falsely suggest cloning itself may not have worked).
+        page = self._page(
+            menu_trigger=_FakeLocatorHandle(),
+            clone_item=_FakeLocatorHandle(),
+            terminal_button_text=browser_masters._SAVE_DRAFT_BUTTON_TEXT,
+        )
+
+        calls = {"n": 0}
+
+        def _fetch(page, status="all"):
+            calls["n"] += 1
+            if calls["n"] <= 1:
+                # up-front guard succeeds (the TOCTOU re-check reads the
+                # overview page's own status text, not fetch_masters_list).
+                return [self._source_row()]
+            raise BrowserSessionError("Campaigns grid API returned HTTP 500")
+
+        with patch("direct_cli.browser.masters.fetch_masters_list", side_effect=_fetch):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.copy_master(page, self.SOURCE_ID)
+
+        self.assertNotIsInstance(ctx.exception, BrowserAuthError)
+        self.assertIn("likely created", str(ctx.exception))
+        self.assertIn(str(self.NEW_ID), str(ctx.exception))
+        self.assertIn("HTTP 500", str(ctx.exception))
 
 
 class TestMastersCopyCommand(unittest.TestCase):
@@ -11275,28 +11675,29 @@ class TestGotoOverviewPage(unittest.TestCase):
                     [_FakeLocatorHandle()]
                 ),
             },
+            # The TOCTOU re-check (issue #797) reads the overview page's own
+            # status text (_read_status_text), not fetch_masters_list -- see
+            # _reverify_status_or_raise's docstring.
+            body_text="Кампания остановлена",
         )
+        # "SUSPENDED" (not the raw grid "STOPPED") -- fetch_masters_list
+        # itself normalizes STOPPED -> SUSPENDED before archive_master ever
+        # sees a row (_PRIMARY_STATUS_TO_CLI_STATUS), so the fixture must
+        # match what the real function returns. Two entries: the up-front
+        # guard, and the post-click verify poll (the TOCTOU re-check itself
+        # reads the overview page's body text above, not this mock).
+        _row = {
+            "CampaignId": 1,
+            "Name": "x",
+            "Status": "SUSPENDED",
+            "Type": "TEXT",
+            "StartDate": "2025-01-01",
+        }
         with patch(
             "direct_cli.browser.masters.fetch_masters_list",
             side_effect=[
-                [
-                    {
-                        "CampaignId": 1,
-                        "Name": "x",
-                        "Status": "STOPPED",
-                        "Type": "TEXT",
-                        "StartDate": "2025-01-01",
-                    }
-                ],
-                [
-                    {
-                        "CampaignId": 1,
-                        "Name": "x",
-                        "Status": "ARCHIVED",
-                        "Type": "TEXT",
-                        "StartDate": "2025-01-01",
-                    }
-                ],
+                [_row],
+                [{**_row, "Status": "ARCHIVED"}],
             ],
         ):
             browser_masters.archive_master(page, 1)
