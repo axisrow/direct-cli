@@ -9967,10 +9967,23 @@ def _apply_image_operations(
     previously-unverified risk, exercised via ``masters adimages delete
     --all`` and ``masters adimages set --allow-empty``.
 
-    **Not live-verified:** uploading via a single ``set_input_files([path1,
-    path2, ...])`` call with multiple paths — real Playwright accepts a
-    list, but PR #672's recon never exercised it, so this uploads strictly
-    one path per call, sequentially, to stay on already-confirmed ground.
+    **Confirmed live 2026-08-08 (issue #648 Этап D follow-up), DRAFT campaign
+    713234191:** a single ``set_input_files([path1, path2])`` call with
+    MULTIPLE paths does work against Yandex's real file input — the panel
+    grew from 3 to 5 after one such call (2 valid ~1200x1200 JPEGs), closing
+    PR #672's originally-unverified risk. Yandex still processes each file
+    sequentially server-side (each landed as its own
+    ``POST /web-api/uac/content`` call, observed one after another, not a
+    single multipart request) — so this function still uploads one path per
+    ``set_input_files`` call rather than batching the whole list into one,
+    since a single-path call already gives per-file error attribution
+    (a rejected file surfaces against its own path, not "one of N failed").
+    Also confirmed live in the same pass: Yandex's upload endpoint rejects a
+    too-small synthetic image with a plain HTTP 400 (no distinguishing toast
+    text was observed) — this is a real per-image server-side validation,
+    not a testid/selector problem, so a caller seeing an upload silently not
+    appear should suspect the source file's dimensions/format before the
+    DOM markup.
 
     Removals are located by the target's thumb URL, captured from the
     modal's panel BEFORE any removal in this call runs — exactly the
