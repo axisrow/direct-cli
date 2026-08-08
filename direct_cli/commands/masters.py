@@ -352,7 +352,7 @@ def _run_per_id(
     """
 
     def _all(page):
-        from ..browser.session import BrowserSessionError
+        from ..browser.session import BrowserAuthError, BrowserSessionError
         from ..browser.masters import PlaywrightError
 
         results = []
@@ -360,6 +360,13 @@ def _run_per_id(
         for campaign_id in ids:
             try:
                 results.append(action(page, campaign_id))
+            except BrowserAuthError:
+                # A stale saved session must keep propagating to
+                # _with_session's whole-operation retry (issue #816
+                # follow-up) -- BrowserAuthError is a BrowserSessionError
+                # subclass, so a bare `except BrowserSessionError` below
+                # would swallow it per-campaign and defeat the self-heal.
+                raise
             except (BrowserSessionError, PlaywrightError) as exc:
                 errors.append((campaign_id, exc))
                 results.append({"CampaignId": campaign_id, "Error": str(exc)})

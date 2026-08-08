@@ -19832,6 +19832,48 @@ class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
         self.assertIn("overview timeout", payload[1]["Error"])
         self.assertNotIn("Error", payload[2])
 
+    def test_mid_batch_auth_error_triggers_with_session_retry(self):
+        """Issue #816 follow-up (Codex, cycle-review PR #818): BrowserAuthError
+        must propagate to ``_with_session``'s stale-session self-heal retry,
+        not be swallowed as a per-campaign error -- ``BrowserAuthError`` is a
+        ``BrowserSessionError`` subclass, so a bare ``except
+        (BrowserSessionError, PlaywrightError)`` in ``_all`` catches it too
+        and defeats the retry ``_with_session`` is built around.
+        """
+        call_count = {"n": 0}
+        auth_error_raised = {"done": False}
+
+        def _fake_with_session(ctx, headful, profile_dir, chrome_profile, fn):
+            call_count["n"] += 1
+            try:
+                return fn(object())
+            except BrowserAuthError:
+                if call_count["n"] > 1:
+                    raise
+                return fn(object())
+
+        def _fetch(_page, cid):
+            if cid == 2 and not auth_error_raised["done"]:
+                auth_error_raised["done"] = True
+                raise BrowserAuthError("stale session")
+            return {"CampaignId": cid}
+
+        with (
+            patch(
+                "direct_cli.commands.masters._with_session",
+                side_effect=_fake_with_session,
+            ),
+            patch.object(browser_masters, "fetch_master", side_effect=_fetch),
+        ):
+            result = self.runner.invoke(cli, ["masters", "get", "1,2,3"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue(auth_error_raised["done"])
+        payload = json.loads(result.output)
+        self.assertEqual([row["CampaignId"] for row in payload], [1, 2, 3])
+        for row in payload:
+            self.assertNotIn("Error", row)
+
 
 if __name__ == "__main__":
     unittest.main()
