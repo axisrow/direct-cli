@@ -1010,6 +1010,95 @@ _VIDEO_MODAL_OPEN_TIMEOUT_MS = 10_000
 _VIDEO_UPLOAD_TIMEOUT_MS = 60_000
 _VIDEOS_EDITOR_TIMEOUT_MS = 60_000
 
+# Per-element moderation rejection (issue #814, `masters get
+# --moderation-statuses`).
+#
+# CONFIRMED LIVE 2026-08-08 (campaign 713234064, read-only DOM recon: navigate
+# + read + one hover, no click that mutates, never Saved). The rejected
+# element the issue reported is real and its markup is:
+#
+#   Every image card renders a sibling status button
+#   ``ImageSuggestionsEditor.CampaignContents.ImageStatus`` — a SINGLE testid
+#   shared by every image (NOT suffixed with the content ID), so a status
+#   button is tied to its image ONLY by DOM order: the Nth ImageStatus
+#   belongs to the Nth ``ContentImage.<contentId>``. Confirmed live on
+#   713234064 (4 images, 4 status buttons, positionally aligned by
+#   bounding box: image x-offsets 201/335/469/603 vs status x-offsets
+#   205/339/473/607).
+#
+#   The button comes in TWO shapes, and this is what discriminates a
+#   rejection from a normal card:
+#     * NOT rejected — the "efficiency" badge: the button carries a
+#       ``ImageStatusIcon_efficiency__*`` CSS-module class and contains a
+#       ``dc-Badge`` span (no svg icon).
+#     * REJECTED — no ``ImageStatusIcon_efficiency`` class; the button
+#       instead contains ``dc-Label_color_black-negative`` and an
+#       ``svg.dc-Icon_color_red``.
+#
+#   Hovering the rejected button (real mouse hover — synthetic
+#   mouseover/mouseenter events do NOT trigger it) mounts a tooltip
+#   ``ImageSuggestionsEditor.CampaignContents.StateTooltip`` in a portal at
+#   the end of <body>, whose two text nodes are exactly the strings the
+#   issue quoted: ``Text.Content`` = "Элемент объявления отклонен" and
+#   ``Text.Caption`` = "Пожалуйста, создайте новый элемент объявления и
+#   отправьте его на модерацию".
+#
+# Detection therefore uses the CSS-class shape, NOT the tooltip: the tooltip
+# does not exist in the DOM until hover, so reading it would require one
+# real hover per candidate element — slow, and a mouse interaction on a page
+# this command must keep strictly read-only. The class shape is present in
+# the static DOM for every card at once, which is what lets ONE page load
+# answer for the whole campaign (issue #814's central requirement).
+_IMAGE_STATUS_TESTID = "ImageSuggestionsEditor.CampaignContents.ImageStatus"
+_IMAGE_STATUS_SELECTOR = f'[data-testid="{_IMAGE_STATUS_TESTID}"]'
+# Present on a NON-rejected (efficiency-badge) status button only. CSS-module
+# class, so the real attribute value is ``ImageStatusIcon_efficiency__pCGiR``
+# with a build-time hash suffix — matched as a substring, never equality,
+# since that hash changes on every Yandex frontend build.
+_IMAGE_STATUS_EFFICIENCY_CLASS = "ImageStatusIcon_efficiency"
+# Present INSIDE a rejected status button. MUST stay scoped to an
+# ``ImageStatus`` button — these two classes are NOT unique to moderation.
+# Confirmed live 2026-08-08 that a video thumbnail's player chrome
+# (``MediaControl`` inside ``VideoSuggestionsEditor.CampaignContents.
+# VideoThumb.<url>.Content``) renders the very same
+# ``dc-Label_color_black-negative`` + ``svg.dc-Icon_color_red`` pair: campaign
+# 713234162 has SIX such elements and ZERO rejected images. A page-wide
+# ``.dc-Icon_color_red`` scan reported 5 of 38 swept campaigns as "rejected"
+# purely off video controls. Hence a sub-locator off the button handle, never
+# a ``page.locator`` of these classes.
+_IMAGE_STATUS_REJECTED_SELECTOR = (
+    ".dc-Label_color_black-negative, svg.dc-Icon_color_red"
+)
+# The rejection tooltip's own testid and copy. NOT used for detection (see
+# above) — kept because it is the marker a human re-verifying this live will
+# actually look for, and because it names the exact strings that were
+# confirmed rather than leaving them only in a commit message.
+_MODERATION_TOOLTIP_TESTID = "ImageSuggestionsEditor.CampaignContents.StateTooltip"
+_MODERATION_REJECTED_TITLE = "Элемент объявления отклонен"
+_MODERATION_REJECTED_HINT = (
+    "Пожалуйста, создайте новый элемент объявления и отправьте его на " "модерацию"
+)
+# Element types this reader reports on, and whether a per-element rejection
+# marker is KNOWN to exist for each.
+#
+# Only "image" is supported. Recon 2026-08-08 swept all 38 non-archived
+# Мастер кампаний on the account (~62 video variants; every campaign carries
+# headlines and texts) and found 2 rejected images and ZERO rejected
+# videos/headlines/texts. Structurally the affordance does not exist outside
+# images either: a full page-wide ``[data-testid]`` dump shows the video
+# section rendering only card/VideoThumb/CloseButton testids and the
+# headline/text sections only ``CampaignTitles<N>``/``CampaignTexts<N>``
+# (+``.textarea``/``.clear``) — no ``*Status``, no ``*StateTooltip``.
+#
+# That evidence CANNOT distinguish "Yandex renders no per-element status for
+# these types" from "no element of these types happens to be rejected right
+# now". So rather than reporting them as verified-clean (which would be a
+# claim this recon does not support), they are reported as checked-but-
+# unsupported — see ``read_moderation_statuses``'s ``UnsupportedTypes``.
+MODERATION_SUPPORTED_TYPES = ("image",)
+MODERATION_UNSUPPORTED_TYPES = ("video", "headline", "text")
+MODERATION_ELEMENT_TYPES = MODERATION_SUPPORTED_TYPES + MODERATION_UNSUPPORTED_TYPES
+
 # Region picker (issue #653 re-recon, 2026-08-02): Yandex replaced the old
 # text-combobox-with-suggestions flow with a tree/tag-group widget
 # (``data-testid="RegionsTreeEditor"``). Confirmed live: the tag group's
@@ -8371,6 +8460,127 @@ def fetch_master_images(page: "Page", campaign_id: int) -> Dict[str, Any]:
         "Count": len(content_ids),
         "MaxCount": _IMAGES_MAX_COUNT,
     }
+
+
+def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
+    """Read which of the campaign's images are individually rejected on
+    moderation, as a list of rejected-element records in page order.
+
+    Detection is the CSS-class shape documented at
+    ``_IMAGE_STATUS_TESTID`` and in
+    ``tests/fixtures/masters_wizard_edit_moderation.html``: a status button
+    that lacks ``ImageStatusIcon_efficiency`` AND contains a
+    ``dc-Label_color_black-negative``/``svg.dc-Icon_color_red`` child is a
+    rejection. BOTH halves are required —
+
+    * the negative-class check alone is not sufficient: the very same classes
+      render inside a video thumbnail's ``MediaControl`` player chrome (see
+      ``_IMAGE_STATUS_REJECTED_SELECTOR``'s comment), which is why the check
+      is scoped to a sub-locator off the status button rather than run
+      page-wide;
+    * the missing-``efficiency`` check alone is not sufficient either — it
+      would classify any future third button variant Yandex introduces as a
+      rejection.
+
+    The status button carries no content ID of its own (one shared testid for
+    every image), so a rejection is mapped back to its image POSITIONALLY:
+    the Nth ``ImageStatus`` belongs to the Nth ``ContentImage``. Confirmed
+    live 2026-08-08 both by bounding-box alignment and by the two lists
+    having equal length on all 38 swept campaigns.
+
+    If the two lists nonetheless disagree in length, the extra status buttons
+    are still reported — with ``ContentId: None`` rather than a wrong content
+    ID — since "something is rejected but this reader cannot say which image"
+    is strictly more useful than silently dropping it, and far better than
+    misattributing the rejection to an innocent image.
+
+    Never hovers: the explanatory tooltip is not in the DOM until a real
+    mouse hover (confirmed live — synthetic events do not mount it), so its
+    copy is attached from the confirmed constants instead. That keeps this a
+    pure read over one already-loaded page.
+    """
+    content_ids = _read_image_content_ids(page)
+
+    try:
+        buttons = page.locator(_IMAGE_STATUS_SELECTOR)
+        count = buttons.count()
+    except PlaywrightError:
+        return []
+
+    rejected: List[Dict[str, Any]] = []
+    for index in range(count):
+        button = buttons.nth(index)
+        try:
+            class_attr = button.get_attribute("class") or ""
+            has_negative = button.locator(_IMAGE_STATUS_REJECTED_SELECTOR).count() > 0
+        except PlaywrightError:
+            # A status button that cannot be read is not evidence of a
+            # rejection — skip it rather than guess (mirrors
+            # ``_read_testid_suffixes``'s tolerance of a locator failure).
+            continue
+
+        if _IMAGE_STATUS_EFFICIENCY_CLASS in class_attr or not has_negative:
+            continue
+
+        rejected.append(
+            {
+                "Type": "image",
+                "Position": index + 1,
+                "ContentId": (content_ids[index] if index < len(content_ids) else None),
+                "Title": _MODERATION_REJECTED_TITLE,
+                "Hint": _MODERATION_REJECTED_HINT,
+            }
+        )
+    return rejected
+
+
+def read_moderation_statuses(page: "Page") -> Dict[str, Any]:
+    """Read per-element moderation rejections across the edit page's element
+    sections, from a page whose edit form has ALREADY been waited for.
+
+    Takes an already-open page rather than navigating itself, because issue
+    #814's whole point is that ``--moderation-statuses`` is a second slice of
+    the SAME DOM snapshot ``masters get`` already loads — not a second visit.
+    ``fetch_master_moderation_statuses`` is the navigating wrapper.
+
+    ``RejectedElements`` is a flat list so that every entry carries its own
+    ``Type``, letting a caller filter by element type with the CLI's ordinary
+    ``--format``/downstream tooling rather than this command growing per-type
+    flags (again issue #814).
+
+    ``UnsupportedTypes`` is deliberately part of the result: only ``image``
+    has a live-confirmed rejection marker, and an empty ``RejectedElements``
+    must not be read as "no video/headline/text is rejected" — see
+    ``MODERATION_SUPPORTED_TYPES``.
+    """
+    _wait_for_images_editor(page)
+
+    rejected = _read_image_moderation_rejections(page)
+
+    return {
+        "RejectedElements": rejected,
+        "RejectedCount": len(rejected),
+        "CheckedTypes": list(MODERATION_SUPPORTED_TYPES),
+        "UnsupportedTypes": list(MODERATION_UNSUPPORTED_TYPES),
+    }
+
+
+def fetch_master_moderation_statuses(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Navigate to a campaign's edit page and read its per-element moderation
+    rejections (issue #814).
+
+    Read-only, mirroring ``fetch_master_target_actions``: this data lives on
+    the EDIT page, not the overview page ``fetch_master`` reads, and nothing
+    here ever clicks Save.
+    """
+    page.goto(WIZARD_EDIT_URL.format(campaign_id=campaign_id), wait_until="commit")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
+
+    result = read_moderation_statuses(page)
+    result["CampaignId"] = campaign_id
+    return result
 
 
 def fetch_master_target_actions(page: "Page", campaign_id: int) -> Dict[str, Any]:

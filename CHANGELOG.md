@@ -2,6 +2,70 @@
 
 ## Unreleased
 
+### Added
+
+**`masters get --moderation-statuses` — detect per-element moderation
+rejections in Мастер кампаний (#814).**
+
+Individual ad elements inside a Мастер кампаний can be rejected on
+moderation while the campaign keeps running on its remaining approved
+elements — so this shows up in neither `campaigns.get`'s nor `ads.get`'s
+`StatusModerate`, and `ads get --image-moderation-statuses` cannot express
+it either (that filter is per finished ad, not per element in the wizard's
+element pool). Browser-only, like the rest of `masters`.
+
+A flag on the existing `get`, not a new subcommand: it is another slice of
+the same campaign read, so filtering by element type is left to the ordinary
+`--format`/downstream tooling rather than per-type flags.
+
+```
+direct masters get 713234064 --moderation-statuses
+```
+
+adds to each result:
+
+```json
+"RejectedElements": [
+  {"Type": "image", "Position": 2, "ContentId": "2513371652347967553",
+   "Title": "Элемент объявления отклонен",
+   "Hint": "Пожалуйста, создайте новый элемент объявления и отправьте его на модерацию"}
+],
+"RejectedCount": 1,
+"CheckedTypes": ["image"],
+"UnsupportedTypes": ["video", "headline", "text"]
+```
+
+Without the flag `get`'s output and page loads are unchanged.
+
+LIVE-VERIFIED end to end (2026-08-08): campaigns 713234064 (image at
+position 2) and 713231614 (position 4) each report exactly the rejection
+their DOM shows, and 713234162 correctly reports none.
+
+Detection notes, from the recon in
+`tests/fixtures/masters_wizard_edit_moderation.html`:
+
+- The marker is a per-image status button
+  (`ImageSuggestionsEditor.CampaignContents.ImageStatus`) carrying ONE
+  testid shared by every image, so a rejection is mapped to its image
+  positionally; a rejected button drops the `ImageStatusIcon_efficiency`
+  class and gains a `dc-Label_color_black-negative`/`svg.dc-Icon_color_red`
+  child.
+- The explanatory tooltip is not in the DOM until a real mouse hover
+  (synthetic events do not mount it), so detection uses the class shape and
+  never hovers — which is what lets one page load answer for the whole
+  campaign.
+- `dc-Icon_color_red` is NOT unique to moderation: a video thumbnail's
+  `MediaControl` renders the same classes. A page-wide scan reported 5 of
+  38 swept campaigns as rejected purely off video controls, so the check is
+  scoped inside a status button.
+- **NOT LIVE-VERIFIED for video/headlines/texts** — a sweep of all 38
+  non-archived Мастер кампаний (~62 videos; every campaign has headlines
+  and texts) found 2 rejected images and zero rejected
+  videos/headlines/texts, and no status affordance exists in those
+  sections' markup at all. That cannot distinguish "Yandex renders no such
+  marker" from "nothing of that type is rejected right now", so those types
+  are reported in `UnsupportedTypes` rather than implied clean.
+
 ### Docs
 
 **`masters` images (Мастер кампаний) — live-verify testids and the batched
