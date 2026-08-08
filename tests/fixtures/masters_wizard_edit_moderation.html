@@ -51,6 +51,22 @@ ImageStatus buttons equals the number of ContentImage cards on every single
 one (0 images -> 0 buttons, 4 -> 4, 5 -> 5). No campaign was observed where
 the two lists could disagree.
 
+UPDATE 2026-08-09 (issue #817) — the DOM-order correspondence above is now
+ALSO confirmed STRUCTURALLY, not just by count/bounding-box: walking up from
+each ImageStatus button to the nearest ancestor containing exactly ONE
+ContentImage.<contentId> descendant lands at the SAME depth (4) for every
+button, on every one of 9 freshly-swept campaigns (713277109, 713234204,
+713234064, 713231614, 713234162, 713234179, 713234142, 713234150, 75107869 —
+a 10th target, 713234191, hit an expired session and was skipped), and the
+content ID found there matched the Nth entry from a separate
+_read_image_content_ids() read on EVERY button checked, no exceptions. This
+is what `_IMAGE_STATUS_CONTENT_ID_JS`/`_read_image_moderation_rejections`
+now uses to resolve `ContentId`, replacing the earlier count-equality-only
+guard: a status button's content ID is read from its OWN shared-ancestor
+card, so it no longer relies on the two lists being the same length, and a
+hypothetically reordered DOM would still resolve each button to the card it
+is actually nested inside.
+
 
 KEY FINDING #2 — rejected vs. not is a CSS-CLASS SHAPE, two variants
 ================================================================================

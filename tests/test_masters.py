@@ -129,6 +129,7 @@ class _FakeLocatorHandle:
         on_upload=None,
         sub_locators=None,
         role_options=None,
+        evaluate_result=None,
     ):
         self._text = text
         self._attrs = attrs or {}
@@ -141,6 +142,12 @@ class _FakeLocatorHandle:
         self._get_value = get_value
         self._get_checked = get_checked
         self._on_upload = on_upload
+        # Result Locator.evaluate(js) should return for this handle — models
+        # the structural content-ID resolution
+        # ``_IMAGE_STATUS_CONTENT_ID_JS`` performs (issue #817): a fake status
+        # button carries the content ID its structural walk would find,
+        # rather than the reader trusting a positional index.
+        self._evaluate_result = evaluate_result
         # Every `timeout=` this handle's click() was called with, in order
         # (issue #779 review) — see click().
         self.click_timeouts = []
@@ -185,6 +192,11 @@ class _FakeLocatorHandle:
 
     def get_attribute(self, name):
         return self._attrs.get(name)
+
+    def evaluate(self, script, arg=None):
+        if self._raises:
+            raise PlaywrightError("element detached")
+        return self._evaluate_result
 
     def is_visible(self):
         if self._raises:
@@ -19428,14 +19440,44 @@ class _FakeModerationPage(_FakeImagesPage):
     ``extra_statuses`` appends status buttons with NO corresponding image,
     modeling the count-mismatch case ``_read_image_moderation_rejections``
     must survive without misattributing a content ID.
+
+    Each status button's structural content-ID resolution
+    (``_IMAGE_STATUS_CONTENT_ID_JS``, issue #817) is modeled as "the Nth
+    button structurally belongs to the Nth image" by default — i.e. the fake
+    still models the live-confirmed common case where DOM order and the
+    structural walk agree. A test wanting to model the walk failing to
+    resolve (no single-image ancestor found) passes that index in
+    ``unresolvable_structural_indices``; ``extra_statuses`` positions (beyond
+    ``len(ids)``) are unresolvable by construction, since no image exists for
+    them to resolve to — mirroring the real JS walk finding zero or more than
+    one ``ContentImage`` and returning ``null``.
     """
 
-    def __init__(self, ids, *, statuses=None, extra_statuses=(), **kwargs):
+    def __init__(
+        self,
+        ids,
+        *,
+        statuses=None,
+        extra_statuses=(),
+        unresolvable_structural_indices=(),
+        **kwargs,
+    ):
         super().__init__(ids, **kwargs)
         self.statuses = list(statuses if statuses is not None else ["ok"] * len(ids))
         self.statuses.extend(extra_statuses)
+        self._ids = list(ids)
+        self._unresolvable_structural_indices = set(unresolvable_structural_indices)
 
-    def _status_handle(self, status):
+    def _structural_content_id(self, index):
+        if index in self._unresolvable_structural_indices:
+            return None
+        if index < len(self._ids):
+            return self._ids[index]
+        # A status button beyond the image list (extra_statuses): the real
+        # walk finds no single-image ancestor for it either.
+        return None
+
+    def _status_handle(self, status, content_id):
         if status == "rejected":
             # No ImageStatusIcon_efficiency class; a negative-label child.
             return _FakeLocatorHandle(
@@ -19445,6 +19487,7 @@ class _FakeModerationPage(_FakeImagesPage):
                         _FakeLocatorHandle()
                     )
                 },
+                evaluate_result=content_id,
             )
         if status == "ok-with-negative-child":
             # The efficiency badge, but ALSO matching the negative selector.
@@ -19464,6 +19507,7 @@ class _FakeModerationPage(_FakeImagesPage):
                         _FakeLocatorHandle()
                     )
                 },
+                evaluate_result=content_id,
             )
         if status == "unknown":
             # Neither shape: no efficiency class AND no negative child — a
@@ -19479,13 +19523,17 @@ class _FakeModerationPage(_FakeImagesPage):
                     "dc-ClickableIcon ImageStatusIcon_button__sqJGQ "
                     "ImageStatusIcon_efficiency__pCGiR"
                 )
-            }
+            },
+            evaluate_result=content_id,
         )
 
     def locator(self, selector):
         if selector == browser_masters._IMAGE_STATUS_SELECTOR:
             return _FakeLocator(
-                [self._status_handle(status) for status in self.statuses]
+                [
+                    self._status_handle(status, self._structural_content_id(index))
+                    for index, status in enumerate(self.statuses)
+                ]
             )
         return super().locator(selector)
 
@@ -19584,7 +19632,10 @@ class TestReadModerationStatuses(unittest.TestCase):
     def test_extra_status_button_yields_null_content_id_not_a_wrong_one(self):
         """More status buttons than images: the surplus rejection is still
         reported, but must never borrow another image's identity — neither
-        its content ID nor its ordinal."""
+        its content ID nor its ordinal. The surplus button's structural walk
+        finds no image ancestor at all (there is no corresponding image),
+        which is exactly what ``_structural_content_id`` models by returning
+        ``None`` past ``len(ids)``."""
         page = _FakeModerationPage(["a"], statuses=["ok"], extra_statuses=["rejected"])
 
         result = browser_masters.read_moderation_statuses(page)
@@ -19593,17 +19644,20 @@ class TestReadModerationStatuses(unittest.TestCase):
         self.assertIsNone(result["RejectedElements"][0]["Position"])
         self.assertIsNone(result["RejectedElements"][0]["ContentId"])
 
-    def test_missing_status_button_yields_null_content_id_not_a_wrong_one(self):
-        """FEWER status buttons than images: the positional mapping is no
-        longer trustworthy, so no rejection may borrow an unrelated image's
-        content ID.
+    def test_missing_status_button_still_resolves_the_right_content_id(self):
+        """FEWER status buttons than images no longer misattributes a
+        rejection (issue #817): resolution is now STRUCTURAL — each button's
+        content ID comes from walking up to its OWN shared-ancestor image
+        (``_IMAGE_STATUS_CONTENT_ID_JS``, confirmed live on 9 campaigns), not
+        from a positional index into a separately-fetched content-ID list.
 
-        The surplus direction was already guarded; this is the deficit one.
-        ``_wait_for_images_editor`` settles on ``ContentImage``/``StubN``
-        presence and never waits for the status buttons themselves, so a
-        hydration gap that drops one button shifts every later button by one
-        — reporting image N's rejection against image N-1's content ID, i.e.
-        telling the user to replace an innocent element.
+        Before #817 this dropped a hydration gap's rejection to ``None``
+        because the two lists' lengths disagreed (3 buttons vs. 4 images).
+        The gap can still shift PAGE ORDER — the missing button is button #1,
+        so this rejected button is only the page's 3rd ``ImageStatus`` — but
+        each button still structurally belongs to its own card, and the fake
+        models that button as belonging to image "c" regardless of how many
+        buttons rendered before it, exactly like the live DOM would.
         """
         page = _FakeModerationPage(
             ["a", "b", "c", "d"], statuses=["ok", "ok", "rejected"]
@@ -19612,31 +19666,22 @@ class TestReadModerationStatuses(unittest.TestCase):
         result = browser_masters.read_moderation_statuses(page)
 
         self.assertEqual(result["RejectedCount"], 1)
-        self.assertIsNone(result["RejectedElements"][0]["ContentId"])
+        self.assertEqual(result["RejectedElements"][0]["ContentId"], "c")
+        self.assertEqual(result["RejectedElements"][0]["Position"], 3)
 
-    def test_missing_status_button_yields_null_position_too(self):
-        """``Position`` must be nulled alongside ``ContentId`` on a mismatch.
-
-        A reader with no content ID falls back to the ordinal, so leaving a
-        shifted ``Position`` behind only half-protects: with image #1's
-        status button missing, the button ordinal of the rejected 4th image
-        is 3 — pointing the user at the innocent image before it. Neither
-        field may survive a mismatch as something readable as "which image".
-        """
+    def test_unresolvable_structural_walk_yields_null_content_id_and_position(self):
+        """When the structural walk itself cannot resolve a button to exactly
+        one image (the real JS returns ``null`` — no single-image ancestor
+        found within the depth budget, or an ambiguous ancestor), both
+        ``ContentId`` and ``Position`` are dropped rather than guessed.
+        "Something is rejected but this reader cannot say which image" is
+        strictly more useful than silence, and far better than misattributing
+        the rejection to an innocent image."""
         page = _FakeModerationPage(
-            ["a", "b", "c", "d"], statuses=["ok", "ok", "rejected"]
+            ["a", "b"],
+            statuses=["rejected"],
+            unresolvable_structural_indices={0},
         )
-
-        result = browser_masters.read_moderation_statuses(page)
-
-        self.assertEqual(result["RejectedCount"], 1)
-        self.assertIsNone(result["RejectedElements"][0]["Position"])
-
-    def test_missing_status_button_still_reports_the_rejection(self):
-        """Dropping the content ID must not drop the rejection itself —
-        "something is rejected but this reader cannot say which image" is
-        strictly more useful than silence."""
-        page = _FakeModerationPage(["a", "b"], statuses=["rejected"])
 
         result = browser_masters.read_moderation_statuses(page)
 
@@ -19646,8 +19691,9 @@ class TestReadModerationStatuses(unittest.TestCase):
         self.assertIsNone(result["RejectedElements"][0]["ContentId"])
 
     def test_aligned_counts_still_resolve_the_content_id(self):
-        """The guard must only fire on a real mismatch — an aligned page
-        keeps reporting the content ID it always did."""
+        """The common case — button count matches image count and the
+        structural walk resolves cleanly — keeps reporting the content ID it
+        always did."""
         page = _FakeModerationPage(["a", "b", "c"], statuses=["ok", "rejected", "ok"])
 
         result = browser_masters.read_moderation_statuses(page)
