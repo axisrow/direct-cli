@@ -60,12 +60,27 @@ button, on every one of 9 freshly-swept campaigns (713277109, 713234204,
 a 10th target, 713234191, hit an expired session and was skipped), and the
 content ID found there matched the Nth entry from a separate
 _read_image_content_ids() read on EVERY button checked, no exceptions. This
-is what `_IMAGE_STATUS_CONTENT_ID_JS`/`_read_image_moderation_rejections`
-now uses to resolve `ContentId`, replacing the earlier count-equality-only
-guard: a status button's content ID is read from its OWN shared-ancestor
-card, so it no longer relies on the two lists being the same length, and a
-hypothetically reordered DOM would still resolve each button to the card it
-is actually nested inside.
+is what `_IMAGE_STATUS_CONTENT_ID_JS` uses to resolve `ContentId` for each
+button, reading the ID from the button's own shared-ancestor card instead of
+a positional index — so a hypothetically reordered DOM still resolves each
+button to the card it is actually nested inside.
+
+UPDATE 2026-08-09 (issue #817, round 2) — the structural walk above is
+deliberately NOT trusted on its own: every real card is confirmed (see KEY
+FINDING #1's count-alignment sweep) to hold EXACTLY ONE ContentImage, so a
+SURPLUS status button — one with no card of its own, e.g. a hydration
+duplicate — would be nested inside some OTHER button's real card and the
+structural walk would resolve it to that card's real, innocent content ID
+rather than failing safe. No such surplus button was ever observed live, but
+the code cannot tell a genuine surplus button apart from a real one sharing
+its card by structure alone. `_read_image_moderation_rejections` therefore
+keeps the earlier count-equality guard (`_IMAGE_STATUS_SELECTOR` count vs.
+`_read_image_content_ids()` count) as a global safety net layered ON TOP OF
+the structural walk: any mismatch, in either direction, nulls every
+rejection's `ContentId`/`Position` for that pass, exactly as it did before
+the structural walk was introduced. The structural walk only gets to run,
+and only replaces the old positional-index lookup, when the counts already
+agree.
 
 
 KEY FINDING #2 — rejected vs. not is a CSS-CLASS SHAPE, two variants

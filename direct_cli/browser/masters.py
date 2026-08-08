@@ -8526,17 +8526,39 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
     resolution landed at the same DOM depth (4) and matched the Nth
     ``ContentImage`` from ``_read_image_content_ids`` on every single button,
     no exceptions. This is strictly stronger than the DOM-order correspondence
-    used before #817: it reads the ID from the button's OWN card, so even a
-    hypothetically reordered DOM still resolves each button correctly, and a
-    hydration gap that renders fewer buttons than images no longer shifts
-    later buttons onto the wrong image — each button independently finds its
-    own card, it does not fall back to a positional index into a separately
-    fetched list.
+    used before #817 for the case the count guard below does not cover — a
+    reordered-but-count-equal DOM: it reads the ID from the button's OWN
+    card, so even a hypothetically reordered DOM still resolves each button
+    correctly, and a hydration gap that renders fewer buttons than images no
+    longer shifts later buttons onto the wrong image — each button
+    independently finds its own card, it does not fall back to a positional
+    index into a separately fetched list.
 
     ``Position`` is still order-derived (the button's index among
     ``_IMAGE_STATUS_SELECTOR`` matches), since Yandex's UI itself presents the
     cards in that order — but ``ContentId``, the field a caller would act on,
     is now sourced structurally rather than positionally.
+
+    The structural walk alone does NOT protect the SURPLUS case (more status
+    buttons than image cards): every real card is confirmed to contain
+    EXACTLY ONE ``ContentImage`` (see ``_read_image_content_ids``), so a
+    surplus button — one rendered without a card of its own, e.g. a
+    hydration duplicate — is necessarily nested inside some OTHER button's
+    real, single-image card. Its structural walk would then resolve to that
+    card's real (innocent) content ID rather than ``None``, misattributing a
+    rejection to an image that is not actually the surplus button's own. The
+    ``imgs.length > 1`` ambiguity check in the JS cannot catch this, because
+    the card it lands on legitimately holds exactly one image. So a global
+    count check is still required as a coarse safety net layered on top of
+    structural resolution: whenever the number of status buttons does not
+    equal ``_read_image_content_ids(page)``'s count, in EITHER direction,
+    every rejection's ``ContentId``/``Position`` is nulled instead of trusted
+    — mirroring the pre-#817 ``counts_match`` guard, which the structural
+    walk narrows but does not replace. (For the deficit direction alone, this
+    is more conservative than necessary — the structural walk resolves a
+    missing-middle-button gap correctly — but count mismatches are rare
+    enough live that trading that precision for surplus-case safety is the
+    right default.)
 
     If the structural walk cannot resolve a button to exactly one image
     (no ancestor found within the depth budget, or an ambiguous ancestor
@@ -8557,6 +8579,17 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
     except PlaywrightError:
         return []
 
+    # Coarse safety net over the structural per-button resolution below: a
+    # surplus status button structurally resolves to whatever real card it
+    # happens to be nested in (every card holds exactly one image), so it
+    # cannot be told apart from that card's own button by the structural walk
+    # alone. Any count disagreement — deficit OR surplus — makes every
+    # ContentId/Position in this pass untrustworthy.
+    try:
+        counts_match = count == len(_read_image_content_ids(page))
+    except PlaywrightError:
+        counts_match = False
+
     rejected: List[Dict[str, Any]] = []
     for index in range(count):
         button = buttons.nth(index)
@@ -8572,10 +8605,12 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
         if _IMAGE_STATUS_EFFICIENCY_CLASS in class_attr or not has_negative:
             continue
 
-        try:
-            content_id = button.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)
-        except PlaywrightError:
-            content_id = None
+        content_id = None
+        if counts_match:
+            try:
+                content_id = button.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)
+            except PlaywrightError:
+                content_id = None
 
         rejected.append(
             {

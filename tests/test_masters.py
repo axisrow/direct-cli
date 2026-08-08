@@ -19645,10 +19645,10 @@ class TestReadModerationStatuses(unittest.TestCase):
     def test_extra_status_button_yields_null_content_id_not_a_wrong_one(self):
         """More status buttons than images: the surplus rejection is still
         reported, but must never borrow another image's identity — neither
-        its content ID nor its ordinal. The surplus button's structural walk
-        finds no image ancestor at all (there is no corresponding image),
-        which is exactly what ``_structural_content_id`` models by returning
-        ``None`` past ``len(ids)``."""
+        its content ID nor its ordinal. Nulled by the GLOBAL count guard
+        (button count != image count), not by the per-button structural
+        walk — see ``test_surplus_status_button_is_nulled_not_misattributed``
+        for why the walk alone cannot be trusted for this case."""
         page = _FakeModerationPage(["a"], statuses=["ok"], extra_statuses=["rejected"])
 
         result = browser_masters.read_moderation_statuses(page)
@@ -19657,25 +19657,27 @@ class TestReadModerationStatuses(unittest.TestCase):
         self.assertIsNone(result["RejectedElements"][0]["Position"])
         self.assertIsNone(result["RejectedElements"][0]["ContentId"])
 
-    def test_missing_status_button_still_resolves_the_right_content_id(self):
-        """FEWER status buttons than images no longer misattributes a
-        rejection (issue #817): resolution is now STRUCTURAL — each button's
-        content ID comes from walking up to its OWN shared-ancestor image
-        (``_IMAGE_STATUS_CONTENT_ID_JS``, confirmed live on 9 campaigns), not
-        from a positional index into a separately-fetched content-ID list.
+    def test_missing_status_button_still_nulls_rather_than_trusts_the_structural_walk(
+        self,
+    ):
+        """FEWER status buttons than images (issue #817's original deficit
+        scenario) is now caught by the SAME global count guard that protects
+        the surplus case (issue #817 round-2 follow-up): the structural walk
+        alone cannot tell a surplus button apart from a real one sharing its
+        card (see ``test_surplus_status_button_is_nulled_not_misattributed``
+        below), so any count mismatch — deficit included — nulls every
+        rejection's ``ContentId``/``Position`` rather than trusting the
+        per-button walk. This is more conservative than the walk alone would
+        need to be for a pure deficit, but it is the only guard that also
+        covers surplus, so both directions share it.
 
         Models a genuine hydration gap: image "b"'s status button never
-        rendered, so only 3 buttons exist on the page, structurally
-        belonging to "a", "c", "d" in that DOM order (``button_content_ids``)
-        — NOT the first 3 of the 4 images. Before #817 this dropped the
-        rejection to ``None`` because the two lists' lengths disagreed (3
-        buttons vs. 4 images). The gap also shifts PAGE ORDER: the rejected
-        button ("d"'s) is only the page's 3rd ``ImageStatus``, so
-        ``Position`` (the button's own ordinal) is 3 even though "d" is the
-        4th image — each button still structurally resolves to its own card
-        regardless of how many buttons rendered before it, exactly like the
-        live DOM would; ``Position`` and image ordinal are NOT the same
-        thing once a button is missing (see the module docstring).
+        rendered, so only 3 buttons exist on the page (button count 3 !=
+        image count 4), structurally belonging to "a", "c", "d" in DOM order
+        (``button_content_ids``) — NOT the first 3 of the 4 images. Even
+        though the rejected button ("d"'s) would resolve correctly via the
+        structural walk alone, the count mismatch nulls it, matching
+        pre-#817 behavior for this direction too.
         """
         page = _FakeModerationPage(
             ["a", "b", "c", "d"],
@@ -19686,8 +19688,33 @@ class TestReadModerationStatuses(unittest.TestCase):
         result = browser_masters.read_moderation_statuses(page)
 
         self.assertEqual(result["RejectedCount"], 1)
-        self.assertEqual(result["RejectedElements"][0]["ContentId"], "d")
-        self.assertEqual(result["RejectedElements"][0]["Position"], 3)
+        self.assertIsNone(result["RejectedElements"][0]["ContentId"])
+        self.assertIsNone(result["RejectedElements"][0]["Position"])
+
+    def test_surplus_status_button_is_nulled_not_misattributed(self):
+        """MORE status buttons than images: a surplus button (e.g. a
+        hydration duplicate) is necessarily nested inside some OTHER
+        button's real, single-image card — every real card holds exactly
+        one image (see ``_read_image_content_ids``) — so the structural walk
+        alone would resolve it to that card's real, innocent content ID
+        rather than ``None``, misattributing the rejection (round-2 finding
+        on issue #817). ``button_content_ids`` models this realistically: the
+        surplus (3rd) button structurally resolves to "b", the SAME card as
+        the 2nd (real) button, rather than to nothing. The global count
+        guard (3 buttons vs 2 images) is what actually protects this case,
+        nulling every rejection in the pass — not the per-button walk, which
+        would have happily returned "b" twice."""
+        page = _FakeModerationPage(
+            ["a", "b"],
+            statuses=["ok", "ok", "rejected"],
+            button_content_ids=["a", "b", "b"],
+        )
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertIsNone(result["RejectedElements"][0]["ContentId"])
+        self.assertIsNone(result["RejectedElements"][0]["Position"])
 
     def test_unresolvable_structural_walk_yields_null_content_id_and_position(self):
         """When the structural walk itself cannot resolve a button to exactly
@@ -19696,10 +19723,13 @@ class TestReadModerationStatuses(unittest.TestCase):
         ``ContentId`` and ``Position`` are dropped rather than guessed.
         "Something is rejected but this reader cannot say which image" is
         strictly more useful than silence, and far better than misattributing
-        the rejection to an innocent image."""
+        the rejection to an innocent image. Counts are kept ALIGNED (2
+        buttons, 2 images) so the global count guard passes and this
+        specifically exercises the per-button structural-walk fallback, not
+        the count guard from the surplus/deficit tests below."""
         page = _FakeModerationPage(
             ["a", "b"],
-            statuses=["rejected"],
+            statuses=["rejected", "ok"],
             unresolvable_structural_indices={0},
         )
 
