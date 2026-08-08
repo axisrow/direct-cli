@@ -19750,6 +19750,29 @@ class TestReadModerationStatuses(unittest.TestCase):
 
         self.assertEqual(result["RejectedElements"][0]["ContentId"], "b")
 
+    def test_reordered_but_count_equal_dom_keeps_position_and_content_id_consistent(
+        self,
+    ):
+        """A reordered-but-count-equal DOM (button order != image order) is
+        exactly the case the structural walk exists to survive (issue #817).
+        The 2nd button (DOM index 1) structurally belongs to image "c" (the
+        3rd image in ``_read_image_content_ids`` order), not to the 2nd
+        image "b" — modeled via ``button_content_ids``. ``Position`` must be
+        derived from where "c" actually sits in the image list (3), NEVER
+        from the button's own DOM ordinal (2), so it cannot contradict the
+        correctly-resolved ``ContentId``."""
+        page = _FakeModerationPage(
+            ["a", "b", "c"],
+            statuses=["ok", "rejected", "ok"],
+            button_content_ids=["a", "c", "b"],
+        )
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertEqual(result["RejectedElements"][0]["ContentId"], "c")
+        self.assertEqual(result["RejectedElements"][0]["Position"], 3)
+
     def test_declares_which_element_types_were_actually_checked(self):
         """An empty result must not be readable as "no video/headline/text is
         rejected" — only images have a live-confirmed marker."""

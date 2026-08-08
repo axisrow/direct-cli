@@ -8534,10 +8534,16 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
     independently finds its own card, it does not fall back to a positional
     index into a separately fetched list.
 
-    ``Position`` is still order-derived (the button's index among
-    ``_IMAGE_STATUS_SELECTOR`` matches), since Yandex's UI itself presents the
-    cards in that order — but ``ContentId``, the field a caller would act on,
-    is now sourced structurally rather than positionally.
+    ``Position`` is derived from the STRUCTURALLY resolved ``ContentId``'s
+    own index in ``_read_image_content_ids(page)`` — never from the button's
+    raw DOM ordinal. A reordered-but-count-equal DOM (button order != image
+    order) is exactly the case the structural walk exists to survive; sourcing
+    ``Position`` from the button's ordinal there would silently disagree with
+    the correctly-resolved ``ContentId`` right next to it, and a caller would
+    have no way to tell that apart from a genuinely unresolvable button.
+    Deriving both fields from the same resolved ID keeps them unable to
+    contradict each other — ``Position`` is ``None`` exactly when ``ContentId``
+    is.
 
     The structural walk alone does NOT protect the SURPLUS case (more status
     buttons than image cards): every real card is confirmed to contain
@@ -8586,8 +8592,10 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
     # alone. Any count disagreement — deficit OR surplus — makes every
     # ContentId/Position in this pass untrustworthy.
     try:
-        counts_match = count == len(_read_image_content_ids(page))
+        image_ids = _read_image_content_ids(page)
+        counts_match = count == len(image_ids)
     except PlaywrightError:
+        image_ids = []
         counts_match = False
 
     rejected: List[Dict[str, Any]] = []
@@ -8612,10 +8620,26 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
             except PlaywrightError:
                 content_id = None
 
+        # Position is derived from the STRUCTURALLY resolved ContentId's own
+        # index in the image list, never from the button's raw DOM ordinal
+        # (``index``): the two can legitimately diverge in a reordered-but-
+        # count-equal DOM (button order != image order, the exact case the
+        # structural walk exists to survive), and reporting the button's
+        # ordinal there would silently disagree with the ContentId right next
+        # to it — a caller has no way to tell the two apart from a genuinely
+        # unresolvable button. Sourcing both from the same resolved ID keeps
+        # them impossible to contradict each other.
+        position = None
+        if content_id is not None:
+            try:
+                position = image_ids.index(content_id) + 1
+            except ValueError:
+                position = None
+
         rejected.append(
             {
                 "Type": "image",
-                "Position": (index + 1) if content_id is not None else None,
+                "Position": position,
                 "ContentId": content_id,
                 "Title": _MODERATION_REJECTED_TITLE,
                 "Hint": _MODERATION_REJECTED_HINT,

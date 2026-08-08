@@ -82,6 +82,18 @@ the structural walk was introduced. The structural walk only gets to run,
 and only replaces the old positional-index lookup, when the counts already
 agree.
 
+UPDATE 2026-08-09 (issue #817, round 3) — `Position` is now derived from the
+STRUCTURALLY resolved `ContentId`'s own index in `_read_image_content_ids()`,
+never from the button's raw DOM ordinal. A reordered-but-count-equal DOM
+(button order != image order) is exactly the case the structural walk exists
+to survive: sourcing `Position` from the button's own ordinal there would
+silently disagree with the correctly-resolved `ContentId` right next to it —
+confidently wrong output, not a safe null. Deriving both fields from the same
+resolved ID keeps them unable to contradict each other: `Position` is `None`
+exactly when `ContentId` is. No reordered-but-count-equal DOM has been
+observed live (see UPDATE round-1's 9-campaign sweep), but the code no longer
+depends on that never being true.
+
 
 KEY FINDING #2 — rejected vs. not is a CSS-CLASS SHAPE, two variants
 ================================================================================
