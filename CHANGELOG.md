@@ -49,7 +49,9 @@ Detection notes, from the recon in
   testid shared by every image, so a rejection is mapped to its image
   positionally; a rejected button drops the `ImageStatusIcon_efficiency`
   class and gains a `dc-Label_color_black-negative`/`svg.dc-Icon_color_red`
-  child.
+  child. That mapping is only trusted while the status-button count matches
+  the image count — on any disagreement the rejection is still reported but
+  with `ContentId: null`, never an adjacent image's ID.
 - The explanatory tooltip is not in the DOM until a real mouse hover
   (synthetic events do not mount it), so detection uses the class shape and
   never hovers — which is what lets one page load answer for the whole

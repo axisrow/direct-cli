@@ -19592,6 +19592,48 @@ class TestReadModerationStatuses(unittest.TestCase):
         self.assertEqual(result["RejectedElements"][0]["Position"], 2)
         self.assertIsNone(result["RejectedElements"][0]["ContentId"])
 
+    def test_missing_status_button_yields_null_content_id_not_a_wrong_one(self):
+        """FEWER status buttons than images: the positional mapping is no
+        longer trustworthy, so no rejection may borrow an unrelated image's
+        content ID.
+
+        The surplus direction was already guarded; this is the deficit one.
+        ``_wait_for_images_editor`` settles on ``ContentImage``/``StubN``
+        presence and never waits for the status buttons themselves, so a
+        hydration gap that drops one button shifts every later button by one
+        — reporting image N's rejection against image N-1's content ID, i.e.
+        telling the user to replace an innocent element.
+        """
+        page = _FakeModerationPage(
+            ["a", "b", "c", "d"], statuses=["ok", "ok", "rejected"]
+        )
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertIsNone(result["RejectedElements"][0]["ContentId"])
+
+    def test_missing_status_button_still_reports_the_rejection(self):
+        """Dropping the content ID must not drop the rejection itself —
+        "something is rejected but this reader cannot say which image" is
+        strictly more useful than silence."""
+        page = _FakeModerationPage(["a", "b"], statuses=["rejected"])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertEqual(result["RejectedElements"][0]["Position"], 1)
+        self.assertIsNone(result["RejectedElements"][0]["ContentId"])
+
+    def test_aligned_counts_still_resolve_the_content_id(self):
+        """The guard must only fire on a real mismatch — an aligned page
+        keeps reporting the content ID it always did."""
+        page = _FakeModerationPage(["a", "b", "c"], statuses=["ok", "rejected", "ok"])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedElements"][0]["ContentId"], "b")
+
     def test_declares_which_element_types_were_actually_checked(self):
         """An empty result must not be readable as "no video/headline/text is
         rejected" — only images have a live-confirmed marker."""

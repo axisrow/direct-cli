@@ -8488,11 +8488,16 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
     live 2026-08-08 both by bounding-box alignment and by the two lists
     having equal length on all 38 swept campaigns.
 
-    If the two lists nonetheless disagree in length, the extra status buttons
-    are still reported — with ``ContentId: None`` rather than a wrong content
-    ID — since "something is rejected but this reader cannot say which image"
-    is strictly more useful than silently dropping it, and far better than
-    misattributing the rejection to an innocent image.
+    If the two lists nonetheless disagree in length — in EITHER direction —
+    the positional mapping is no longer trustworthy, so rejections are still
+    reported but with ``ContentId: None`` rather than a wrong content ID.
+    "Something is rejected but this reader cannot say which image" is
+    strictly more useful than silently dropping it, and far better than
+    misattributing the rejection to an innocent image. The deficit direction
+    matters as much as the surplus one: ``_wait_for_images_editor`` settles
+    on ``ContentImage``/``StubN`` presence and never waits for the status
+    buttons, so a hydration gap dropping one button would otherwise shift
+    every later button by one and name the wrong image.
 
     Never hovers: the explanatory tooltip is not in the DOM until a real
     mouse hover (confirmed live — synthetic events do not mount it), so its
@@ -8506,6 +8511,16 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
         count = buttons.count()
     except PlaywrightError:
         return []
+
+    # The positional mapping is only trustworthy while the two lists line up.
+    # ``_wait_for_images_editor`` settles on ``ContentImage``/``StubN``
+    # presence and never waits for the status buttons themselves, so a
+    # hydration gap that renders fewer buttons than images shifts every later
+    # button by one — silently reporting image N's rejection against image
+    # N-1's content ID. Any count disagreement therefore drops the content ID
+    # for the whole read (``ContentId: None``) rather than emitting one that
+    # may name an innocent image; the rejection itself is still reported.
+    aligned = count == len(content_ids)
 
     rejected: List[Dict[str, Any]] = []
     for index in range(count):
@@ -8526,7 +8541,7 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
             {
                 "Type": "image",
                 "Position": index + 1,
-                "ContentId": (content_ids[index] if index < len(content_ids) else None),
+                "ContentId": (content_ids[index] if aligned else None),
                 "Title": _MODERATION_REJECTED_TITLE,
                 "Hint": _MODERATION_REJECTED_HINT,
             }
