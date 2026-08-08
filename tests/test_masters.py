@@ -19815,11 +19815,9 @@ class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
             return self.runner.invoke(cli, args)
 
     def test_middle_campaign_failure_keeps_the_others_in_the_output(self):
-        from playwright.sync_api import Error as PlaywrightError
-
         def _fetch(_page, cid):
             if cid == 2:
-                raise PlaywrightError("overview timeout")
+                raise browser_masters.PlaywrightError("overview timeout")
             return {"CampaignId": cid}
 
         with patch.object(browser_masters, "fetch_master", side_effect=_fetch):
