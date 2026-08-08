@@ -573,6 +573,11 @@ def get(
     running on its remaining approved elements, so this does not show up in
     the campaign-level status). Only images carry such a marker today; see
     UnsupportedTypes in the output.
+
+    Every ID is attempted even if an earlier one fails, and each ID's
+    outcome (the row, or its error) is reported — see ``_run_per_id``
+    (issue #816: a failure reading one campaign used to discard every
+    already-read campaign in the same batch).
     """
     from ..browser.masters import fetch_master, fetch_master_moderation_statuses
 
@@ -596,12 +601,17 @@ def get(
             )
         return result
 
-    def _fetch_all(page):
-        return [_fetch_one(page, campaign_id) for campaign_id in ids]
-
-    results = _with_session(ctx, headful, profile_dir, chrome_profile, _fetch_all)
-
-    format_output(results if len(results) != 1 else results[0], output_format, output)
+    _run_per_id(
+        ctx,
+        ids,
+        _fetch_one,
+        headful=headful,
+        profile_dir=profile_dir,
+        chrome_profile=chrome_profile,
+        output_format=output_format,
+        output=output,
+        verb="read",
+    )
 
 
 @masters.command()

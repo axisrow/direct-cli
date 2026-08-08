@@ -19799,5 +19799,41 @@ class TestMastersGetModerationStatusesFlag(unittest.TestCase):
         self.assertTrue(all("RejectedCount" in row for row in payload))
 
 
+class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
+    """Issue #816: one campaign's read failure must not discard the batch."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def _invoke(self, args):
+        with patch(
+            "direct_cli.commands.masters._with_session",
+            side_effect=lambda ctx, headful, profile_dir, chrome_profile, fn: fn(
+                object()
+            ),
+        ):
+            return self.runner.invoke(cli, args)
+
+    def test_middle_campaign_failure_keeps_the_others_in_the_output(self):
+        from playwright.sync_api import Error as PlaywrightError
+
+        def _fetch(_page, cid):
+            if cid == 2:
+                raise PlaywrightError("overview timeout")
+            return {"CampaignId": cid}
+
+        with patch.object(browser_masters, "fetch_master", side_effect=_fetch):
+            result = self._invoke(["masters", "get", "1,2,3"])
+
+        self.assertNotEqual(result.exit_code, 0)
+        json_start = result.output.index("[\n")
+        json_end = result.output.rindex("]") + 1
+        payload = json.loads(result.output[json_start:json_end])
+        self.assertEqual([row["CampaignId"] for row in payload], [1, 2, 3])
+        self.assertNotIn("Error", payload[0])
+        self.assertIn("overview timeout", payload[1]["Error"])
+        self.assertNotIn("Error", payload[2])
+
+
 if __name__ == "__main__":
     unittest.main()
