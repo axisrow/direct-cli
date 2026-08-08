@@ -545,25 +545,59 @@ def list_masters(
 
 @masters.command()
 @click.argument("campaign_ids")
+@click.option(
+    "--moderation-statuses",
+    is_flag=True,
+    help=(
+        "Also report ad elements individually rejected on moderation "
+        "(images). Adds RejectedElements/RejectedCount to each result."
+    ),
+)
 @_masters_browser_options
 @click.pass_context
 @handle_api_errors
 def get(
     ctx,
     campaign_ids,
+    moderation_statuses,
     headful,
     profile_dir,
     chrome_profile,
     output_format,
     output,
 ):
-    """Get one or more Мастер кампаний by ID (comma-separated)"""
-    from ..browser.masters import fetch_master
+    """Get one or more Мастер кампаний by ID (comma-separated)
+
+    With --moderation-statuses, additionally reads each campaign's edit page
+    for ad elements that moderation rejected individually (the campaign keeps
+    running on its remaining approved elements, so this does not show up in
+    the campaign-level status). Only images carry such a marker today; see
+    UnsupportedTypes in the output.
+    """
+    from ..browser.masters import fetch_master, fetch_master_moderation_statuses
 
     ids = parse_ids(campaign_ids) or []
 
+    def _fetch_one(page, campaign_id):
+        result = fetch_master(page, campaign_id)
+        if moderation_statuses:
+            # A second navigation on purpose: the rejection markers live on
+            # the edit page, while fetch_master reads the overview page.
+            # Merged into the SAME result object so the flag stays a slice of
+            # `get`'s output rather than a separate command (issue #814).
+            result.update(
+                {
+                    key: value
+                    for key, value in fetch_master_moderation_statuses(
+                        page, campaign_id
+                    ).items()
+                    if key != "CampaignId"
+                }
+            )
+        return result
+
     def _fetch_all(page):
-        return [fetch_master(page, campaign_id) for campaign_id in ids]
+        return [_fetch_one(page, campaign_id) for campaign_id in ids]
 
     results = _with_session(ctx, headful, profile_dir, chrome_profile, _fetch_all)
 

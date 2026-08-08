@@ -19414,5 +19414,390 @@ class TestMastersUpdateMetrikaCounterFlags(unittest.TestCase):
         self.assertIn("--add-metrika-counter", result.output)
 
 
+class _FakeModerationPage(_FakeImagesPage):
+    """Models the images section plus its per-image moderation status buttons
+    (issue #814).
+
+    ``statuses`` is one entry per image, positionally aligned with ``ids``,
+    each either ``"ok"`` (the efficiency-badge variant) or ``"rejected"`` —
+    exactly the two live-confirmed shapes (see
+    ``tests/fixtures/masters_wizard_edit_moderation.html``). Defaults to all
+    ``"ok"``, so an existing images test that subclasses this gets a clean
+    campaign.
+
+    ``extra_statuses`` appends status buttons with NO corresponding image,
+    modeling the count-mismatch case ``_read_image_moderation_rejections``
+    must survive without misattributing a content ID.
+    """
+
+    def __init__(self, ids, *, statuses=None, extra_statuses=(), **kwargs):
+        super().__init__(ids, **kwargs)
+        self.statuses = list(statuses if statuses is not None else ["ok"] * len(ids))
+        self.statuses.extend(extra_statuses)
+
+    def _status_handle(self, status):
+        if status == "rejected":
+            # No ImageStatusIcon_efficiency class; a negative-label child.
+            return _FakeLocatorHandle(
+                attrs={"class": "dc-ClickableIcon dc-ClickableIcon_color_gray"},
+                sub_locators={
+                    browser_masters._IMAGE_STATUS_REJECTED_SELECTOR: (
+                        _FakeLocatorHandle()
+                    )
+                },
+            )
+        if status == "ok-with-negative-child":
+            # The efficiency badge, but ALSO matching the negative selector.
+            # Models the live false-positive class of bug: those classes are
+            # not unique to moderation (a video thumbnail's MediaControl
+            # renders them too — campaign 713234162, 6 of them, 0 rejected
+            # images), so the efficiency class must veto.
+            return _FakeLocatorHandle(
+                attrs={
+                    "class": (
+                        "dc-ClickableIcon ImageStatusIcon_button__sqJGQ "
+                        "ImageStatusIcon_efficiency__pCGiR"
+                    )
+                },
+                sub_locators={
+                    browser_masters._IMAGE_STATUS_REJECTED_SELECTOR: (
+                        _FakeLocatorHandle()
+                    )
+                },
+            )
+        if status == "unknown":
+            # Neither shape: no efficiency class AND no negative child — a
+            # hypothetical third variant, which must NOT count as rejected.
+            return _FakeLocatorHandle(
+                attrs={"class": "dc-ClickableIcon dc-ClickableIcon_color_gray"}
+            )
+        # "ok": the efficiency badge. Note the real class carries a
+        # build-time hash suffix, which the reader must match as a substring.
+        return _FakeLocatorHandle(
+            attrs={
+                "class": (
+                    "dc-ClickableIcon ImageStatusIcon_button__sqJGQ "
+                    "ImageStatusIcon_efficiency__pCGiR"
+                )
+            }
+        )
+
+    def locator(self, selector):
+        if selector == browser_masters._IMAGE_STATUS_SELECTOR:
+            return _FakeLocator(
+                [self._status_handle(status) for status in self.statuses]
+            )
+        return super().locator(selector)
+
+
+class TestReadModerationStatuses(unittest.TestCase):
+    """``read_moderation_statuses`` — issue #814's per-element rejection read.
+
+    Marker shape confirmed live 2026-08-08 on campaigns 713234064 and
+    713231614; see ``tests/fixtures/masters_wizard_edit_moderation.html``.
+    """
+
+    def test_reports_a_rejected_image_with_position_and_content_id(self):
+        page = _FakeModerationPage(
+            ["a", "b", "c", "d"], statuses=["ok", "rejected", "ok", "ok"]
+        )
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertEqual(
+            result["RejectedElements"],
+            [
+                {
+                    "Type": "image",
+                    "Position": 2,
+                    "ContentId": "b",
+                    "Title": browser_masters._MODERATION_REJECTED_TITLE,
+                    "Hint": browser_masters._MODERATION_REJECTED_HINT,
+                }
+            ],
+        )
+
+    def test_clean_campaign_reports_no_rejections(self):
+        page = _FakeModerationPage(["a", "b", "c"])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 0)
+        self.assertEqual(result["RejectedElements"], [])
+
+    def test_campaign_without_images_reports_no_rejections(self):
+        page = _FakeModerationPage([])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 0)
+
+    def test_reports_every_rejected_image_in_page_order(self):
+        page = _FakeModerationPage(
+            ["a", "b", "c", "d", "e"],
+            statuses=["rejected", "ok", "rejected", "ok", "rejected"],
+        )
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(
+            [(e["Position"], e["ContentId"]) for e in result["RejectedElements"]],
+            [(1, "a"), (3, "c"), (5, "e")],
+        )
+
+    def test_efficiency_badge_is_never_a_rejection_despite_hash_suffix(self):
+        """The live class is ``ImageStatusIcon_efficiency__<buildhash>`` — the
+        reader must match it as a substring, not by equality."""
+        page = _FakeModerationPage(["a"], statuses=["ok"])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedElements"], [])
+
+    def test_efficiency_badge_wins_even_if_a_negative_class_is_also_present(self):
+        """The negative-class check alone is NOT sufficient: those classes are
+        not unique to moderation (confirmed live — a video thumbnail's
+        ``MediaControl`` renders the same pair). An efficiency badge is never
+        a rejection, whatever else it contains."""
+        page = _FakeModerationPage(
+            ["a", "b"], statuses=["ok-with-negative-child", "rejected"]
+        )
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(
+            [(e["Position"], e["ContentId"]) for e in result["RejectedElements"]],
+            [(2, "b")],
+        )
+
+    def test_negative_child_without_efficiency_check_is_not_enough(self):
+        """A third button variant (no efficiency class, no negative child) is
+        NOT reported — guards against classifying anything unfamiliar as a
+        rejection."""
+        page = _FakeModerationPage(["a", "b"], statuses=["unknown", "unknown"])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedElements"], [])
+
+    def test_extra_status_button_yields_null_content_id_not_a_wrong_one(self):
+        """More status buttons than images: the surplus rejection is still
+        reported, but must never borrow another image's identity — neither
+        its content ID nor its ordinal."""
+        page = _FakeModerationPage(["a"], statuses=["ok"], extra_statuses=["rejected"])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertIsNone(result["RejectedElements"][0]["Position"])
+        self.assertIsNone(result["RejectedElements"][0]["ContentId"])
+
+    def test_missing_status_button_yields_null_content_id_not_a_wrong_one(self):
+        """FEWER status buttons than images: the positional mapping is no
+        longer trustworthy, so no rejection may borrow an unrelated image's
+        content ID.
+
+        The surplus direction was already guarded; this is the deficit one.
+        ``_wait_for_images_editor`` settles on ``ContentImage``/``StubN``
+        presence and never waits for the status buttons themselves, so a
+        hydration gap that drops one button shifts every later button by one
+        — reporting image N's rejection against image N-1's content ID, i.e.
+        telling the user to replace an innocent element.
+        """
+        page = _FakeModerationPage(
+            ["a", "b", "c", "d"], statuses=["ok", "ok", "rejected"]
+        )
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertIsNone(result["RejectedElements"][0]["ContentId"])
+
+    def test_missing_status_button_yields_null_position_too(self):
+        """``Position`` must be nulled alongside ``ContentId`` on a mismatch.
+
+        A reader with no content ID falls back to the ordinal, so leaving a
+        shifted ``Position`` behind only half-protects: with image #1's
+        status button missing, the button ordinal of the rejected 4th image
+        is 3 — pointing the user at the innocent image before it. Neither
+        field may survive a mismatch as something readable as "which image".
+        """
+        page = _FakeModerationPage(
+            ["a", "b", "c", "d"], statuses=["ok", "ok", "rejected"]
+        )
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertIsNone(result["RejectedElements"][0]["Position"])
+
+    def test_missing_status_button_still_reports_the_rejection(self):
+        """Dropping the content ID must not drop the rejection itself —
+        "something is rejected but this reader cannot say which image" is
+        strictly more useful than silence."""
+        page = _FakeModerationPage(["a", "b"], statuses=["rejected"])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertEqual(result["RejectedElements"][0]["Type"], "image")
+        self.assertIsNone(result["RejectedElements"][0]["Position"])
+        self.assertIsNone(result["RejectedElements"][0]["ContentId"])
+
+    def test_aligned_counts_still_resolve_the_content_id(self):
+        """The guard must only fire on a real mismatch — an aligned page
+        keeps reporting the content ID it always did."""
+        page = _FakeModerationPage(["a", "b", "c"], statuses=["ok", "rejected", "ok"])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedElements"][0]["ContentId"], "b")
+
+    def test_declares_which_element_types_were_actually_checked(self):
+        """An empty result must not be readable as "no video/headline/text is
+        rejected" — only images have a live-confirmed marker."""
+        page = _FakeModerationPage(["a"])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["CheckedTypes"], ["image"])
+        self.assertEqual(result["UnsupportedTypes"], ["video", "headline", "text"])
+
+    def test_never_clicks_save(self):
+        page = _FakeModerationPage(["a", "b"], statuses=["ok", "rejected"])
+
+        browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(page.save_clicks, [])
+
+    def test_never_opens_the_images_modal(self):
+        """Unlike ``fetch_master_images`` there is no thumb URL to read, so
+        this reader must stay a pure page-level read."""
+        page = _FakeModerationPage(["a"], statuses=["rejected"])
+
+        browser_masters.read_moderation_statuses(page)
+
+        self.assertFalse(page.modal_open)
+
+    def test_unrendered_images_section_raises_rather_than_reporting_clean(self):
+        """Same invariant as ``fetch_master_images``: an unsettled section
+        must not be reported as "nothing rejected"."""
+
+        class _NoEditorPage(_FakeModerationPage):
+            def locator(self, selector):
+                if selector == browser_masters._IMAGES_EDITOR_SELECTOR:
+                    return _FakeLocator([])
+                return super().locator(selector)
+
+        page = _NoEditorPage([])
+        with patch.object(browser_masters, "_IMAGES_EDITOR_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError):
+                browser_masters.read_moderation_statuses(page)
+
+
+class TestFetchMasterModerationStatuses(unittest.TestCase):
+    """``fetch_master_moderation_statuses`` — the navigating wrapper."""
+
+    def test_carries_the_campaign_id_into_the_result(self):
+        page = _FakeModerationPage(["a"], statuses=["rejected"])
+
+        result = browser_masters.fetch_master_moderation_statuses(page, 42)
+
+        self.assertEqual(result["CampaignId"], 42)
+        self.assertEqual(result["RejectedCount"], 1)
+
+    def test_reads_the_edit_page_not_the_overview_page(self):
+        page = _FakeModerationPage(["a"])
+
+        browser_masters.fetch_master_moderation_statuses(page, 42)
+
+        self.assertIn("/edit/", page.navigated_to[-1])
+
+
+class TestMastersGetModerationStatusesFlag(unittest.TestCase):
+    """``masters get --moderation-statuses`` — issue #814's CLI surface."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def _invoke(self, args):
+        with patch(
+            "direct_cli.commands.masters._with_session",
+            side_effect=lambda ctx, headful, profile_dir, chrome_profile, fn: fn(
+                object()
+            ),
+        ):
+            return self.runner.invoke(cli, args)
+
+    def test_flag_absent_never_reads_moderation_statuses(self):
+        """The default `get` must not pay for a second page load."""
+        with patch.object(
+            browser_masters, "fetch_master", return_value={"CampaignId": 42}
+        ):
+            with patch.object(
+                browser_masters, "fetch_master_moderation_statuses"
+            ) as mock_moderation:
+                result = self._invoke(["masters", "get", "42"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_moderation.assert_not_called()
+        self.assertNotIn("RejectedElements", result.output)
+
+    def test_flag_merges_rejections_into_the_same_result_object(self):
+        """Issue #814: a slice of `get`'s output, not a separate command's."""
+        with patch.object(
+            browser_masters,
+            "fetch_master",
+            return_value={"CampaignId": 42, "Name": "campaign"},
+        ):
+            with patch.object(
+                browser_masters,
+                "fetch_master_moderation_statuses",
+                return_value={
+                    "CampaignId": 42,
+                    "RejectedElements": [{"Type": "image", "Position": 2}],
+                    "RejectedCount": 1,
+                    "CheckedTypes": ["image"],
+                    "UnsupportedTypes": ["video", "headline", "text"],
+                },
+            ):
+                result = self._invoke(["masters", "get", "42", "--moderation-statuses"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        payload = json.loads(result.output)
+        self.assertEqual(payload["CampaignId"], 42)
+        self.assertEqual(payload["Name"], "campaign")
+        self.assertEqual(payload["RejectedCount"], 1)
+        self.assertEqual(payload["RejectedElements"][0]["Position"], 2)
+
+    def test_flag_applies_to_every_id_in_a_comma_separated_list(self):
+        with patch.object(
+            browser_masters,
+            "fetch_master",
+            side_effect=lambda _page, cid: {"CampaignId": cid},
+        ):
+            with patch.object(
+                browser_masters,
+                "fetch_master_moderation_statuses",
+                side_effect=lambda _page, cid: {
+                    "CampaignId": cid,
+                    "RejectedElements": [],
+                    "RejectedCount": 0,
+                    "CheckedTypes": ["image"],
+                    "UnsupportedTypes": ["video", "headline", "text"],
+                },
+            ) as mock_moderation:
+                result = self._invoke(
+                    ["masters", "get", "42,43", "--moderation-statuses"]
+                )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_moderation.call_count, 2)
+        payload = json.loads(result.output)
+        self.assertEqual([row["CampaignId"] for row in payload], [42, 43])
+        self.assertTrue(all("RejectedCount" in row for row in payload))
+
+
 if __name__ == "__main__":
     unittest.main()

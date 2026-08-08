@@ -1,0 +1,196 @@
+<!--
+Fixture: DOM findings for PER-ELEMENT MODERATION REJECTION on the Yandex
+Direct "Мастер кампаний" (Campaign Wizard) edit page — issue #814
+(`direct masters get <id> --moderation-statuses`), part of the #648 umbrella.
+
+Captured 2026-08-08 via claude-in-chrome (targeted recon on two campaigns)
+plus a scripted read-only sweep over every non-archived Мастер кампаний on
+the account (38 campaigns).
+
+READ-ONLY. Every observation below came from `page.goto` + DOM reads, plus
+exactly ONE real mouse hover per rejected marker to make its tooltip mount.
+No field was typed into, no Save/Launch button was ever clicked, no campaign
+was mutated.
+
+Source URL:
+  https://direct.yandex.ru/wizard/campaigns/{id}/edit/?ulogin={login}
+
+Campaigns carrying a confirmed rejected element:
+  713234064 — 4 images, the 2nd (0-based index 1, content ID
+              2513371652347967553) rejected
+  713231614 — 5 images, the 4th (0-based index 3, content ID
+              2539115717674655622) rejected
+
+Note on the issue's wording: #814 described the 713234064 case as
+"[Image #5] rejected". At recon time that campaign has only FOUR images and
+the rejected one sits at position 2. The rejection itself reproduced exactly
+as described; only the ordinal differs, presumably because the image set
+changed between the issue's screenshot and this recon. Positions here are
+what the page actually rendered on 2026-08-08.
+
+
+KEY FINDING #1 — the marker is a per-image STATUS BUTTON, keyed by DOM order
+================================================================================
+
+Each image card renders a sibling status button:
+
+  data-testid="ImageSuggestionsEditor.CampaignContents.ImageStatus"
+
+This is a SINGLE testid shared by every image — it is NOT suffixed with the
+content ID (unlike `...CampaignContents.ContentImage.<contentId>`). So a
+status button is tied to its image ONLY by DOM order: the Nth ImageStatus
+belongs to the Nth ContentImage.
+
+Positional alignment confirmed live on 713234064 by bounding box —
+  ContentImage x-offsets: 201 / 335 / 469 / 603
+  ImageStatus  x-offsets: 205 / 339 / 473 / 607
+i.e. each status button sits directly under its own card.
+
+Count alignment confirmed across ALL 38 swept campaigns: the number of
+ImageStatus buttons equals the number of ContentImage cards on every single
+one (0 images -> 0 buttons, 4 -> 4, 5 -> 5). No campaign was observed where
+the two lists could disagree.
+
+
+KEY FINDING #2 — rejected vs. not is a CSS-CLASS SHAPE, two variants
+================================================================================
+
+The status button comes in exactly two shapes:
+
+  NOT rejected ("efficiency" badge) — the button's own class list contains
+    ImageStatusIcon_efficiency__<hash>
+  and it holds a `span.dc-Badge` (no svg icon):
+
+    <button type="button"
+            data-testid="ImageSuggestionsEditor.CampaignContents.ImageStatus"
+            class="dc-ClickableIcon dc-ClickableIcon_color_gray
+                   dc-ClickableIcon_role_supplementary
+                   ImageStatusIcon_button__sqJGQ
+                   ImageStatusIcon_efficiency__pCGiR">
+      <div class="dc-Stack ...">
+        <span class="dc-Badge dc-Badge_color_gray dc-Badge_size_8
+                     dc-Badge_empty ..."></span>
+        ...
+      </div>
+    </button>
+
+  REJECTED — NO ImageStatusIcon_efficiency class at all; the button instead
+  contains a negative label and a red icon:
+
+    <button type="button"
+            data-testid="ImageSuggestionsEditor.CampaignContents.ImageStatus"
+            class="dc-ClickableIcon dc-ClickableIcon_color_gray
+                   dc-ClickableIcon_role_supplementary">
+      <div class="dc-Label dc-Label_withIconOnly
+                  dc-Label_color_black-negative dc-Label_size_3xs ...">
+        <div class="... dc-Label__icon ...">
+          <svg width="12" height="12" viewBox="0 0 12 12"
+               class="dc-Icon dc-Icon_role_main dc-Icon_color_red"
+               focusable="false" aria-hidden="true">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M2.048 1.323..."/>
+          </svg>
+        </div>
+      </div>
+    </button>
+
+Note `ImageStatusIcon_efficiency__pCGiR` is a CSS-module class: the `__pCGiR`
+suffix is a build-time hash that changes on every Yandex frontend build. The
+reader matches it as a SUBSTRING (`ImageStatusIcon_efficiency`), never by
+equality.
+
+The button carries NO aria-label and NO title attribute — there is no
+accessible-name shortcut; the class shape is the signal.
+
+Confirmed identical on both rejected campaigns (713234064 index 1, 713231614
+index 3), i.e. the shape is not a one-off.
+
+
+KEY FINDING #3 — the tooltip exists ONLY after a real hover
+================================================================================
+
+Hovering a REJECTED status button mounts, in a portal at the end of <body>:
+
+  data-testid="ImageSuggestionsEditor.CampaignContents.StateTooltip"
+    └ data-testid="ImageSuggestionsEditor.CampaignContents.StateTooltip
+                   .TooltipContent"   (class "dc-Tooltip dc-Tooltip_color_inverted")
+        └ data-testid="Text.Content"  -> "Элемент объявления отклонен"
+        └ data-testid="Text.Caption"  -> "Пожалуйста, создайте новый элемент
+                                          объявления и отправьте его на
+                                          модерацию"
+
+Both strings match issue #814's quoted copy verbatim. Confirmed on BOTH
+rejected campaigns independently.
+
+Two facts that decided the implementation:
+
+  * The tooltip is NOT in the DOM before hover. Nothing anywhere on the page
+    contains the string "отклонен" until the marker is hovered.
+  * A SYNTHETIC event does not mount it. Dispatching
+    mouseover/mouseenter/mousemove via `dispatchEvent` produced nothing; only
+    a real CDP-driven mouse hover worked.
+
+So `read_moderation_statuses` detects via the CSS-class shape (Finding #2),
+which is present in the static DOM for every card simultaneously, and does
+NOT hover. That is what lets ONE page load answer for the whole campaign,
+which is issue #814's central requirement — and it keeps the command free of
+mouse interaction on a page it must not mutate.
+
+
+KEY FINDING #4 — a page-wide class scan is a FALSE-POSITIVE TRAP
+================================================================================
+
+`.dc-Label_color_black-negative` and `svg.dc-Icon_color_red` are NOT unique to
+moderation. On campaigns with video variants they also appear inside the video
+thumbnail's player chrome:
+
+  VideoSuggestionsEditor.CampaignContents.<url>
+    └ VideoSuggestionsEditor.CampaignContents.VideoThumb.<url>
+        └ ....VideoThumb.<url>.Content
+            └ data-testid="MediaControl"
+                └ ClickableIcon
+                    └ div.dc-Label_color_black-negative
+                        └ svg.dc-Icon_color_red
+
+Observed on 5 swept campaigns (713234162, 713234179, 713234142, 713234150,
+75107869) — e.g. 713234162 has 6 such MediaControl elements and ZERO rejected
+images. A naive page-wide `querySelectorAll('.dc-Icon_color_red')` would have
+reported all five as rejections.
+
+The reader therefore scopes the class check to a sub-locator INSIDE an
+`ImageStatus` button, never a page-wide selector.
+
+
+KEY FINDING #5 — no rejection marker exists for video / headlines / texts
+================================================================================
+
+Issue #814 asked whether the marker/tooltip shape is uniform across element
+types. On the evidence available it could not be confirmed uniform, because
+NO non-image rejection was found to compare against:
+
+  * Swept all 38 non-archived Мастер кампаний on the account. Aggregate:
+    ~62 video variants, and every campaign carries headlines and texts
+    (CampaignTitles0..4 / CampaignTexts0..2).
+  * Rejected images found: 2 (the campaigns named at the top).
+  * Rejected videos / headlines / texts found: 0.
+  * Structurally, the status affordance does not even EXIST outside images.
+    A full `[data-testid]` dump on 713234064 yields these status-ish testids:
+        CampaignHeader.Status
+        CampaignFormStatusInput.efficiency.{ONE,TWO,...}   (campaign-level)
+        ImageSuggestionsEditor.CampaignContents.ImageStatus
+        ImageSuggestionsEditor.CampaignContents.StateTooltip
+    The video section renders only card / VideoThumb / CloseButton testids —
+    no `*Status`, no `*StateTooltip`. The headline and text sections render
+    only `CampaignTitles<N>[.textarea|.clear]` /
+    `CampaignTexts<N>[.textarea|.clear]` — likewise no status affordance.
+
+CONCLUSION (and the honest limit of this recon): for IMAGES the marker is
+confirmed on two independent campaigns. For video/headlines/texts there is no
+observed marker at all — which is consistent with either "Yandex renders no
+per-element status for these types" or "no element of these types happens to
+be rejected on this account right now". THIS RECON CANNOT DISTINGUISH THE
+TWO. `read_moderation_statuses` reports images as a checked-and-supported
+type, and reports video/headline/text as checked-but-unsupported, rather than
+silently implying they were verified clean. Should a rejected video/headline/
+text ever be observed live, this fixture and the reader's element-type table
+are what need updating.
+-->
