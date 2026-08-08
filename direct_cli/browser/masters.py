@@ -8490,14 +8490,16 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
 
     If the two lists nonetheless disagree in length — in EITHER direction —
     the positional mapping is no longer trustworthy, so rejections are still
-    reported but with ``ContentId: None`` rather than a wrong content ID.
+    reported but with BOTH ``ContentId`` and ``Position`` set to ``None``.
     "Something is rejected but this reader cannot say which image" is
     strictly more useful than silently dropping it, and far better than
-    misattributing the rejection to an innocent image. The deficit direction
-    matters as much as the surplus one: ``_wait_for_images_editor`` settles
-    on ``ContentImage``/``StubN`` presence and never waits for the status
-    buttons, so a hydration gap dropping one button would otherwise shift
-    every later button by one and name the wrong image.
+    misattributing the rejection to an innocent image. Nulling only the
+    content ID would half-protect: a reader without one falls back to the
+    ordinal, and the ordinal is exactly what a mismatch shifts. The deficit
+    direction matters as much as the surplus one — ``_wait_for_images_editor``
+    settles on ``ContentImage``/``StubN`` presence and never waits for the
+    status buttons, so a hydration gap dropping one button shifts every later
+    button by one, making the button ordinal name the wrong image.
 
     Never hovers: the explanatory tooltip is not in the DOM until a real
     mouse hover (confirmed live — synthetic events do not mount it), so its
@@ -8540,7 +8542,7 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
         rejected.append(
             {
                 "Type": "image",
-                "Position": index + 1,
+                "Position": (index + 1) if aligned else None,
                 "ContentId": (content_ids[index] if aligned else None),
                 "Title": _MODERATION_REJECTED_TITLE,
                 "Hint": _MODERATION_REJECTED_HINT,

@@ -51,7 +51,8 @@ Detection notes, from the recon in
   class and gains a `dc-Label_color_black-negative`/`svg.dc-Icon_color_red`
   child. That mapping is only trusted while the status-button count matches
   the image count — on any disagreement the rejection is still reported but
-  with `ContentId: null`, never an adjacent image's ID.
+  with both `ContentId` and `Position` set to `null`, so no field can name
+  an adjacent, innocent image.
 - The explanatory tooltip is not in the DOM until a real mouse hover
   (synthetic events do not mount it), so detection uses the class shape and
   never hovers — which is what lets one page load answer for the whole

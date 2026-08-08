@@ -19583,13 +19583,14 @@ class TestReadModerationStatuses(unittest.TestCase):
 
     def test_extra_status_button_yields_null_content_id_not_a_wrong_one(self):
         """More status buttons than images: the surplus rejection is still
-        reported, but must never borrow another image's content ID."""
+        reported, but must never borrow another image's identity — neither
+        its content ID nor its ordinal."""
         page = _FakeModerationPage(["a"], statuses=["ok"], extra_statuses=["rejected"])
 
         result = browser_masters.read_moderation_statuses(page)
 
         self.assertEqual(result["RejectedCount"], 1)
-        self.assertEqual(result["RejectedElements"][0]["Position"], 2)
+        self.assertIsNone(result["RejectedElements"][0]["Position"])
         self.assertIsNone(result["RejectedElements"][0]["ContentId"])
 
     def test_missing_status_button_yields_null_content_id_not_a_wrong_one(self):
@@ -19613,6 +19614,24 @@ class TestReadModerationStatuses(unittest.TestCase):
         self.assertEqual(result["RejectedCount"], 1)
         self.assertIsNone(result["RejectedElements"][0]["ContentId"])
 
+    def test_missing_status_button_yields_null_position_too(self):
+        """``Position`` must be nulled alongside ``ContentId`` on a mismatch.
+
+        A reader with no content ID falls back to the ordinal, so leaving a
+        shifted ``Position`` behind only half-protects: with image #1's
+        status button missing, the button ordinal of the rejected 4th image
+        is 3 — pointing the user at the innocent image before it. Neither
+        field may survive a mismatch as something readable as "which image".
+        """
+        page = _FakeModerationPage(
+            ["a", "b", "c", "d"], statuses=["ok", "ok", "rejected"]
+        )
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertIsNone(result["RejectedElements"][0]["Position"])
+
     def test_missing_status_button_still_reports_the_rejection(self):
         """Dropping the content ID must not drop the rejection itself —
         "something is rejected but this reader cannot say which image" is
@@ -19622,7 +19641,8 @@ class TestReadModerationStatuses(unittest.TestCase):
         result = browser_masters.read_moderation_statuses(page)
 
         self.assertEqual(result["RejectedCount"], 1)
-        self.assertEqual(result["RejectedElements"][0]["Position"], 1)
+        self.assertEqual(result["RejectedElements"][0]["Type"], "image")
+        self.assertIsNone(result["RejectedElements"][0]["Position"])
         self.assertIsNone(result["RejectedElements"][0]["ContentId"])
 
     def test_aligned_counts_still_resolve_the_content_id(self):
