@@ -8488,7 +8488,16 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
     live 2026-08-08 both by bounding-box alignment and by the two lists
     having equal length on all 38 swept campaigns.
 
-    If the two lists nonetheless disagree in length — in EITHER direction —
+    What the code checks is COUNT equality, which is weaker than the DOM-order
+    correspondence the mapping actually rests on: it catches a missing or
+    surplus status button, not a reordered one. Order itself has only live
+    evidence (bounding-box alignment on campaign 713234064) against markup
+    this module guarantees nothing about, so a count-equal-but-reordered DOM
+    would still map a rejection to the wrong image. No such reordering was
+    observed in the recon; treat ``Position``/``ContentId`` as order-derived
+    rather than structurally verified.
+
+    If the two lists disagree in length — in EITHER direction —
     the positional mapping is no longer trustworthy, so rejections are still
     reported but with BOTH ``ContentId`` and ``Position`` set to ``None``.
     "Something is rejected but this reader cannot say which image" is
@@ -8514,15 +8523,24 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
     except PlaywrightError:
         return []
 
-    # The positional mapping is only trustworthy while the two lists line up.
-    # ``_wait_for_images_editor`` settles on ``ContentImage``/``StubN``
-    # presence and never waits for the status buttons themselves, so a
-    # hydration gap that renders fewer buttons than images shifts every later
-    # button by one — silently reporting image N's rejection against image
-    # N-1's content ID. Any count disagreement therefore drops the content ID
-    # for the whole read (``ContentId: None``) rather than emitting one that
-    # may name an innocent image; the rejection itself is still reported.
-    aligned = count == len(content_ids)
+    # Count equality between the status buttons and the image cards. This is
+    # strictly WEAKER than the DOM-order correspondence the mapping actually
+    # relies on — it detects a missing/surplus button, not a reordered one —
+    # and is deliberately named for what it checks rather than for what it
+    # protects, so a future maintainer does not widen trust based on the name.
+    # Order itself is confirmed only live (bounding-box alignment on campaign
+    # 713234064) and rests on Yandex's markup, which this module disclaims any
+    # stability guarantee for; a count-equal-but-reordered DOM would defeat it.
+    #
+    # It is still worth checking, because the failure it DOES catch is the
+    # reachable one: ``_wait_for_images_editor`` settles on
+    # ``ContentImage``/``StubN`` presence and never waits for the status
+    # buttons themselves, so a hydration gap that renders fewer buttons than
+    # images shifts every later button by one — silently reporting image N's
+    # rejection against image N-1. On any count disagreement both identifying
+    # fields are dropped rather than emitting one that may name an innocent
+    # image; the rejection itself is still reported.
+    counts_match = count == len(content_ids)
 
     rejected: List[Dict[str, Any]] = []
     for index in range(count):
@@ -8542,8 +8560,8 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
         rejected.append(
             {
                 "Type": "image",
-                "Position": (index + 1) if aligned else None,
-                "ContentId": (content_ids[index] if aligned else None),
+                "Position": (index + 1) if counts_match else None,
+                "ContentId": (content_ids[index] if counts_match else None),
                 "Title": _MODERATION_REJECTED_TITLE,
                 "Hint": _MODERATION_REJECTED_HINT,
             }
