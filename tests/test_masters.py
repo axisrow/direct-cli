@@ -19450,7 +19450,12 @@ class _FakeModerationPage(_FakeImagesPage):
     ``unresolvable_structural_indices``; ``extra_statuses`` positions (beyond
     ``len(ids)``) are unresolvable by construction, since no image exists for
     them to resolve to — mirroring the real JS walk finding zero or more than
-    one ``ContentImage`` and returning ``null``.
+    one ``ContentImage`` and returning ``null``. A test wanting to model a
+    genuine hydration gap — a button MISSING from the middle of the list, so
+    a later button's DOM-order index no longer equals its image's position —
+    passes the images each *rendered* button structurally belongs to via
+    ``button_content_ids`` (positionally aligned with ``statuses``, distinct
+    from ``ids``/``_ids`` which lists every image on the page).
     """
 
     def __init__(
@@ -19460,6 +19465,7 @@ class _FakeModerationPage(_FakeImagesPage):
         statuses=None,
         extra_statuses=(),
         unresolvable_structural_indices=(),
+        button_content_ids=None,
         **kwargs,
     ):
         super().__init__(ids, **kwargs)
@@ -19467,9 +19473,16 @@ class _FakeModerationPage(_FakeImagesPage):
         self.statuses.extend(extra_statuses)
         self._ids = list(ids)
         self._unresolvable_structural_indices = set(unresolvable_structural_indices)
+        self._button_content_ids = (
+            list(button_content_ids) if button_content_ids is not None else None
+        )
 
     def _structural_content_id(self, index):
         if index in self._unresolvable_structural_indices:
+            return None
+        if self._button_content_ids is not None:
+            if index < len(self._button_content_ids):
+                return self._button_content_ids[index]
             return None
         if index < len(self._ids):
             return self._ids[index]
@@ -19651,22 +19664,29 @@ class TestReadModerationStatuses(unittest.TestCase):
         (``_IMAGE_STATUS_CONTENT_ID_JS``, confirmed live on 9 campaigns), not
         from a positional index into a separately-fetched content-ID list.
 
-        Before #817 this dropped a hydration gap's rejection to ``None``
-        because the two lists' lengths disagreed (3 buttons vs. 4 images).
-        The gap can still shift PAGE ORDER — the missing button is button #1,
-        so this rejected button is only the page's 3rd ``ImageStatus`` — but
-        each button still structurally belongs to its own card, and the fake
-        models that button as belonging to image "c" regardless of how many
-        buttons rendered before it, exactly like the live DOM would.
+        Models a genuine hydration gap: image "b"'s status button never
+        rendered, so only 3 buttons exist on the page, structurally
+        belonging to "a", "c", "d" in that DOM order (``button_content_ids``)
+        — NOT the first 3 of the 4 images. Before #817 this dropped the
+        rejection to ``None`` because the two lists' lengths disagreed (3
+        buttons vs. 4 images). The gap also shifts PAGE ORDER: the rejected
+        button ("d"'s) is only the page's 3rd ``ImageStatus``, so
+        ``Position`` (the button's own ordinal) is 3 even though "d" is the
+        4th image — each button still structurally resolves to its own card
+        regardless of how many buttons rendered before it, exactly like the
+        live DOM would; ``Position`` and image ordinal are NOT the same
+        thing once a button is missing (see the module docstring).
         """
         page = _FakeModerationPage(
-            ["a", "b", "c", "d"], statuses=["ok", "ok", "rejected"]
+            ["a", "b", "c", "d"],
+            statuses=["ok", "ok", "rejected"],
+            button_content_ids=["a", "c", "d"],
         )
 
         result = browser_masters.read_moderation_statuses(page)
 
         self.assertEqual(result["RejectedCount"], 1)
-        self.assertEqual(result["RejectedElements"][0]["ContentId"], "c")
+        self.assertEqual(result["RejectedElements"][0]["ContentId"], "d")
         self.assertEqual(result["RejectedElements"][0]["Position"], 3)
 
     def test_unresolvable_structural_walk_yields_null_content_id_and_position(self):
