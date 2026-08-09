@@ -19716,6 +19716,36 @@ class TestReadModerationStatuses(unittest.TestCase):
         self.assertIsNone(result["RejectedElements"][0]["ContentId"])
         self.assertIsNone(result["RejectedElements"][0]["Position"])
 
+    def test_balanced_surplus_and_deficit_is_nulled_not_misattributed(self):
+        """issue #820 finding #1: a BALANCED drift — one image's status
+        button missing while a DIFFERENT button duplicates — keeps the total
+        button count equal to the image count, so the global ``counts_match``
+        guard alone would pass. The duplicate ("b"'s second button)
+        structurally resolves to "b" — the same card as the first "b" button
+        — which is exactly what the multiset cross-check exists to catch:
+        two buttons resolving to the same content ID can never happen on a
+        real DOM (every card holds exactly one image), so the whole pass is
+        untrusted rather than reporting the duplicate's rejection against
+        "b" and silently dropping the real rejection on the missing button's
+        own image ("c", never rendered at all).
+
+        3 buttons (counts_match: True against 3 images), but the multiset of
+        resolved IDs is {"a", "b", "b"} — "b" appears twice, "c" never
+        appears — instead of {"a", "b", "c"}.
+        """
+        page = _FakeModerationPage(
+            ["a", "b", "c"],
+            statuses=["ok", "rejected", "rejected"],
+            button_content_ids=["a", "b", "b"],
+        )
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 2)
+        for element in result["RejectedElements"]:
+            self.assertIsNone(element["ContentId"])
+            self.assertIsNone(element["Position"])
+
     def test_unresolvable_structural_walk_yields_null_content_id_and_position(self):
         """When the structural walk itself cannot resolve a button to exactly
         one image (the real JS returns ``null`` — no single-image ancestor
@@ -19832,6 +19862,161 @@ class TestFetchMasterModerationStatuses(unittest.TestCase):
         browser_masters.fetch_master_moderation_statuses(page, 42)
 
         self.assertIn("/edit/", page.navigated_to[-1])
+
+
+def _chromium_available():
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            return Path(p.chromium.executable_path).exists()
+    except Exception:  # noqa: PIE786 - any import/launch failure means "unavailable"
+        return False
+
+
+@unittest.skipUnless(
+    _chromium_available(),
+    "Playwright Chromium not downloaded (run: playwright install chromium)",
+)
+class TestImageStatusContentIdJsAgainstRealDom(unittest.TestCase):
+    """Executes the REAL ``_IMAGE_STATUS_CONTENT_ID_JS`` string against a
+    real, constructed nested DOM via a real Chromium page (issue #820
+    finding #4).
+
+    Every other test in this module drives ``_read_image_moderation_rejections``
+    through ``_FakeModerationPage``, whose ``evaluate()`` ignores the script
+    argument entirely and returns a precomputed value
+    (``_structural_content_id``/``button_content_ids``) — so the JS string's
+    own logic (the depth-12 walk, the ``ContentImage.`` prefix selector, the
+    ``/ContentImage\\.(.+)$/`` regex, the ``imgs.length > 1`` ambiguity guard)
+    had no executed coverage: a future markup change breaking any of those
+    would silently degrade every rejection's ``ContentId``/``Position`` to
+    ``None`` with all tests green. This class closes that gap by loading a
+    real page and calling ``element_handle.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)``
+    for real, exercising the exact production code path
+    (``_read_image_moderation_rejections`` calls
+    ``button.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)`` the same way).
+
+    A single module-scoped browser/page is reused across test methods (each
+    test sets fresh ``page.content()``) to keep this fast — a full Chromium
+    launch per test would multiply the ~1s startup cost across every case.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from playwright.sync_api import sync_playwright
+
+        cls._playwright_cm = sync_playwright()
+        cls._playwright = cls._playwright_cm.__enter__()
+        cls._browser = cls._playwright.chromium.launch()
+        cls._page = cls._browser.new_page()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._browser.close()
+        cls._playwright_cm.__exit__(None, None, None)
+
+    # Shorthand for the (long) real testid prefix, kept as one constant so
+    # the fixture HTML below stays under the repo's line-length limit.
+    _CI = "ImageSuggestionsEditor.CampaignContents.ContentImage"
+
+    def _evaluate(self, html, button_selector="#status"):
+        self._page.set_content(html)
+        handle = self._page.query_selector(button_selector)
+        return handle.evaluate(browser_masters._IMAGE_STATUS_CONTENT_ID_JS)
+
+    def test_common_aligned_case_resolves_the_sibling_content_image(self):
+        """The button and the ``ContentImage`` sit inside the SAME immediate
+        card — the live-confirmed depth-4 shape's simplest instance."""
+        html = f"""
+        <div id="card">
+          <div><div>
+            <div data-testid="{self._CI}.abc123"></div>
+            <button id="status"></button>
+          </div></div>
+        </div>
+        """
+        self.assertEqual(self._evaluate(html), "abc123")
+
+    def test_reordered_dom_still_resolves_to_the_buttons_own_card(self):
+        """A card whose ``ContentImage`` is declared AFTER a DIFFERENT
+        card's button in raw document order — the walk is anchored at the
+        button and reads whatever is nested under ITS OWN ancestor, so a
+        reordered DOM cannot make it drift onto the wrong image."""
+        html = f"""
+        <div>
+          <div id="card-x">
+            <div><div>
+              <button id="other-status"></button>
+              <div data-testid="{self._CI}.xxx"></div>
+            </div></div>
+          </div>
+          <div id="card-y">
+            <div><div>
+              <div data-testid="{self._CI}.yyy"></div>
+              <button id="status"></button>
+            </div></div>
+          </div>
+        </div>
+        """
+        self.assertEqual(self._evaluate(html), "yyy")
+
+    def test_card_nested_deeper_than_the_depth_budget_resolves_to_null(self):
+        """The walk checks the button itself (depth 0) plus 11 ancestor hops
+        (depth < 12), so the shared ancestor containing the ``ContentImage``
+        must be found within 12 nodes up from the button. Nesting the button
+        13 levels below that shared ancestor puts it just outside the
+        budget, so the walk must give up and resolve to ``None`` rather than
+        hang or walk past ``document.body``."""
+        wrappers_open = "<div>" * 13
+        wrappers_close = "</div>" * 13
+        html = f"""
+        <div>
+          <div data-testid="{self._CI}.deep"></div>
+          {wrappers_open}
+            <button id="status"></button>
+          {wrappers_close}
+        </div>
+        """
+        self.assertIsNone(self._evaluate(html))
+
+    def test_card_within_depth_budget_still_resolves(self):
+        """Sanity check paired with the depth-budget test above: a card at
+        exactly the live-confirmed depth (4) resolves normally, proving the
+        ``None`` result above is really the depth budget firing and not an
+        unrelated selector/regex break."""
+        html = f"""
+        <div><div><div><div>
+          <div data-testid="{self._CI}.near"></div>
+          <button id="status"></button>
+        </div></div></div></div>
+        """
+        self.assertEqual(self._evaluate(html), "near")
+
+    def test_sibling_element_sharing_the_contentimage_prefix_yields_null(self):
+        """Two elements sharing the ``ContentImage.`` testid PREFIX under the
+        same ancestor (e.g. a thumbnail AND a hidden duplicate/preview using
+        a related testid) must trip the ``imgs.length > 1`` ambiguity guard
+        and resolve to ``None`` rather than picking one arbitrarily."""
+        html = f"""
+        <div>
+          <div data-testid="{self._CI}.one"></div>
+          <div data-testid="{self._CI}.two"></div>
+          <button id="status"></button>
+        </div>
+        """
+        self.assertIsNone(self._evaluate(html))
+
+    def test_no_content_image_anywhere_up_to_body_resolves_to_null(self):
+        """A button with no ``ContentImage`` ancestor at all (e.g. a surplus
+        hydration-duplicate button rendered outside any real card) must
+        resolve to ``None``, not throw or return a stale value."""
+        html = """
+        <div><div>
+          <button id="status"></button>
+        </div></div>
+        """
+        self.assertIsNone(self._evaluate(html))
 
 
 class TestMastersGetModerationStatusesFlag(unittest.TestCase):

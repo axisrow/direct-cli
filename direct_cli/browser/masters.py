@@ -8566,6 +8566,20 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
     enough live that trading that precision for surplus-case safety is the
     right default.)
 
+    The count guard alone is still not sufficient for a BALANCED
+    surplus+deficit — one image's button missing from the DOM while a
+    DIFFERENT image's button simultaneously duplicates (two independent
+    hydration glitches landing at once, issue #820). Totals stay equal, so
+    ``counts_match`` passes, yet the duplicate button's structural walk still
+    resolves to its host card's real content ID — the same failure mode as
+    the pure-surplus case above, just hidden behind an unchanged total. This
+    is caught by a MULTISET check layered on top of the count guard: every
+    button on the page (not only the rejected ones) is structurally resolved,
+    and if any two buttons resolve to the same non-``None`` content ID, the
+    whole pass is untrusted — a real DOM never nests two status buttons in
+    the same single-image card. Never observed live; requires two
+    simultaneous hydration pathologies to coincide numerically.
+
     If the structural walk cannot resolve a button to exactly one image
     (no ancestor found within the depth budget, or an ambiguous ancestor
     containing more than one card), both ``ContentId`` and ``Position`` are
@@ -8598,6 +8612,39 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
         image_ids = []
         counts_match = False
 
+    # Per-button structural resolution, done for EVERY button up front (not
+    # only the rejected ones) so the multiset cross-check below has the full
+    # picture. A balanced surplus+deficit (issue #820) keeps ``counts_match``
+    # true while a duplicate button's walk still lands on some other card's
+    # real content ID — the only way to catch that is to look at every
+    # resolved ID together, not one button at a time.
+    resolved: List[Optional[str]] = [None] * count
+    if counts_match:
+        for index in range(count):
+            button = buttons.nth(index)
+            try:
+                content_id = button.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)
+            except PlaywrightError:
+                content_id = None
+            resolved[index] = content_id
+
+    seen_ids: Set[str] = set()
+    duplicate_ids: Set[str] = set()
+    for content_id in resolved:
+        if content_id is None:
+            continue
+        if content_id in seen_ids:
+            duplicate_ids.add(content_id)
+        seen_ids.add(content_id)
+
+    # Any resolved ID repeating across buttons means at least two buttons
+    # structurally landed on the same single-image card — a real DOM never
+    # does that, so the whole pass (not just the duplicated entries) is
+    # untrustworthy. This is what catches the balanced surplus+deficit case
+    # ``counts_match`` alone cannot: the total stays equal, but the multiset
+    # of resolved IDs does not.
+    resolution_trusted = counts_match and not duplicate_ids
+
     rejected: List[Dict[str, Any]] = []
     for index in range(count):
         button = buttons.nth(index)
@@ -8613,12 +8660,7 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
         if _IMAGE_STATUS_EFFICIENCY_CLASS in class_attr or not has_negative:
             continue
 
-        content_id = None
-        if counts_match:
-            try:
-                content_id = button.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)
-            except PlaywrightError:
-                content_id = None
+        content_id = resolved[index] if resolution_trusted else None
 
         # Position is derived from the STRUCTURALLY resolved ContentId's own
         # index in the image list, never from the button's raw DOM ordinal
