@@ -1080,6 +1080,17 @@ _IMAGE_STATUS_SELECTOR = f'[data-testid="{_IMAGE_STATUS_TESTID}"]'
 # ContentId. Reading all three off ONE already-resolved ``button`` argument
 # inside ONE script closes that window: there is exactly one live DOM access
 # per button.
+#
+# The rejection-marker match (``.dc-Label_color_black-negative,
+# svg.dc-Icon_color_red``) MUST stay scoped to the button itself via
+# ``querySelector`` — these two classes are NOT unique to moderation.
+# Confirmed live 2026-08-08 that a video thumbnail's player chrome
+# (``MediaControl`` inside ``VideoSuggestionsEditor.CampaignContents.
+# VideoThumb.<url>.Content``) renders the very same pair: campaign 713234162
+# has SIX such elements and ZERO rejected images. A page-wide
+# ``.dc-Icon_color_red`` scan reported 5 of 38 swept campaigns as "rejected"
+# purely off video controls. Hence scoping the match to the button handle,
+# never a page-wide selector.
 _IMAGE_STATUS_COMBINED_JS = """
 (button) => {
     const classAttr = button.getAttribute('class') || '';
@@ -1110,19 +1121,6 @@ _IMAGE_STATUS_COMBINED_JS = """
 # with a build-time hash suffix — matched as a substring, never equality,
 # since that hash changes on every Yandex frontend build.
 _IMAGE_STATUS_EFFICIENCY_CLASS = "ImageStatusIcon_efficiency"
-# Present INSIDE a rejected status button. MUST stay scoped to an
-# ``ImageStatus`` button — these two classes are NOT unique to moderation.
-# Confirmed live 2026-08-08 that a video thumbnail's player chrome
-# (``MediaControl`` inside ``VideoSuggestionsEditor.CampaignContents.
-# VideoThumb.<url>.Content``) renders the very same
-# ``dc-Label_color_black-negative`` + ``svg.dc-Icon_color_red`` pair: campaign
-# 713234162 has SIX such elements and ZERO rejected images. A page-wide
-# ``.dc-Icon_color_red`` scan reported 5 of 38 swept campaigns as "rejected"
-# purely off video controls. Hence a sub-locator off the button handle, never
-# a ``page.locator`` of these classes.
-_IMAGE_STATUS_REJECTED_SELECTOR = (
-    ".dc-Label_color_black-negative, svg.dc-Icon_color_red"
-)
 # The rejection tooltip's own testid and copy. NOT used for detection (see
 # above) — kept because it is the marker a human re-verifying this live will
 # actually look for, and because it names the exact strings that were
@@ -8529,9 +8527,9 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
 
     * the negative-class check alone is not sufficient: the very same classes
       render inside a video thumbnail's ``MediaControl`` player chrome (see
-      ``_IMAGE_STATUS_REJECTED_SELECTOR``'s comment), which is why the check
-      is scoped to a ``querySelector`` off the status button itself (inside
-      ``_IMAGE_STATUS_COMBINED_JS``) rather than run page-wide;
+      ``_IMAGE_STATUS_COMBINED_JS``'s comment), which is why the check is
+      scoped to a ``querySelector`` off the status button itself rather than
+      run page-wide;
     * the missing-``efficiency`` check alone is not sufficient either — it
       would classify any future third button variant Yandex introduces as a
       rejection.

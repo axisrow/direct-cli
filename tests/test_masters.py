@@ -19493,20 +19493,14 @@ class _FakeModerationPage(_FakeImagesPage):
     def _status_handle(self, status, content_id):
         # ``evaluate_result`` models ``_IMAGE_STATUS_COMBINED_JS``'s return
         # shape (issue #820, Codex round-4 follow-up review of PR #821): the
-        # reader now reads ``classAttr``/``isRejected``/``contentId`` from a
-        # SINGLE ``evaluate()`` call, not from separate ``get_attribute()``/
-        # ``.locator().count()`` reads — ``attrs``/``sub_locators`` are kept
-        # here only as documentation of the modeled markup shape, they are no
-        # longer read by production code.
+        # reader reads ``classAttr``/``isRejected``/``contentId`` from a
+        # SINGLE ``evaluate()`` call — ``attrs`` is kept only as
+        # documentation of the modeled markup's class attribute, it is not
+        # read by production code.
         if status == "rejected":
             # No ImageStatusIcon_efficiency class; a negative-label child.
             return _FakeLocatorHandle(
                 attrs={"class": "dc-ClickableIcon dc-ClickableIcon_color_gray"},
-                sub_locators={
-                    browser_masters._IMAGE_STATUS_REJECTED_SELECTOR: (
-                        _FakeLocatorHandle()
-                    )
-                },
                 evaluate_result={
                     "classAttr": "dc-ClickableIcon dc-ClickableIcon_color_gray",
                     "isRejected": True,
@@ -19525,11 +19519,6 @@ class _FakeModerationPage(_FakeImagesPage):
             )
             return _FakeLocatorHandle(
                 attrs={"class": class_attr},
-                sub_locators={
-                    browser_masters._IMAGE_STATUS_REJECTED_SELECTOR: (
-                        _FakeLocatorHandle()
-                    )
-                },
                 evaluate_result={
                     "classAttr": class_attr,
                     "isRejected": True,
