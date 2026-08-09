@@ -1051,6 +1051,40 @@ _VIDEOS_EDITOR_TIMEOUT_MS = 60_000
 # answer for the whole campaign (issue #814's central requirement).
 _IMAGE_STATUS_TESTID = "ImageSuggestionsEditor.CampaignContents.ImageStatus"
 _IMAGE_STATUS_SELECTOR = f'[data-testid="{_IMAGE_STATUS_TESTID}"]'
+# Structural link between a status button and its image, resolved via a
+# shared ancestor rather than trusted from DOM order alone (issue #817
+# follow-up to #814/#815). CONFIRMED LIVE 2026-08-09 across 9 campaigns
+# (713277109, 713234204, 713234064, 713231614, 713234162, 713234179,
+# 713234142, 713234150, 75107869 — the 10th sweep target, 713234191, hit an
+# expired session and was skipped): walking up from each ``ImageStatus``
+# button, the nearest ancestor containing EXACTLY ONE
+# ``ContentImage.<contentId>`` descendant was found at the SAME depth (4) on
+# every button on every campaign, and its content ID matched
+# ``_read_image_content_ids``'s Nth entry on every single button checked —
+# no exceptions. That is evidence of a real shared-container relationship,
+# not merely equal list lengths: a reordered DOM would still resolve each
+# button to ITS OWN card's content ID here, because the walk is anchored at
+# the button and reads the ID from whatever card is actually its DOM
+# neighbor, never from a separately-fetched list indexed by position.
+_IMAGE_STATUS_CONTENT_ID_JS = """
+(button) => {
+    let node = button;
+    for (let depth = 0; depth < 12 && node && node !== document.body; depth++) {
+        const imgs = node.querySelectorAll(
+            '[data-testid^="ImageSuggestionsEditor.CampaignContents.ContentImage."]'
+        );
+        if (imgs.length === 1) {
+            const m = imgs[0].getAttribute('data-testid').match(/ContentImage\\.(.+)$/);
+            return m ? m[1] : null;
+        }
+        if (imgs.length > 1) {
+            return null;
+        }
+        node = node.parentElement;
+    }
+    return null;
+}
+"""
 # Present on a NON-rejected (efficiency-badge) status button only. CSS-module
 # class, so the real attribute value is ``ImageStatusIcon_efficiency__pCGiR``
 # with a build-time hash suffix — matched as a substring, never equality,
@@ -8483,64 +8517,86 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
       rejection.
 
     The status button carries no content ID of its own (one shared testid for
-    every image), so a rejection is mapped back to its image POSITIONALLY:
-    the Nth ``ImageStatus`` belongs to the Nth ``ContentImage``. Confirmed
-    live 2026-08-08 both by bounding-box alignment and by the two lists
-    having equal length on all 38 swept campaigns.
+    every image) — but it IS structurally nested inside the same card as its
+    image. A rejection's ``ContentId`` is resolved via that shared ancestor
+    (``_IMAGE_STATUS_CONTENT_ID_JS``): walk up from the button until an
+    ancestor contains exactly one ``ContentImage.<contentId>`` descendant, and
+    read the ID from there. CONFIRMED LIVE 2026-08-09 across 9 campaigns (see
+    ``_IMAGE_STATUS_CONTENT_ID_JS``'s docstring) — every button's structural
+    resolution landed at the same DOM depth (4) and matched the Nth
+    ``ContentImage`` from ``_read_image_content_ids`` on every single button,
+    no exceptions. This is strictly stronger than the DOM-order correspondence
+    used before #817 for the case the count guard below does not cover — a
+    reordered-but-count-equal DOM: it reads the ID from the button's OWN
+    card, so even a hypothetically reordered DOM still resolves each button
+    correctly, and a hydration gap that renders fewer buttons than images no
+    longer shifts later buttons onto the wrong image — each button
+    independently finds its own card, it does not fall back to a positional
+    index into a separately fetched list.
 
-    What the code checks is COUNT equality, which is weaker than the DOM-order
-    correspondence the mapping actually rests on: it catches a missing or
-    surplus status button, not a reordered one. Order itself has only live
-    evidence (bounding-box alignment on campaign 713234064) against markup
-    this module guarantees nothing about, so a count-equal-but-reordered DOM
-    would still map a rejection to the wrong image. No such reordering was
-    observed in the recon; treat ``Position``/``ContentId`` as order-derived
-    rather than structurally verified.
+    ``Position`` is derived from the STRUCTURALLY resolved ``ContentId``'s
+    own index in ``_read_image_content_ids(page)`` — never from the button's
+    raw DOM ordinal. A reordered-but-count-equal DOM (button order != image
+    order) is exactly the case the structural walk exists to survive; sourcing
+    ``Position`` from the button's ordinal there would silently disagree with
+    the correctly-resolved ``ContentId`` right next to it, and a caller would
+    have no way to tell that apart from a genuinely unresolvable button.
+    Deriving both fields from the same resolved ID keeps them unable to
+    contradict each other — ``Position`` is ``None`` exactly when ``ContentId``
+    is.
 
-    If the two lists disagree in length — in EITHER direction —
-    the positional mapping is no longer trustworthy, so rejections are still
-    reported but with BOTH ``ContentId`` and ``Position`` set to ``None``.
-    "Something is rejected but this reader cannot say which image" is
-    strictly more useful than silently dropping it, and far better than
-    misattributing the rejection to an innocent image. Nulling only the
-    content ID would half-protect: a reader without one falls back to the
-    ordinal, and the ordinal is exactly what a mismatch shifts. The deficit
-    direction matters as much as the surplus one — ``_wait_for_images_editor``
-    settles on ``ContentImage``/``StubN`` presence and never waits for the
-    status buttons, so a hydration gap dropping one button shifts every later
-    button by one, making the button ordinal name the wrong image.
+    The structural walk alone does NOT protect the SURPLUS case (more status
+    buttons than image cards): every real card is confirmed to contain
+    EXACTLY ONE ``ContentImage`` (see ``_read_image_content_ids``), so a
+    surplus button — one rendered without a card of its own, e.g. a
+    hydration duplicate — is necessarily nested inside some OTHER button's
+    real, single-image card. Its structural walk would then resolve to that
+    card's real (innocent) content ID rather than ``None``, misattributing a
+    rejection to an image that is not actually the surplus button's own. The
+    ``imgs.length > 1`` ambiguity check in the JS cannot catch this, because
+    the card it lands on legitimately holds exactly one image. So a global
+    count check is still required as a coarse safety net layered on top of
+    structural resolution: whenever the number of status buttons does not
+    equal ``_read_image_content_ids(page)``'s count, in EITHER direction,
+    every rejection's ``ContentId``/``Position`` is nulled instead of trusted
+    — mirroring the pre-#817 ``counts_match`` guard, which the structural
+    walk narrows but does not replace. (For the deficit direction alone, this
+    is more conservative than necessary — the structural walk resolves a
+    missing-middle-button gap correctly — but count mismatches are rare
+    enough live that trading that precision for surplus-case safety is the
+    right default.)
+
+    If the structural walk cannot resolve a button to exactly one image
+    (no ancestor found within the depth budget, or an ambiguous ancestor
+    containing more than one card), both ``ContentId`` and ``Position`` are
+    set to ``None`` for that rejection. "Something is rejected but this
+    reader cannot say which image" is strictly more useful than silently
+    dropping it, and far better than misattributing the rejection to an
+    innocent image.
 
     Never hovers: the explanatory tooltip is not in the DOM until a real
     mouse hover (confirmed live — synthetic events do not mount it), so its
     copy is attached from the confirmed constants instead. That keeps this a
     pure read over one already-loaded page.
     """
-    content_ids = _read_image_content_ids(page)
-
     try:
         buttons = page.locator(_IMAGE_STATUS_SELECTOR)
         count = buttons.count()
     except PlaywrightError:
         return []
 
-    # Count equality between the status buttons and the image cards. This is
-    # strictly WEAKER than the DOM-order correspondence the mapping actually
-    # relies on — it detects a missing/surplus button, not a reordered one —
-    # and is deliberately named for what it checks rather than for what it
-    # protects, so a future maintainer does not widen trust based on the name.
-    # Order itself is confirmed only live (bounding-box alignment on campaign
-    # 713234064) and rests on Yandex's markup, which this module disclaims any
-    # stability guarantee for; a count-equal-but-reordered DOM would defeat it.
-    #
-    # It is still worth checking, because the failure it DOES catch is the
-    # reachable one: ``_wait_for_images_editor`` settles on
-    # ``ContentImage``/``StubN`` presence and never waits for the status
-    # buttons themselves, so a hydration gap that renders fewer buttons than
-    # images shifts every later button by one — silently reporting image N's
-    # rejection against image N-1. On any count disagreement both identifying
-    # fields are dropped rather than emitting one that may name an innocent
-    # image; the rejection itself is still reported.
-    counts_match = count == len(content_ids)
+    # Coarse safety net over the structural per-button resolution below: a
+    # surplus status button structurally resolves to whatever real card it
+    # happens to be nested in (every card holds exactly one image), so it
+    # cannot be told apart from that card's own button by the structural walk
+    # alone. Any count disagreement — deficit OR surplus — makes every
+    # ContentId/Position in this pass untrustworthy.
+    try:
+        image_ids = _read_image_content_ids(page)
+        counts_match = count == len(image_ids)
+    except PlaywrightError:
+        image_ids = []
+        counts_match = False
 
     rejected: List[Dict[str, Any]] = []
     for index in range(count):
@@ -8557,11 +8613,34 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
         if _IMAGE_STATUS_EFFICIENCY_CLASS in class_attr or not has_negative:
             continue
 
+        content_id = None
+        if counts_match:
+            try:
+                content_id = button.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)
+            except PlaywrightError:
+                content_id = None
+
+        # Position is derived from the STRUCTURALLY resolved ContentId's own
+        # index in the image list, never from the button's raw DOM ordinal
+        # (``index``): the two can legitimately diverge in a reordered-but-
+        # count-equal DOM (button order != image order, the exact case the
+        # structural walk exists to survive), and reporting the button's
+        # ordinal there would silently disagree with the ContentId right next
+        # to it — a caller has no way to tell the two apart from a genuinely
+        # unresolvable button. Sourcing both from the same resolved ID keeps
+        # them impossible to contradict each other.
+        position = None
+        if content_id is not None:
+            try:
+                position = image_ids.index(content_id) + 1
+            except ValueError:
+                position = None
+
         rejected.append(
             {
                 "Type": "image",
-                "Position": (index + 1) if counts_match else None,
-                "ContentId": (content_ids[index] if counts_match else None),
+                "Position": position,
+                "ContentId": content_id,
                 "Title": _MODERATION_REJECTED_TITLE,
                 "Hint": _MODERATION_REJECTED_HINT,
             }
