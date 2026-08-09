@@ -19491,6 +19491,13 @@ class _FakeModerationPage(_FakeImagesPage):
         return None
 
     def _status_handle(self, status, content_id):
+        # ``evaluate_result`` models ``_IMAGE_STATUS_COMBINED_JS``'s return
+        # shape (issue #820, Codex round-4 follow-up review of PR #821): the
+        # reader now reads ``classAttr``/``isRejected``/``contentId`` from a
+        # SINGLE ``evaluate()`` call, not from separate ``get_attribute()``/
+        # ``.locator().count()`` reads — ``attrs``/``sub_locators`` are kept
+        # here only as documentation of the modeled markup shape, they are no
+        # longer read by production code.
         if status == "rejected":
             # No ImageStatusIcon_efficiency class; a negative-label child.
             return _FakeLocatorHandle(
@@ -19500,7 +19507,11 @@ class _FakeModerationPage(_FakeImagesPage):
                         _FakeLocatorHandle()
                     )
                 },
-                evaluate_result=content_id,
+                evaluate_result={
+                    "classAttr": "dc-ClickableIcon dc-ClickableIcon_color_gray",
+                    "isRejected": True,
+                    "contentId": content_id,
+                },
             )
         if status == "ok-with-negative-child":
             # The efficiency badge, but ALSO matching the negative selector.
@@ -19508,36 +19519,48 @@ class _FakeModerationPage(_FakeImagesPage):
             # not unique to moderation (a video thumbnail's MediaControl
             # renders them too — campaign 713234162, 6 of them, 0 rejected
             # images), so the efficiency class must veto.
+            class_attr = (
+                "dc-ClickableIcon ImageStatusIcon_button__sqJGQ "
+                "ImageStatusIcon_efficiency__pCGiR"
+            )
             return _FakeLocatorHandle(
-                attrs={
-                    "class": (
-                        "dc-ClickableIcon ImageStatusIcon_button__sqJGQ "
-                        "ImageStatusIcon_efficiency__pCGiR"
-                    )
-                },
+                attrs={"class": class_attr},
                 sub_locators={
                     browser_masters._IMAGE_STATUS_REJECTED_SELECTOR: (
                         _FakeLocatorHandle()
                     )
                 },
-                evaluate_result=content_id,
+                evaluate_result={
+                    "classAttr": class_attr,
+                    "isRejected": True,
+                    "contentId": content_id,
+                },
             )
         if status == "unknown":
             # Neither shape: no efficiency class AND no negative child — a
             # hypothetical third variant, which must NOT count as rejected.
+            class_attr = "dc-ClickableIcon dc-ClickableIcon_color_gray"
             return _FakeLocatorHandle(
-                attrs={"class": "dc-ClickableIcon dc-ClickableIcon_color_gray"}
+                attrs={"class": class_attr},
+                evaluate_result={
+                    "classAttr": class_attr,
+                    "isRejected": False,
+                    "contentId": content_id,
+                },
             )
         # "ok": the efficiency badge. Note the real class carries a
         # build-time hash suffix, which the reader must match as a substring.
+        class_attr = (
+            "dc-ClickableIcon ImageStatusIcon_button__sqJGQ "
+            "ImageStatusIcon_efficiency__pCGiR"
+        )
         return _FakeLocatorHandle(
-            attrs={
-                "class": (
-                    "dc-ClickableIcon ImageStatusIcon_button__sqJGQ "
-                    "ImageStatusIcon_efficiency__pCGiR"
-                )
+            attrs={"class": class_attr},
+            evaluate_result={
+                "classAttr": class_attr,
+                "isRejected": False,
+                "contentId": content_id,
             },
-            evaluate_result=content_id,
         )
 
     def locator(self, selector):
@@ -19903,6 +19926,69 @@ class TestReadModerationStatuses(unittest.TestCase):
         self.assertEqual(result["RejectedElements"][0]["ContentId"], "b")
         self.assertEqual(result["RejectedElements"][0]["Position"], 2)
 
+    def test_content_id_and_rejection_state_read_from_one_evaluate_call(self):
+        """issue #820 finding #4, Codex round-4 follow-up review of PR #821:
+        a single ``buttons.nth(index)`` access is not enough on its own —
+        calling THREE separate Playwright methods on that one Locator
+        (``get_attribute``, a scoped ``.locator().count()``, and
+        ``evaluate()``) still re-resolves the Locator's full selector chain
+        on EACH call, since a Playwright ``Locator`` is a lazy, re-evaluated
+        query rather than a handle to one fixed element. A hydration reorder
+        landing between any two of those three calls could still pair one
+        button's rejection state with a different button's structural
+        ContentId. The fix reads the class attribute, the rejection marker,
+        and the structural ContentId all from ONE ``evaluate()`` call
+        (``_IMAGE_STATUS_COMBINED_JS``), so there is exactly one live access
+        per button — not three.
+
+        Modeled by a handle that raises if ``get_attribute`` or the scoped
+        rejection-selector ``.locator()`` is ever called at all: a reader
+        satisfying the invariant never touches either, since it gets
+        everything from the combined ``evaluate()`` result.
+        """
+
+        class _EvaluateOnlyHandle:
+            """Wraps a real handle; raises if anything OTHER than
+            ``evaluate()`` is called — the fake's stand-in for "a second (or
+            third) live re-query could return a different button"."""
+
+            def __init__(self, real_handle):
+                self._real = real_handle
+
+            def evaluate(self, script):
+                return self._real.evaluate(script)
+
+            def get_attribute(self, name):
+                raise browser_masters.PlaywrightError(
+                    "get_attribute() called separately from evaluate() — "
+                    "the DOM may have changed between the two live accesses"
+                )
+
+            def locator(self, selector):
+                raise browser_masters.PlaywrightError(
+                    "locator() called separately from evaluate() — the DOM "
+                    "may have changed between the two live accesses"
+                )
+
+        class _EvaluateOnlyLocator(_FakeLocator):
+            def nth(self, i):
+                return _EvaluateOnlyHandle(super().nth(i))
+
+        class _EvaluateOnlyPage(_FakeModerationPage):
+            def locator(self, selector):
+                if selector == browser_masters._IMAGE_STATUS_SELECTOR:
+                    real = super().locator(selector)
+                    return _EvaluateOnlyLocator(real._handles)
+                return super().locator(selector)
+
+        page = _EvaluateOnlyPage(["a", "b", "c"], statuses=["ok", "rejected", "ok"])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertEqual(result["RejectedElements"][0]["ContentId"], "b")
+        self.assertEqual(result["RejectedElements"][0]["Position"], 2)
+
 
 class TestFetchMasterModerationStatuses(unittest.TestCase):
     """``fetch_master_moderation_statuses`` — the navigating wrapper."""
@@ -19938,9 +20024,9 @@ def _chromium_available():
     "Playwright Chromium not downloaded (run: playwright install chromium)",
 )
 class TestImageStatusContentIdJsAgainstRealDom(unittest.TestCase):
-    """Executes the REAL ``_IMAGE_STATUS_CONTENT_ID_JS`` string against a
-    real, constructed nested DOM via a real Chromium page (issue #820
-    finding #4).
+    """Executes the REAL ``_IMAGE_STATUS_COMBINED_JS`` string's structural
+    ContentId walk against a real, constructed nested DOM via a real
+    Chromium page (issue #820 finding #4).
 
     Every other test in this module drives ``_read_image_moderation_rejections``
     through ``_FakeModerationPage``, whose ``evaluate()`` ignores the script
@@ -19951,10 +20037,16 @@ class TestImageStatusContentIdJsAgainstRealDom(unittest.TestCase):
     had no executed coverage: a future markup change breaking any of those
     would silently degrade every rejection's ``ContentId``/``Position`` to
     ``None`` with all tests green. This class closes that gap by loading a
-    real page and calling ``element_handle.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)``
-    for real, exercising the exact production code path
+    real page and calling
+    ``element_handle.evaluate(_IMAGE_STATUS_COMBINED_JS)`` for real,
+    exercising the exact production code path
     (``_read_image_moderation_rejections`` calls
-    ``button.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)`` the same way).
+    ``button.evaluate(_IMAGE_STATUS_COMBINED_JS)`` the same way), reading
+    just the returned ``contentId`` field — the class-attribute/rejection
+    halves of the combined script are exercised by the ordinary
+    ``_FakeModerationPage``-driven tests above via ``_status_handle``'s
+    modeled markup, so this class stays scoped to the ONE half those fakes
+    cannot exercise: the real structural walk.
 
     A single module-scoped browser/page is reused across test methods (each
     test sets fresh ``page.content()``) to keep this fast — a full Chromium
@@ -19982,7 +20074,8 @@ class TestImageStatusContentIdJsAgainstRealDom(unittest.TestCase):
     def _evaluate(self, html, button_selector="#status"):
         self._page.set_content(html)
         handle = self._page.query_selector(button_selector)
-        return handle.evaluate(browser_masters._IMAGE_STATUS_CONTENT_ID_JS)
+        result = handle.evaluate(browser_masters._IMAGE_STATUS_COMBINED_JS)
+        return result["contentId"]
 
     def test_common_aligned_case_resolves_the_sibling_content_image(self):
         """The button and the ``ContentImage`` sit inside the SAME immediate

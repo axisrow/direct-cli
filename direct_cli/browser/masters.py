@@ -1066,23 +1066,43 @@ _IMAGE_STATUS_SELECTOR = f'[data-testid="{_IMAGE_STATUS_TESTID}"]'
 # button to ITS OWN card's content ID here, because the walk is anchored at
 # the button and reads the ID from whatever card is actually its DOM
 # neighbor, never from a separately-fetched list indexed by position.
-_IMAGE_STATUS_CONTENT_ID_JS = """
+#
+# The class attribute (efficiency-badge check) and the rejection-marker
+# match are read in the SAME script, alongside the ContentId, rather than as
+# separate ``get_attribute()``/scoped-``.locator().count()`` Playwright calls
+# (issue #820, Codex round-4 follow-up review of PR #821). Playwright
+# ``Locator``s are a lazy, re-evaluated query, not a handle to one fixed
+# element: even calling different methods on what looks like "the same
+# button object" in Python re-resolves that Locator's full selector chain
+# (including its ``.nth()`` positional filter) on EVERY individual call, so
+# a hydration reorder landing between any two SEPARATE calls could still
+# pair one button's rejection state with a different button's structural
+# ContentId. Reading all three off ONE already-resolved ``button`` argument
+# inside ONE script closes that window: there is exactly one live DOM access
+# per button.
+_IMAGE_STATUS_COMBINED_JS = """
 (button) => {
+    const classAttr = button.getAttribute('class') || '';
+    const isRejected = !!button.querySelector(
+        '.dc-Label_color_black-negative, svg.dc-Icon_color_red'
+    );
     let node = button;
+    let contentId = null;
     for (let depth = 0; depth < 12 && node && node !== document.body; depth++) {
         const imgs = node.querySelectorAll(
             '[data-testid^="ImageSuggestionsEditor.CampaignContents.ContentImage."]'
         );
         if (imgs.length === 1) {
             const m = imgs[0].getAttribute('data-testid').match(/ContentImage\\.(.+)$/);
-            return m ? m[1] : null;
+            contentId = m ? m[1] : null;
+            break;
         }
         if (imgs.length > 1) {
-            return null;
+            break;
         }
         node = node.parentElement;
     }
-    return null;
+    return {classAttr, isRejected, contentId};
 }
 """
 # Present on a NON-rejected (efficiency-badge) status button only. CSS-module
@@ -8510,19 +8530,20 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
     * the negative-class check alone is not sufficient: the very same classes
       render inside a video thumbnail's ``MediaControl`` player chrome (see
       ``_IMAGE_STATUS_REJECTED_SELECTOR``'s comment), which is why the check
-      is scoped to a sub-locator off the status button rather than run
-      page-wide;
+      is scoped to a ``querySelector`` off the status button itself (inside
+      ``_IMAGE_STATUS_COMBINED_JS``) rather than run page-wide;
     * the missing-``efficiency`` check alone is not sufficient either — it
       would classify any future third button variant Yandex introduces as a
       rejection.
 
     The status button carries no content ID of its own (one shared testid for
     every image) — but it IS structurally nested inside the same card as its
-    image. A rejection's ``ContentId`` is resolved via that shared ancestor
-    (``_IMAGE_STATUS_CONTENT_ID_JS``): walk up from the button until an
-    ancestor contains exactly one ``ContentImage.<contentId>`` descendant, and
-    read the ID from there. CONFIRMED LIVE 2026-08-09 across 9 campaigns (see
-    ``_IMAGE_STATUS_CONTENT_ID_JS``'s docstring) — every button's structural
+    image. A rejection's ``ContentId``, its class attribute, and its
+    rejection-marker match are all resolved together via
+    ``_IMAGE_STATUS_COMBINED_JS``: walk up from the button until an ancestor
+    contains exactly one ``ContentImage.<contentId>`` descendant, and read
+    the ID from there. CONFIRMED LIVE 2026-08-09 across 9 campaigns (see
+    ``_IMAGE_STATUS_COMBINED_JS``'s comment) — every button's structural
     resolution landed at the same DOM depth (4) and matched the Nth
     ``ContentImage`` from ``_read_image_content_ids`` on every single button,
     no exceptions. This is strictly stronger than the DOM-order correspondence
@@ -8612,17 +8633,22 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
         image_ids = []
         counts_match = False
 
-    # Per-button structural resolution AND rejection-state read, done in ONE
-    # pass per button — not two separate passes over the same live ``Locator``
-    # indices. ``Locator.nth(index)`` re-resolves against the LIVE DOM on
-    # every access (it is not a snapshot/handle); reading a button's resolved
-    # content ID in one pass and its class/rejection state in a later, separate
-    # pass leaves a window where a hydration re-render can swap which button
-    # sits at that index between the two reads, silently pairing a stale
-    # content ID with a fresh rejection read (or vice versa) — issue #820
-    # finding #4 (Codex round-4 review of PR #821). Resolving both from the
-    # SAME ``buttons.nth(index)`` access closes that window: there is no
-    # second live re-query to race against.
+    # Per-button structural resolution AND rejection-state read, done via a
+    # SINGLE ``evaluate()`` call per button (``_IMAGE_STATUS_COMBINED_JS``) —
+    # not as separate ``get_attribute``/``.locator().count()``/``evaluate()``
+    # calls on the same ``Locator``. Playwright ``Locator``s are a lazy,
+    # re-evaluated query: even calling three different methods on what looks
+    # like "the same button object" in Python re-resolves that Locator's full
+    # selector chain (including its ``.nth()`` positional filter) on EVERY
+    # individual call. A hydration reorder landing between any two of those
+    # calls could still pair one button's rejection state with a different
+    # button's structural ContentId (issue #820, Codex round-4 follow-up
+    # review of PR #821 — a narrower residual of the same finding #4 class
+    # already closed once for the two-full-loop case). Reading the class
+    # attribute, the rejection-marker match, and the structural ContentId
+    # all inside ONE script closes the remaining window: there is exactly one
+    # live DOM access per button, and everything is read from that single
+    # resolved element.
     #
     # Every button is still resolved up front (not only the rejected ones)
     # so the multiset cross-check below has the full picture. A balanced
@@ -8637,17 +8663,17 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
     for index in range(count):
         button = buttons.nth(index)
         try:
-            class_attrs[index] = button.get_attribute("class") or ""
-            has_negatives[index] = (
-                button.locator(_IMAGE_STATUS_REJECTED_SELECTOR).count() > 0
-            )
+            combined = button.evaluate(_IMAGE_STATUS_COMBINED_JS)
+            class_attrs[index] = combined.get("classAttr") or ""
+            has_negatives[index] = bool(combined.get("isRejected"))
             readable[index] = True
-            # The structural walk is only worth running when the count
-            # guard already holds — a mismatch nulls every ContentId below
-            # regardless (``resolution_trusted``), so skip the extra
-            # ``evaluate()`` call in that case.
+            # The structural ContentId is only trustworthy when the count
+            # guard already holds — a mismatch nulls it below regardless
+            # (``resolution_trusted``) — but it was already resolved as part
+            # of the same combined call above, so there is no separate
+            # ``evaluate()`` to skip; only whether to KEEP the value matters.
             if counts_match:
-                resolved[index] = button.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)
+                resolved[index] = combined.get("contentId")
         except PlaywrightError:
             # A status button that cannot be read is not evidence of a
             # rejection — skip it rather than guess (mirrors
