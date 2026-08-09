@@ -8612,21 +8612,47 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
         image_ids = []
         counts_match = False
 
-    # Per-button structural resolution, done for EVERY button up front (not
-    # only the rejected ones) so the multiset cross-check below has the full
-    # picture. A balanced surplus+deficit (issue #820) keeps ``counts_match``
-    # true while a duplicate button's walk still lands on some other card's
-    # real content ID — the only way to catch that is to look at every
-    # resolved ID together, not one button at a time.
+    # Per-button structural resolution AND rejection-state read, done in ONE
+    # pass per button — not two separate passes over the same live ``Locator``
+    # indices. ``Locator.nth(index)`` re-resolves against the LIVE DOM on
+    # every access (it is not a snapshot/handle); reading a button's resolved
+    # content ID in one pass and its class/rejection state in a later, separate
+    # pass leaves a window where a hydration re-render can swap which button
+    # sits at that index between the two reads, silently pairing a stale
+    # content ID with a fresh rejection read (or vice versa) — issue #820
+    # finding #4 (Codex round-4 review of PR #821). Resolving both from the
+    # SAME ``buttons.nth(index)`` access closes that window: there is no
+    # second live re-query to race against.
+    #
+    # Every button is still resolved up front (not only the rejected ones)
+    # so the multiset cross-check below has the full picture. A balanced
+    # surplus+deficit (issue #820 finding #1) keeps ``counts_match`` true
+    # while a duplicate button's walk still lands on some other card's real
+    # content ID — the only way to catch that is to look at every resolved
+    # ID together, not one button at a time.
     resolved: List[Optional[str]] = [None] * count
-    if counts_match:
-        for index in range(count):
-            button = buttons.nth(index)
-            try:
-                content_id = button.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)
-            except PlaywrightError:
-                content_id = None
-            resolved[index] = content_id
+    class_attrs: List[str] = [""] * count
+    has_negatives: List[bool] = [False] * count
+    readable: List[bool] = [False] * count
+    for index in range(count):
+        button = buttons.nth(index)
+        try:
+            class_attrs[index] = button.get_attribute("class") or ""
+            has_negatives[index] = (
+                button.locator(_IMAGE_STATUS_REJECTED_SELECTOR).count() > 0
+            )
+            readable[index] = True
+            # The structural walk is only worth running when the count
+            # guard already holds — a mismatch nulls every ContentId below
+            # regardless (``resolution_trusted``), so skip the extra
+            # ``evaluate()`` call in that case.
+            if counts_match:
+                resolved[index] = button.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)
+        except PlaywrightError:
+            # A status button that cannot be read is not evidence of a
+            # rejection — skip it rather than guess (mirrors
+            # ``_read_testid_suffixes``'s tolerance of a locator failure).
+            continue
 
     seen_ids: Set[str] = set()
     duplicate_ids: Set[str] = set()
@@ -8647,15 +8673,11 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
 
     rejected: List[Dict[str, Any]] = []
     for index in range(count):
-        button = buttons.nth(index)
-        try:
-            class_attr = button.get_attribute("class") or ""
-            has_negative = button.locator(_IMAGE_STATUS_REJECTED_SELECTOR).count() > 0
-        except PlaywrightError:
-            # A status button that cannot be read is not evidence of a
-            # rejection — skip it rather than guess (mirrors
-            # ``_read_testid_suffixes``'s tolerance of a locator failure).
+        if not readable[index]:
             continue
+
+        class_attr = class_attrs[index]
+        has_negative = has_negatives[index]
 
         if _IMAGE_STATUS_EFFICIENCY_CLASS in class_attr or not has_negative:
             continue

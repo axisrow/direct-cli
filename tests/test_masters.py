@@ -19844,6 +19844,65 @@ class TestReadModerationStatuses(unittest.TestCase):
             with self.assertRaises(BrowserSessionError):
                 browser_masters.read_moderation_statuses(page)
 
+    def test_id_resolution_and_status_read_use_a_single_live_access_per_button(
+        self,
+    ):
+        """issue #820 finding #4 (Codex round-4 review of PR #821): real
+        Playwright ``Locator.nth(index)`` re-resolves against the LIVE DOM on
+        every access — it is not a snapshot/handle. If a reader calls
+        ``buttons.nth(index)`` TWICE for the same index (once to resolve the
+        structural content ID, once — in a separate later pass — to read
+        class/rejection state), a hydration re-render between those two
+        calls can swap which button physically sits at that index, silently
+        pairing a stale content ID with a fresh rejection read (or vice
+        versa) — a confident misattribution. The fix must call
+        ``buttons.nth(index)`` at most ONCE per index and read both the
+        content ID and the class/rejection state off that SAME access, so
+        there is no second live re-query for a reorder to race against.
+
+        Modeled by making the button-1 handle explode on a second
+        ``buttons.nth(1)`` call: the fake ``Locator.nth()`` returns a
+        *tracking* wrapper around the real handle that raises if the same
+        index is fetched more than once. A single-pass reader (one
+        ``nth(index)`` call, both operations off that result) never trips
+        this; any reader that re-fetches ``nth(1)`` in a second pass does.
+        """
+
+        class _SingleFetchLocator(_FakeLocator):
+            """Wraps a real ``_FakeLocator`` but raises if ``.nth()`` is
+            called more than once for the same index — the fake's stand-in
+            for "a second live re-query could return a different button".
+            """
+
+            def __init__(self, handles):
+                super().__init__(handles)
+                self._fetch_counts = [0] * len(handles)
+
+            def nth(self, i):
+                self._fetch_counts[i] += 1
+                if self._fetch_counts[i] > 1:
+                    raise browser_masters.PlaywrightError(
+                        f"button at index {i} re-fetched from the live DOM "
+                        "a second time — the DOM may have changed between "
+                        "the two accesses"
+                    )
+                return super().nth(i)
+
+        class _SingleFetchPage(_FakeModerationPage):
+            def locator(self, selector):
+                if selector == browser_masters._IMAGE_STATUS_SELECTOR:
+                    real = super().locator(selector)
+                    return _SingleFetchLocator(real._handles)
+                return super().locator(selector)
+
+        page = _SingleFetchPage(["a", "b", "c"], statuses=["ok", "rejected", "ok"])
+
+        result = browser_masters.read_moderation_statuses(page)
+
+        self.assertEqual(result["RejectedCount"], 1)
+        self.assertEqual(result["RejectedElements"][0]["ContentId"], "b")
+        self.assertEqual(result["RejectedElements"][0]["Position"], 2)
+
 
 class TestFetchMasterModerationStatuses(unittest.TestCase):
     """``fetch_master_moderation_statuses`` — the navigating wrapper."""
