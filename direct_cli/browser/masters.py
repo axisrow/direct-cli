@@ -1066,23 +1066,54 @@ _IMAGE_STATUS_SELECTOR = f'[data-testid="{_IMAGE_STATUS_TESTID}"]'
 # button to ITS OWN card's content ID here, because the walk is anchored at
 # the button and reads the ID from whatever card is actually its DOM
 # neighbor, never from a separately-fetched list indexed by position.
-_IMAGE_STATUS_CONTENT_ID_JS = """
+#
+# The class attribute (efficiency-badge check) and the rejection-marker
+# match are read in the SAME script, alongside the ContentId, rather than as
+# separate ``get_attribute()``/scoped-``.locator().count()`` Playwright calls
+# (issue #820, Codex round-4 follow-up review of PR #821). Playwright
+# ``Locator``s are a lazy, re-evaluated query, not a handle to one fixed
+# element: even calling different methods on what looks like "the same
+# button object" in Python re-resolves that Locator's full selector chain
+# (including its ``.nth()`` positional filter) on EVERY individual call, so
+# a hydration reorder landing between any two SEPARATE calls could still
+# pair one button's rejection state with a different button's structural
+# ContentId. Reading all three off ONE already-resolved ``button`` argument
+# inside ONE script closes that window: there is exactly one live DOM access
+# per button.
+#
+# The rejection-marker match (``.dc-Label_color_black-negative,
+# svg.dc-Icon_color_red``) MUST stay scoped to the button itself via
+# ``querySelector`` — these two classes are NOT unique to moderation.
+# Confirmed live 2026-08-08 that a video thumbnail's player chrome
+# (``MediaControl`` inside ``VideoSuggestionsEditor.CampaignContents.
+# VideoThumb.<url>.Content``) renders the very same pair: campaign 713234162
+# has SIX such elements and ZERO rejected images. A page-wide
+# ``.dc-Icon_color_red`` scan reported 5 of 38 swept campaigns as "rejected"
+# purely off video controls. Hence scoping the match to the button handle,
+# never a page-wide selector.
+_IMAGE_STATUS_COMBINED_JS = """
 (button) => {
+    const classAttr = button.getAttribute('class') || '';
+    const isRejected = !!button.querySelector(
+        '.dc-Label_color_black-negative, svg.dc-Icon_color_red'
+    );
     let node = button;
+    let contentId = null;
     for (let depth = 0; depth < 12 && node && node !== document.body; depth++) {
         const imgs = node.querySelectorAll(
             '[data-testid^="ImageSuggestionsEditor.CampaignContents.ContentImage."]'
         );
         if (imgs.length === 1) {
             const m = imgs[0].getAttribute('data-testid').match(/ContentImage\\.(.+)$/);
-            return m ? m[1] : null;
+            contentId = m ? m[1] : null;
+            break;
         }
         if (imgs.length > 1) {
-            return null;
+            break;
         }
         node = node.parentElement;
     }
-    return null;
+    return {classAttr, isRejected, contentId};
 }
 """
 # Present on a NON-rejected (efficiency-badge) status button only. CSS-module
@@ -1090,19 +1121,6 @@ _IMAGE_STATUS_CONTENT_ID_JS = """
 # with a build-time hash suffix — matched as a substring, never equality,
 # since that hash changes on every Yandex frontend build.
 _IMAGE_STATUS_EFFICIENCY_CLASS = "ImageStatusIcon_efficiency"
-# Present INSIDE a rejected status button. MUST stay scoped to an
-# ``ImageStatus`` button — these two classes are NOT unique to moderation.
-# Confirmed live 2026-08-08 that a video thumbnail's player chrome
-# (``MediaControl`` inside ``VideoSuggestionsEditor.CampaignContents.
-# VideoThumb.<url>.Content``) renders the very same
-# ``dc-Label_color_black-negative`` + ``svg.dc-Icon_color_red`` pair: campaign
-# 713234162 has SIX such elements and ZERO rejected images. A page-wide
-# ``.dc-Icon_color_red`` scan reported 5 of 38 swept campaigns as "rejected"
-# purely off video controls. Hence a sub-locator off the button handle, never
-# a ``page.locator`` of these classes.
-_IMAGE_STATUS_REJECTED_SELECTOR = (
-    ".dc-Label_color_black-negative, svg.dc-Icon_color_red"
-)
 # The rejection tooltip's own testid and copy. NOT used for detection (see
 # above) — kept because it is the marker a human re-verifying this live will
 # actually look for, and because it names the exact strings that were
@@ -8509,20 +8527,21 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
 
     * the negative-class check alone is not sufficient: the very same classes
       render inside a video thumbnail's ``MediaControl`` player chrome (see
-      ``_IMAGE_STATUS_REJECTED_SELECTOR``'s comment), which is why the check
-      is scoped to a sub-locator off the status button rather than run
-      page-wide;
+      ``_IMAGE_STATUS_COMBINED_JS``'s comment), which is why the check is
+      scoped to a ``querySelector`` off the status button itself rather than
+      run page-wide;
     * the missing-``efficiency`` check alone is not sufficient either — it
       would classify any future third button variant Yandex introduces as a
       rejection.
 
     The status button carries no content ID of its own (one shared testid for
     every image) — but it IS structurally nested inside the same card as its
-    image. A rejection's ``ContentId`` is resolved via that shared ancestor
-    (``_IMAGE_STATUS_CONTENT_ID_JS``): walk up from the button until an
-    ancestor contains exactly one ``ContentImage.<contentId>`` descendant, and
-    read the ID from there. CONFIRMED LIVE 2026-08-09 across 9 campaigns (see
-    ``_IMAGE_STATUS_CONTENT_ID_JS``'s docstring) — every button's structural
+    image. A rejection's ``ContentId``, its class attribute, and its
+    rejection-marker match are all resolved together via
+    ``_IMAGE_STATUS_COMBINED_JS``: walk up from the button until an ancestor
+    contains exactly one ``ContentImage.<contentId>`` descendant, and read
+    the ID from there. CONFIRMED LIVE 2026-08-09 across 9 campaigns (see
+    ``_IMAGE_STATUS_COMBINED_JS``'s comment) — every button's structural
     resolution landed at the same DOM depth (4) and matched the Nth
     ``ContentImage`` from ``_read_image_content_ids`` on every single button,
     no exceptions. This is strictly stronger than the DOM-order correspondence
@@ -8566,6 +8585,20 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
     enough live that trading that precision for surplus-case safety is the
     right default.)
 
+    The count guard alone is still not sufficient for a BALANCED
+    surplus+deficit — one image's button missing from the DOM while a
+    DIFFERENT image's button simultaneously duplicates (two independent
+    hydration glitches landing at once, issue #820). Totals stay equal, so
+    ``counts_match`` passes, yet the duplicate button's structural walk still
+    resolves to its host card's real content ID — the same failure mode as
+    the pure-surplus case above, just hidden behind an unchanged total. This
+    is caught by a MULTISET check layered on top of the count guard: every
+    button on the page (not only the rejected ones) is structurally resolved,
+    and if any two buttons resolve to the same non-``None`` content ID, the
+    whole pass is untrusted — a real DOM never nests two status buttons in
+    the same single-image card. Never observed live; requires two
+    simultaneous hydration pathologies to coincide numerically.
+
     If the structural walk cannot resolve a button to exactly one image
     (no ancestor found within the depth budget, or an ambiguous ancestor
     containing more than one card), both ``ContentId`` and ``Position`` are
@@ -8598,27 +8631,82 @@ def _read_image_moderation_rejections(page: "Page") -> List[Dict[str, Any]]:
         image_ids = []
         counts_match = False
 
-    rejected: List[Dict[str, Any]] = []
+    # Per-button structural resolution AND rejection-state read, done via a
+    # SINGLE ``evaluate()`` call per button (``_IMAGE_STATUS_COMBINED_JS``) —
+    # not as separate ``get_attribute``/``.locator().count()``/``evaluate()``
+    # calls on the same ``Locator``. Playwright ``Locator``s are a lazy,
+    # re-evaluated query: even calling three different methods on what looks
+    # like "the same button object" in Python re-resolves that Locator's full
+    # selector chain (including its ``.nth()`` positional filter) on EVERY
+    # individual call. A hydration reorder landing between any two of those
+    # calls could still pair one button's rejection state with a different
+    # button's structural ContentId (issue #820, Codex round-4 follow-up
+    # review of PR #821 — a narrower residual of the same finding #4 class
+    # already closed once for the two-full-loop case). Reading the class
+    # attribute, the rejection-marker match, and the structural ContentId
+    # all inside ONE script closes the remaining window: there is exactly one
+    # live DOM access per button, and everything is read from that single
+    # resolved element.
+    #
+    # Every button is still resolved up front (not only the rejected ones)
+    # so the multiset cross-check below has the full picture. A balanced
+    # surplus+deficit (issue #820 finding #1) keeps ``counts_match`` true
+    # while a duplicate button's walk still lands on some other card's real
+    # content ID — the only way to catch that is to look at every resolved
+    # ID together, not one button at a time.
+    resolved: List[Optional[str]] = [None] * count
+    class_attrs: List[str] = [""] * count
+    has_negatives: List[bool] = [False] * count
+    readable: List[bool] = [False] * count
     for index in range(count):
         button = buttons.nth(index)
         try:
-            class_attr = button.get_attribute("class") or ""
-            has_negative = button.locator(_IMAGE_STATUS_REJECTED_SELECTOR).count() > 0
+            combined = button.evaluate(_IMAGE_STATUS_COMBINED_JS)
+            class_attrs[index] = combined.get("classAttr") or ""
+            has_negatives[index] = bool(combined.get("isRejected"))
+            readable[index] = True
+            # The structural ContentId is only trustworthy when the count
+            # guard already holds — a mismatch nulls it below regardless
+            # (``resolution_trusted``) — but it was already resolved as part
+            # of the same combined call above, so there is no separate
+            # ``evaluate()`` to skip; only whether to KEEP the value matters.
+            if counts_match:
+                resolved[index] = combined.get("contentId")
         except PlaywrightError:
             # A status button that cannot be read is not evidence of a
             # rejection — skip it rather than guess (mirrors
             # ``_read_testid_suffixes``'s tolerance of a locator failure).
             continue
 
+    seen_ids: Set[str] = set()
+    duplicate_ids: Set[str] = set()
+    for content_id in resolved:
+        if content_id is None:
+            continue
+        if content_id in seen_ids:
+            duplicate_ids.add(content_id)
+        seen_ids.add(content_id)
+
+    # Any resolved ID repeating across buttons means at least two buttons
+    # structurally landed on the same single-image card — a real DOM never
+    # does that, so the whole pass (not just the duplicated entries) is
+    # untrustworthy. This is what catches the balanced surplus+deficit case
+    # ``counts_match`` alone cannot: the total stays equal, but the multiset
+    # of resolved IDs does not.
+    resolution_trusted = counts_match and not duplicate_ids
+
+    rejected: List[Dict[str, Any]] = []
+    for index in range(count):
+        if not readable[index]:
+            continue
+
+        class_attr = class_attrs[index]
+        has_negative = has_negatives[index]
+
         if _IMAGE_STATUS_EFFICIENCY_CLASS in class_attr or not has_negative:
             continue
 
-        content_id = None
-        if counts_match:
-            try:
-                content_id = button.evaluate(_IMAGE_STATUS_CONTENT_ID_JS)
-            except PlaywrightError:
-                content_id = None
+        content_id = resolved[index] if resolution_trusted else None
 
         # Position is derived from the STRUCTURALLY resolved ContentId's own
         # index in the image list, never from the button's raw DOM ordinal
