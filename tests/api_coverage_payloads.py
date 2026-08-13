@@ -75,8 +75,10 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
         "tests."
     ),
     "masters.update": (
-        "Browser-only campaign wizard mutation has no Yandex Direct WSDL operation "
-        "or API payload schema."
+        "Мастер кампаний is browser-only and has no WSDL operation at all (see "
+        "direct_cli/browser/masters.py) — its --dry-run previews a validated "
+        "update plan, not an API request. Batch/plan validation is covered by "
+        "tests/test_masters.py::TestMastersUpdateBatch."
     ),
     "negativekeywordsharedsets.get": (
         "Read path omits optional SelectionCriteria when --ids is absent."

@@ -46,6 +46,52 @@ measurement over 2026-07-01..08-13 returned 6877 rows for 3257 distinct
 records — an inflation invisible in a two-page check, since the first overlap
 landed on page 3.
 
+**`masters update --from-file` / `--masters-json` — update many campaigns in
+one browser session (#834).**
+
+`masters update` took exactly one campaign id, so editing 10–20 Мастеров
+кампаний meant 10–20 separate CLI processes, each launching its own Chromium
+and re-entering Yandex. A live run of 17 campaigns (#829) showed that it is
+the repeated re-entry — not the editing — that fails.
+
+Batch mode follows the existing API-command convention (`keywords add`,
+#562): a JSONL plan via `--from-file`, or the same array inline via
+`--masters-json`, mutually exclusive with each other and with a positional
+`CAMPAIGN_ID`, and supported only with `--format json`.
+
+```
+direct masters update --from-file plan.jsonl --moderation-statuses
+```
+
+```jsonl
+{"CampaignId": 713234064, "Headlines": {"1": "Новый заголовок"}}
+{"CampaignId": 713231614, "LandingUrl": "https://lp.example.ru/x"}
+```
+
+Each row is one campaign: PascalCase keys that mirror this command's own
+flags 1:1, with slot numbers and positions **1-based exactly as in
+`--headline "2=..."`**. Rows are fully typed-checked before the first save
+(the same bounds, enum values and duplicate rules Click enforces for the
+flags), so a typo in the last row cannot leave earlier campaigns already
+mutated. An unknown key is an error naming the row and the allowed set,
+never a silent skip.
+
+Execution notes:
+
+- the whole plan runs over **one** browser session, paced between campaigns
+  (`--pacing-ms`, default 1000);
+- a campaign that fails is reported with an `Error` and does not stop the
+  rest; the command exits non-zero afterwards (#816/#831 semantics);
+- if the session goes stale mid-plan it is re-opened once and the run
+  resumes from the first campaign that was never saved — **an
+  already-saved campaign is never saved twice**;
+- `--moderation-statuses` reads each campaign's current statuses after its
+  save. Moderation usually has not run yet at that point, so this is a
+  snapshot, not a final verdict;
+- `--dry-run` validates the plan (including that local image/video files
+  exist) and prints what would be applied without opening a browser. It now
+  works for a single `CAMPAIGN_ID` too, printing the same report shape.
+
 **`masters get --tracking-params` — read a campaign's UTM string (#824).**
 
 `masters get` never returned `TrackingParams`, either set or empty: the

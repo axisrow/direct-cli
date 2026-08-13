@@ -69,6 +69,7 @@ import click
 from click.core import ParameterSource
 
 from ..api import create_client
+from ..browser.masters import _BATCH_UPDATE_PACING_MS as _BATCH_UPDATE_PACING_MS_DEFAULT
 from ..browser.masters import AGE_FROM_CHOICES as _AGE_FROM_CHOICES
 from ..browser.masters import AGE_TO_CHOICES as _AGE_TO_CHOICES
 from ..browser.masters import DEVICE_OPTION_VALUES as _DEVICE_OPTION_VALUES
@@ -933,6 +934,10 @@ def _parse_add_target_action_options(
     return parsed
 
 
+#: PascalCase batch key -> ``update_master`` keyword. The batch surface is a
+#: strict 1:1 mirror of the single-campaign flags (issue #834): every key here
+#: has exactly one ``--flag`` counterpart, and adding a flag without adding its
+#: key would silently drop the field from a JSONL plan.
 _UPDATE_FILE_FIELDS = {
     "CampaignId": "campaign_id",
     "WeeklyBudget": "weekly_budget",
@@ -965,13 +970,318 @@ _UPDATE_FILE_FIELDS = {
     "Launch": "launch",
 }
 
+#: The CLI flag each batch key mirrors, used to keep an error message pointing
+#: at something the reader can act on in either mode.
+_UPDATE_FILE_FIELD_FLAGS = {
+    "WeeklyBudget": "--weekly-budget",
+    "PromotionGoal": "--promotion-goal",
+    "GoalPrice": "--goal-price",
+    "TargetActionPrices": "--target-action-price",
+    "AddTargetActions": "--add-target-action",
+    "RemoveTargetActionGoalIds": "--remove-target-action",
+    "DirectsHelps": "--directs-helps",
+    "Name": "--name",
+    "LandingUrl": "--landing-url",
+    "TrackingParams": "--tracking-params",
+    "Headlines": "--headline",
+    "Texts": "--text",
+    "ClearHeadlines": "--clear-headline",
+    "ClearTexts": "--clear-text",
+    "Images": "--image",
+    "AddVideo": "--add-video",
+    "RemoveVideos": "--remove-video",
+    "Gender": "--gender",
+    "AgeFrom": "--age-from",
+    "AgeTo": "--age-to",
+    "Devices": "--device",
+    "AddAudienceTags": "--add-audience-tag",
+    "RemoveAudienceTags": "--remove-audience-tag",
+    "AddMetrikaCounters": "--add-metrika-counter",
+    "RemoveMetrikaCounters": "--remove-metrika-counter",
+    "AddSitelinks": "--add-sitelink",
+    "RemoveSitelinks": "--remove-sitelink",
+    "Launch": "--launch",
+}
+
+
+def _row_error(row_index: int, message: str) -> click.UsageError:
+    """Build the batch's one and only error shape: row number, then cause.
+
+    Every batch validation failure names its row — a plan is edited as a file,
+    so "which line" is the first thing the reader needs (mirrors ``keywords
+    add``'s ``Row {row_index}: ...`` wording).
+    """
+    return click.UsageError(f"Row {row_index}: {message}")
+
+
+def _require_type(
+    value: Any,
+    expected: type,
+    *,
+    key: str,
+    row_index: int,
+    expected_label: str,
+) -> Any:
+    """Reject a JSON value whose type can't be what ``update_master`` expects.
+
+    ``bool`` is excluded from the ``int`` check on purpose: Python's ``bool``
+    is an ``int`` subclass, so ``{"WeeklyBudget": true}`` would otherwise pass
+    a type check and reach the browser as the budget ``1``.
+    """
+    if expected is int and isinstance(value, bool):
+        raise _row_error(row_index, f"{key} must be {expected_label}, got a boolean")
+    if expected is float and isinstance(value, bool):
+        raise _row_error(row_index, f"{key} must be {expected_label}, got a boolean")
+    if expected is float and isinstance(value, int):
+        return float(value)
+    if not isinstance(value, expected):
+        raise _row_error(
+            row_index,
+            f"{key} must be {expected_label}, got {type(value).__name__}",
+        )
+    return value
+
+
+def _coerce_slot_map(
+    value: Any,
+    *,
+    key: str,
+    row_index: int,
+    slot_count: int,
+    value_label: str,
+) -> "dict[int, str]":
+    """Convert a ``{"1": "value"}`` slot object into the 0-based index map the
+    browser layer takes, enforcing the SAME bounds as the single-campaign
+    ``--headline``/``--text``/``--image`` flags.
+
+    Slot numbers are 1-based in both modes, deliberately: a JSONL plan is
+    usually written by transcribing the equivalent ``--headline "2=..."``
+    invocation, and letting the same number mean slot 2 in one mode and slot 3
+    in the other is exactly the silent mis-write the CLAUDE.md "no divergent
+    forms" rule exists to prevent. JSON object keys are always strings, so the
+    digits are parsed here rather than by Click's ``type=int``.
+    """
+    if not isinstance(value, dict):
+        raise _row_error(
+            row_index,
+            f"{key} must be a JSON object keyed by 1-based slot number "
+            f'(e.g. {{"1": "{value_label}"}}), got {type(value).__name__}',
+        )
+    parsed: "dict[int, str]" = {}
+    for raw_slot, raw_value in value.items():
+        try:
+            slot_number = int(str(raw_slot).strip())
+        except ValueError:
+            raise _row_error(
+                row_index, f"{key} slot key {raw_slot!r} must be an integer"
+            )
+        if slot_number < 1 or slot_number > slot_count:
+            raise _row_error(
+                row_index,
+                f"{key} slot number {slot_number} is out of range — this "
+                f"field has slots (1-{slot_count}).",
+            )
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            raise _row_error(
+                row_index,
+                f"{key} slot {slot_number} must be a non-empty string — "
+                "removing a variant is not supported here, pass the "
+                "replacement value instead.",
+            )
+        parsed[slot_number - 1] = raw_value
+    return parsed
+
+
+def _coerce_slot_list(
+    value: Any, *, key: str, row_index: int, slot_count: int
+) -> "list[int]":
+    """Convert a ``ClearHeadlines``/``ClearTexts`` array of 1-based slot
+    numbers into the 0-based index list the browser layer takes, rejecting a
+    duplicate exactly like ``_parse_clear_slot_options`` does."""
+    if not isinstance(value, list):
+        raise _row_error(
+            row_index,
+            f"{key} must be a JSON array of 1-based slot numbers, got "
+            f"{type(value).__name__}",
+        )
+    parsed: "list[int]" = []
+    seen: "set[int]" = set()
+    for raw_slot in value:
+        slot_number = _require_type(
+            raw_slot, int, key=key, row_index=row_index, expected_label="an integer"
+        )
+        if slot_number < 1 or slot_number > slot_count:
+            raise _row_error(
+                row_index,
+                f"{key} slot number {slot_number} is out of range — this "
+                f"field has slots (1-{slot_count}).",
+            )
+        if slot_number in seen:
+            raise _row_error(
+                row_index, f"{key} slot {slot_number} was specified more than once."
+            )
+        seen.add(slot_number)
+        parsed.append(slot_number - 1)
+    return parsed
+
+
+def _coerce_position_list(value: Any, *, key: str, row_index: int) -> "list[int]":
+    """Convert a ``Remove*`` array of 1-based positions into the 0-based list
+    the browser layer takes.
+
+    Duplicates are rejected for the reason spelled out in
+    ``_parse_remove_audience_tag_options``: positions resolve against a single
+    pre-mutation snapshot, so a repeated position would silently remove two
+    DIFFERENT items rather than being a harmless no-op.
+    """
+    if not isinstance(value, list):
+        raise _row_error(
+            row_index,
+            f"{key} must be a JSON array of 1-based positions, got "
+            f"{type(value).__name__}",
+        )
+    parsed: "list[int]" = []
+    seen: "set[int]" = set()
+    for raw_position in value:
+        position = _require_type(
+            raw_position, int, key=key, row_index=row_index, expected_label="an integer"
+        )
+        if position < 1:
+            raise _row_error(
+                row_index, f"{key} position {position} must be 1 or greater."
+            )
+        if position in seen:
+            raise _row_error(
+                row_index, f"{key} position {position} was specified more than once."
+            )
+        seen.add(position)
+        parsed.append(position - 1)
+    return parsed
+
+
+def _coerce_goal_price_map(
+    value: Any, *, key: str, row_index: int
+) -> "dict[int, float]":
+    """Convert a ``{"<goal id>": price}`` object into the goal-id-keyed price
+    map ``update_master`` takes, mirroring
+    ``_parse_target_action_price_options``' checks."""
+    if not isinstance(value, dict):
+        raise _row_error(
+            row_index,
+            f"{key} must be a JSON object keyed by Metrika goal id, got "
+            f"{type(value).__name__}",
+        )
+    parsed: "dict[int, float]" = {}
+    for raw_goal, raw_price in value.items():
+        try:
+            goal_id = int(str(raw_goal).strip())
+        except ValueError:
+            raise _row_error(
+                row_index, f"{key} goal id {raw_goal!r} must be an integer"
+            )
+        price = _require_type(
+            raw_price, float, key=key, row_index=row_index, expected_label="a number"
+        )
+        if price <= 0:
+            raise _row_error(
+                row_index, f"{key} price for goal {goal_id} must be greater than 0."
+            )
+        parsed[goal_id] = price
+    return parsed
+
+
+def _coerce_string_list(value: Any, *, key: str, row_index: int) -> "list[str]":
+    if not isinstance(value, list):
+        raise _row_error(
+            row_index,
+            f"{key} must be a JSON array of strings, got {type(value).__name__}",
+        )
+    for entry in value:
+        if not isinstance(entry, str) or not entry.strip():
+            raise _row_error(row_index, f"{key} entries must be non-empty strings")
+    return list(value)
+
+
+def _coerce_sitelink_list(
+    value: Any, *, key: str, row_index: int
+) -> "list[dict[str, str]]":
+    """Validate ``AddSitelinks`` — the typed JSON form of ``--add-sitelink
+    "Title|Href|Description"``.
+
+    All three parts stay mandatory here for the same not-live-confirmed reason
+    documented on ``_parse_add_sitelink_options``; only the surface differs
+    (named keys instead of a pipe-separated string).
+    """
+    if not isinstance(value, list):
+        raise _row_error(
+            row_index,
+            f"{key} must be a JSON array of sitelink objects, got "
+            f"{type(value).__name__}",
+        )
+    required = ("Title", "Href", "Description")
+    parsed: "list[dict[str, str]]" = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            raise _row_error(
+                row_index,
+                f"{key} entries must be JSON objects with keys "
+                f"{', '.join(required)}",
+            )
+        unknown = sorted(set(entry) - set(required))
+        if unknown:
+            raise _row_error(
+                row_index,
+                f"{key} entry has unknown key {unknown[0]!r}; allowed: "
+                f"{', '.join(required)}",
+            )
+        for part in required:
+            if part not in entry:
+                raise _row_error(
+                    row_index, f"{key} entry is missing required key {part!r}"
+                )
+            if not isinstance(entry[part], str) or not entry[part].strip():
+                raise _row_error(
+                    row_index, f"{key} entry key {part!r} must be a non-empty string"
+                )
+        parsed.append({part: entry[part] for part in required})
+    return parsed
+
+
+def _coerce_choice(
+    value: Any, *, key: str, row_index: int, choices: "tuple[Any, ...]"
+) -> Any:
+    """Enforce the same value set the single-campaign flag's ``click.Choice``
+    enforces, so a typo fails at the CLI boundary instead of mid-session."""
+    if value not in choices:
+        rendered = ", ".join(repr(choice) for choice in choices)
+        raise _row_error(row_index, f"{key} must be one of: {rendered} (got {value!r})")
+    return value
+
 
 def _normalize_master_update_row(row: Any, row_index: int) -> Dict[str, Any]:
-    """Normalize one PascalCase batch row, matching ``keywords add``."""
+    """Normalize and fully validate one PascalCase batch row.
+
+    Mirrors ``keywords add``'s ``_normalize_keyword_row``: a whitelist of
+    allowed keys (an unknown key is an error naming the row and the allowed
+    set, never a silent skip), then a per-field coercion into exactly the
+    shapes ``update_master`` takes.
+
+    Every check the single-campaign flags get from Click's own types
+    (``type=int``, ``click.Choice``, the ``_parse_*_options`` helpers) is
+    re-applied here by hand, because a JSONL value never passes through Click.
+    Without that, ``{"AgeFrom": "999"}`` or ``{"WeeklyBudget": "abc"}`` would
+    reach the browser as-is and fail mid-mutation — the batch surface would be
+    strictly less safe than the flags it mirrors.
+    """
+    from ..browser.masters import (
+        _HEADLINES_SLOT_COUNT,
+        _IMAGES_MAX_COUNT,
+        _TEXTS_SLOT_COUNT,
+    )
+
     if not isinstance(row, dict):
-        raise click.UsageError(
-            f"Row {row_index}: expected JSON object, got {type(row).__name__}"
-        )
+        raise _row_error(row_index, f"expected JSON object, got {type(row).__name__}")
+
     unknown = sorted(set(row) - set(_UPDATE_FILE_FIELDS))
     if unknown:
         allowed = ", ".join(_UPDATE_FILE_FIELDS)
@@ -979,27 +1289,283 @@ def _normalize_master_update_row(row: Any, row_index: int) -> Dict[str, Any]:
             f"Unknown field {unknown[0]!r} in masters row {row_index}; "
             f"allowed: {allowed}"
         )
-    if "CampaignId" not in row or not isinstance(row["CampaignId"], int):
-        raise click.UsageError(f"Row {row_index}: CampaignId must be an integer")
-    item = {
-        _UPDATE_FILE_FIELDS[key]: value
-        for key, value in row.items()
-        if key != "CampaignId"
-    }
-    item["campaign_id"] = row["CampaignId"]
-    if len(item) == 1:
-        raise click.UsageError(f"Row {row_index}: provide at least one update field")
-    return _normalize_update_file_item(item)
+
+    if "CampaignId" not in row:
+        raise _row_error(row_index, "missing required field 'CampaignId'")
+    campaign_id = _require_type(
+        row["CampaignId"],
+        int,
+        key="CampaignId",
+        row_index=row_index,
+        expected_label="an integer",
+    )
+
+    update_keys = [key for key in row if key != "CampaignId"]
+    if not update_keys:
+        raise _row_error(
+            row_index,
+            "provide at least one update field besides CampaignId; allowed: "
+            + ", ".join(key for key in _UPDATE_FILE_FIELDS if key != "CampaignId"),
+        )
+
+    item: Dict[str, Any] = {"campaign_id": campaign_id}
+    for key in update_keys:
+        value = row[key]
+        target = _UPDATE_FILE_FIELDS[key]
+        if key in ("Name", "LandingUrl", "TrackingParams", "AddVideo"):
+            item[target] = _require_type(
+                value,
+                str,
+                key=key,
+                row_index=row_index,
+                expected_label="a string",
+            )
+        elif key == "WeeklyBudget":
+            item[target] = _require_type(
+                value, int, key=key, row_index=row_index, expected_label="an integer"
+            )
+        elif key == "GoalPrice":
+            item[target] = _require_type(
+                value, float, key=key, row_index=row_index, expected_label="a number"
+            )
+        elif key in ("DirectsHelps", "Launch"):
+            item[target] = _require_type(
+                value, bool, key=key, row_index=row_index, expected_label="a boolean"
+            )
+        elif key in ("TargetActionPrices", "AddTargetActions"):
+            item[target] = _coerce_goal_price_map(value, key=key, row_index=row_index)
+        elif key == "RemoveTargetActionGoalIds":
+            goal_ids: "list[int]" = []
+            if not isinstance(value, list):
+                raise _row_error(
+                    row_index,
+                    f"{key} must be a JSON array of Metrika goal ids, got "
+                    f"{type(value).__name__}",
+                )
+            for raw_goal in value:
+                goal_id = _require_type(
+                    raw_goal,
+                    int,
+                    key=key,
+                    row_index=row_index,
+                    expected_label="an integer",
+                )
+                if goal_id in goal_ids:
+                    raise _row_error(
+                        row_index, f"{key} goal {goal_id} was specified more than once."
+                    )
+                goal_ids.append(goal_id)
+            item[target] = goal_ids
+        elif key in ("Headlines", "Texts"):
+            item[target] = _coerce_slot_map(
+                value,
+                key=key,
+                row_index=row_index,
+                slot_count=(
+                    _HEADLINES_SLOT_COUNT if key == "Headlines" else _TEXTS_SLOT_COUNT
+                ),
+                value_label="New headline" if key == "Headlines" else "New text",
+            )
+        elif key == "Images":
+            item[target] = _coerce_slot_map(
+                value,
+                key=key,
+                row_index=row_index,
+                slot_count=_IMAGES_MAX_COUNT,
+                value_label="/path/to/image.jpg",
+            )
+        elif key in ("ClearHeadlines", "ClearTexts"):
+            item[target] = _coerce_slot_list(
+                value,
+                key=key,
+                row_index=row_index,
+                slot_count=(
+                    _HEADLINES_SLOT_COUNT
+                    if key == "ClearHeadlines"
+                    else _TEXTS_SLOT_COUNT
+                ),
+            )
+        elif key in (
+            "RemoveAudienceTags",
+            "RemoveMetrikaCounters",
+            "RemoveSitelinks",
+        ):
+            item[target] = _coerce_position_list(value, key=key, row_index=row_index)
+        elif key in ("RemoveVideos", "AddAudienceTags", "AddMetrikaCounters"):
+            item[target] = _coerce_string_list(value, key=key, row_index=row_index)
+        elif key == "AddSitelinks":
+            item[target] = _coerce_sitelink_list(value, key=key, row_index=row_index)
+        elif key == "PromotionGoal":
+            item[target] = _coerce_choice(
+                value,
+                key=key,
+                row_index=row_index,
+                choices=tuple(_PROMOTION_GOAL_CHOICES),
+            )
+        elif key == "Gender":
+            item[target] = _coerce_choice(
+                value, key=key, row_index=row_index, choices=tuple(_GENDER_CHOICES)
+            )
+        elif key == "Devices":
+            devices = _coerce_string_list(value, key=key, row_index=row_index)
+            for device in devices:
+                _coerce_choice(
+                    device,
+                    key=key,
+                    row_index=row_index,
+                    choices=tuple(_DEVICE_OPTION_VALUES),
+                )
+            item[target] = set(devices)
+        elif key == "AgeFrom":
+            item[target] = _coerce_choice(
+                value,
+                key=key,
+                row_index=row_index,
+                choices=tuple(_AGE_FROM_CHOICES),
+            )
+            # ``update_master`` distinguishes "not requested" from an
+            # explicitly requested bound, exactly as the flag path does via
+            # ``age_from is not None``.
+            item["age_from_requested"] = True
+        elif key == "AgeTo":
+            # "unlimited" is the flag's spelling of AgeTo=None ("55+"); the
+            # browser layer takes None, so translate at this boundary rather
+            # than teaching it a second spelling.
+            choices = tuple(
+                "unlimited" if choice is None else choice for choice in _AGE_TO_CHOICES
+            )
+            chosen = _coerce_choice(
+                value, key=key, row_index=row_index, choices=choices
+            )
+            item[target] = None if chosen == "unlimited" else chosen
+            item["age_to_requested"] = True
+        else:  # pragma: no cover - defensive, every key is handled above
+            raise _row_error(row_index, f"{key} is not supported in batch mode")
+
+    _reject_conflicting_row_fields(item, row_index)
+    return item
+
+
+def _reject_conflicting_row_fields(item: Dict[str, Any], row_index: int) -> None:
+    """Re-apply the single-campaign cross-field guards to one batch row.
+
+    These are the checks the flag path performs after parsing (goal/price
+    compatibility, a goal targeted twice, a slot both set and cleared). They
+    are duplicated per row rather than skipped because the underlying page
+    behaviour is identical in either mode — a conflict that is ambiguous
+    enough to refuse from the CLI is just as ambiguous inside a plan file.
+    """
+    promotion_goal = item.get("promotion_goal")
+    if item.get("goal_price") is not None and promotion_goal == "max-conversions":
+        raise _row_error(
+            row_index,
+            "GoalPrice has no effect under PromotionGoal 'max-conversions' — "
+            "that goal's price is set per-target-action via "
+            "TargetActionPrices instead.",
+        )
+    if promotion_goal == "max-clicks" and (
+        item.get("target_action_prices")
+        or item.get("add_target_actions")
+        or item.get("remove_target_action_goal_ids")
+    ):
+        raise _row_error(
+            row_index,
+            "TargetActionPrices/AddTargetActions/RemoveTargetActionGoalIds "
+            "have no effect under PromotionGoal 'max-clicks' — that goal's "
+            "price is set once for the whole campaign via GoalPrice instead.",
+        )
+
+    seen_goals: "dict[int, str]" = {}
+    for field, goals in (
+        ("TargetActionPrices", item.get("target_action_prices") or {}),
+        ("AddTargetActions", item.get("add_target_actions") or {}),
+        ("RemoveTargetActionGoalIds", item.get("remove_target_action_goal_ids") or []),
+    ):
+        for goal_id in goals:
+            if goal_id in seen_goals:
+                raise _row_error(
+                    row_index,
+                    f"Goal {goal_id} was passed to both {seen_goals[goal_id]} "
+                    f"and {field} — a goal can only be targeted by one of "
+                    "TargetActionPrices/AddTargetActions/"
+                    "RemoveTargetActionGoalIds in the same row.",
+                )
+            seen_goals[goal_id] = field
+
+    for set_field, clear_field, set_key, clear_key in (
+        ("Headlines", "ClearHeadlines", "headlines", "clear_headlines"),
+        ("Texts", "ClearTexts", "texts", "clear_texts"),
+    ):
+        overlap = sorted(set(item.get(set_key) or {}) & set(item.get(clear_key) or []))
+        if overlap:
+            raise _row_error(
+                row_index,
+                f"slot {overlap[0] + 1} was passed to both {set_field} and "
+                f"{clear_field} — set it or clear it, not both.",
+            )
+
+
+def _reject_duplicate_campaign_ids(rows: List[Dict[str, Any]]) -> None:
+    """Refuse a plan naming the same campaign twice.
+
+    Two rows for one campaign would mean two full edit-page saves, and the
+    retry bookkeeping in :func:`_run_update_file_batch` keys completion by
+    campaign id — so a duplicate is also the one input that could make a
+    replay skip a row that never ran. Merge the rows instead.
+    """
+    seen: "dict[int, int]" = {}
+    for index, row in enumerate(rows, start=1):
+        campaign_id = row["campaign_id"]
+        if campaign_id in seen:
+            raise click.UsageError(
+                f"Campaign {campaign_id} appears in more than one row "
+                f"(rows {seen[campaign_id]} and {index}) — merge them into a "
+                "single row: each campaign is saved once per batch."
+            )
+        seen[campaign_id] = index
+
+
+def _batch_row_report(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Render one normalized row back into the PascalCase report shape.
+
+    The report is the plan's own vocabulary, not the browser layer's: internal
+    snake_case keys, 0-based indices and the ``*_requested`` bookkeeping flags
+    are implementation detail that must not leak into ``--dry-run`` output.
+    """
+    report: Dict[str, Any] = {"CampaignId": row["campaign_id"]}
+    for key, target in _UPDATE_FILE_FIELDS.items():
+        if key == "CampaignId" or target not in row:
+            continue
+        value = row[target]
+        if key in ("Headlines", "Texts", "Images"):
+            value = {str(index + 1): slot_value for index, slot_value in value.items()}
+        elif key in ("ClearHeadlines", "ClearTexts"):
+            value = [index + 1 for index in value]
+        elif key in ("RemoveAudienceTags", "RemoveMetrikaCounters", "RemoveSitelinks"):
+            value = [position + 1 for position in value]
+        elif key in ("TargetActionPrices", "AddTargetActions"):
+            value = {str(goal_id): price for goal_id, price in value.items()}
+        elif key == "Devices":
+            value = sorted(value)
+        elif key == "AgeTo" and value is None:
+            value = "unlimited"
+        report[key] = value
+    return report
 
 
 def _parse_update_file_rows(path: str) -> List[Dict[str, Any]]:
     """Decode and validate JSONL rows using the shared batch loader."""
     from . import _batch
 
-    return [
+    rows = _batch.load_jsonl_rows(path)
+    if not rows:
+        raise click.UsageError(f"--from-file {path!r} contains no campaign rows.")
+    parsed = [
         _normalize_master_update_row(row, index)
-        for index, row in enumerate(_batch.load_jsonl_rows(path), start=1)
+        for index, row in enumerate(rows, start=1)
     ]
+    _reject_duplicate_campaign_ids(parsed)
+    return parsed
 
 
 def _parse_update_inline_rows(value: str) -> List[Dict[str, Any]]:
@@ -1012,49 +1578,23 @@ def _parse_update_inline_rows(value: str) -> List[Dict[str, Any]]:
     )
     if not rows:
         raise click.UsageError("Input contains no campaign rows.")
-    return [
+    parsed = [
         _normalize_master_update_row(row, index)
         for index, row in enumerate(rows, start=1)
     ]
+    _reject_duplicate_campaign_ids(parsed)
+    return parsed
 
 
-def _normalize_update_file_item(item: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert JSONL values to the same shapes used by the single update."""
-    result = dict(item)
-    for key in ("target_action_prices", "add_target_actions"):
-        if key in result:
-            if not isinstance(result[key], dict):
-                raise click.UsageError(f"{key} must be a JSON object keyed by goal id")
-            try:
-                result[key] = {int(goal): price for goal, price in result[key].items()}
-            except (TypeError, ValueError) as exc:
-                raise click.UsageError(f"{key} keys must be integer goal ids") from exc
-    for key in ("headlines", "texts", "images"):
-        if key in result:
-            if not isinstance(result[key], dict):
-                raise click.UsageError(f"{key} must be a JSON object keyed by slot")
-            try:
-                result[key] = {int(slot): value for slot, value in result[key].items()}
-            except (TypeError, ValueError) as exc:
-                raise click.UsageError(f"{key} keys must be integer slots") from exc
-    for key in (
-        "clear_headlines",
-        "clear_texts",
-        "remove_audience_tags",
-        "remove_metrika_counters",
-        "remove_sitelinks",
-    ):
-        if key in result and not isinstance(result[key], list):
-            raise click.UsageError(f"{key} must be a JSON array")
-    if "devices" in result:
-        if not isinstance(result["devices"], list):
-            raise click.UsageError("Devices must be a JSON array")
-        result["devices"] = set(result["devices"])
-    if "age_from" in result:
-        result["age_from_requested"] = True
-    if "age_to" in result:
-        result["age_to_requested"] = True
-    return result
+#: Placeholder left in a row's report when the campaign WAS saved but the
+#: follow-up ``--moderation-statuses`` read could not complete (the session
+#: went stale mid-read, and the save is not replayed on retry). Reporting the
+#: save with an explicit "not read" beats omitting the key, which reads as
+#: "nothing to report" for a campaign that was in fact mutated.
+_MODERATION_READ_INTERRUPTED = (
+    "not read — session expired after this campaign was saved; "
+    "re-read with `masters get --moderation-statuses`"
+)
 
 
 def _run_update_file_batch(
@@ -1066,12 +1606,22 @@ def _run_update_file_batch(
     chrome_profile: str,
     moderation_statuses: bool,
     dry_run: bool,
+    pacing_ms: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
-    """Apply a JSONL update plan in one browser session.
+    """Apply a validated update plan to every campaign in ONE browser session.
 
-    ``completed`` intentionally lives outside the operation passed to
-    ``_with_session``: its retry is operation-wide, and replaying a completed
-    save would be an unsafe duplicate mutation.
+    One session for the whole plan is the point of the command (issue #834):
+    the live failures it exists to avoid correlated with how often a profile
+    re-entered Yandex, not with how many campaigns were edited.
+
+    ``completed``/``outcomes`` deliberately live OUTSIDE the operation handed
+    to ``_with_session``, whose ``BrowserAuthError`` retry re-runs the whole
+    operation under a fresh session. For a read-only fetch that replay is
+    free; here every replayed row is a second real save of a campaign already
+    saved in production. Keeping both maps across the retry lets the replay
+    skip finished campaigns and, just as importantly, keeps their results in
+    the report — a mutation that happened but goes unreported is the failure
+    mode issue #816 was filed for.
     """
     from ..browser.masters import (
         PlaywrightError,
@@ -1081,50 +1631,60 @@ def _run_update_file_batch(
     )
     from ..browser.session import BrowserAuthError, BrowserSessionError
 
-    rows = [_normalize_update_file_item(row) for row in rows]
-    for row in rows:
-        _validate_image_paths(row.get("images") or {})
-        if row.get("add_video") is not None:
-            _validate_video_path(row["add_video"])
-    if dry_run:
-        return [
-            {
-                "CampaignId": row["campaign_id"],
-                **{
-                    key: sorted(value) if isinstance(value, set) else value
-                    for key, value in row.items()
-                    if key != "campaign_id"
-                },
-            }
-            for row in rows
-        ]
+    pause_ms = _BATCH_UPDATE_PACING_MS if pacing_ms is None else pacing_ms
 
-    completed = set()
+    for index, row in enumerate(rows, start=1):
+        try:
+            _validate_image_paths(row.get("images") or {})
+            if row.get("add_video") is not None:
+                _validate_video_path(row["add_video"])
+        except click.UsageError as exc:
+            # Local-file checks run for the WHOLE plan before the first save,
+            # so a typo in the last row cannot leave the first ones already
+            # mutated (the flag path gets this for free -- it only ever has
+            # one campaign to validate).
+            raise _row_error(index, exc.format_message()) from exc
+
+    if dry_run:
+        return [_batch_row_report(row) for row in rows]
+
+    completed: "set[int]" = set()
     outcomes: Dict[int, Dict[str, Any]] = {}
 
     def operation(page):
-        for row in rows:
+        for position, row in enumerate(rows):
             campaign_id = row["campaign_id"]
             if campaign_id in completed:
                 continue
-            kwargs = dict(row)
-            kwargs.pop("campaign_id")
+            kwargs = {key: value for key, value in row.items() if key != "campaign_id"}
             try:
                 result = update_master(page, campaign_id, **kwargs)
-                # Mark completion before the optional read-only moderation
-                # navigation: auth failure there must not replay the save.
+                # Record the save as both done AND reportable before the
+                # optional moderation read: that read navigates again and can
+                # raise BrowserAuthError, and a save already applied in
+                # production must neither be replayed nor vanish from the
+                # report just because the follow-up read failed.
                 completed.add(campaign_id)
+                outcomes[campaign_id] = result
                 if moderation_statuses:
+                    # Marked pending first so that if this read is what raises
+                    # BrowserAuthError, the retry (which skips the completed
+                    # save) still reports WHY the statuses are missing rather
+                    # than silently omitting the key.
+                    result["ModerationStatuses"] = _MODERATION_READ_INTERRUPTED
                     result["ModerationStatuses"] = fetch_master_moderation_statuses(
                         page, campaign_id
                     )
-                outcomes[campaign_id] = result
-                if campaign_id != rows[-1]["campaign_id"]:
-                    page.wait_for_timeout(_BATCH_UPDATE_PACING_MS)
             except BrowserAuthError:
                 raise
             except (BrowserSessionError, PlaywrightError) as exc:
+                completed.add(campaign_id)
                 outcomes[campaign_id] = {"CampaignId": campaign_id, "Error": str(exc)}
+            if pause_ms and position != len(rows) - 1:
+                # Pace after EVERY attempt, including a failed one: the live
+                # failures behind issue #829 tracked how often the profile hit
+                # Yandex, and a row that failed still navigated there.
+                page.wait_for_timeout(pause_ms)
         return [
             outcomes[row["campaign_id"]]
             for row in rows
@@ -1721,20 +2281,46 @@ def audience_get(
     "--from-file",
     "from_file",
     type=click.Path(exists=True, dir_okay=False, readable=True),
-    help="JSONL file with one typed update object per campaign.",
+    help=(
+        "JSONL plan file: one campaign to update per line, with the same "
+        "typed fields as this command's own flags (PascalCase names). Every "
+        "campaign is updated in ONE browser session. Batch mode requires "
+        "--format json."
+    ),
 )
-@click.option("--masters-json", help="Inline JSON array of campaign update objects.")
+@click.option(
+    "--masters-json",
+    help=(
+        "Same plan as --from-file, inline as a JSON array of campaign "
+        "objects. Mutually exclusive with --from-file and CAMPAIGN_ID."
+    ),
+)
 @click.option(
     "--moderation-statuses",
     is_flag=True,
-    help="Read current moderation statuses after each save (not a final verdict).",
+    help=(
+        "After each save, also read that campaign's CURRENT moderation "
+        "statuses (batch mode only). Right after a save moderation has "
+        "usually not run yet — a rejection can appear later, so this is a "
+        "snapshot, NOT a final verdict."
+    ),
 )
 @click.option(
     "--dry-run",
     is_flag=True,
     help=(
-        "Validate a JSONL plan and print its intended changes without opening "
-        "a browser."
+        "Validate the plan (including that local image/video files exist) and "
+        "print what would be applied, without opening a browser."
+    ),
+)
+@click.option(
+    "--pacing-ms",
+    type=click.IntRange(min=0),
+    default=None,
+    help=(
+        "Pause between campaigns in a batch, in milliseconds (default: "
+        f"{_BATCH_UPDATE_PACING_MS_DEFAULT}). Raise it if a long plan starts "
+        "hitting session failures; 0 disables the pause."
     ),
 )
 @click.option(
@@ -2065,6 +2651,7 @@ def update(
     masters_json,
     moderation_statuses,
     dry_run,
+    pacing_ms,
     weekly_budget,
     promotion_goal,
     goal_price,
@@ -2099,7 +2686,31 @@ def update(
     output_format,
     output,
 ):
-    """Update settings of one Мастер кампаний (Этап A/B/D fields, plus name)
+    """Update settings of one or many Мастер кампаний campaigns
+
+    Takes either a single CAMPAIGN_ID with typed flags, or a whole plan via
+    ``--from-file``/``--masters-json`` (issue #834).
+
+    \b
+    Batch mode — one browser session for the WHOLE plan:
+      direct masters update --from-file plan.jsonl
+      direct masters update --masters-json '[{"CampaignId": 1, "Name": "x"}]'
+
+    Each plan row is one campaign: a ``CampaignId`` plus at least one field,
+    keyed in PascalCase (``Name``, ``LandingUrl``, ``Headlines``, ...) — the
+    1:1 counterpart of this command's own flags, with slot numbers and
+    positions 1-based exactly as in ``--headline "2=..."``. An unknown key is
+    an error naming the row, never a silent skip. Every row is validated
+    before the first save, so a typo in the last row cannot leave earlier
+    campaigns already mutated; ``--dry-run`` stops there and prints the plan.
+
+    Campaigns are updated one after another over a single browser session
+    (that is the point — repeated re-entry, not the edit itself, is what
+    failed live in issue #829), with a short pause between them. A campaign
+    that fails is reported with an ``Error`` and does NOT stop the rest; the
+    command exits non-zero afterwards. If the session goes stale mid-plan it
+    is re-opened once and the run continues from the first campaign that was
+    never saved — already-saved campaigns are never saved twice.
 
     Covers weekly budget, promotion goal (plus its target price), the
     "Директ помогает" auto-recommendations toggle, the campaign name,
@@ -2258,74 +2869,53 @@ def update(
 
     batch_mode = from_file is not None or masters_json is not None
     if batch_mode:
-        direct_values = (
-            weekly_budget,
-            promotion_goal,
-            goal_price,
-            target_action_prices,
-            add_target_actions,
-            remove_target_actions,
-            directs_helps,
-            name,
-            landing_url,
-            tracking_params,
-            headlines,
-            texts,
-            clear_headlines,
-            clear_texts,
-            images,
-            add_video,
-            remove_videos,
-            gender,
-            age_from,
-            age_to,
-            devices,
-            add_audience_tags,
-            remove_audience_tags,
-            add_metrika_counters,
-            remove_metrika_counters,
-            add_sitelinks,
-            remove_sitelinks,
-            launch,
-        )
-        if any(value not in (None, False, (), "") for value in direct_values):
+        # Keyed by the batch field name, so this stays in lockstep with
+        # _UPDATE_FILE_FIELDS/_UPDATE_FILE_FIELD_FLAGS by NAME rather than by
+        # argument order (a positional pairing would mislabel every flag after
+        # an inserted field, and still look correct).
+        direct_values = {
+            "WeeklyBudget": weekly_budget,
+            "PromotionGoal": promotion_goal,
+            "GoalPrice": goal_price,
+            "TargetActionPrices": target_action_prices,
+            "AddTargetActions": add_target_actions,
+            "RemoveTargetActionGoalIds": remove_target_actions,
+            "DirectsHelps": directs_helps,
+            "Name": name,
+            "LandingUrl": landing_url,
+            "TrackingParams": tracking_params,
+            "Headlines": headlines,
+            "Texts": texts,
+            "ClearHeadlines": clear_headlines,
+            "ClearTexts": clear_texts,
+            "Images": images,
+            "AddVideo": add_video,
+            "RemoveVideos": remove_videos,
+            "Gender": gender,
+            "AgeFrom": age_from,
+            "AgeTo": age_to,
+            "Devices": devices,
+            "AddAudienceTags": add_audience_tags,
+            "RemoveAudienceTags": remove_audience_tags,
+            "AddMetrikaCounters": add_metrika_counters,
+            "RemoveMetrikaCounters": remove_metrika_counters,
+            "AddSitelinks": add_sitelinks,
+            "RemoveSitelinks": remove_sitelinks,
+            "Launch": launch,
+        }
+        if any(value not in (None, False, (), "") for value in direct_values.values()):
+            # Field values belong in the plan, not alongside it: a flag here
+            # would apply to every row or to none, and both readings are
+            # defensible -- so refuse instead of picking one silently.
             unsupported = ", ".join(
-                flag
-                for flag, value in {
-                    "--weekly-budget": weekly_budget,
-                    "--promotion-goal": promotion_goal,
-                    "--goal-price": goal_price,
-                    "--target-action-price": target_action_prices,
-                    "--add-target-action": add_target_actions,
-                    "--remove-target-action": remove_target_actions,
-                    "--directs-helps": directs_helps,
-                    "--name": name,
-                    "--landing-url": landing_url,
-                    "--tracking-params": tracking_params,
-                    "--headline": headlines,
-                    "--text": texts,
-                    "--clear-headline": clear_headlines,
-                    "--clear-text": clear_texts,
-                    "--image": images,
-                    "--add-video": add_video,
-                    "--remove-video": remove_videos,
-                    "--gender": gender,
-                    "--age-from": age_from,
-                    "--age-to": age_to,
-                    "--device": devices,
-                    "--add-audience-tag": add_audience_tags,
-                    "--remove-audience-tag": remove_audience_tags,
-                    "--add-metrika-counter": add_metrika_counters,
-                    "--remove-metrika-counter": remove_metrika_counters,
-                    "--add-sitelink": add_sitelinks,
-                    "--remove-sitelink": remove_sitelinks,
-                    "--launch": launch,
-                }.items()
+                _UPDATE_FILE_FIELD_FLAGS[key]
+                for key, value in direct_values.items()
                 if value not in (None, False, (), "")
             )
             raise click.UsageError(
-                f"{unsupported} supported only with --from-file/--masters-json "
-                "batch mode"
+                f"{unsupported} supported only with CAMPAIGN_ID single-item "
+                "mode; put the field in the --from-file/--masters-json plan "
+                "instead."
             )
         if output_format != "json":
             raise click.UsageError(
@@ -2345,6 +2935,7 @@ def update(
             chrome_profile=chrome_profile,
             moderation_statuses=moderation_statuses,
             dry_run=dry_run,
+            pacing_ms=pacing_ms,
         )
         format_output(result, output_format, output)
         errors = [row for row in result if row.get("Error")]
@@ -2355,9 +2946,16 @@ def update(
             )
         return
 
-    if moderation_statuses or dry_run:
+    if moderation_statuses:
         raise click.UsageError(
-            "--moderation-statuses and --dry-run are only supported with --from-file"
+            "--moderation-statuses is supported only with --from-file/"
+            "--masters-json batch mode; use `masters get "
+            "--moderation-statuses` for a single campaign."
+        )
+    if pacing_ms is not None:
+        raise click.UsageError(
+            "--pacing-ms paces the gap BETWEEN campaigns and is supported "
+            "only with --from-file/--masters-json batch mode."
         )
 
     if (
@@ -2505,6 +3103,55 @@ def update(
     )
     parsed_add_sitelinks = _parse_add_sitelink_options(add_sitelinks)
     parsed_remove_sitelinks = _parse_remove_sitelink_options(remove_sitelinks)
+
+    if dry_run:
+        # Same report shape as a batch plan of one, so a caller can preview a
+        # single command and a plan file with one reader (and so the batch
+        # renderer stays the only place the PascalCase mapping lives).
+        single_row = {
+            "campaign_id": campaign_id,
+            **{
+                key: value
+                for key, value in {
+                    "weekly_budget": weekly_budget,
+                    "promotion_goal": promotion_goal,
+                    "goal_price": goal_price,
+                    "target_action_prices": parsed_target_action_prices or None,
+                    "add_target_actions": parsed_add_target_actions or None,
+                    "remove_target_action_goal_ids": parsed_remove_target_actions
+                    or None,
+                    "directs_helps": directs_helps,
+                    "name": name,
+                    "landing_url": landing_url,
+                    "tracking_params": tracking_params,
+                    "headlines": parsed_headlines or None,
+                    "texts": parsed_texts or None,
+                    "clear_headlines": parsed_clear_headlines or None,
+                    "clear_texts": parsed_clear_texts or None,
+                    "images": parsed_images or None,
+                    "add_video": add_video,
+                    "remove_videos": list(remove_videos) or None,
+                    "gender": gender,
+                    "devices": set(devices) if devices else None,
+                    "add_audience_tags": list(add_audience_tags) or None,
+                    "remove_audience_tags": parsed_remove_audience_tags or None,
+                    "add_metrika_counters": list(add_metrika_counters) or None,
+                    "remove_metrika_counters": parsed_remove_metrika_counters or None,
+                    "add_sitelinks": parsed_add_sitelinks or None,
+                    "remove_sitelinks": parsed_remove_sitelinks or None,
+                    "launch": launch or None,
+                }.items()
+                if value is not None
+            },
+        }
+        # An explicitly requested bound is reported even when it resolves to
+        # None ("unlimited"), matching what update_master would be told.
+        if age_from is not None:
+            single_row["age_from"] = parsed_age_from
+        if age_to is not None:
+            single_row["age_to"] = parsed_age_to
+        format_output(_batch_row_report(single_row), output_format, output)
+        return
 
     result = _with_session(
         ctx,

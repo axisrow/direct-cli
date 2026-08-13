@@ -20,6 +20,7 @@ additions below for how that replay is faked.
 
 import ast
 import contextlib
+import inspect
 import json
 import time
 import unittest
@@ -20767,6 +20768,643 @@ class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
         self.assertEqual([row["CampaignId"] for row in payload], [1, 2, 3])
         for row in payload:
             self.assertNotIn("Error", row)
+
+
+class _BatchPacingPage:
+    """Minimal stand-in page for `masters update`'s batch loop.
+
+    The batch never touches the DOM itself (each campaign's editing happens
+    inside the patched `update_master`), so the only Playwright surface it
+    needs is the pacing sleep -- which must still advance the module-wide fake
+    clock, per `_advance_fake_clock`'s contract.
+    """
+
+    def __init__(self):
+        self.waits = []
+
+    def wait_for_timeout(self, timeout):
+        self.waits.append(timeout)
+        _advance_fake_clock(timeout)
+
+
+class TestMastersUpdateBatch(unittest.TestCase):
+    """`masters update --from-file/--masters-json` — issue #834.
+
+    The plan is applied over ONE browser session, so these tests drive
+    `_with_session` itself rather than a fake Playwright page: what matters is
+    which campaigns were saved, in what order, exactly once, and what the
+    report says about each of them.
+    """
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    @staticmethod
+    def _plan(tmpdir, rows):
+        path = Path(tmpdir) / "plan.jsonl"
+        path.write_text(
+            "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows),
+            encoding="utf-8",
+        )
+        return str(path)
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _session(update=None, moderation=None, page=None):
+        """Patch the batch's three collaborators: the session wrapper, the
+        save, and the optional moderation read."""
+
+        def _with_session(ctx, headful, profile_dir, chrome_profile, fn):
+            # The batch paces between campaigns, so even a stand-in page must
+            # offer `wait_for_timeout` -- and it must advance the module fake
+            # clock like every other page here (issue #767).
+            return fn(page if page is not None else _BatchPacingPage())
+
+        patches = [
+            patch(
+                "direct_cli.commands.masters._with_session",
+                side_effect=_with_session,
+            ),
+            patch.object(
+                browser_masters,
+                "update_master",
+                side_effect=update or (lambda p, cid, **kw: {"CampaignId": cid}),
+            ),
+        ]
+        if moderation is not None:
+            patches.append(
+                patch.object(
+                    browser_masters,
+                    "fetch_master_moderation_statuses",
+                    side_effect=moderation,
+                )
+            )
+        with contextlib.ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            yield
+
+    # --- the issue's headline scenario -------------------------------------
+
+    def test_middle_row_fails_others_still_applied(self):
+        """A failing campaign is isolated: the rows around it still save, its
+        own row carries an Error, and the command still exits non-zero."""
+        saved = []
+
+        def _update(page, campaign_id, **kwargs):
+            if campaign_id == 2:
+                raise BrowserSessionError("edit page never loaded")
+            saved.append(campaign_id)
+            return {"CampaignId": campaign_id, "Name": kwargs.get("name")}
+
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(
+                tmp,
+                [
+                    {"CampaignId": 1, "Name": "one"},
+                    {"CampaignId": 2, "Name": "two"},
+                    {"CampaignId": 3, "Name": "three"},
+                ],
+            )
+            with self._session(update=_update):
+                result = self.runner.invoke(
+                    cli, ["masters", "update", "--from-file", plan]
+                )
+
+        self.assertEqual(saved, [1, 3])
+        self.assertNotEqual(result.exit_code, 0)
+        # The report goes to stdout; the non-zero summary goes to stderr.
+        payload = json.loads(result.stdout)
+        self.assertEqual([row["CampaignId"] for row in payload], [1, 2, 3])
+        self.assertNotIn("Error", payload[0])
+        self.assertIn("edit page never loaded", payload[1]["Error"])
+        self.assertNotIn("Error", payload[2])
+
+    def test_stale_session_retry_does_not_resave_completed_campaign(self):
+        """The critical mutation-safety requirement: `_with_session` replays
+        the WHOLE operation on BrowserAuthError, so a campaign already saved
+        must be skipped rather than saved a second time."""
+        saved = []
+        raised = {"done": False}
+
+        def _update(page, campaign_id, **kwargs):
+            if campaign_id == 2 and not raised["done"]:
+                raised["done"] = True
+                raise BrowserAuthError("saved session went stale")
+            saved.append(campaign_id)
+            return {"CampaignId": campaign_id}
+
+        def _with_session(ctx, headful, profile_dir, chrome_profile, fn):
+            try:
+                return fn(_BatchPacingPage())
+            except BrowserAuthError:
+                # Same self-heal `_with_session` performs: re-run the WHOLE
+                # operation under a fresh session.
+                return fn(_BatchPacingPage())
+
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(
+                tmp,
+                [{"CampaignId": 1, "Name": "a"}, {"CampaignId": 2, "Name": "b"}],
+            )
+            with (
+                patch(
+                    "direct_cli.commands.masters._with_session",
+                    side_effect=_with_session,
+                ),
+                patch.object(browser_masters, "update_master", side_effect=_update),
+            ):
+                result = self.runner.invoke(
+                    cli, ["masters", "update", "--from-file", plan]
+                )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue(raised["done"])
+        # 1 is saved once despite the replay; 2 succeeds on the second pass.
+        self.assertEqual(saved, [1, 2])
+        self.assertEqual(
+            [row["CampaignId"] for row in json.loads(result.output)], [1, 2]
+        )
+
+    def test_auth_failure_while_reading_moderation_keeps_saved_row_reported(self):
+        """A save that succeeded must never vanish from the report because the
+        OPTIONAL moderation read afterwards hit a stale session."""
+        saved = []
+        reads = {"n": 0}
+
+        def _update(page, campaign_id, **kwargs):
+            saved.append(campaign_id)
+            return {"CampaignId": campaign_id}
+
+        def _moderation(page, campaign_id):
+            reads["n"] += 1
+            if reads["n"] == 1:
+                raise BrowserAuthError("stale while reading statuses")
+            return {"Statuses": ["MODERATION"]}
+
+        def _with_session(ctx, headful, profile_dir, chrome_profile, fn):
+            try:
+                return fn(_BatchPacingPage())
+            except BrowserAuthError:
+                # Same self-heal `_with_session` performs: re-run the WHOLE
+                # operation under a fresh session.
+                return fn(_BatchPacingPage())
+
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(
+                tmp,
+                [{"CampaignId": 1, "Name": "a"}, {"CampaignId": 2, "Name": "b"}],
+            )
+            with (
+                patch(
+                    "direct_cli.commands.masters._with_session",
+                    side_effect=_with_session,
+                ),
+                patch.object(browser_masters, "update_master", side_effect=_update),
+                patch.object(
+                    browser_masters,
+                    "fetch_master_moderation_statuses",
+                    side_effect=_moderation,
+                ),
+            ):
+                result = self.runner.invoke(
+                    cli,
+                    [
+                        "masters",
+                        "update",
+                        "--from-file",
+                        plan,
+                        "--moderation-statuses",
+                    ],
+                )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(saved, [1, 2])
+        payload = json.loads(result.output)
+        self.assertEqual([row["CampaignId"] for row in payload], [1, 2])
+        # Campaign 1 was saved but its statuses could not be read -- say so
+        # explicitly instead of omitting the key.
+        self.assertIn("not read", payload[0]["ModerationStatuses"])
+        self.assertEqual(payload[1]["ModerationStatuses"], {"Statuses": ["MODERATION"]})
+
+    # --- one session, paced ------------------------------------------------
+
+    def test_whole_plan_runs_in_one_session_paced_between_campaigns(self):
+        sessions = {"n": 0}
+
+        page = _BatchPacingPage()
+
+        def _with_session(ctx, headful, profile_dir, chrome_profile, fn):
+            sessions["n"] += 1
+            return fn(page)
+
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(
+                tmp, [{"CampaignId": cid, "Name": "x"} for cid in (1, 2, 3)]
+            )
+            with (
+                patch(
+                    "direct_cli.commands.masters._with_session",
+                    side_effect=_with_session,
+                ),
+                patch.object(
+                    browser_masters,
+                    "update_master",
+                    side_effect=lambda p, cid, **kw: {"CampaignId": cid},
+                ),
+            ):
+                result = self.runner.invoke(
+                    cli,
+                    ["masters", "update", "--from-file", plan, "--pacing-ms", "250"],
+                )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(sessions["n"], 1)
+        # Paced BETWEEN campaigns only -- no trailing pause after the last one.
+        self.assertEqual(page.waits, [250, 250])
+
+    def test_pacing_still_applied_after_a_failed_campaign(self):
+        """Issue #829's lesson is about how often the profile hits Yandex; a
+        row that failed still navigated there, so it must be paced too."""
+
+        page = _BatchPacingPage()
+
+        def _update(page_, campaign_id, **kwargs):
+            if campaign_id == 2:
+                raise PlaywrightError("boom")
+            return {"CampaignId": campaign_id}
+
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(
+                tmp, [{"CampaignId": cid, "Name": "x"} for cid in (1, 2, 3)]
+            )
+            with self._session(update=_update, page=page):
+                self.runner.invoke(
+                    cli,
+                    ["masters", "update", "--from-file", plan, "--pacing-ms", "100"],
+                )
+
+        self.assertEqual(page.waits, [100, 100])
+
+    # --- dry-run -----------------------------------------------------------
+
+    def test_dry_run_reports_plan_without_opening_a_browser(self):
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(
+                tmp,
+                [
+                    {
+                        "CampaignId": 713234064,
+                        "Headlines": {"1": "Новый заголовок"},
+                        "ClearTexts": [2],
+                        "Devices": ["mobile", "desktop"],
+                        "AgeTo": "unlimited",
+                    }
+                ],
+            )
+            with patch(
+                "direct_cli.commands.masters._with_session",
+                side_effect=AssertionError("dry-run must not open a session"),
+            ):
+                result = self.runner.invoke(
+                    cli, ["masters", "update", "--from-file", plan, "--dry-run"]
+                )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        payload = json.loads(result.output)
+        # Reported in the PLAN's vocabulary: PascalCase keys, 1-based slots,
+        # no internal snake_case or *_requested bookkeeping.
+        self.assertEqual(
+            payload,
+            [
+                {
+                    "CampaignId": 713234064,
+                    "Headlines": {"1": "Новый заголовок"},
+                    "ClearTexts": [2],
+                    "Devices": ["desktop", "mobile"],
+                    "AgeTo": "unlimited",
+                }
+            ],
+        )
+
+    def test_dry_run_validates_local_image_paths_before_any_save(self):
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(
+                tmp, [{"CampaignId": 1, "Images": {"1": "/nope/missing.jpg"}}]
+            )
+            result = self.runner.invoke(
+                cli, ["masters", "update", "--from-file", plan, "--dry-run"]
+            )
+
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn("Row 1", result.output)
+        self.assertIn("missing.jpg", result.output)
+
+    def test_a_bad_last_row_blocks_the_whole_plan_before_the_first_save(self):
+        """Validation is plan-wide and up-front, so a typo in the last row
+        cannot leave earlier campaigns already mutated."""
+        saved = []
+
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(
+                tmp,
+                [
+                    {"CampaignId": 1, "Name": "fine"},
+                    {"CampaignId": 2, "Images": {"1": "/nope/missing.jpg"}},
+                ],
+            )
+            with self._session(
+                update=lambda p, cid, **kw: saved.append(cid) or {"CampaignId": cid}
+            ):
+                result = self.runner.invoke(
+                    cli, ["masters", "update", "--from-file", plan]
+                )
+
+        self.assertEqual(result.exit_code, 2)
+        self.assertEqual(saved, [])
+
+    def test_single_campaign_dry_run_matches_the_batch_report_shape(self):
+        with patch(
+            "direct_cli.commands.masters._with_session",
+            side_effect=AssertionError("dry-run must not open a session"),
+        ):
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "713234064",
+                    "--headline",
+                    "1=Новый заголовок",
+                    "--clear-text",
+                    "2",
+                    "--device",
+                    "mobile",
+                    "--device",
+                    "desktop",
+                    "--age-to",
+                    "unlimited",
+                    "--dry-run",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            json.loads(result.output),
+            {
+                "CampaignId": 713234064,
+                "Headlines": {"1": "Новый заголовок"},
+                "ClearTexts": [2],
+                "Devices": ["desktop", "mobile"],
+                "AgeTo": "unlimited",
+            },
+        )
+
+    # --- input validation --------------------------------------------------
+
+    def test_malformed_jsonl_line_names_its_row(self):
+        with self.runner.isolated_filesystem() as tmp:
+            path = Path(tmp) / "plan.jsonl"
+            path.write_text(
+                '{"CampaignId": 1, "Name": "ok"}\nnot json at all\n', encoding="utf-8"
+            )
+            result = self.runner.invoke(
+                cli, ["masters", "update", "--from-file", str(path), "--dry-run"]
+            )
+
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn("Row 2", result.output)
+
+    def test_unknown_key_names_the_row_and_lists_allowed_keys(self):
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(
+                tmp,
+                [
+                    {"CampaignId": 1, "Name": "ok"},
+                    {"CampaignId": 2, "Headline": "typo, singular"},
+                ],
+            )
+            result = self.runner.invoke(
+                cli, ["masters", "update", "--from-file", plan, "--dry-run"]
+            )
+
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn("Unknown field 'Headline'", result.output)
+        self.assertIn("row 2", result.output)
+        self.assertIn("Headlines", result.output)
+
+    def test_typed_values_are_validated_exactly_like_the_single_flags(self):
+        """Every check Click gives the flag path (`type=int`, `click.Choice`,
+        the slot/position parsers) is re-applied to a JSON value -- otherwise
+        the batch surface would be strictly less safe than the flags."""
+        cases = [
+            ({"CampaignId": 1, "WeeklyBudget": "не-число"}, "WeeklyBudget"),
+            ({"CampaignId": 1, "WeeklyBudget": True}, "boolean"),
+            ({"CampaignId": 1, "AgeFrom": 999}, "AgeFrom"),
+            ({"CampaignId": 1, "Gender": "ZZZ"}, "Gender"),
+            ({"CampaignId": 1, "Devices": ["NOPE"]}, "Devices"),
+            ({"CampaignId": 1, "Launch": "yes-please"}, "Launch"),
+            ({"CampaignId": 1, "AddSitelinks": "garbage"}, "AddSitelinks"),
+            ({"CampaignId": 1, "Headlines": {"99": "x"}}, "out of range"),
+            ({"CampaignId": 1, "Headlines": {"1": "   "}}, "non-empty"),
+            ({"CampaignId": 1, "RemoveSitelinks": [1, 1]}, "more than once"),
+            ({"CampaignId": "713", "Name": "x"}, "CampaignId"),
+            ({"CampaignId": 1}, "at least one update field"),
+        ]
+        for row, expected in cases:
+            with self.subTest(row=row):
+                result = self.runner.invoke(
+                    cli,
+                    [
+                        "masters",
+                        "update",
+                        "--masters-json",
+                        json.dumps([row]),
+                        "--dry-run",
+                    ],
+                )
+                self.assertEqual(result.exit_code, 2, result.output)
+                self.assertIn("Row 1", result.output)
+                self.assertIn(expected, result.output)
+
+    def test_slot_numbers_are_1_based_in_both_modes(self):
+        """A plan is usually written by transcribing the equivalent flags, so
+        the same number must mean the same slot in either mode."""
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(tmp, [{"CampaignId": 1, "Headlines": {"1": "first"}}])
+            captured = {}
+            with self._session(
+                update=lambda p, cid, **kw: captured.update(kw) or {"CampaignId": cid}
+            ):
+                result = self.runner.invoke(
+                    cli, ["masters", "update", "--from-file", plan]
+                )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        # Slot 1 in the plan is index 0 for the browser layer -- the same
+        # translation `--headline "1=first"` performs.
+        self.assertEqual(captured["headlines"], {0: "first"})
+
+    def test_cross_field_conflicts_are_rejected_per_row(self):
+        cases = [
+            (
+                {"CampaignId": 1, "Headlines": {"1": "a"}, "ClearHeadlines": [1]},
+                "not both",
+            ),
+            (
+                {
+                    "CampaignId": 1,
+                    "PromotionGoal": "max-clicks",
+                    "AddTargetActions": {"5": 1.0},
+                },
+                "max-clicks",
+            ),
+            (
+                {
+                    "CampaignId": 1,
+                    "PromotionGoal": "max-conversions",
+                    "GoalPrice": 10.0,
+                },
+                "max-conversions",
+            ),
+            (
+                {
+                    "CampaignId": 1,
+                    "TargetActionPrices": {"5": 1.0},
+                    "RemoveTargetActionGoalIds": [5],
+                },
+                "Goal 5",
+            ),
+        ]
+        for row, expected in cases:
+            with self.subTest(row=row):
+                result = self.runner.invoke(
+                    cli,
+                    [
+                        "masters",
+                        "update",
+                        "--masters-json",
+                        json.dumps([row]),
+                        "--dry-run",
+                    ],
+                )
+                self.assertEqual(result.exit_code, 2, result.output)
+                self.assertIn(expected, result.output)
+
+    def test_duplicate_campaign_id_is_rejected(self):
+        """Two rows for one campaign would mean two saves, and completion is
+        tracked per campaign id -- so it is also the one input that could make
+        a retry skip a row that never ran."""
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(
+                tmp, [{"CampaignId": 1, "Name": "a"}, {"CampaignId": 1, "Name": "b"}]
+            )
+            result = self.runner.invoke(
+                cli, ["masters", "update", "--from-file", plan, "--dry-run"]
+            )
+
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn("rows 1 and 2", result.output)
+
+    def test_empty_plan_is_rejected_in_both_batch_forms(self):
+        with self.runner.isolated_filesystem() as tmp:
+            path = Path(tmp) / "plan.jsonl"
+            path.write_text("\n\n", encoding="utf-8")
+            from_file = self.runner.invoke(
+                cli, ["masters", "update", "--from-file", str(path), "--dry-run"]
+            )
+        inline = self.runner.invoke(
+            cli, ["masters", "update", "--masters-json", "[]", "--dry-run"]
+        )
+
+        self.assertEqual(from_file.exit_code, 2)
+        self.assertIn("no campaign rows", from_file.output)
+        self.assertEqual(inline.exit_code, 2)
+        self.assertIn("no campaign rows", inline.output)
+
+    # --- mode exclusivity, mirroring `keywords add` -------------------------
+
+    def test_modes_are_mutually_exclusive(self):
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(tmp, [{"CampaignId": 1, "Name": "a"}])
+            both_batch = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "--from-file",
+                    plan,
+                    "--masters-json",
+                    '[{"CampaignId": 2, "Name": "b"}]',
+                ],
+            )
+            id_and_file = self.runner.invoke(
+                cli, ["masters", "update", "1", "--from-file", plan]
+            )
+        neither = self.runner.invoke(cli, ["masters", "update"])
+
+        for result in (both_batch, id_and_file):
+            self.assertEqual(result.exit_code, 2, result.output)
+            self.assertIn("mutually exclusive", result.output)
+        self.assertEqual(neither.exit_code, 2)
+        self.assertIn("Provide exactly one of", neither.output)
+
+    def test_single_item_flags_are_refused_in_batch_mode(self):
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(tmp, [{"CampaignId": 1, "Name": "a"}])
+            result = self.runner.invoke(
+                cli, ["masters", "update", "--from-file", plan, "--name", "x"]
+            )
+
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn("--name", result.output)
+        self.assertIn("single-item mode", result.output)
+
+    def test_batch_mode_requires_json_format(self):
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(tmp, [{"CampaignId": 1, "Name": "a"}])
+            result = self.runner.invoke(
+                cli, ["masters", "update", "--from-file", plan, "--format", "table"]
+            )
+
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn("batch mode", result.output)
+
+    def test_batch_only_flags_are_refused_in_single_mode(self):
+        for flag in (["--moderation-statuses"], ["--pacing-ms", "500"]):
+            with self.subTest(flag=flag):
+                result = self.runner.invoke(
+                    cli, ["masters", "update", "1", "--name", "x", *flag]
+                )
+                self.assertEqual(result.exit_code, 2, result.output)
+                self.assertIn("batch mode", result.output)
+
+    def test_every_batch_key_mirrors_a_single_campaign_flag(self):
+        """Guard against the two surfaces drifting: a field added to one mode
+        and not the other is silent data loss in a plan file."""
+        from direct_cli.commands.masters import (
+            _UPDATE_FILE_FIELD_FLAGS,
+            _UPDATE_FILE_FIELDS,
+        )
+
+        batch_keys = set(_UPDATE_FILE_FIELDS) - {"CampaignId"}
+        self.assertEqual(batch_keys, set(_UPDATE_FILE_FIELD_FLAGS))
+
+        update_command = cli.commands["masters"].commands["update"]
+        declared = {opt for param in update_command.params for opt in param.opts}
+        for key, flag in _UPDATE_FILE_FIELD_FLAGS.items():
+            with self.subTest(key=key):
+                self.assertIn(flag, declared)
+
+        # ...and every mirrored key must actually reach `update_master`.
+        browser_kwargs = set(
+            inspect.signature(browser_masters.update_master).parameters
+        )
+        for key, target in _UPDATE_FILE_FIELDS.items():
+            if key == "CampaignId":
+                continue
+            with self.subTest(key=key):
+                self.assertIn(target, browser_kwargs)
 
 
 if __name__ == "__main__":
