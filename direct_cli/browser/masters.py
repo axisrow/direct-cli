@@ -5768,6 +5768,69 @@ def _metrika_counters_section_present(page: "Page") -> bool:
     return bool(stable_since)
 
 
+def _apply_metrika_counters(
+    page: "Page",
+    *,
+    add_metrika_counters: Optional[List[str]],
+    remove_metrika_counters: Optional[List[int]],
+) -> Optional[List[str]]:
+    """Apply the "Счетчики Яндекс Метрики" removals/additions and return the
+    pre-mutation baseline (or ``None`` when nothing was requested).
+
+    Extracted from ``update_master`` unchanged except for its position
+    (issue #844) so the counter block can run BEFORE target actions — see
+    the call site's comment for why that ordering is load-bearing rather
+    than cosmetic.
+
+    Removals are applied high-to-low so an earlier removal cannot shift a
+    later requested position, and each mutation is confirmed against the
+    counter list's length before moving on, rather than trusting the click.
+    """
+    requested = bool(add_metrika_counters or remove_metrika_counters)
+    counters_before = _read_metrika_counters(page) if requested else None
+    existing = counters_before or []
+    running_count = len(existing)  # noqa: SIM113
+
+    def _settle(expected: int, failure: str) -> None:
+        deadline = _clock.now() + _METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000
+        actual = len(_read_metrika_counters(page))
+        while actual != expected and _clock.now() < deadline:
+            page.wait_for_timeout(250)
+            actual = len(_read_metrika_counters(page))
+        if actual != expected:
+            raise BrowserSessionError(
+                f"{failure} but the counter list still shows {actual} "
+                f"counter(s) instead of the expected {expected} — the click "
+                "may not have committed. Verify manually before retrying."
+            )
+
+    for index in sorted(remove_metrika_counters or [], reverse=True):
+        if index >= len(existing):
+            raise BrowserSessionError(
+                f"Metrika counter position {index + 1} is out of range — "
+                f"this campaign currently has {len(existing)} "
+                f"counter(s) (positions 1-{len(existing)})."
+            )
+        _remove_metrika_counter(page, index)
+        running_count -= 1
+        _settle(
+            running_count,
+            f"Clicked the close button for the Metrika counter at position "
+            f"{index + 1},",
+        )
+
+    for text in add_metrika_counters or []:
+        _add_metrika_counter(page, text)
+        running_count += 1
+        _settle(
+            running_count,
+            f"Clicked the matching suggestion for {text!r} in "
+            "'Счетчики Яндекс Метрики',",
+        )
+
+    return counters_before
+
+
 def _read_settled_metrika_counters(page: "Page") -> List[str]:
     """``_read_metrika_counters``, but only once each tag's TEXT has stopped
     changing (issue #842).
@@ -8345,6 +8408,24 @@ def update_master(
                     _ids_confirm = {row["GoalId"] for row in _rows_confirm}
                     if _ids_confirm == set(_ids_before):
                         target_action_goal_ids_before = _ids_before
+    # Metrika counters are applied BEFORE target actions, not after (issue
+    # #844). The "Добавить" popup only lists goals belonging to a counter
+    # that is ALREADY linked, so running the counter block later — as this
+    # function did until now — made `--add-metrika-counter` and
+    # `--add-target-action` in one call impossible by construction: the goal
+    # was looked up against the counter set as it stood BEFORE the counter
+    # was attached, and failed with "Could not find goal N in the 'Добавить'
+    # target-action popup". Confirmed live on campaign 74736436: the same
+    # goal that fails through `update_master` is found immediately when the
+    # counter is linked first (61 options available, stable from t+1s).
+    # This is an ordering bug, not a hydration race — waiting longer at the
+    # old position never helps, because the counter simply is not linked yet.
+    metrika_counters_before = _apply_metrika_counters(
+        page,
+        add_metrika_counters=add_metrika_counters,
+        remove_metrika_counters=remove_metrika_counters,
+    )
+
     for goal_id in remove_target_action_goal_ids or []:
         _remove_target_action(page, goal_id)
     for goal_id, price in (add_target_actions or {}).items():
@@ -8524,59 +8605,6 @@ def update_master(
                 "committed. Verify manually before retrying."
             )
         add_sitelinks_observed.append(current_sitelinks[-1])
-
-    # Mirrors the audience-tags block immediately above, field-for-field —
-    # same pre-mutation-baseline-snapshot rationale (needed both for
-    # _verify_saved's expected multiset and so remove_metrika_counters below
-    # can remove high-to-low without an earlier removal shifting a later
-    # requested position), and same "capture even on an untouched save" R2-1
-    # guard against silently persisting a stale/empty read. NOT LIVE-
-    # VERIFIED — see the module comment above
-    # _METRIKA_COUNTER_WRAPPER_TESTID.
-    _metrika_requested = bool(add_metrika_counters or remove_metrika_counters)
-    metrika_counters_before = (
-        _read_metrika_counters(page) if _metrika_requested else None
-    )
-    _counters_before = metrika_counters_before or []
-    _running_counter_count = len(_counters_before)  # noqa: SIM113
-    for index in sorted(remove_metrika_counters or [], reverse=True):
-        if index >= len(_counters_before):
-            raise BrowserSessionError(
-                f"Metrika counter position {index + 1} is out of range — "
-                f"this campaign currently has {len(_counters_before)} "
-                f"counter(s) (positions 1-{len(_counters_before)})."
-            )
-        _remove_metrika_counter(page, index)
-        _running_counter_count -= 1
-        deadline = _clock.now() + _METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000
-        actual_count = len(_read_metrika_counters(page))
-        while actual_count != _running_counter_count and _clock.now() < deadline:
-            page.wait_for_timeout(250)
-            actual_count = len(_read_metrika_counters(page))
-        if actual_count != _running_counter_count:
-            raise BrowserSessionError(
-                f"Clicked the close button for the Metrika counter at "
-                f"position {index + 1}, but the counter list still shows "
-                f"{actual_count} counter(s) instead of the expected "
-                f"{_running_counter_count} — the click may not have "
-                "committed. Verify manually before retrying."
-            )
-    for text in add_metrika_counters or []:
-        _add_metrika_counter(page, text)
-        _running_counter_count += 1
-        deadline = _clock.now() + _METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000
-        actual_count = len(_read_metrika_counters(page))
-        while actual_count != _running_counter_count and _clock.now() < deadline:
-            page.wait_for_timeout(250)
-            actual_count = len(_read_metrika_counters(page))
-        if actual_count != _running_counter_count:
-            raise BrowserSessionError(
-                f"Clicked the matching suggestion for {text!r} in "
-                "'Счетчики Яндекс Метрики', but the counter list still "
-                f"shows {actual_count} counter(s) instead of the expected "
-                f"{_running_counter_count} — the click may not have "
-                "committed. Verify manually before retrying."
-            )
 
     for index, value in (headlines or {}).items():
         _set_repeating_value(

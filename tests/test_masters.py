@@ -12136,6 +12136,56 @@ class TestMastersTargetActionsCommand(unittest.TestCase):
         self.assertEqual(mock_fetch.call_args.args[1], 42)
 
 
+class TestUpdateMasterMutationOrder(unittest.TestCase):
+    """Metrika counters must be applied BEFORE target actions (issue #844)."""
+
+    def test_counters_are_linked_before_target_actions_are_added(self):
+        # The "Добавить" popup only lists goals belonging to an ALREADY
+        # linked counter, so the pre-#844 order (target actions first,
+        # counters ~200 lines later) made --add-metrika-counter plus
+        # --add-target-action in one call impossible by construction: the
+        # goal was looked up against the counter set as it stood BEFORE the
+        # counter was attached. Live-confirmed on campaign 74736436 — the
+        # same call that failed now links the counter and adds the goal.
+        calls = []
+
+        def _record(name):
+            def _inner(*args, **kwargs):
+                calls.append(name)
+                return None
+
+            return _inner
+
+        def _no_errors(*args, **kwargs):
+            return []
+
+        with (
+            patch.object(
+                browser_masters, "_apply_metrika_counters", _record("counters")
+            ),
+            patch.object(
+                browser_masters, "_add_target_action", _record("target_action")
+            ),
+            patch.object(browser_masters, "_wait_for_edit_form", lambda *a, **k: None),
+            patch.object(
+                browser_masters, "_wait_for_draft_status", lambda *a, **k: False
+            ),
+            patch.object(browser_masters, "assert_not_captcha", lambda *a, **k: None),
+            patch.object(browser_masters, "assert_authenticated", lambda *a, **k: None),
+            patch.object(browser_masters, "_click_save", lambda *a, **k: None),
+            patch.object(browser_masters, "_read_save_validation_errors", _no_errors),
+            patch.object(browser_masters, "_verify_saved", lambda *a, **k: None),
+        ):
+            browser_masters.update_master(
+                FakePage(),
+                42,
+                add_metrika_counters=["Ксамата • gc.ksamata.ru • 72112213"],
+                add_target_actions={226332091: 150.0},
+            )
+
+        self.assertEqual(calls, ["counters", "target_action"])
+
+
 class TestMastersCountersCommand(unittest.TestCase):
     """CLI wiring for `masters counters get` (issue #842)."""
 
