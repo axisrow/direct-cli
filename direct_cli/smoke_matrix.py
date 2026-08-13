@@ -65,6 +65,10 @@ SMOKE_MATRIX = {
         # never clicks Save (see fetch_master_images's docstring) — nothing
         # commits to the campaign, so this is safe to exercise like any
         # other *.get.
+        # Read-only: same "opens the edit page but never commits" safety as
+        # masters.targetactions.get below — reads the linked Metrika counter
+        # tags (issue #842) and never touches Save.
+        "masters.counters.get",
         "masters.get",
         "masters.list",
         # Read-only: navigates to the edit page and reads the "Целевые
