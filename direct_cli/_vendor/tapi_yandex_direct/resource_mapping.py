@@ -1,4 +1,3 @@
-
 RESOURCE_MAPPING_V5 = {
     "adextensions": {
         "resource": "json/v5/adextensions",
@@ -29,12 +28,28 @@ RESOURCE_MAPPING_V5 = {
     "ads": {
         "resource": "json/v5/ads",
         "docs": "https://yandex.ru/dev/direct/doc/ru/ads/ads",
-        "methods": ["get", "add", "update", "delete", "moderate", "suspend", "resume", "archive", "unarchive"],
+        "methods": [
+            "get",
+            "add",
+            "update",
+            "delete",
+            "moderate",
+            "suspend",
+            "resume",
+            "archive",
+            "unarchive",
+        ],
     },
     "agencyclients": {
         "resource": "json/v5/agencyclients",
         "docs": "https://yandex.ru/dev/direct/doc/ru/agencyclients/agencyclients",
-        "methods": ["get", "add", "update", "addPassportOrganization", "addPassportOrganizationMember"],
+        "methods": [
+            "get",
+            "add",
+            "update",
+            "addPassportOrganization",
+            "addPassportOrganizationMember",
+        ],
     },
     "audiencetargets": {
         "resource": "json/v5/audiencetargets",
@@ -54,7 +69,16 @@ RESOURCE_MAPPING_V5 = {
     "campaigns": {
         "resource": "json/v5/campaigns",
         "docs": "https://yandex.ru/dev/direct/doc/ru/campaigns/campaigns",
-        "methods": ["get", "add", "update", "delete", "archive", "unarchive", "suspend", "resume"],
+        "methods": [
+            "get",
+            "add",
+            "update",
+            "delete",
+            "archive",
+            "unarchive",
+            "suspend",
+            "resume",
+        ],
     },
     "changes": {
         "resource": "json/v5/changes",

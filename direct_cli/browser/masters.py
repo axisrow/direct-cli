@@ -1789,6 +1789,22 @@ _METRIKA_COUNTER_LISTBOX_TESTID = (
 _METRIKA_COUNTER_TESTID_TEMPLATE = "MetrikaCountersTagGroup.tag.{index}"
 _METRIKA_COUNTER_CLOSE_TESTID_TEMPLATE = "MetrikaCountersTagGroup.tag.{index}.close"
 
+# The whole "Счетчики Яндекс Метрики" island, used by `masters counters get`
+# (issue #842) to tell "no counter linked" apart from "section not on this
+# page". Live recon for issue #840 confirmed the block mounts ONLY under the
+# "max-conversions" promotion goal: on campaign 74736436 a
+# `[data-testid*="Metrika"]` sweep returned [] before the goal switch and the
+# full block (`MetrikaCountersBlock` + `...TagGroup[.placeholder|.launcher]`)
+# right after it — so its absence is an ordinary consequence of the campaign's
+# goal, not markup drift.
+_METRIKA_COUNTERS_BLOCK_TESTID = '[data-testid="MetrikaCountersBlock"]'
+
+# _metrika_counters_section_present polls for a STABLE presence reading
+# rather than trusting one sample — see its docstring for the measured
+# t+0/t+3s flip that makes a single read confidently wrong.
+_METRIKA_COUNTERS_SECTION_POLL_MS = 500
+_METRIKA_COUNTERS_SECTION_STABLE_TICKS = 3
+
 # Reuses the same 5s budget ``_AUDIENCE_TAG_SUGGEST_TIMEOUT_MS`` uses for its
 # own autocomplete popup — no live timing recon exists yet for THIS widget's
 # popup specifically, so borrowing the sibling widget's already-calibrated
@@ -5697,6 +5713,133 @@ def _read_metrika_counters(page: "Page") -> List[str]:
     return counters
 
 
+def _metrika_counters_section_present(page: "Page") -> bool:
+    """True if the "Счетчики Яндекс Метрики" block is rendered at all
+    (issue #842).
+
+    Distinguishes "no counter is linked" from "this page has no counters
+    section" — live recon (issues #840/#843) found the latter is NOT a
+    markup-drift signal but an ordinary consequence of the campaign's
+    promotion goal: the block exists only under "max-conversions".
+
+    MUST NOT be a wait-for-attached check, and must not read immediately
+    after ``_wait_for_edit_form``. Measured on campaign 74736436
+    (goal "max-clicks"), polling from the moment the edit form is ready:
+
+        t+0ms      block=1 launcher=1
+        t+3000ms   block=0 launcher=0
+        t+6000ms   block=0 launcher=0
+
+    The block is briefly present in the initial render and is UNMOUNTED
+    once the form settles on "max-clicks". A one-shot (or wait-for-
+    attached) read therefore returns a confident, wrong ``True`` — the
+    section is on its way out, not on its way in. This is the mirror image
+    of the hydration races elsewhere in this module, where absence is the
+    transient state; here PRESENCE is.
+
+    So this polls for a STABLE answer instead: the block's presence must
+    read the same on consecutive ticks before it is believed, mirroring
+    ``_wait_for_target_actions_settled``'s "settled snapshot" convention.
+    """
+    deadline = _clock.now() + _METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000
+    locator = page.locator(_METRIKA_COUNTERS_BLOCK_TESTID)
+
+    def _present() -> bool:
+        try:
+            return locator.count() > 0
+        except PlaywrightError:
+            return False
+
+    stable_since: Optional[bool] = None
+    stable_ticks = 0
+    while _clock.now() < deadline:
+        current = _present()
+        if current == stable_since:
+            stable_ticks += 1
+            if stable_ticks >= _METRIKA_COUNTERS_SECTION_STABLE_TICKS:
+                return current
+        else:
+            stable_since = current
+            stable_ticks = 1
+        page.wait_for_timeout(_METRIKA_COUNTERS_SECTION_POLL_MS)
+
+    # Never settled within the budget — report the last read rather than
+    # inventing an answer; callers treat False as "no section".
+    return bool(stable_since)
+
+
+def _read_settled_metrika_counters(page: "Page") -> List[str]:
+    """``_read_metrika_counters``, but only once each tag's TEXT has stopped
+    changing (issue #842).
+
+    A linked counter tag hydrates its own label in two stages — measured on
+    campaign 713234204, polling from the moment the edit form is ready:
+
+        t+0ms      ["72112213"]
+        t+4000ms   ["gc.ksamata.ru • 72112213\\n30 целей"]
+
+    The early value is a bare id with no separator, so
+    ``_parse_metrika_counter_tag`` finds no ``•`` and reports
+    ``CounterId: null`` — a read that is not merely early but actively
+    misleading, since the id IS present, just unparseable in that shape.
+    Polling until consecutive reads agree (same convention as
+    ``_metrika_counters_section_present``) yields the settled label.
+    """
+    deadline = _clock.now() + _METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000
+    previous: Optional[List[str]] = None
+    stable_ticks = 0
+
+    while _clock.now() < deadline:
+        current = _read_metrika_counters(page)
+        if current == previous:
+            stable_ticks += 1
+            if stable_ticks >= _METRIKA_COUNTERS_SECTION_STABLE_TICKS:
+                return current
+        else:
+            previous = current
+            stable_ticks = 1
+        page.wait_for_timeout(_METRIKA_COUNTERS_SECTION_POLL_MS)
+
+    return previous if previous is not None else []
+
+
+def _parse_metrika_counter_tag(text: str) -> Dict[str, Any]:
+    """Split a linked counter tag's ``inner_text()`` into its parts.
+
+    LIVE-CONFIRMED SHAPE (issue #842, campaign 713234204): a linked tag is
+    two lines — ``"gc.ksamata.ru • 72112213\\n30 целей"``, i.e.
+    ``{domain} • {counter id}`` then a goal-count line.
+
+    NOTE this is NOT the same shape as the AUTOCOMPLETE suggestion that
+    ``--add-metrika-counter`` matches against, which carries a leading
+    label too (``"Ксамата Директ • gc.ksamata.ru • 72112213"``, confirmed
+    live on the same account). The linked tag has no label, so a value read
+    back here cannot be fed straight to ``--add-metrika-counter`` — the id
+    is the stable identity to compare on, which is why it is parsed out
+    into its own field rather than leaving callers to string-match the
+    display text.
+
+    Parsing is best-effort: the raw ``Text`` is always returned, and
+    ``CounterId``/``Domain`` are ``None`` when the line doesn't match,
+    rather than raising — an unparsed tag is still useful output.
+    """
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    first = lines[0] if lines else ""
+    parts = [part.strip() for part in first.split("•")]
+
+    counter_id: Optional[int] = None
+    domain: Optional[str] = None
+    if len(parts) >= 2 and parts[-1].isdigit():
+        counter_id = int(parts[-1])
+        domain = parts[-2] or None
+
+    return {
+        "CounterId": counter_id,
+        "Domain": domain,
+        "Text": text,
+    }
+
+
 def _add_metrika_counter(page: "Page", text: str) -> None:
     """Add one Metrika counter to "Счетчики Яндекс Метрики" by typing
     ``text`` into the counter search input and clicking the suggestion row
@@ -5748,6 +5891,24 @@ def _add_metrika_counter(page: "Page", text: str) -> None:
     try:
         launcher.click()
     except PlaywrightError as exc:
+        # Name the promotion-goal precondition before blaming markup drift
+        # (issue #843). Live-confirmed on campaign 74736436: with the goal
+        # on "max-clicks" the launcher AND the whole MetrikaCountersBlock
+        # are absent (count=0/0), and both mount immediately once the goal
+        # is switched to "max-conversions" (count=1/1) — the selector is
+        # correct, the section simply is not on the page yet. The original
+        # "Yandex may have changed the page's markup" wording sent the
+        # operator hunting for a drifted testid that had not drifted.
+        if not _metrika_counters_section_present(page):
+            raise BrowserSessionError(
+                "The 'Счетчики Яндекс Метрики' section is not on this "
+                "campaign's edit page, so there is nothing to add a counter "
+                "to. That section only exists while the promotion goal is "
+                "'max-conversions' — pass --promotion-goal max-conversions "
+                "in the SAME call (it is applied before counters) if the "
+                "campaign is currently on 'max-clicks'. Check the current "
+                "goal with `masters counters get`."
+            ) from exc
         raise BrowserSessionError(
             "Could not click the 'Счетчики Яндекс Метрики' launcher button "
             "on the campaign edit page — Yandex may have changed the "
@@ -9141,6 +9302,49 @@ def fetch_master_audience(page: "Page", campaign_id: int) -> Dict[str, Any]:
         "AudienceTags": audience_tags,
         "AudienceTagCount": len(audience_tags),
         "Devices": sorted(devices) if devices is not None else None,
+    }
+
+
+def fetch_master_metrika_counters(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Read a campaign's currently linked "Счетчики Яндекс Метрики" (issue
+    #842).
+
+    Read-only, mirrors ``fetch_master_target_actions``/
+    ``fetch_master_audience``: navigates straight to the edit page (this
+    data does not exist on the overview page ``fetch_master`` reads) and
+    reads without ever touching Save.
+
+    Each entry carries the raw two-line tag ``Text`` plus the ``CounterId``
+    and ``Domain`` parsed out of its first line — see
+    ``_parse_metrika_counter_tag`` for the live-confirmed shape.
+
+    ``PromotionGoal``-gated, and the reason this returns
+    ``SectionPresent`` rather than just a list: live recon for issue #840
+    (campaigns 74736436 / 713234204) confirmed the whole "Счетчики Яндекс
+    Метрики" block is absent from the DOM until the promotion goal is
+    "max-conversions". An empty list therefore has TWO very different
+    meanings — "the campaign has no counter linked" versus "the section
+    isn't rendered on this page at all" — and a caller deciding whether to
+    run ``--add-metrika-counter`` needs to tell them apart. That is exactly
+    the ambiguity ``fetch_master_target_actions``' docstring documents but
+    leaves to the caller; here it is answered directly.
+    """
+    page.goto(WIZARD_EDIT_URL.format(campaign_id=campaign_id), wait_until="commit")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
+
+    section_present = _metrika_counters_section_present(page)
+    counters = [
+        _parse_metrika_counter_tag(text)
+        for text in _read_settled_metrika_counters(page)
+    ]
+
+    return {
+        "CampaignId": campaign_id,
+        "SectionPresent": section_present,
+        "Counters": counters,
+        "Count": len(counters),
     }
 
 

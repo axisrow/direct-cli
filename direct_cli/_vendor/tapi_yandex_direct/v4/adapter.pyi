@@ -2,7 +2,6 @@ from typing import Any, Iterator, List, Optional, Union
 
 from requests import Response
 
-
 class V4LiveResponse:
     @property
     def data(self) -> dict: ...
@@ -19,14 +18,12 @@ class V4LiveResponse:
     def pages(self) -> Iterator: ...
     def iter_items(self) -> Iterator: ...
 
-
 class V4LiveExecutorResponse:
     def __call__(self) -> V4LiveResponse: ...
     @property
     def data(self) -> dict: ...
     @property
     def status_code(self) -> int: ...
-
 
 class V4LiveExecutor:
     def post(
@@ -37,7 +34,6 @@ class V4LiveExecutor:
         headers: Optional[dict] = ...,
     ) -> V4LiveExecutorResponse: ...
     def help(self) -> "V4LiveExecutor": ...
-
 
 class YandexDirectV4Live:
     def __init__(
@@ -53,5 +49,4 @@ class YandexDirectV4Live:
         finance_token: Optional[str] = None,
         operation_num: Optional[int] = None,
     ) -> None: ...
-
     def v4live(self) -> V4LiveExecutor: ...

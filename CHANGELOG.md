@@ -227,7 +227,51 @@ All real-page interactions in this recon pass were abandoned via the
 modal's Cancel button (never Save) — the campaign's saved image set is
 confirmed unchanged before and after.
 
+**`masters counters get` — read a Мастер's linked Metrika counters (#842).**
+
+Sibling of `masters targetactions get`/`masters audience get`, and the missing
+half of the target-action story: a goal can only be added from a *linked*
+counter's goals, so "`--add-target-action` can't find the goal" and "no counter
+is linked at all" used to look identical from the CLI.
+
+```
+direct masters counters get 713234204
+```
+
+Each entry carries the raw tag `Text` plus the `CounterId`/`Domain` parsed from
+it. `SectionPresent` disambiguates the empty case: `false` means the "Счетчики
+Яндекс Метрики" block is not on the page at all (see #843 below), `true` with
+`Count: 0` is the genuinely counter-less campaign.
+
+Two read hazards found live and guarded against, both of which make a
+single-sample read confidently wrong rather than merely early:
+
+* The block is briefly present in the initial render and is **unmounted** once
+  the form settles on a `max-clicks` campaign (measured on 74736436: `block=1`
+  at t+0, `block=0` from t+3s) — the mirror image of this module's usual
+  hydration races, where absence is the transient state.
+* A linked tag's own text hydrates in two stages — `"72112213"` at t+0, then
+  `"gc.ksamata.ru • 72112213\n30 целей"` from t+4s. The early value has no
+  separator, so it parses to `CounterId: null` even though the id is right
+  there.
+
+Both are handled by polling for a *stable* reading, mirroring
+`_wait_for_target_actions_settled`.
+
 ### Fixed
+
+**`masters update --add-metrika-counter` — name the promotion-goal
+precondition instead of blaming markup drift (#843).**
+
+The command failed with "Could not click the 'Счетчики Яндекс Метрики' launcher
+button — Yandex may have changed the page's markup", sending the operator
+hunting for a drifted testid that had not drifted. Live recon confirmed the
+selector is correct and the section simply does not exist yet: on campaign
+74736436 (goal `max-clicks`) both the launcher and the whole
+`MetrikaCountersBlock` settle to absent, and both mount once the goal is
+switched to `max-conversions`. The error now says so and names the fix — pass
+`--promotion-goal max-conversions` in the same call, since it is applied before
+counters.
 
 **`masters update --promotion-goal` — retry a swallowed dropdown click, and
 report Yandex's own rejection text (#840).**
