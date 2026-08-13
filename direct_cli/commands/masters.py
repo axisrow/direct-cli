@@ -2267,9 +2267,10 @@ def counters_get(
     counter-less case.
 
     Each entry carries the raw two-line tag ``Text`` plus the ``CounterId``
-    and ``Domain`` parsed from it. Note ``Text`` is NOT the same shape as
-    the autocomplete value ``--add-metrika-counter`` expects (the linked
-    tag carries no label) — compare on ``CounterId``.
+    and ``Domain`` parsed from it. ``Text`` is NOT the same shape as the
+    autocomplete suggestion (the linked tag carries no label), so compare
+    on ``CounterId`` — and pass that same ``CounterId`` straight to
+    ``--add-metrika-counter``, which matches numeric ids exactly (#846).
     """
     from ..browser.masters import fetch_master_metrika_counters
 
@@ -2630,17 +2631,16 @@ def audience_get(
     "add_metrika_counters",
     multiple=True,
     help=(
-        "Add a Yandex Metrika counter to 'Счетчики Яндекс Метрики' — the "
-        "exact, full text of one of Yandex's own autocomplete suggestions "
-        "(repeat for multiple), confirmed live (issue #648, 2026-08-06) to "
-        "be a single line shaped '{label} • {domain/path} • {numeric "
-        "counter id}' (e.g. 'Ксамата • yandex.ru/maps • 88834924') — "
-        "typing just the label is enough to surface the suggestion "
-        "interactively, but this flag needs the WHOLE string, not just "
-        "the label. Adding/removing itself is NOT LIVE-VERIFIED (only the "
-        "suggestion text format was confirmed) — see "
-        "`direct_cli/browser/masters.py`'s `_add_metrika_counter` "
-        "docstring. A value with no matching suggestion is refused."
+        "Add a Yandex Metrika counter to 'Счетчики Яндекс Метрики' by its "
+        "NUMERIC COUNTER ID, e.g. --add-metrika-counter 72112213 (repeat "
+        "for multiple). The id is matched exactly against Yandex's own "
+        "suggestion, so it is the spelling to prefer: it is what Metrika "
+        "shows and what `masters counters get` reports as `CounterId`. The "
+        "full suggestion line ('{label} • {domain/path} • {numeric counter "
+        "id}') is also accepted verbatim. The section exists only under "
+        "--promotion-goal max-conversions — pass that in the SAME call if "
+        "the campaign is on max-clicks. A value with no matching "
+        "suggestion is refused, and the error lists what Yandex offered."
     ),
 )
 @click.option(
@@ -2873,15 +2873,15 @@ def update(
 
     ``--add-metrika-counter``/``--remove-metrika-counter`` (issue #648)
     cover the "Счетчики Яндекс Метрики" section, mirroring
-    ``--add-audience-tag``/``--remove-audience-tag`` above field-for-field:
-    a value must be the exact text of one of Yandex's own autocomplete
-    suggestions, and ``--remove-metrika-counter`` takes 0-based positions
-    into the counter list as it exists BEFORE this command runs. NOT
-    LIVE-VERIFIED — this is an offline implementation following the
-    audience-tags pattern; see ``--add-metrika-counter``'s own help text
-    and ``direct_cli/browser/masters.py``'s module comment above
-    ``_METRIKA_COUNTER_WRAPPER_TESTID`` for what specifically remains
-    unconfirmed.
+    ``--add-audience-tag``/``--remove-audience-tag`` above field-for-field.
+    ``--add-metrika-counter`` takes the counter's NUMERIC ID (matched
+    exactly against Yandex's own suggestion) or the full suggestion line;
+    ``--remove-metrika-counter`` takes 0-based positions into the counter
+    list as it exists BEFORE this command runs. The section only exists
+    under ``--promotion-goal max-conversions``, and counters are applied
+    BEFORE target actions (#844) so both can be set in one call.
+    LIVE-VERIFIED through linking the counter on the page (#846); see
+    ``direct_cli/browser/masters.py``'s ``_add_metrika_counter``.
 
     ``--add-sitelink``/``--remove-sitelink`` (issue #648, Этап C) cover the
     "Быстрые ссылки" section. ``--add-sitelink "Title|Href|Description"``

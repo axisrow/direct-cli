@@ -1783,8 +1783,20 @@ _METRIKA_COUNTER_LAUNCHER_TESTID = '[data-testid="MetrikaCountersTagGroup.launch
 _METRIKA_COUNTER_INPUT_TESTID = (
     '[data-testid="MetrikaCountersTagGroup.editor.Textinput"]'
 )
-_METRIKA_COUNTER_LISTBOX_TESTID = (
-    '[data-testid="MetrikaCountersTagGroup.editor.listBox"]'
+# The suggestion popup is NOT a descendant of the editor: it is portalled to
+# a `dc-Popup` directly under <body> (live recon, issue #846, campaign
+# 74099856). Scoping the option search to the editor subtree — or to an
+# element whose data-testid EQUALS "...editor.listBox" — matches nothing,
+# because no element carries that exact testid: it exists only as the PREFIX
+# of each option's own testid, "...editor.listBox.{counter id}". The previous
+# `[data-testid="...editor.listBox"]` locator therefore resolved to zero
+# elements on every campaign, so `get_by_role("option")` under it always
+# counted 0 and every add timed out — reported as "no suggestion matching
+# {text}", which blamed the caller's text for a selector bug and cost the
+# operator three wrong guesses at the spelling before this recon.
+_METRIKA_COUNTER_OPTION_TESTID_PREFIX = "MetrikaCountersTagGroup.editor.listBox."
+_METRIKA_COUNTER_OPTION_SELECTOR = (
+    f'[data-testid^="{_METRIKA_COUNTER_OPTION_TESTID_PREFIX}"]'
 )
 _METRIKA_COUNTER_TESTID_TEMPLATE = "MetrikaCountersTagGroup.tag.{index}"
 _METRIKA_COUNTER_CLOSE_TESTID_TEMPLATE = "MetrikaCountersTagGroup.tag.{index}.close"
@@ -1802,8 +1814,31 @@ _METRIKA_COUNTERS_BLOCK_TESTID = '[data-testid="MetrikaCountersBlock"]'
 # _metrika_counters_section_present polls for a STABLE presence reading
 # rather than trusting one sample — see its docstring for the measured
 # t+0/t+3s flip that makes a single read confidently wrong.
+#
+# THE STABILITY WINDOW MUST OUTLAST THE TRANSIENT IT GUARDS AGAINST (#846).
+# These were 500ms x 3 ticks, which settles after 3 samples spanning only 2
+# gaps — ~1.0s — while the measured unmount lands at t+3000ms. The poller
+# therefore certified "stably present" a full 2s BEFORE the block went away,
+# and `masters counters get` returned SectionPresent: true on a max-clicks
+# campaign that has no counters section at all — the intermittent true/false
+# between consecutive reads reported in #846, with no update in between.
+#
+# The window is now 500ms x 8 = ~3.5s of agreement, which spans the flip with
+# margin. Keep POLL_MS * (STABLE_TICKS - 1) comfortably ABOVE 3000ms if these
+# are ever retuned; raising POLL_MS alone widens it just as well as raising
+# the tick count. The 5s overall budget still bounds the call.
 _METRIKA_COUNTERS_SECTION_POLL_MS = 500
-_METRIKA_COUNTERS_SECTION_STABLE_TICKS = 3
+_METRIKA_COUNTERS_SECTION_STABLE_TICKS = 8
+
+# This poller needs its OWN budget rather than borrowing the autocomplete's
+# 5s: a ~3.5s stability window cannot also settle a flip that happens at
+# t+3000ms inside 5s, because the run of agreement only STARTS after the
+# flip. At 5s the max-clicks case never settled and fell through to the
+# "report the last read" fallback — it returned the right answer by accident,
+# which is not a property worth depending on. At 8s both cases settle on
+# their own merits: max-conversions (never flips) at ~3.5s, max-clicks at
+# ~6.5s. Only reached on campaigns whose section is genuinely absent.
+_METRIKA_COUNTERS_SECTION_TIMEOUT_MS = 8_000
 
 # Reuses the same 5s budget ``_AUDIENCE_TAG_SUGGEST_TIMEOUT_MS`` uses for its
 # own autocomplete popup — no live timing recon exists yet for THIS widget's
@@ -5740,13 +5775,33 @@ def _metrika_counters_section_present(page: "Page") -> bool:
     So this polls for a STABLE answer instead: the block's presence must
     read the same on consecutive ticks before it is believed, mirroring
     ``_wait_for_target_actions_settled``'s "settled snapshot" convention.
+
+    THE WINDOW MUST OUTLAST THE FLIP (#846). The original 500ms x 3 ticks
+    settles after 3 samples spanning 2 gaps — ~1.0s — i.e. it certified
+    "stably present" ~2s BEFORE the t+3000ms unmount, which is exactly the
+    bug it was written to prevent: ``masters counters get`` reported
+    ``SectionPresent: true`` on a max-clicks campaign in one run and
+    ``false`` in the next, with no update in between, and the true/false
+    split tracked nothing but how the poll ticks happened to line up
+    against the unmount.
+
+    Now 500ms x 8 ticks (~3.5s of agreement) against an 8s budget, so both
+    outcomes settle deliberately rather than via the fallback: a
+    max-conversions campaign (never flips) settles ``True`` at ~3.5s, a
+    max-clicks one settles ``False`` at ~6.5s, having watched the block go
+    away and stay away. Note the run of agreement only STARTS after the
+    flip, which is why the budget must exceed flip + window, not just the
+    window.
     """
-    deadline = _clock.now() + _METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000
-    locator = page.locator(_METRIKA_COUNTERS_BLOCK_TESTID)
+    deadline = _clock.now() + _METRIKA_COUNTERS_SECTION_TIMEOUT_MS / 1000
 
     def _present() -> bool:
+        # Re-resolve the locator on every sample. A Playwright locator is
+        # lazy and would re-query on each `count()`, but relying on that
+        # makes the poll silently depend on it — and this loop exists
+        # precisely to observe the DOM CHANGING under it.
         try:
-            return locator.count() > 0
+            return page.locator(_METRIKA_COUNTERS_BLOCK_TESTID).count() > 0
         except PlaywrightError:
             return False
 
@@ -5903,40 +5958,83 @@ def _parse_metrika_counter_tag(text: str) -> Dict[str, Any]:
     }
 
 
+def _read_metrika_counter_suggestions(page: "Page") -> List[str]:
+    """Read the suggestion lines currently in the counter autocomplete.
+
+    Used only to build the failure message: naming what Yandex DID offer
+    turns "no match" into something the operator can act on, instead of the
+    guess-the-spelling loop that issue #846 documents (three wrong spellings
+    tried against a popup that, as it turned out, was never being read at
+    all).
+
+    Best-effort: returns ``[]`` rather than raising, so a read failure here
+    can never mask the real "no match" error being raised by the caller.
+    """
+    lines: List[str] = []
+    try:
+        options = page.locator(_METRIKA_COUNTER_OPTION_SELECTOR)
+        for i in range(options.count()):
+            raw = options.nth(i).inner_text(timeout=500)
+            collapsed = " ".join(str(raw).split())
+            if collapsed and collapsed not in lines:
+                lines.append(collapsed)
+    except PlaywrightError:
+        return lines
+    return lines
+
+
+def _suggestion_matches_counter(first_line: str, option_id: str, text: str) -> bool:
+    """Decide whether one autocomplete suggestion is the counter the caller
+    asked for.
+
+    ``option_id`` is the counter id Yandex itself puts in the option's
+    ``data-testid`` suffix (``...editor.listBox.72112213``) — an exact,
+    unambiguous identity that needs no parsing of display text. Accepted
+    spellings of ``text`` (issue #846):
+
+    * the bare numeric counter id — ``"72112213"``;
+    * the whole suggestion line verbatim, as before —
+      ``"Ксамата Директ • gc.ksamata.ru • 72112213"``.
+
+    The bare id is the spelling operators actually have: it is what Metrika
+    displays and what ``masters counters get`` reads back off a LINKED tag
+    (``_parse_metrika_counter_tag``), whose text — ``"gc.ksamata.ru •
+    72112213"`` — is a DIFFERENT shape from the suggestion's (no label), so
+    a value read back could never be pasted into ``--add-metrika-counter``
+    before this. Matching on the id closes that round trip.
+
+    The id is compared against ``option_id`` only, never as a substring of
+    the display text: a bare ``"123"`` must not select ``"Магазин 123 •
+    shop.ru • 99999999"``. Linking the WRONG counter silently is the failure
+    this guards against — a counter set is not re-read after every run.
+    """
+    query = text.strip()
+    if query.isdigit():
+        return option_id == query
+    return first_line == query
+
+
 def _add_metrika_counter(page: "Page", text: str) -> None:
     """Add one Metrika counter to "Счетчики Яндекс Метрики" by typing
-    ``text`` into the counter search input and clicking the suggestion row
-    whose FIRST LINE exactly matches it.
+    ``text`` into the counter search input and clicking the matching
+    suggestion (see ``_suggestion_matches_counter``).
 
-    ``text`` FORMAT CONFIRMED LIVE (issue #648, 2026-08-06, campaign
-    713277109, via ``mcp__claude-in-chrome`` — real Chrome, not the
-    Playwright session): typing a partial query (e.g. just the counter's
-    label, "Ксамата") still surfaces the SAME suggestion as typing the full
-    string, but the suggestion's accessible text is exactly ONE line —
-    ``"{label} • {domain/path} • {numeric counter id}"`` (confirmed:
-    ``"Ксамата • yandex.ru/maps • 88834924"``), no newline anywhere in it.
-    Since ``_find_matching_option`` below splits on the first ``"\n"`` and
-    compares for EQUALITY against the whole (single-line) result, the
-    caller-supplied ``text`` must be that ENTIRE string verbatim — passing
-    only the label (e.g. ``"Ксамата"``) will NOT match, even though it's
-    enough to surface the right suggestion while typing interactively.
-    ``masters update``'s own help text/docstring should say this plainly
-    rather than describe it as "an autocomplete suggestion's text" in the
-    abstract.
+    ``text`` may be the counter's BARE NUMERIC ID — the spelling operators
+    actually have — or the full suggestion line. LIVE-CONFIRMED (issue #846,
+    2026-08-14, campaign 74099856, ksamatadirect, via
+    ``mcp__claude-in-chrome``): the search runs SERVER-SIDE on partial input
+    — typing ``"7211"`` surfaces ``"Ксамата Директ • gc.ksamata.ru •
+    72112213"`` — and each option carries its own counter id in
+    ``data-testid`` (``MetrikaCountersTagGroup.editor.listBox.72112213``),
+    which is what the id match compares against.
 
-    Still NOT LIVE-VERIFIED: whether ``match.click()`` actually commits the
-    counter into the "tags-wrapper" list and whether that persists through
-    the campaign's save — the recon session closed the popup with Escape
-    and reloaded the page without saving, precisely to avoid mutating this
-    live campaign's counter set. Also unconfirmed: whether ``Escape`` alone
-    (with no fill-clear afterwards) can leave the search input holding
-    stale, non-committed text the way ``_set_target_action_price`` was
-    found to leave its own popup open in issue #796 — the live recon here
-    hit the SAME visual symptom (Escape closed the suggestion list but left
-    the typed text sitting in the input) and had to explicitly clear the
-    field before navigating away. Worth revisiting whether ``_add_metrika_
-    counter``'s error path below needs the same explicit-clear treatment,
-    not just an ``Escape`` press, once this is exercised end to end.
+    The whole add path is now LIVE-VERIFIED end to end: clicking the
+    suggestion commits the counter into the tags-wrapper (it renders as
+    ``"gc.ksamata.ru • 72112213\\n30 целей"``) and the "Счетчик отсутствует"
+    warning under "Целевые действия" clears, replaced by its "Добавить"
+    button. That recon was deliberately NOT saved — the page was reloaded
+    through the "Leave site?" dialog — so persistence through save is still
+    the one unconfirmed step.
 
     Unlike ``_add_audience_tag``, this clicks the dedicated
     ``_METRIKA_COUNTER_LAUNCHER_TESTID`` button to open the editor rather
@@ -6005,8 +6103,7 @@ def _add_metrika_counter(page: "Page", text: str) -> None:
             "the page."
         ) from exc
 
-    listbox = page.locator(_METRIKA_COUNTER_LISTBOX_TESTID).first
-    options = listbox.get_by_role("option")
+    options = page.locator(_METRIKA_COUNTER_OPTION_SELECTOR)
 
     def _find_matching_option():
         try:
@@ -6016,10 +6113,12 @@ def _add_metrika_counter(page: "Page", text: str) -> None:
         for i in range(count):
             option = options.nth(i)
             try:
+                testid = option.get_attribute("data-testid") or ""
                 first_line = option.inner_text(timeout=500).split("\n", 1)[0]
             except PlaywrightError:
                 continue
-            if first_line == text:
+            option_id = testid[len(_METRIKA_COUNTER_OPTION_TESTID_PREFIX) :]
+            if _suggestion_matches_counter(first_line, option_id, text):
                 return option
         return None
 
@@ -6034,13 +6133,25 @@ def _add_metrika_counter(page: "Page", text: str) -> None:
     if match is None:
         with contextlib.suppress(PlaywrightError):
             page.keyboard.press("Escape")
+        seen = _read_metrika_counter_suggestions(page)
+        if seen:
+            offered = "; ".join(repr(item) for item in seen)
+            raise BrowserSessionError(
+                f"No suggestion matching {text!r} appeared in the 'Счетчики "
+                "Яндекс Метрики' autocomplete within "
+                f"{_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000:.0f}s. Yandex "
+                f"offered: {offered}. Pass the counter's numeric id (the "
+                "trailing number) — that is matched exactly."
+            )
         raise BrowserSessionError(
-            f"No suggestion exactly matching {text!r} appeared in the "
-            "'Счетчики Яндекс Метрики' autocomplete within "
-            f"{_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000:.0f}s — this may "
-            "not be a valid Metrika counter on Yandex's side, or its "
-            "suggestion label differs from the exact text passed. Re-run "
-            "with --headful to see the actual suggestion list."
+            f"Yandex's 'Счетчики Яндекс Метрики' autocomplete returned no "
+            f"suggestions at all for {text!r} within "
+            f"{_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS / 1000:.0f}s. The search "
+            "runs server-side and matches partial input, so this usually "
+            "means the counter is not accessible to this Yandex account "
+            "rather than that the text was spelled wrong — verify the "
+            "account has access to it in Metrika. Re-run with --headful to "
+            "watch the suggestion list."
         )
 
     try:

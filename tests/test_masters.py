@@ -19682,7 +19682,32 @@ class TestAddMetrikaCounter(unittest.TestCase):
         with self.assertRaises(BrowserSessionError):
             browser_masters._add_metrika_counter(page, "gc.ksamata.ru")
 
-    def test_clicks_launcher_then_matching_option_by_first_line(self):
+    @staticmethod
+    def _suggestion(counter_id, text, on_click=None):
+        """One autocomplete row, shaped as the LIVE page renders it (#846):
+        the counter id lives in the option's own ``data-testid`` suffix, and
+        the row is matched directly by that prefix — there is no wrapping
+        element carrying a bare ``...editor.listBox`` testid to scope to.
+        """
+        prefix = browser_masters._METRIKA_COUNTER_OPTION_TESTID_PREFIX
+        return _FakeLocatorHandle(
+            text=text,
+            attrs={"data-testid": f"{prefix}{counter_id}"},
+            on_click=on_click,
+        )
+
+    def _page(self, launcher, field, options):
+        return FakePage(
+            locators={
+                browser_masters._METRIKA_COUNTER_LAUNCHER_TESTID: _FakeLocator(
+                    [launcher]
+                ),
+                browser_masters._METRIKA_COUNTER_INPUT_TESTID: _FakeLocator([field]),
+                browser_masters._METRIKA_COUNTER_OPTION_SELECTOR: _FakeLocator(options),
+            }
+        )
+
+    def test_clicks_launcher_then_matching_option_by_full_line(self):
         launcher_clicks = {"count": 0}
         launcher = _FakeLocatorHandle(
             on_click=lambda: launcher_clicks.__setitem__(
@@ -19691,51 +19716,83 @@ class TestAddMetrikaCounter(unittest.TestCase):
         )
         field = _FakeLocatorHandle()
         option_clicked = {"clicked": False}
-        matching_option = _FakeLocatorHandle(
-            text="gc.ksamata.ru • 72112213\n30 целей",
+        matching = self._suggestion(
+            "72112213",
+            "Ксамата Директ • gc.ksamata.ru • 72112213",
             on_click=lambda: option_clicked.__setitem__("clicked", True),
         )
-        other_option = _FakeLocatorHandle(text="other.ru • 999\n1 цель")
-        listbox = _FakeLocatorHandle(role_options=[other_option, matching_option])
-        page = FakePage(
-            locators={
-                browser_masters._METRIKA_COUNTER_LAUNCHER_TESTID: _FakeLocator(
-                    [launcher]
-                ),
-                browser_masters._METRIKA_COUNTER_INPUT_TESTID: _FakeLocator([field]),
-                browser_masters._METRIKA_COUNTER_LISTBOX_TESTID: _FakeLocator(
-                    [listbox]
-                ),
-            }
-        )
+        other = self._suggestion("999", "Другой • other.ru • 999")
+        page = self._page(launcher, field, [other, matching])
 
-        browser_masters._add_metrika_counter(page, "gc.ksamata.ru • 72112213")
+        browser_masters._add_metrika_counter(
+            page, "Ксамата Директ • gc.ksamata.ru • 72112213"
+        )
 
         self.assertEqual(launcher_clicks["count"], 1)
         self.assertTrue(option_clicked["clicked"])
 
-    def test_raises_when_no_suggestion_matches(self):
-        launcher = _FakeLocatorHandle()
-        field = _FakeLocatorHandle()
-        non_matching = _FakeLocatorHandle(text="other.ru • 999\n1 цель")
-        listbox = _FakeLocatorHandle(role_options=[non_matching])
-        page = FakePage(
-            locators={
-                browser_masters._METRIKA_COUNTER_LAUNCHER_TESTID: _FakeLocator(
-                    [launcher]
-                ),
-                browser_masters._METRIKA_COUNTER_INPUT_TESTID: _FakeLocator([field]),
-                browser_masters._METRIKA_COUNTER_LISTBOX_TESTID: _FakeLocator(
-                    [listbox]
-                ),
-            }
+    def test_bare_numeric_id_selects_the_counter(self):
+        """Issue #846: the bare id is the spelling operators have — it is
+        what Metrika shows and what ``counters get`` reads back."""
+        option_clicked = {"clicked": False}
+        matching = self._suggestion(
+            "72112213",
+            "Ксамата Директ • gc.ksamata.ru • 72112213",
+            on_click=lambda: option_clicked.__setitem__("clicked", True),
         )
+        other = self._suggestion("999", "Другой • other.ru • 999")
+        page = self._page(_FakeLocatorHandle(), _FakeLocatorHandle(), [other, matching])
+
+        browser_masters._add_metrika_counter(page, "72112213")
+
+        self.assertTrue(option_clicked["clicked"])
+
+    def test_bare_id_does_not_match_digits_in_label_or_domain(self):
+        """A bare id must match the option's OWN id, never a substring of
+        the display text — linking the wrong counter would be silent."""
+        wrong_clicked = {"clicked": False}
+        decoy = self._suggestion(
+            "99999999",
+            "Магазин 123 • shop.ru • 99999999",
+            on_click=lambda: wrong_clicked.__setitem__("clicked", True),
+        )
+        page = self._page(_FakeLocatorHandle(), _FakeLocatorHandle(), [decoy])
 
         with (
             patch.object(browser_masters, "_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS", 10),
             self.assertRaises(BrowserSessionError),
         ):
+            browser_masters._add_metrika_counter(page, "123")
+
+        self.assertFalse(wrong_clicked["clicked"])
+
+    def test_raises_when_no_suggestion_matches(self):
+        non_matching = self._suggestion("999", "Другой • other.ru • 999")
+        page = self._page(_FakeLocatorHandle(), _FakeLocatorHandle(), [non_matching])
+
+        with (
+            patch.object(browser_masters, "_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
             browser_masters._add_metrika_counter(page, "nomatch.ru")
+
+        # The message must name what Yandex DID offer — issue #846's operator
+        # burned three attempts guessing spellings against an empty read.
+        self.assertIn("Другой • other.ru • 999", str(ctx.exception))
+
+    def test_empty_suggestion_list_blames_access_not_spelling(self):
+        """No suggestions at all is a different diagnosis from "no match":
+        the search is server-side and partial, so an empty list points at
+        account access, not at the text."""
+        page = self._page(_FakeLocatorHandle(), _FakeLocatorHandle(), [])
+
+        with (
+            patch.object(browser_masters, "_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS", 10),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters._add_metrika_counter(page, "72112213")
+
+        self.assertIn("no suggestions at all", str(ctx.exception))
 
 
 class TestMetrikaCounterIdentity(unittest.TestCase):
@@ -19763,6 +19820,58 @@ class TestMetrikaCounterIdentity(unittest.TestCase):
     def test_returns_text_unchanged_when_no_separator(self):
         self.assertEqual(
             browser_masters._metrika_counter_identity("nomatch"), "nomatch"
+        )
+
+
+class TestMetrikaCountersSectionPresent(unittest.TestCase):
+    """``_metrika_counters_section_present`` must outlast the block's
+    measured mount-then-unmount transient (issue #846).
+
+    On a max-clicks campaign the block renders at t+0 and is unmounted once
+    the form settles (~t+3000ms live). A stability window shorter than that
+    certifies "stably present" before the unmount, which is how ``masters
+    counters get`` returned SectionPresent: true and false on consecutive
+    reads of the same unchanged campaign.
+    """
+
+    class _FlippingPage(FakePage):
+        """Reports the block present until ``flip_ms`` of FAKE-clock time has
+        elapsed, then absent forever — the live max-clicks timeline."""
+
+        def __init__(self, flip_ms):
+            super().__init__()
+            self._flip_s = flip_ms / 1000
+            self._start = browser_masters._clock.now()
+
+        def locator(self, selector, *args, **kwargs):
+            if selector == browser_masters._METRIKA_COUNTERS_BLOCK_TESTID:
+                elapsed = browser_masters._clock.now() - self._start
+                present = elapsed < self._flip_s
+                return _FakeLocator([_FakeLocatorHandle()] if present else [])
+            return super().locator(selector, *args, **kwargs)
+
+    def test_transient_presence_does_not_read_as_present(self):
+        page = self._FlippingPage(flip_ms=3000)
+
+        self.assertFalse(browser_masters._metrika_counters_section_present(page))
+
+    def test_genuinely_present_section_reads_as_present(self):
+        page = self._FlippingPage(flip_ms=10**9)
+
+        self.assertTrue(browser_masters._metrika_counters_section_present(page))
+
+    def test_budget_exceeds_flip_plus_stability_window(self):
+        """The run of agreement only STARTS after the flip, so the budget
+        must cover flip + window — not merely the window. At the original
+        5s budget the max-clicks case never settled and reached the right
+        answer only via the "report the last read" fallback."""
+        window_ms = browser_masters._METRIKA_COUNTERS_SECTION_POLL_MS * (
+            browser_masters._METRIKA_COUNTERS_SECTION_STABLE_TICKS - 1
+        )
+        self.assertGreater(window_ms, 3000)
+        self.assertGreater(
+            browser_masters._METRIKA_COUNTERS_SECTION_TIMEOUT_MS,
+            3000 + window_ms,
         )
 
     def test_returns_text_unchanged_when_trailing_separator_has_no_id(self):
