@@ -20577,7 +20577,7 @@ class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
         with patch.object(browser_masters, "fetch_master", side_effect=_fetch):
             result = self._invoke(["masters", "get", "1,2,3"])
 
-        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(result.exit_code, 2)
         json_start = result.output.index("[\n")
         json_end = result.output.rindex("]") + 1
         payload = json.loads(result.output[json_start:json_end])
@@ -20585,6 +20585,19 @@ class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
         self.assertNotIn("Error", payload[0])
         self.assertIn("overview timeout", payload[1]["Error"])
         self.assertNotIn("Error", payload[2])
+
+    def test_all_campaign_failures_keep_exit_one(self):
+        with patch.object(
+            browser_masters,
+            "fetch_master",
+            side_effect=browser_masters.PlaywrightError("overview timeout"),
+        ):
+            result = self._invoke(["masters", "get", "1,2"])
+
+        self.assertEqual(result.exit_code, 1)
+        payload = json.loads(result.output[result.output.index("[\n") :])
+        self.assertEqual([row["CampaignId"] for row in payload], [1, 2])
+        self.assertTrue(all("Error" in row for row in payload))
 
     def test_mid_batch_auth_error_triggers_with_session_retry(self):
         """Issue #816 follow-up (Codex, cycle-review PR #818): BrowserAuthError

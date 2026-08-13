@@ -379,10 +379,14 @@ def _run_per_id(
     if errors:
         for campaign_id, exc in errors:
             print_error(f"Campaign {campaign_id}: {exc}")
-        raise click.ClickException(
+        error = click.ClickException(
             f"Failed to {verb} {len(errors)} of {len(ids)} campaign(s); "
             "see per-ID results above."
         )
+        # Keep exit 1 for a completely failed batch, while giving consumers a
+        # distinct status for output that contains both successes and errors.
+        error.exit_code = 2 if len(errors) < len(ids) else 1
+        raise error
     return results
 
 
