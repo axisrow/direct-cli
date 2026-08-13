@@ -4065,6 +4065,55 @@ class TestArchiveMaster(unittest.TestCase):
             [browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=42)],
         )
 
+    def test_retries_transient_unrecognised_status_before_archiving(self):
+        # Issue #829: on long sequential batch runs, the pre-click TOCTOU
+        # re-check (_reverify_status_or_raise) sometimes reads the overview
+        # page's status text as unrecognised even after its own internal
+        # hydration poll gives up -- not because the campaign actually
+        # changed, but because the whole page briefly failed to render on
+        # this particular request. Re-navigating to the overview page (a
+        # real reload, not just re-polling the same static state) and
+        # retrying the open-menu-then-click sequence recovers without
+        # treating a rendering hiccup as a hard "another session changed
+        # it" abort.
+        state = {"status": "", "grid_status": "SUSPENDED"}
+
+        def _flip():
+            state["status"] = "ARCHIVED"
+            state["grid_status"] = "ARCHIVED"
+
+        page = self._page_with_menu(
+            menu_trigger=_FakeLocatorHandle(),
+            archive_item=_FakeLocatorHandle(on_click=_flip),
+        )
+
+        def _fake_inner_text(selector=None):
+            # The status text is unrecognised until the SECOND navigation
+            # (the retry's fresh reload) — models a page load that failed to
+            # render the status element the first time, recovering the
+            # second. `navigated_to` records every goto() the production
+            # code has made by the time this read happens.
+            if len(page.navigated_to) < 2:
+                return ""
+            return state["status"] or "Кампания остановлена"
+
+        page.inner_text = _fake_inner_text
+
+        with patch(
+            "direct_cli.browser.masters.fetch_masters_list",
+            side_effect=lambda page, status="all": [self._row(state["grid_status"])],
+        ):
+            result = browser_masters.archive_master(page, 42)
+
+        self.assertEqual(result, self._row("ARCHIVED"))
+        self.assertEqual(
+            len(page.navigated_to),
+            2,
+            "archive_master must re-navigate to the overview page and retry "
+            "once the pre-click re-check hits an unrecognised status, "
+            "instead of aborting on the first hiccup",
+        )
+
     def test_idempotent_when_already_archived(self):
         page = self._page_with_menu()
 
@@ -14816,6 +14865,21 @@ class TestVerifyTrackingParamsReloadRetry(unittest.TestCase):
         # First post-save load serves the PREVIOUS value; the next load has
         # the real one. Must succeed, not raise.
         page = self._page([self.STALE, self.NEW])
+
+        result = browser_masters.update_master(page, 42, tracking_params=self.NEW)
+
+        self.assertEqual(result["TrackingParams"], self.NEW)
+
+    def test_recovers_after_multiple_consecutive_stale_reads(self):
+        # Issue #829: on long sequential batch runs (17 campaigns in ~35
+        # minutes, same profile), the post-save re-render race #790 already
+        # retries for can outlast a single extra reload — live logs showed
+        # "did not save as requested" survive whatever reload budget was in
+        # place at the time. This models three consecutive stale reads
+        # (deeper than the two-load case #790's fix already covers) that
+        # only resolve on the fourth: the wider retry budget must still
+        # recover it, not just the single-retry case.
+        page = self._page([self.STALE, self.STALE, self.STALE, self.NEW])
 
         result = browser_masters.update_master(page, 42, tracking_params=self.NEW)
 
