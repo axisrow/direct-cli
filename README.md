@@ -164,6 +164,42 @@ A DRAFT campaign's edit page has no "Сохранить кампанию" button
 default, keeping it a DRAFT; pass `--launch` to publish it while saving
 instead ("Запустить кампанию"). Has no effect on a non-DRAFT campaign.
 
+**Updating many campaigns at once.** `masters update` also takes a whole plan
+instead of a single `CAMPAIGN_ID`, so a batch of campaigns is edited over
+**one** browser session rather than one Chromium launch per campaign (what
+actually failed in a live 17-campaign run was the repeated re-entry into
+Yandex, not the editing itself):
+
+```bash
+direct masters update --from-file plan.jsonl
+direct masters update --masters-json '[{"CampaignId": 713234064, "Name": "x"}]'
+```
+
+```jsonl
+{"CampaignId": 713234064, "Headlines": {"1": "Новый заголовок"}, "Texts": {"1": "Текст"}}
+{"CampaignId": 713231614, "LandingUrl": "https://lp.example.ru/x", "TrackingParams": "utm_source=direct"}
+```
+
+Same convention as `keywords add`: `--from-file` (JSONL, one campaign per
+line) and `--masters-json` (the same array inline) are mutually exclusive
+with each other and with a positional `CAMPAIGN_ID`, field flags belong in
+the plan rather than alongside it, and batch mode supports only
+`--format json`. Keys are the PascalCase form of this command's own flags,
+with **1-based** slot numbers and positions — `{"Headlines": {"2": "..."}}`
+is exactly `--headline "2=..."`. An unknown key is an error naming the row,
+never a silent skip, and the whole plan (including that local image/video
+files exist) is validated before the first save.
+
+A campaign that fails is reported with an `Error` and does not stop the rest;
+the command exits non-zero afterwards. If the browser session goes stale
+mid-plan it is re-opened once and the run continues from the first campaign
+that was never saved — an already-saved campaign is never saved twice.
+`--pacing-ms` (default 1000) controls the pause between campaigns,
+`--moderation-statuses` additionally reads each campaign's current moderation
+statuses after its save (a snapshot — moderation usually has not run yet at
+that point, so a rejection can still appear later), and `--dry-run` prints
+what would be applied without opening a browser.
+
 If you see "Found no Yandex cookies", open https://direct.yandex.ru in Chrome
 and log in first. If you use a non-default Chrome profile, pass
 `--chrome-profile "Profile 1"`.

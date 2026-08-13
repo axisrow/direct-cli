@@ -877,6 +877,9 @@ _TEXTS_CLEAR_TESTID_TEMPLATE = _TEXTS_TESTID_TEMPLATE.replace(".textarea", ".cle
 # "DRAFT support" note).
 _EDIT_FORM_READY_TESTID = _HEADLINES_TESTID_TEMPLATE.format(index=0)
 _EDIT_FORM_READY_TIMEOUT_MS = 30_000
+# Deliberate pause between mutating edit-page navigations in a JSONL batch.
+# Kept in the browser layer so live pacing and its test seam remain together.
+_BATCH_UPDATE_PACING_MS = 1_000
 
 # Images (issue #670, Этап D). Confirmed live 2026-08-02 against DRAFT clone
 # 713234191 that images are a COMPLETELY different shape from headlines/texts

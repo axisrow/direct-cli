@@ -74,6 +74,12 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
         "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
         "tests."
     ),
+    "masters.update": (
+        "Мастер кампаний is browser-only and has no WSDL operation at all (see "
+        "direct_cli/browser/masters.py) — its --dry-run previews a validated "
+        "update plan, not an API request. Batch/plan validation is covered by "
+        "tests/test_masters.py::TestMastersUpdateBatch."
+    ),
     "negativekeywordsharedsets.get": (
         "Read path omits optional SelectionCriteria when --ids is absent."
     ),
