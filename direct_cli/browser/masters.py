@@ -8846,6 +8846,40 @@ def fetch_master_moderation_statuses(page: "Page", campaign_id: int) -> Dict[str
     return result
 
 
+def fetch_master_tracking_params(page: "Page", campaign_id: int) -> Dict[str, Any]:
+    """Navigate to a campaign's edit page and read its "UTM-метки и
+    параметры URL" field (issue #824).
+
+    Read-only, mirroring ``fetch_master_moderation_statuses``: this data
+    lives only on the EDIT page (behind the "Дополнительные параметры"
+    spoiler) — the overview page ``fetch_master`` reads has no such field at
+    all — and nothing here ever clicks Save.
+
+    Reuses ``_wait_for_utm_section``/``_read_tracking_params``, the same
+    reader ``update_master``'s verify path already relies on (issue
+    #769/#774), so ``get`` and ``update --tracking-params`` agree on what
+    "empty" vs "unreadable" means for this field:
+
+    - a UTM string is set → the string itself;
+    - the field is mounted and genuinely empty → ``""``;
+    - the section never became readable within the wait budget →
+      ``TrackingParams`` is OMITTED from the result, rather than emitting a
+      misleading ``""`` for "we couldn't tell" (mirrors how the DRAFT
+      overview path already omits ``LandingUrl`` it could not read).
+    """
+    page.goto(WIZARD_EDIT_URL.format(campaign_id=campaign_id), wait_until="commit")
+    assert_not_captcha(page.content())
+    assert_authenticated(page.content())
+    _wait_for_edit_form(page, campaign_id)
+
+    result: Dict[str, Any] = {"CampaignId": campaign_id}
+    if _wait_for_utm_section(page):
+        tracking_params = _read_tracking_params(page)
+        if tracking_params is not None:
+            result["TrackingParams"] = tracking_params
+    return result
+
+
 def fetch_master_target_actions(page: "Page", campaign_id: int) -> Dict[str, Any]:
     """Read a campaign's current "Целевые действия" (target action / CPA)
     table — see ``_read_target_actions``'s docstring for the row shape.

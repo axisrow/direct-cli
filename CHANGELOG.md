@@ -4,6 +4,38 @@
 
 ### Added
 
+**`masters get --tracking-params` — read a campaign's UTM string (#824).**
+
+`masters get` never returned `TrackingParams`, either set or empty: the
+overview page it reads has no such field at all — "UTM-метки и параметры
+URL" only exists on the edit page, behind the "Дополнительные параметры"
+spoiler. This left `masters update --tracking-params`'s own result as the
+only evidence a save had taken effect, with no independent way to audit a
+batch of campaigns afterwards.
+
+A flag on the existing `get`, not a new subcommand — same shape as
+`--moderation-statuses` (#814): one more edit-page navigation, merged into
+the same result rather than paying for it on every `get`.
+
+```
+direct masters get 74736436 --tracking-params
+```
+
+adds `TrackingParams` to the result:
+
+- a UTM string is set → the string itself;
+- the field is mounted and genuinely empty → `""`;
+- the section could not be confirmed readable within the wait budget →
+  `TrackingParams` is omitted, rather than reporting a misleading `""`
+  (mirrors how the DRAFT overview path already omits an unreadable
+  `LandingUrl`).
+
+Reuses `_read_tracking_params`/`_wait_for_utm_section`, the same reader
+`masters update`'s own verify path already relies on (#769/#774), so `get`
+and `update --tracking-params` agree on what "empty" vs "unreadable" means
+for this field. Without the flag, `get`'s output and page loads are
+unchanged.
+
 **`masters get --moderation-statuses` — detect per-element moderation
 rejections in Мастер кампаний (#814).**
 
