@@ -260,6 +260,78 @@ Both are handled by polling for a *stable* reading, mirroring
 
 ### Fixed
 
+**`masters update --add-metrika-counter` — read the suggestion popup at all,
+and accept a bare counter id (#846).**
+
+The counter autocomplete could never match anything, for any input. The option
+search was scoped to `[data-testid="MetrikaCountersTagGroup.editor.listBox"]`,
+but no element carries that testid: live recon (campaign 74099856) found the
+suggestions are portalled into a `dc-Popup` under `<body>` — outside the editor
+subtree entirely — and the `…editor.listBox` string appears only as the *prefix*
+of each option's own testid, `…editor.listBox.{counter id}`. The locator
+resolved to zero elements, `get_by_role("option")` under it always counted 0,
+and every add timed out.
+
+The timeout was reported as "No suggestion exactly matching {text} appeared",
+which blamed the caller's text for a selector bug — the operator in #846 spent
+three attempts (bare id, domain, full `label • domain • id` line) trying to
+respell a value that was never being compared against anything.
+
+Options are now located directly by that testid prefix, and because the testid
+carries the counter id, `--add-metrika-counter` accepts the **bare numeric id**:
+
+```
+direct masters update <id> --promotion-goal max-conversions \
+  --add-metrika-counter 72112213
+```
+
+The id is matched against the option's own id, never as a substring of the
+display text, so a short id cannot silently select a counter whose label or
+domain merely contains those digits. The full suggestion line still works. This
+closes the round trip with `masters counters get`, whose `CounterId` can now be
+passed straight back in — its tag text (`gc.ksamata.ru • 72112213`) has a
+different shape from the suggestion (`Ксамата Директ • gc.ksamata.ru •
+72112213`) and never could be.
+
+Both failure messages now diagnose rather than accuse: a non-match lists what
+Yandex actually offered, and an empty list points at account access to the
+counter, since the search runs server-side on partial input (typing `7211`
+surfaces the full suggestion).
+
+Live-verified end to end on campaign 74099856: the counter links, its tag
+renders, and the "Счетчик отсутствует" warning under «Целевые действия» clears.
+That recon was deliberately not saved.
+
+**`masters counters get` — stop reporting an unstable `SectionPresent` (#846).**
+
+The same campaign could report `SectionPresent: true` in one run and `false` in
+the next with no update in between. `_metrika_counters_section_present` already
+polled for a *stable* answer rather than trusting one sample — the block is
+briefly rendered at t+0 on a max-clicks campaign and unmounted once the form
+settles (~t+3000ms live) — but its stability window was calibrated shorter than
+the transient it guards against.
+
+At 500ms × 3 ticks the loop settles after 3 samples spanning 2 gaps, ~1.0s: it
+certified "stably present" a full 2 seconds *before* the unmount. Whether a run
+saw `true` or `false` came down to how the poll ticks happened to line up
+against the flip.
+
+The window is now 500ms × 8 (~3.5s of agreement) against its own 8s budget,
+rather than borrowing the autocomplete's 5s. The budget must exceed *flip +
+window*, not just the window, because the run of agreement only starts after
+the flip — at 5s the max-clicks case never settled at all and reached the right
+answer only through the "report the last read" fallback, which is not a
+property worth depending on. Both outcomes now settle deliberately:
+max-conversions at ~3.5s, max-clicks at ~6.5s.
+
+The presence locator is also re-resolved per sample instead of once before the
+loop. Playwright locators are lazy and re-query on each `count()`, so this was
+not itself the live bug, but a loop whose entire purpose is watching the DOM
+change should not depend on that implicitly.
+
+Regression tests model the live timeline against the fake clock and fail on the
+old constants.
+
 **`masters update` — apply Metrika counters BEFORE target actions (#844).**
 
 `update_master` linked counters ~200 lines *after* it added target actions, so
