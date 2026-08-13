@@ -63,7 +63,7 @@ fallback rather than trying to yield twice from one generator call.
 import contextlib
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import click
 from click.core import ParameterSource
@@ -933,6 +933,179 @@ def _parse_add_target_action_options(
     return parsed
 
 
+_UPDATE_FILE_KEYS = {
+    "CampaignId": "campaign_id",
+    "WeeklyBudget": "weekly_budget",
+    "PromotionGoal": "promotion_goal",
+    "GoalPrice": "goal_price",
+    "TargetActionPrices": "target_action_prices",
+    "AddTargetActions": "add_target_actions",
+    "RemoveTargetActions": "remove_target_actions",
+    "DirectsHelps": "directs_helps",
+    "Name": "name",
+    "LandingUrl": "landing_url",
+    "TrackingParams": "tracking_params",
+    "Headlines": "headlines",
+    "Texts": "texts",
+    "ClearHeadlines": "clear_headlines",
+    "ClearTexts": "clear_texts",
+    "Images": "images",
+    "AddVideo": "add_video",
+    "RemoveVideos": "remove_videos",
+    "Gender": "gender",
+    "AgeFrom": "age_from",
+    "AgeTo": "age_to",
+    "Devices": "devices",
+    "AddAudienceTags": "add_audience_tags",
+    "RemoveAudienceTags": "remove_audience_tags",
+    "AddMetrikaCounters": "add_metrika_counters",
+    "RemoveMetrikaCounters": "remove_metrika_counters",
+    "AddSitelinks": "add_sitelinks",
+    "RemoveSitelinks": "remove_sitelinks",
+    "Launch": "launch",
+}
+
+
+def _parse_update_file_rows(path: str) -> List[Dict[str, Any]]:
+    """Decode and validate the typed JSONL projection for ``masters update``."""
+    from ._batch import load_jsonl_rows
+
+    rows = load_jsonl_rows(path)
+    parsed = []
+    for index, row in enumerate(rows, start=1):
+        if not isinstance(row, dict):
+            raise click.UsageError(f"Row {index}: expected a JSON object")
+        unknown = sorted(set(row) - set(_UPDATE_FILE_KEYS))
+        if unknown:
+            raise click.UsageError(f"Row {index}: unknown key(s): {', '.join(unknown)}")
+        if "CampaignId" not in row or not isinstance(row["CampaignId"], int):
+            raise click.UsageError(f"Row {index}: CampaignId must be an integer")
+        item = {"campaign_id": row["CampaignId"]}
+        for key, value in row.items():
+            if key != "CampaignId":
+                item[_UPDATE_FILE_KEYS[key]] = value
+        if len(item) == 1:
+            raise click.UsageError(f"Row {index}: provide at least one update field")
+        parsed.append(item)
+    if not parsed:
+        raise click.UsageError("--from-file contains no campaign rows")
+    return parsed
+
+
+def _normalize_update_file_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert JSONL values to the same shapes used by the single update."""
+    result = dict(item)
+    if "remove_target_actions" in result:
+        result["remove_target_action_goal_ids"] = result.pop("remove_target_actions")
+    for key in ("target_action_prices", "add_target_actions"):
+        if key in result:
+            if not isinstance(result[key], dict):
+                raise click.UsageError(f"{key} must be a JSON object keyed by goal id")
+            try:
+                result[key] = {int(goal): price for goal, price in result[key].items()}
+            except (TypeError, ValueError) as exc:
+                raise click.UsageError(f"{key} keys must be integer goal ids") from exc
+    for key in ("headlines", "texts", "images"):
+        if key in result:
+            if not isinstance(result[key], dict):
+                raise click.UsageError(f"{key} must be a JSON object keyed by slot")
+            try:
+                result[key] = {int(slot): value for slot, value in result[key].items()}
+            except (TypeError, ValueError) as exc:
+                raise click.UsageError(f"{key} keys must be integer slots") from exc
+    for key in (
+        "clear_headlines",
+        "clear_texts",
+        "remove_audience_tags",
+        "remove_metrika_counters",
+        "remove_sitelinks",
+    ):
+        if key in result and not isinstance(result[key], list):
+            raise click.UsageError(f"{key} must be a JSON array")
+    if "devices" in result:
+        if not isinstance(result["devices"], list):
+            raise click.UsageError("Devices must be a JSON array")
+        result["devices"] = set(result["devices"])
+    if "age_from" in result:
+        result["age_from_requested"] = True
+    if "age_to" in result:
+        result["age_to_requested"] = True
+    return result
+
+
+def _run_update_file_batch(
+    ctx,
+    rows: List[Dict[str, Any]],
+    *,
+    headful: bool,
+    profile_dir: Optional[str],
+    chrome_profile: str,
+    moderation_statuses: bool,
+    dry_run: bool,
+) -> List[Dict[str, Any]]:
+    """Apply a JSONL update plan in one browser session.
+
+    ``completed`` intentionally lives outside the operation passed to
+    ``_with_session``: its retry is operation-wide, and replaying a completed
+    save would be an unsafe duplicate mutation.
+    """
+    from ..browser.masters import (
+        PlaywrightError,
+        _BATCH_UPDATE_PACING_MS,
+        fetch_master_moderation_statuses,
+        update_master,
+    )
+    from ..browser.session import BrowserAuthError, BrowserSessionError
+
+    rows = [_normalize_update_file_item(row) for row in rows]
+    for row in rows:
+        _validate_image_paths(row.get("images") or {})
+        if row.get("add_video") is not None:
+            _validate_video_path(row["add_video"])
+    if dry_run:
+        return [
+            {
+                "CampaignId": row["campaign_id"],
+                **{key: value for key, value in row.items() if key != "campaign_id"},
+            }
+            for row in rows
+        ]
+
+    completed = set()
+    outcomes: Dict[int, Dict[str, Any]] = {}
+
+    def operation(page):
+        for row in rows:
+            campaign_id = row["campaign_id"]
+            if campaign_id in completed:
+                continue
+            kwargs = dict(row)
+            kwargs.pop("campaign_id")
+            try:
+                result = update_master(page, campaign_id, **kwargs)
+                # Mark completion before the optional read-only moderation
+                # navigation: auth failure there must not replay the save.
+                completed.add(campaign_id)
+                if moderation_statuses:
+                    result["ModerationStatuses"] = fetch_master_moderation_statuses(
+                        page, campaign_id
+                    )
+                outcomes[campaign_id] = result
+                if campaign_id != rows[-1]["campaign_id"]:
+                    page.wait_for_timeout(_BATCH_UPDATE_PACING_MS)
+            except BrowserAuthError:
+                raise
+            except (BrowserSessionError, PlaywrightError) as exc:
+                outcomes[campaign_id] = {"CampaignId": campaign_id, "Error": str(exc)}
+        return [
+            outcomes[row["campaign_id"]]
+            for row in rows
+            if row["campaign_id"] in outcomes
+        ]
+
+    return _with_session(ctx, headful, profile_dir, chrome_profile, operation)
+
+
 def _parse_remove_target_action_options(values: "tuple[str, ...]") -> "list[int]":
     """Parse repeated ``--remove-target-action "goal_id"`` CLI values into a
     list of goal ids, identified the same way as every other target-action
@@ -1515,7 +1688,26 @@ def audience_get(
 
 
 @masters.command()
-@click.argument("campaign_id", type=int)
+@click.argument("campaign_id", type=int, required=False)
+@click.option(
+    "--from-file",
+    "from_file",
+    type=click.Path(exists=True, dir_okay=False),
+    help="JSONL file with one typed update object per campaign.",
+)
+@click.option(
+    "--moderation-statuses",
+    is_flag=True,
+    help="Read current moderation statuses after each save (not a final verdict).",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help=(
+        "Validate a JSONL plan and print its intended changes without opening "
+        "a browser."
+    ),
+)
 @click.option(
     "--weekly-budget",
     type=int,
@@ -1840,6 +2032,9 @@ def audience_get(
 def update(
     ctx,
     campaign_id,
+    from_file,
+    moderation_statuses,
+    dry_run,
     weekly_budget,
     promotion_goal,
     goal_price,
@@ -2016,6 +2211,69 @@ def update(
     instead of passing ``--launch`` here with an unchanged field value.
     """
     from ..browser.masters import update_master
+
+    if from_file is not None:
+        direct_values = (
+            campaign_id,
+            weekly_budget,
+            promotion_goal,
+            goal_price,
+            target_action_prices,
+            add_target_actions,
+            remove_target_actions,
+            directs_helps,
+            name,
+            landing_url,
+            tracking_params,
+            headlines,
+            texts,
+            clear_headlines,
+            clear_texts,
+            images,
+            add_video,
+            remove_videos,
+            gender,
+            age_from,
+            age_to,
+            devices,
+            add_audience_tags,
+            remove_audience_tags,
+            add_metrika_counters,
+            remove_metrika_counters,
+            add_sitelinks,
+            remove_sitelinks,
+            launch,
+        )
+        if any(value not in (None, False, (), "") for value in direct_values):
+            raise click.UsageError(
+                "--from-file is mutually exclusive with CAMPAIGN_ID and "
+                "update field flags"
+            )
+        rows = _parse_update_file_rows(from_file)
+        result = _run_update_file_batch(
+            ctx,
+            rows,
+            headful=headful,
+            profile_dir=profile_dir,
+            chrome_profile=chrome_profile,
+            moderation_statuses=moderation_statuses,
+            dry_run=dry_run,
+        )
+        format_output(result, output_format, output)
+        errors = [row for row in result if row.get("Error")]
+        if errors:
+            raise click.ClickException(
+                f"Failed to update {len(errors)} of {len(rows)} campaign(s); "
+                "see per-campaign results above."
+            )
+        return
+
+    if campaign_id is None:
+        raise click.UsageError("CAMPAIGN_ID is required unless --from-file is used")
+    if moderation_statuses or dry_run:
+        raise click.UsageError(
+            "--moderation-statuses and --dry-run are only supported with --from-file"
+        )
 
     if (
         weekly_budget is None
