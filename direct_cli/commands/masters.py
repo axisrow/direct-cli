@@ -933,14 +933,14 @@ def _parse_add_target_action_options(
     return parsed
 
 
-_UPDATE_FILE_KEYS = {
+_UPDATE_FILE_FIELDS = {
     "CampaignId": "campaign_id",
     "WeeklyBudget": "weekly_budget",
     "PromotionGoal": "promotion_goal",
     "GoalPrice": "goal_price",
     "TargetActionPrices": "target_action_prices",
     "AddTargetActions": "add_target_actions",
-    "RemoveTargetActions": "remove_target_actions",
+    "RemoveTargetActionGoalIds": "remove_target_action_goal_ids",
     "DirectsHelps": "directs_helps",
     "Name": "name",
     "LandingUrl": "landing_url",
@@ -966,37 +966,61 @@ _UPDATE_FILE_KEYS = {
 }
 
 
-def _parse_update_file_rows(path: str) -> List[Dict[str, Any]]:
-    """Decode and validate the typed JSONL projection for ``masters update``."""
-    from ._batch import load_jsonl_rows
+def _normalize_master_update_row(row: Any, row_index: int) -> Dict[str, Any]:
+    """Normalize one PascalCase batch row, matching ``keywords add``."""
+    if not isinstance(row, dict):
+        raise click.UsageError(
+            f"Row {row_index}: expected JSON object, got {type(row).__name__}"
+        )
+    unknown = sorted(set(row) - set(_UPDATE_FILE_FIELDS))
+    if unknown:
+        allowed = ", ".join(_UPDATE_FILE_FIELDS)
+        raise click.UsageError(
+            f"Unknown field {unknown[0]!r} in masters row {row_index}; "
+            f"allowed: {allowed}"
+        )
+    if "CampaignId" not in row or not isinstance(row["CampaignId"], int):
+        raise click.UsageError(f"Row {row_index}: CampaignId must be an integer")
+    item = {
+        _UPDATE_FILE_FIELDS[key]: value
+        for key, value in row.items()
+        if key != "CampaignId"
+    }
+    item["campaign_id"] = row["CampaignId"]
+    if len(item) == 1:
+        raise click.UsageError(f"Row {row_index}: provide at least one update field")
+    return _normalize_update_file_item(item)
 
-    rows = load_jsonl_rows(path)
-    parsed = []
-    for index, row in enumerate(rows, start=1):
-        if not isinstance(row, dict):
-            raise click.UsageError(f"Row {index}: expected a JSON object")
-        unknown = sorted(set(row) - set(_UPDATE_FILE_KEYS))
-        if unknown:
-            raise click.UsageError(f"Row {index}: unknown key(s): {', '.join(unknown)}")
-        if "CampaignId" not in row or not isinstance(row["CampaignId"], int):
-            raise click.UsageError(f"Row {index}: CampaignId must be an integer")
-        item = {"campaign_id": row["CampaignId"]}
-        for key, value in row.items():
-            if key != "CampaignId":
-                item[_UPDATE_FILE_KEYS[key]] = value
-        if len(item) == 1:
-            raise click.UsageError(f"Row {index}: provide at least one update field")
-        parsed.append(item)
-    if not parsed:
-        raise click.UsageError("--from-file contains no campaign rows")
-    return parsed
+
+def _parse_update_file_rows(path: str) -> List[Dict[str, Any]]:
+    """Decode and validate JSONL rows using the shared batch loader."""
+    from . import _batch
+
+    return [
+        _normalize_master_update_row(row, index)
+        for index, row in enumerate(_batch.load_jsonl_rows(path), start=1)
+    ]
+
+
+def _parse_update_inline_rows(value: str) -> List[Dict[str, Any]]:
+    from . import _batch
+
+    rows = _batch.load_inline_rows(
+        value,
+        invalid_json_key="--masters-json: invalid JSON: {arg0}",
+        not_array_key="--masters-json must be a JSON array of campaign objects",
+    )
+    if not rows:
+        raise click.UsageError("Input contains no campaign rows.")
+    return [
+        _normalize_master_update_row(row, index)
+        for index, row in enumerate(rows, start=1)
+    ]
 
 
 def _normalize_update_file_item(item: Dict[str, Any]) -> Dict[str, Any]:
     """Convert JSONL values to the same shapes used by the single update."""
     result = dict(item)
-    if "remove_target_actions" in result:
-        result["remove_target_action_goal_ids"] = result.pop("remove_target_actions")
     for key in ("target_action_prices", "add_target_actions"):
         if key in result:
             if not isinstance(result[key], dict):
@@ -1066,7 +1090,11 @@ def _run_update_file_batch(
         return [
             {
                 "CampaignId": row["campaign_id"],
-                **{key: value for key, value in row.items() if key != "campaign_id"},
+                **{
+                    key: sorted(value) if isinstance(value, set) else value
+                    for key, value in row.items()
+                    if key != "campaign_id"
+                },
             }
             for row in rows
         ]
@@ -1692,9 +1720,10 @@ def audience_get(
 @click.option(
     "--from-file",
     "from_file",
-    type=click.Path(exists=True, dir_okay=False),
+    type=click.Path(exists=True, dir_okay=False, readable=True),
     help="JSONL file with one typed update object per campaign.",
 )
+@click.option("--masters-json", help="Inline JSON array of campaign update objects.")
 @click.option(
     "--moderation-statuses",
     is_flag=True,
@@ -2033,6 +2062,7 @@ def update(
     ctx,
     campaign_id,
     from_file,
+    masters_json,
     moderation_statuses,
     dry_run,
     weekly_budget,
@@ -2212,9 +2242,23 @@ def update(
     """
     from ..browser.masters import update_master
 
-    if from_file is not None:
+    modes_used = sum(
+        value is not None for value in (campaign_id, from_file, masters_json)
+    )
+    if modes_used == 0:
+        raise click.UsageError(
+            "Provide exactly one of: CAMPAIGN_ID (single), --from-file (JSONL), "
+            "or --masters-json (inline JSON array)."
+        )
+    if modes_used > 1:
+        raise click.UsageError(
+            "Provide exactly one of: CAMPAIGN_ID, --from-file, or "
+            "--masters-json — they are mutually exclusive."
+        )
+
+    batch_mode = from_file is not None or masters_json is not None
+    if batch_mode:
         direct_values = (
-            campaign_id,
             weekly_budget,
             promotion_goal,
             goal_price,
@@ -2245,11 +2289,54 @@ def update(
             launch,
         )
         if any(value not in (None, False, (), "") for value in direct_values):
-            raise click.UsageError(
-                "--from-file is mutually exclusive with CAMPAIGN_ID and "
-                "update field flags"
+            unsupported = ", ".join(
+                flag
+                for flag, value in {
+                    "--weekly-budget": weekly_budget,
+                    "--promotion-goal": promotion_goal,
+                    "--goal-price": goal_price,
+                    "--target-action-price": target_action_prices,
+                    "--add-target-action": add_target_actions,
+                    "--remove-target-action": remove_target_actions,
+                    "--directs-helps": directs_helps,
+                    "--name": name,
+                    "--landing-url": landing_url,
+                    "--tracking-params": tracking_params,
+                    "--headline": headlines,
+                    "--text": texts,
+                    "--clear-headline": clear_headlines,
+                    "--clear-text": clear_texts,
+                    "--image": images,
+                    "--add-video": add_video,
+                    "--remove-video": remove_videos,
+                    "--gender": gender,
+                    "--age-from": age_from,
+                    "--age-to": age_to,
+                    "--device": devices,
+                    "--add-audience-tag": add_audience_tags,
+                    "--remove-audience-tag": remove_audience_tags,
+                    "--add-metrika-counter": add_metrika_counters,
+                    "--remove-metrika-counter": remove_metrika_counters,
+                    "--add-sitelink": add_sitelinks,
+                    "--remove-sitelink": remove_sitelinks,
+                    "--launch": launch,
+                }.items()
+                if value not in (None, False, (), "")
             )
-        rows = _parse_update_file_rows(from_file)
+            raise click.UsageError(
+                f"{unsupported} supported only with --from-file/--masters-json "
+                "batch mode"
+            )
+        if output_format != "json":
+            raise click.UsageError(
+                "--format other than 'json' is not supported in batch mode "
+                "(item-level results may include per-row Errors)."
+            )
+        rows = (
+            _parse_update_file_rows(from_file)
+            if from_file is not None
+            else _parse_update_inline_rows(masters_json or "")
+        )
         result = _run_update_file_batch(
             ctx,
             rows,
@@ -2268,8 +2355,6 @@ def update(
             )
         return
 
-    if campaign_id is None:
-        raise click.UsageError("CAMPAIGN_ID is required unless --from-file is used")
     if moderation_statuses or dry_run:
         raise click.UsageError(
             "--moderation-statuses and --dry-run are only supported with --from-file"
