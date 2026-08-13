@@ -186,9 +186,14 @@ was requested after a real reload, it raises ``BrowserSessionError`` rather
 than reporting false success. This mirrors ``_suspend_or_resume``'s
 "a click that doesn't visibly change the state is a hard error, not a
 silent success" convention, applied to the whole-form save instead of a
-single status field. Not yet covered: an inline validation-error TEXT is
-not itself surfaced to the caller (only the resulting mismatch is) — a
-follow-up could read and report Yandex's actual rejection reason.
+single status field. Since issue #840 the inline validation-error TEXT is
+also surfaced: ``update_master`` calls ``_read_save_validation_errors``
+right after the save click (before ``_verify_saved``'s reload discards it)
+and the resulting mismatch error quotes Yandex's own wording — e.g.
+"Добавьте хотя бы одну цель для сайта…" for a ``--promotion-goal
+max-conversions`` save on a campaign with no Metrika goals. That read is
+best-effort and never changes control flow: the mismatch itself remains
+the thing that decides success or failure.
 
 ``create_master`` (issue #632) — **live-verified end to end for the DRAFT
 leg** (#777, 2026-08-06): a full ``--draft`` create was accepted by Yandex
@@ -1981,6 +1986,24 @@ _VERIFY_RELOAD_BACKOFF_MS = 5_000
 _SAVE_BUTTON_TEXT = "Сохранить кампанию"
 _LAUNCH_BUTTON_TEXT = "Запустить кампанию"
 _SAVE_DRAFT_BUTTON_TEXT = "Сохранить как черновик"
+
+# Inline validation-error text rendered into the still-open edit form when
+# Yandex's client-side validation refuses a save (issue #840). Matched by
+# class substring / role rather than a data-testid: unlike the option rows
+# and terminal buttons this module targets, these messages carry no stable
+# testid of their own, and this selector only ever ENRICHES an error that
+# is already being raised (see _read_save_validation_errors) — a miss
+# degrades the message, it never changes control flow. Confirmed live on
+# campaign 74736436, which reports both a pre-existing keyword-count
+# warning and the goal-required rejection that blocks the save itself.
+_SAVE_VALIDATION_ERROR_SELECTOR = '[class*="error"], [class*="Error"], [role="alert"]'
+
+# Cap on how many distinct validation messages are quoted back. The page
+# can carry unrelated pre-existing warnings (e.g. the keyword-count notice
+# above) alongside the one that actually blocked the save, and this module
+# has no reliable way to tell them apart — report a bounded list and let
+# the operator judge, rather than guessing wrong or dumping the whole form.
+_SAVE_VALIDATION_ERROR_LIMIT = 5
 
 # DRAFT edit page's terminal buttons (issue #668, live-confirmed 2026-08-02
 # against campaign 713231614 — see the module docstring's "DRAFT support"
@@ -4598,6 +4621,25 @@ def _set_promotion_goal(page: "Page", goal: str) -> None:
     mirrors ``_suspend_or_resume``'s "never trust the click alone"
     convention.
 
+    The dropdown is opened via ``_click_and_wait_for_popup``, not a bare
+    ``trigger.click()`` (issue #840, live-confirmed on campaign 74736436):
+    this trigger is subject to the same menu-trigger hydration race as
+    issues #723/#725. Instrumenting a real failing run showed the trigger
+    ALREADY matched (``count=1``) while still un-hydrated —
+    ``aria-expanded=None`` and an empty ``inner_text()`` — so Playwright's
+    actionability check passed and the click landed on a node whose React
+    handler was not attached yet. Nothing raised, but the listbox never
+    mounted; 2s later the trigger had hydrated to ``aria-expanded='false'``,
+    confirming the click had been swallowed rather than the dropdown having
+    opened and closed. Because the option rows exist in the DOM *only* while
+    the dropdown is open, the old code's unconditional ``option.click()``
+    then failed with "Could not find the ... option ... Yandex may have
+    changed the page's markup" — a misdiagnosis, since the markup was
+    verified byte-identical to what this module expects (heading, trigger
+    XPath and ``ListBox.<value>`` testids all matched live). Retrying the
+    open is safe here for the same reason ``_click_and_wait_for_popup``
+    documents: opening a dropdown has no side effect on the campaign.
+
     Matched by data-testid, not accessible-name text (issue #696
     re-investigation, 2026-08-04): Yandex now appends a description sentence
     and, for some rows, a "Рекомендуем" badge to each option's accessible
@@ -4615,30 +4657,23 @@ def _set_promotion_goal(page: "Page", goal: str) -> None:
         )
 
     trigger = page.locator(_PROMOTION_GOAL_BUTTON_XPATH).first
-    try:
-        trigger.click()
-    except PlaywrightError as exc:
-        raise BrowserSessionError(
-            "Could not find or open the 'Цель продвижения' dropdown on the "
-            "campaign edit page — Yandex may have changed the page's "
-            "markup. Re-run with --headful to inspect the page."
-        ) from exc
-
     option_testid = _PROMOTION_GOAL_OPTION_TESTID_TEMPLATE.format(value=internal_value)
-    option = page.locator(f'[data-testid="{option_testid}"]').first
-    clicked = False
+    option_selector = f'[data-testid="{option_testid}"]'
+    _click_and_wait_for_popup(
+        page,
+        trigger_selector=_PROMOTION_GOAL_BUTTON_XPATH,
+        popup_selector=option_selector,
+        description="the 'Цель продвижения' dropdown",
+    )
+
+    option = page.locator(option_selector).first
     try:
         option.click()
-        clicked = True
-    except PlaywrightError:
-        clicked = False
-
-    if not clicked:
+    except PlaywrightError as exc:
         raise BrowserSessionError(
-            f"Could not find the {label!r} option in the 'Цель продвижения' "
-            "dropdown on the campaign edit page — Yandex may have changed "
-            "the page's markup. Re-run with --headful to inspect the page."
-        )
+            f"Opened the 'Цель продвижения' dropdown but could not click the "
+            f"{label!r} option — verify manually before retrying."
+        ) from exc
 
     if not _trigger_shows_selection(trigger, label):
         try:
@@ -6556,6 +6591,44 @@ def _wait_for_draft_status(page: "Page", campaign_id: int) -> bool:
     return state == "draft"
 
 
+def _read_save_validation_errors(page: "Page") -> List[str]:
+    """Read Yandex's inline validation-error text from the edit page.
+
+    Closes the follow-up the module docstring's "Save verification"
+    paragraph left open (issue #840): until now a save that Yandex's
+    client-side validation refused surfaced only as a post-reload field
+    mismatch, so the caller was told the value "did not save" with no hint
+    as to why. These messages ARE readable — confirmed live on campaign
+    74736436, whose ``--promotion-goal max-conversions`` save is rejected
+    with "Добавьте хотя бы одну цель для сайта, чтобы создать и запустить
+    кампанию." because the campaign has no Metrika goals (the same
+    goal-required rule ``create_master`` hits).
+
+    Must be called BEFORE ``_verify_saved`` re-navigates: the messages are
+    rendered into the still-open form by the save click and do not survive
+    the reload. Best-effort by design — this only enriches an error message
+    that is already being raised, so any failure to read returns an empty
+    list rather than masking the real mismatch error.
+    """
+    try:
+        texts = page.eval_on_selector_all(
+            _SAVE_VALIDATION_ERROR_SELECTOR,
+            "els => els.map(e => e.innerText.trim()).filter(Boolean)",
+        )
+    except PlaywrightError:
+        return []
+
+    seen: List[str] = []
+    for raw in texts or []:
+        # NBSP is used liberally in these strings (confirmed live); collapse
+        # it along with the rest of the whitespace so the reported text is
+        # greppable and matches what the user sees.
+        text = " ".join(str(raw).split())
+        if text and text not in seen:
+            seen.append(text)
+    return seen[:_SAVE_VALIDATION_ERROR_LIMIT]
+
+
 def _click_save(
     page: "Page", campaign_id: int, *, is_draft: bool, launch: bool = False
 ) -> None:
@@ -7008,6 +7081,7 @@ def _verify_saved(
     add_sitelinks: Optional[List[Dict[str, str]]] = None,
     remove_sitelink_indices: Optional[List[int]] = None,
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
+    validation_errors: Optional[List[str]] = None,
 ) -> None:
     """Reload the edit page and confirm every requested field actually saved.
 
@@ -7659,12 +7733,28 @@ def _verify_saved(
     )
 
     if mismatches:
+        # Quote Yandex's own rejection text when the caller captured it at
+        # save time (issue #840) — without it the operator is told only
+        # THAT the value did not save, and the actual reason (e.g. "add at
+        # least one goal") is invisible. Falls back to the original generic
+        # wording when nothing was readable, so a selector miss degrades
+        # the message rather than hiding the mismatch.
+        detail = (
+            " Yandex reported: " + " | ".join(validation_errors) + "."
+            if validation_errors
+            else (
+                " Yandex may have rejected the value (client-side "
+                "validation) or the save did not complete."
+            )
+        )
         raise BrowserSessionError(
             f"Clicked '{clicked_button_label}' for campaign {campaign_id}, "
             "but re-reading the edit page after reload shows it did not "
-            "save as requested: " + "; ".join(mismatches) + ". Yandex may "
-            "have rejected the value (client-side validation) or the save "
-            "did not complete — verify manually before retrying."
+            "save as requested: "
+            + "; ".join(mismatches)
+            + "."
+            + detail
+            + " Verify manually before retrying."
         )
 
 
@@ -8438,6 +8528,11 @@ def update_master(
 
     _click_save(page, campaign_id, is_draft=was_draft, launch=launch)
 
+    # Read Yandex's inline rejection text BEFORE _verify_saved reloads the
+    # page away (issue #840) — these messages live only in the still-open
+    # form. Best-effort: used purely to enrich a failure message.
+    save_validation_errors = _read_save_validation_errors(page)
+
     # The terminal-button click above already happened — irreversible, and
     # for images NOT idempotent (a retry would re-snapshot the
     # already-mutated set and replace DIFFERENT images than the ones the
@@ -8497,6 +8592,7 @@ def update_master(
             add_sitelinks=add_sitelinks_observed,
             remove_sitelink_indices=remove_sitelinks,
             clicked_button_label=clicked_button_label,
+            validation_errors=save_validation_errors,
         )
     except BrowserAuthError as exc:
         raise BrowserSessionError(
