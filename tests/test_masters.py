@@ -2823,6 +2823,80 @@ class TestFetchMaster(unittest.TestCase):
         self.assertGreaterEqual(warn.call_count, 3)  # name, status, landing, stats
 
 
+class TestReadStatusText(unittest.TestCase):
+    """Issue #848: `masters archive`/`suspend` refused to act on campaign
+    107705868 with "unrecognised status text", even though the page's own
+    "Остановить кампанию" button was rendered and enabled.
+
+    Live recon 2026-08-14 established that `CampaignHeader.Status` carries
+    the status verbatim in EVERY non-DRAFT state (confirmed on real
+    campaigns: "Кампания активна"/713234142, "Кампания
+    остановлена"/107705868, "Кампания в\xa0архиве"/100571135) — the module's
+    older comments wrongly treated that testid as a DRAFT-only marker, so
+    the parser matched substrings against the whole page body instead. These
+    tests pin the header-first read and the whitespace/case normalisation
+    that make an invisible character unable to defeat a marker again.
+    """
+
+    def _page(self, *, header=None, body=""):
+        locators = {}
+        if header is not None:
+            locators[browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR] = _FakeLocator(
+                [_FakeLocatorHandle(text=header)]
+            )
+        return FakePage(locators=locators, body_text=body)
+
+    def test_reads_header_status_element(self):
+        page = self._page(header="Кампания активна", body="")
+        self.assertEqual(browser_masters._read_status_text(page), "ACTIVE")
+
+    def test_header_wins_over_unrelated_body_prose(self):
+        # The live ACTIVE dashboard also renders free-form moderation prose
+        # mentioning the campaign ("... Кампания запущена из\xa0прошедших
+        # модерацию элементов объявления", confirmed on 713234142). Body-wide
+        # substring matching is what made recognition depend on which
+        # banners happened to render; the header node is authoritative.
+        page = self._page(
+            header="Кампания остановлена",
+            body=(
+                "Модерация завершена: отклонён 1 элемент объявления. "
+                "Кампания запущена из\xa0прошедших модерацию элементов"
+            ),
+        )
+        self.assertEqual(browser_masters._read_status_text(page), "SUSPENDED")
+
+    def test_falls_back_to_body_when_header_absent(self):
+        # Older/other page shapes that have no CampaignHeader.Status must
+        # keep working exactly as before.
+        page = self._page(header=None, body="Кампания в\xa0архиве")
+        self.assertEqual(browser_masters._read_status_text(page), "ARCHIVED")
+
+    def test_falls_back_to_body_when_header_unrecognised(self):
+        page = self._page(header="Черновик", body="Кампания на\xa0модерации")
+        self.assertEqual(browser_masters._read_status_text(page), "MODERATION")
+
+    def test_ascii_space_variant_matches(self):
+        # #704 and #730 each cost a debugging pass because a marker differed
+        # from the rendered text by a U+00A0. Normalisation makes both the
+        # ASCII and the non-breaking form match either way.
+        for text in ("Кампания на модерации", "Кампания на\xa0модерации"):
+            with self.subTest(text=text):
+                self.assertEqual(
+                    browser_masters._read_status_text(self._page(header=text)),
+                    "MODERATION",
+                )
+
+    def test_case_and_extra_whitespace_tolerated(self):
+        page = self._page(header="  КАМПАНИЯ\n\n  АКТИВНА  ")
+        self.assertEqual(browser_masters._read_status_text(page), "ACTIVE")
+
+    def test_unrecognised_text_still_returns_none(self):
+        # The defensive refuse-to-click-blind behaviour #848 praised must
+        # survive: a genuinely unknown status is None, never a guess.
+        page = self._page(header="Нечто совершенно новое", body="Черновик")
+        self.assertIsNone(browser_masters._read_status_text(page))
+
+
 class TestFetchMasterDraft(unittest.TestCase):
     """DRAFT overview-page parsing (issue #660): name/status/weekly budget only.
 
