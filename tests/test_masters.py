@@ -152,6 +152,13 @@ class _FakeLocatorHandle:
         # Every `timeout=` this handle's click() was called with, in order
         # (issue #779 review) — see click().
         self.click_timeouts = []
+        # Every `timeout=` this handle's inner_text() was called with, in
+        # order (issue #848 review) — an absent header probe that omits an
+        # explicit timeout pays Playwright's ~30s default before falling
+        # through, defeating callers' much shorter poll budgets; this is the
+        # only observable an offline fake has for that cost, mirroring
+        # click_timeouts above.
+        self.inner_text_timeouts = []
         # {selector: _FakeLocatorHandle} for a SCOPED child lookup — models
         # Playwright's Locator.locator(), e.g. `label.locator("xpath=.//input
         # [...]")` (issue #656: _set_region reads a checkbox scoped off the
@@ -184,6 +191,7 @@ class _FakeLocatorHandle:
         return _FakeGetByTextLocator(matched)
 
     def inner_text(self, timeout=None):
+        self.inner_text_timeouts.append(timeout)
         if self._raises:
             # Real Playwright raises its own Error (a TimeoutError subclass) when
             # an element is missing — masters.py's `except PlaywrightError` must
@@ -2823,6 +2831,158 @@ class TestFetchMaster(unittest.TestCase):
         self.assertGreaterEqual(warn.call_count, 3)  # name, status, landing, stats
 
 
+class TestReadStatusText(unittest.TestCase):
+    """Issue #848: `masters archive`/`suspend` refused to act on campaign
+    107705868 with "unrecognised status text", even though the page's own
+    "Остановить кампанию" button was rendered and enabled.
+
+    Live recon 2026-08-14 established that `CampaignHeader.Status` carries
+    the status verbatim in EVERY non-DRAFT state (confirmed on real
+    campaigns: "Кампания активна"/713234142, "Кампания
+    остановлена"/107705868, "Кампания в\xa0архиве"/100571135) — the module's
+    older comments wrongly treated that testid as a DRAFT-only marker, so
+    the parser matched substrings against the whole page body instead. These
+    tests pin the header-first read and the whitespace/case normalisation
+    that make an invisible character unable to defeat a marker again.
+    """
+
+    def _page(self, *, header=None, body="", header_raises=False):
+        locators = {}
+        if header_raises:
+            # Models an element that IS present (Locator.count() == 1) but
+            # whose .inner_text() raises — e.g. a timeout mid-hydration —
+            # as distinct from a structurally absent element
+            # (Locator.count() == 0, no handles at all).
+            locators[browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR] = _FakeLocator(
+                [_FakeLocatorHandle(raises=True)]
+            )
+        elif header is not None:
+            locators[browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR] = _FakeLocator(
+                [_FakeLocatorHandle(text=header)]
+            )
+        return FakePage(locators=locators, body_text=body)
+
+    def test_reads_header_status_element(self):
+        page = self._page(header="Кампания активна", body="")
+        self.assertEqual(browser_masters._read_status_text(page), "ACTIVE")
+
+    def test_header_wins_over_unrelated_body_prose(self):
+        # The live ACTIVE dashboard also renders free-form moderation prose
+        # mentioning the campaign ("... Кампания запущена из\xa0прошедших
+        # модерацию элементов объявления", confirmed on 713234142). Body-wide
+        # substring matching is what made recognition depend on which
+        # banners happened to render; the header node is authoritative.
+        page = self._page(
+            header="Кампания остановлена",
+            body=(
+                "Модерация завершена: отклонён 1 элемент объявления. "
+                "Кампания запущена из\xa0прошедших модерацию элементов"
+            ),
+        )
+        self.assertEqual(browser_masters._read_status_text(page), "SUSPENDED")
+
+    def test_falls_back_to_body_when_header_absent(self):
+        # Older/other page shapes that have no CampaignHeader.Status must
+        # keep working exactly as before.
+        page = self._page(header=None, body="Кампания в\xa0архиве")
+        self.assertEqual(browser_masters._read_status_text(page), "ARCHIVED")
+
+    def test_unrecognised_header_returns_none_even_with_matching_body(self):
+        # Superseded by the round-2 fix (#848 review): a header element that
+        # WAS read but matches no known marker ("Черновик" is a DRAFT
+        # marker, not one of _STATUS_TEXT_MARKERS) must not fall through to
+        # body-text matching even when the body happens to contain a real
+        # marker — see test_unrecognised_header_does_not_fall_back_to_noisy_body
+        # for why: the header is authoritative once read, so this returns
+        # None rather than trusting an unrelated body match.
+        page = self._page(header="Черновик", body="Кампания на\xa0модерации")
+        self.assertIsNone(browser_masters._read_status_text(page))
+
+    def test_ascii_space_variant_matches(self):
+        # #704 and #730 each cost a debugging pass because a marker differed
+        # from the rendered text by a U+00A0. Normalisation makes both the
+        # ASCII and the non-breaking form match either way.
+        for text in ("Кампания на модерации", "Кампания на\xa0модерации"):
+            with self.subTest(text=text):
+                self.assertEqual(
+                    browser_masters._read_status_text(self._page(header=text)),
+                    "MODERATION",
+                )
+
+    def test_case_and_extra_whitespace_tolerated(self):
+        page = self._page(header="  КАМПАНИЯ\n\n  АКТИВНА  ")
+        self.assertEqual(browser_masters._read_status_text(page), "ACTIVE")
+
+    def test_unrecognised_text_still_returns_none(self):
+        # The defensive refuse-to-click-blind behaviour #848 praised must
+        # survive: a genuinely unknown status is None, never a guess.
+        page = self._page(header="Нечто совершенно новое", body="Черновик")
+        self.assertIsNone(browser_masters._read_status_text(page))
+
+    def test_unrecognised_header_does_not_fall_back_to_noisy_body(self):
+        # Round-2 review (#848): when the header element IS present but its
+        # text matches no known marker, falling through to whole-body
+        # matching reopens the exact substring-over-everything failure mode
+        # this fix was meant to close — the header is authoritative, so an
+        # unrecognised header text must return None, not whatever an
+        # unrelated banner in the body happens to contain. The body below
+        # deliberately DOES contain a real marker substring (in unrelated
+        # moderation prose about a sibling ad, not the campaign's own
+        # status) so a test that still fell through to body matching would
+        # observe MODERATION here instead of None.
+        page = self._page(
+            header="Совершенно новый статус",
+            body="Одно из объявлений отклонено, кампания на модерации ожидает решения.",
+        )
+        self.assertIsNone(browser_masters._read_status_text(page))
+
+    def test_present_but_timed_out_header_does_not_fall_back_to_noisy_body(self):
+        # Round-2 review (#848): a header element that IS present
+        # (Locator.count() == 1) but whose read raises/times out mid-
+        # hydration must be treated the same as "present but unrecognised"
+        # (see test_unrecognised_header_does_not_fall_back_to_noisy_body),
+        # NOT the same as "structurally absent" — round-1's fix conflated
+        # the two by only checking `header_text is None`, which a timeout
+        # also produces. A present-but-slow element must not fall back to
+        # body-text matching even when the body happens to contain a real
+        # marker for an unrelated banner, since that reopens the exact
+        # false-positive-status bug this PR set out to close, just via a
+        # transient hydration race instead of a permanently-absent header.
+        page = self._page(
+            header_raises=True,
+            body="Одно из объявлений отклонено, кампания на модерации ожидает решения.",
+        )
+        self.assertIsNone(browser_masters._read_status_text(page))
+
+    def test_structurally_absent_header_still_falls_back_to_body(self):
+        # Companion to the above: a page shape that genuinely has NO
+        # CampaignHeader.Status element at all (Locator.count() == 0, no
+        # handles registered) must still fall back to body-text matching —
+        # this is the pre-#848 legacy path and must keep working.
+        page = self._page(header=None, body="Кампания в\xa0архиве")
+        self.assertEqual(browser_masters._read_status_text(page), "ARCHIVED")
+
+    def test_header_probe_uses_a_bounded_timeout(self):
+        # Round-2 review (#848): an absent/not-yet-rendered header element
+        # must not pay Playwright's ~30s default action timeout — every
+        # caller of _read_status_text polls on a much shorter deadline
+        # (_STATUS_CHANGE_TIMEOUT_MS = 8s), so an unbounded read here can
+        # single-handedly blow that budget. Mirrors the existing
+        # click_timeouts convention (issue #779 review) for the same reason:
+        # the fake raises/returns instantly, so the passed `timeout=` is the
+        # only observable an offline test has for this cost.
+        handle = _FakeLocatorHandle(text="Кампания активна")
+        locators = {
+            browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator([handle])
+        }
+        page = FakePage(locators=locators, body_text="")
+        browser_masters._read_status_text(page)
+        self.assertEqual(len(handle.inner_text_timeouts), 1)
+        (timeout,) = handle.inner_text_timeouts
+        self.assertIsNotNone(timeout)
+        self.assertLessEqual(timeout, 1_000)
+
+
 class TestFetchMasterDraft(unittest.TestCase):
     """DRAFT overview-page parsing (issue #660): name/status/weekly budget only.
 
@@ -2904,11 +3064,15 @@ class TestFetchMasterDraft(unittest.TestCase):
     def test_non_draft_page_unaffected(self):
         # A page whose CampaignHeader.Status reads something other than
         # "Черновик" must fall through to the normal dashboard extractors,
-        # not be misdetected as a draft.
+        # not be misdetected as a draft. Uses the real live-confirmed header
+        # text (#848) rather than a shortened stand-in — since the round-2
+        # fix, an unrecognised-but-present header no longer falls back to
+        # body-text matching, so the fixture must carry a marker the header
+        # read itself can match.
         page = FakePage(
             locators={
                 browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator(
-                    [_FakeLocatorHandle(text="Активна")]
+                    [_FakeLocatorHandle(text="Кампания активна")]
                 ),
                 "h1, [role=heading]": _FakeLocator(
                     [_FakeLocatorHandle(text="Обычная")]

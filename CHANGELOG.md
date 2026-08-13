@@ -260,6 +260,37 @@ Both are handled by polling for a *stable* reading, mirroring
 
 ### Fixed
 
+**`masters` status parsing — read the header status element, not the whole
+page body (#848).**
+
+`masters archive`/`suspend` refused to act on campaign 107705868 with
+`Could not determine current status … (unrecognised status text) — refusing to
+click blind`, while the same error's own diagnostic reported the page's
+`CampaignHeader.ActionButton.stop` ("Остановить кампанию") as present and
+enabled — i.e. the campaign was plainly ACTIVE. The refusal itself is correct
+behaviour (never click blind), but it left the campaign unreachable by every
+lifecycle command.
+
+`_read_status_text` matched four fixed Russian phrases as substrings of
+`inner_text("body")` — the entire page. Live recon 2026-08-14 established that
+`CampaignHeader.Status` carries the status verbatim in *every* state, not just
+DRAFT as this module's older comments assumed: confirmed on real campaigns as
+"Кампания активна" (713234142), "Кампания остановлена" (107705868) and
+"Кампания в\xa0архиве" (100571135). The parser now reads that element first and
+falls back to body text only when it is absent or unrecognised.
+
+Matching the header node also removes the substring-over-everything failure
+mode: the dashboard renders free-form moderation prose that mentions the
+campaign (confirmed live on 713234142: "…Кампания запущена из\xa0прошедших
+модерацию элементов объявления"), so which status won depended on which
+unrelated banners happened to be rendered. Marker comparison is additionally
+normalised over case, U+00A0 and collapsed whitespace, so a marker can no
+longer silently never match over an invisible character — a pitfall that had
+already cost a full debugging pass twice (#704, #730).
+
+Unrecognised text still returns `None`, so the refuse-to-click-blind guard is
+unchanged.
+
 **`masters update --add-metrika-counter` — read the suggestion popup at all,
 and accept a bare counter id (#846).**
 

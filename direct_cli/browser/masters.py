@@ -716,6 +716,9 @@ _GRID_SCROLL_STEP_DELAY_MS = 150
 # as the edit page's DRAFT path (_DRAFT_SAVE_DRAFT_BUTTON_TESTID/
 # _DRAFT_LAUNCH_BUTTON_TESTID above), plus its own header ones below.
 _CAMPAIGN_HEADER_TITLE_NAME_SELECTOR = '[data-testid="CampaignHeader.TitleName"]'
+# NOT DRAFT-only, despite what the neighbouring #660 comment implies: live
+# recon 2026-08-14 (issue #848) confirmed this element carries the status
+# verbatim in every state, which is why _read_status_text now reads it first.
 _CAMPAIGN_HEADER_STATUS_SELECTOR = '[data-testid="CampaignHeader.Status"]'
 _BUDGET_INPUT_SELECTOR = '[data-testid="BudgetWithSuggest.PriceTextInput"]'
 _DRAFT_STATUS_TEXT = "Черновик"
@@ -2631,19 +2634,106 @@ def _read_status_text(page: "Page") -> Optional[str]:
     was silently excluded by a status predicate that could never match. Same
     non-breaking-space pitfall as "на\xa0модерации" — the space between "в"
     and "архиве" is U+00A0, not ASCII.
+
+    **Reads ``CampaignHeader.Status`` first, whole-body text only as a
+    fallback** (issue #848). Live recon 2026-08-14 on the reporting account
+    confirmed that testid is NOT the DRAFT-only marker this module's older
+    comments assumed: it carries the status verbatim in every state —
+    "Кампания активна" (713234142), "Кампания остановлена" (107705868),
+    "Кампания в\xa0архиве" (100571135) — alongside the same string in body
+    text. Matching the header node instead of the whole page removes the
+    substring-over-everything failure mode #848 hit: the dashboard also
+    renders free-form moderation prose mentioning the campaign (confirmed
+    live on 713234142: "…Кампания запущена из\xa0прошедших модерацию
+    элементов объявления"), so whether a status is recognised depended on
+    which unrelated banners happened to be rendered and in what order the
+    fixed if-chain tested them. The normalisation below (case, U+00A0, and
+    collapsed whitespace) also means a marker can no longer silently never
+    match over an invisible character, which has now cost two debugging
+    passes (#704, #730).
     """
+    # ``count()`` distinguishes a header element that is STRUCTURALLY ABSENT
+    # (this page shape has no such node — safe to fall back to body text)
+    # from one that is PRESENT but whose text read raised/timed out (still
+    # mid-hydration — a transient state, not "no such element"). Round-1's
+    # fix conflated both into a single ``None`` from
+    # ``_read_campaign_header_status_text``, which meant a slow-to-render
+    # header could still trip the unreliable body-text fallback during
+    # exactly the transition window callers are polling through (#848
+    # round-2 review) — count() is synchronous/non-waiting, so this adds no
+    # extra delay.
+    try:
+        header_present = page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).count() > 0
+    except PlaywrightError:
+        header_present = False
+    if header_present:
+        header_text = _read_campaign_header_status_text(page)
+        if header_text is not None:
+            return _match_status_text(header_text)
+        # Present but unreadable (timeout) or present-but-unrecognised: the
+        # header is authoritative once it exists on the page at all, so
+        # returning None here (rather than trying body text) preserves the
+        # refuse-to-click-blind guard instead of risking an unrelated
+        # banner's marker substring. Callers already poll on their own
+        # short interval and will retry the header read next tick.
+        return None
     try:
         body_text = page.inner_text("body")
     except PlaywrightError:
         return None
-    if "Кампания остановлена" in body_text:
-        return "SUSPENDED"
-    if "Кампания активна" in body_text or "Кампания включена" in body_text:
-        return "ACTIVE"
-    if "Кампания на\xa0модерации" in body_text:
-        return "MODERATION"
-    if "Кампания в\xa0архиве" in body_text:
-        return "ARCHIVED"
+    return _match_status_text(body_text)
+
+
+def _read_campaign_header_status_text(page: "Page") -> Optional[str]:
+    """Return ``CampaignHeader.Status``'s trimmed text, or ``None``.
+
+    Uses an explicit short ``timeout=`` (matching this file's convention for
+    other probe reads, e.g. the ``timeout=1_000`` calls elsewhere in this
+    module) rather than Playwright's ~30s default. Every caller of
+    ``_read_status_text`` polls on a much shorter deadline
+    (``_STATUS_CHANGE_TIMEOUT_MS`` = 8s, retried up to
+    ``_STATUS_CLICK_MAX_ATTEMPTS`` times); an absent/not-yet-rendered header
+    element paying the default wait would single-handedly blow that budget
+    on every poll iteration (#848 review).
+    """
+    try:
+        text = page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).first.inner_text(
+            timeout=1_000
+        )
+    except PlaywrightError:
+        return None
+    text = (text or "").strip()
+    return text or None
+
+
+def _normalise_status_text(text: str) -> str:
+    """Casefold, turn U+00A0 into a plain space, and collapse whitespace.
+
+    The markers below differ from what Yandex renders only by invisible
+    characters often enough that matching them literally is a standing
+    liability — see ``_read_status_text``'s note on #704/#730.
+    """
+    return re.sub(r"\s+", " ", text.replace("\xa0", " ")).strip().casefold()
+
+
+# Status marker -> the CLI's Status vocabulary. Ordered most specific first:
+# _match_status_text returns the first marker contained in the text, and
+# "Кампания остановлена" must not be shadowed by a looser marker.
+_STATUS_TEXT_MARKERS: Tuple[Tuple[str, str], ...] = (
+    ("Кампания остановлена", "SUSPENDED"),
+    ("Кампания активна", "ACTIVE"),
+    ("Кампания включена", "ACTIVE"),
+    ("Кампания на модерации", "MODERATION"),
+    ("Кампания в архиве", "ARCHIVED"),
+)
+
+
+def _match_status_text(text: str) -> Optional[str]:
+    """Return the CLI status whose marker appears in ``text``, else ``None``."""
+    normalised = _normalise_status_text(text)
+    for marker, status in _STATUS_TEXT_MARKERS:
+        if _normalise_status_text(marker) in normalised:
+            return status
     return None
 
 
