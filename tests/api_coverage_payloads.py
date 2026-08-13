@@ -74,6 +74,10 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
         "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
         "tests."
     ),
+    "masters.update": (
+        "Browser-only campaign wizard mutation has no Yandex Direct WSDL operation "
+        "or API payload schema."
+    ),
     "negativekeywordsharedsets.get": (
         "Read path omits optional SelectionCriteria when --ids is absent."
     ),
