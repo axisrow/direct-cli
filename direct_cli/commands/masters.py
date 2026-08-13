@@ -560,6 +560,15 @@ def list_masters(
         "(images). Adds RejectedElements/RejectedCount to each result."
     ),
 )
+@click.option(
+    "--tracking-params",
+    is_flag=True,
+    help=(
+        'Also read the campaign\'s "UTM-метки и параметры URL" field from '
+        "its edit page. Adds TrackingParams to each result; omitted if the "
+        "field could not be confirmed readable (issue #824)."
+    ),
+)
 @_masters_browser_options
 @click.pass_context
 @handle_api_errors
@@ -567,6 +576,7 @@ def get(
     ctx,
     campaign_ids,
     moderation_statuses,
+    tracking_params,
     headful,
     profile_dir,
     chrome_profile,
@@ -581,12 +591,20 @@ def get(
     the campaign-level status). Only images carry such a marker today; see
     UnsupportedTypes in the output.
 
+    With --tracking-params, additionally reads the campaign's UTM field from
+    its edit page (the overview page this command otherwise reads has no
+    such field at all — see issue #824).
+
     Every ID is attempted even if an earlier one fails, and each ID's
     outcome (the row, or its error) is reported — see ``_run_per_id``
     (issue #816: a failure reading one campaign used to discard every
     already-read campaign in the same batch).
     """
-    from ..browser.masters import fetch_master, fetch_master_moderation_statuses
+    from ..browser.masters import (
+        fetch_master,
+        fetch_master_moderation_statuses,
+        fetch_master_tracking_params,
+    )
 
     ids = parse_ids(campaign_ids) or []
 
@@ -601,6 +619,18 @@ def get(
                 {
                     key: value
                     for key, value in fetch_master_moderation_statuses(
+                        page, campaign_id
+                    ).items()
+                    if key != "CampaignId"
+                }
+            )
+        if tracking_params:
+            # Same "merge into this result" shape as --moderation-statuses
+            # above, one more edit-page navigation (issue #824).
+            result.update(
+                {
+                    key: value
+                    for key, value in fetch_master_tracking_params(
                         page, campaign_id
                     ).items()
                     if key != "CampaignId"

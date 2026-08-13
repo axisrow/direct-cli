@@ -19998,6 +19998,72 @@ class TestFetchMasterModerationStatuses(unittest.TestCase):
         self.assertIn("/edit/", page.navigated_to[-1])
 
 
+class TestFetchMasterTrackingParams(unittest.TestCase):
+    """``fetch_master_tracking_params`` — the navigating wrapper (issue #824).
+
+    Reuses ``TestUtmSectionReadability``'s page shape (a UTM spoiler that may
+    mount late), since the readability distinction this function must
+    surface is exactly what that class's fake already models.
+    """
+
+    @staticmethod
+    def _page(*, spoiler_appears_after=0, value="utm_source=x"):
+        # TestUtmSectionReadability's fake models the UTM spoiler/field but
+        # not the edit form's own ready markers — fetch_master_tracking_params
+        # navigates via _wait_for_edit_form first, which needs those present
+        # (mirrors _FakeImagesPage's role_elements default).
+        page = TestUtmSectionReadability._page(
+            spoiler_appears_after=spoiler_appears_after, value=value
+        )
+        page._locators.setdefault(
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]',
+            _FakeLocator([_FakeLocatorHandle()]),
+        )
+        page._role_elements = [
+            (
+                "button",
+                browser_masters._SAVE_BUTTON_TEXT,
+                _FakeTextLocatorHandle(visible=True),
+            )
+        ]
+        return page
+
+    def test_carries_the_campaign_id_into_the_result(self):
+        page = self._page(value="utm_source=x")
+
+        result = browser_masters.fetch_master_tracking_params(page, 42)
+
+        self.assertEqual(result["CampaignId"], 42)
+        self.assertEqual(result["TrackingParams"], "utm_source=x")
+
+    def test_reads_the_edit_page_not_the_overview_page(self):
+        page = self._page(value="utm_source=x")
+
+        browser_masters.fetch_master_tracking_params(page, 42)
+
+        self.assertIn("/edit/", page.navigated_to[-1])
+
+    def test_mounted_and_empty_field_reports_empty_string_not_omitted(self):
+        page = self._page(value="")
+
+        result = browser_masters.fetch_master_tracking_params(page, 42)
+
+        self.assertIn("TrackingParams", result)
+        self.assertEqual(result["TrackingParams"], "")
+
+    def test_unreadable_section_omits_the_key_rather_than_a_misleading_value(self):
+        # A section that never becomes readable within the wait budget must
+        # not be reported as "" (that would be indistinguishable from a
+        # genuinely empty field) — the key is simply absent, mirroring how
+        # the DRAFT overview path already omits an unreadable LandingUrl.
+        page = self._page(spoiler_appears_after=10**9)
+
+        result = browser_masters.fetch_master_tracking_params(page, 42)
+
+        self.assertNotIn("TrackingParams", result)
+        self.assertEqual(result["CampaignId"], 42)
+
+
 def _chromium_available():
     try:
         from playwright.sync_api import sync_playwright
@@ -20242,6 +20308,103 @@ class TestMastersGetModerationStatusesFlag(unittest.TestCase):
         payload = json.loads(result.output)
         self.assertEqual([row["CampaignId"] for row in payload], [42, 43])
         self.assertTrue(all("RejectedCount" in row for row in payload))
+
+
+class TestMastersGetTrackingParamsFlag(unittest.TestCase):
+    """``masters get --tracking-params`` — issue #824's CLI surface."""
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def _invoke(self, args):
+        with patch(
+            "direct_cli.commands.masters._with_session",
+            side_effect=lambda ctx, headful, profile_dir, chrome_profile, fn: fn(
+                object()
+            ),
+        ):
+            return self.runner.invoke(cli, args)
+
+    def test_flag_absent_never_reads_tracking_params(self):
+        """The default `get` must not pay for a second page load."""
+        with patch.object(
+            browser_masters, "fetch_master", return_value={"CampaignId": 42}
+        ):
+            with patch.object(
+                browser_masters, "fetch_master_tracking_params"
+            ) as mock_tracking:
+                result = self._invoke(["masters", "get", "42"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        mock_tracking.assert_not_called()
+        self.assertNotIn("TrackingParams", result.output)
+
+    def test_flag_merges_tracking_params_into_the_same_result_object(self):
+        """A slice of `get`'s output, not a separate command's (mirrors
+        --moderation-statuses, issue #814)."""
+        with patch.object(
+            browser_masters,
+            "fetch_master",
+            return_value={"CampaignId": 42, "Name": "campaign"},
+        ):
+            with patch.object(
+                browser_masters,
+                "fetch_master_tracking_params",
+                return_value={
+                    "CampaignId": 42,
+                    "TrackingParams": "utm_source=yandex",
+                },
+            ):
+                result = self._invoke(["masters", "get", "42", "--tracking-params"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        payload = json.loads(result.output)
+        self.assertEqual(payload["CampaignId"], 42)
+        self.assertEqual(payload["Name"], "campaign")
+        self.assertEqual(payload["TrackingParams"], "utm_source=yandex")
+
+    def test_flag_applies_to_every_id_in_a_comma_separated_list(self):
+        with patch.object(
+            browser_masters,
+            "fetch_master",
+            side_effect=lambda _page, cid: {"CampaignId": cid},
+        ):
+            with patch.object(
+                browser_masters,
+                "fetch_master_tracking_params",
+                side_effect=lambda _page, cid: {
+                    "CampaignId": cid,
+                    "TrackingParams": f"utm_campaign={cid}",
+                },
+            ) as mock_tracking:
+                result = self._invoke(["masters", "get", "42,43", "--tracking-params"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(mock_tracking.call_count, 2)
+        payload = json.loads(result.output)
+        self.assertEqual([row["CampaignId"] for row in payload], [42, 43])
+        self.assertTrue(all("TrackingParams" in row for row in payload))
+
+    def test_unreadable_section_omits_the_key_rather_than_a_misleading_value(self):
+        # fetch_master_tracking_params itself omits the key when the UTM
+        # section never became readable (see
+        # TestFetchMasterTrackingParams) — this asserts the CLI merge
+        # preserves that omission instead of coercing it to "".
+        with patch.object(
+            browser_masters,
+            "fetch_master",
+            return_value={"CampaignId": 42, "Name": "campaign"},
+        ):
+            with patch.object(
+                browser_masters,
+                "fetch_master_tracking_params",
+                return_value={"CampaignId": 42},
+            ):
+                result = self._invoke(["masters", "get", "42", "--tracking-params"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        payload = json.loads(result.output)
+        self.assertNotIn("TrackingParams", payload)
 
 
 class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
