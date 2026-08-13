@@ -623,7 +623,11 @@ _UNARCHIVE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.unarchive"]'
 # conflating it with a genuinely missing/renamed selector, which still fails
 # loudly after every retry is exhausted.
 _POPUP_APPEAR_TIMEOUT_MS = 1_500
-_POPUP_CLICK_MAX_ATTEMPTS = 3
+# Menus and their items are mounted by separate React renders.  A few extra
+# idempotent open attempts prevent a transient late mount from surfacing as
+# "menu item not found" during consecutive Masters operations (issue #829).
+_POPUP_CLICK_MAX_ATTEMPTS = 5
+_CONTENTEDITABLE_CLEAR_MAX_ATTEMPTS = 3
 
 # How long to wait, after clicking Архивировать, for the grid API to report
 # the campaign as ARCHIVED before giving up (see archive_master).
@@ -4276,23 +4280,24 @@ def _set_contenteditable_field(
             "the page."
         ) from exc
 
-    if not _clear_text_field(field):
+    last_exc: Optional[Exception] = None
+    for attempt in range(_CONTENTEDITABLE_CLEAR_MAX_ATTEMPTS):
+        try:
+            field.click()
+            if _clear_text_field(field):
+                current = field.text_content()
+                if current in ("", None):
+                    break
+        except PlaywrightError as exc:
+            last_exc = exc
+        if attempt < _CONTENTEDITABLE_CLEAR_MAX_ATTEMPTS - 1:
+            page.wait_for_timeout(250)
+    else:
         raise BrowserSessionError(
             f"Could not clear the {label} field on the campaign edit page "
             "before typing the new value — Yandex may have changed the "
             "page's markup. Re-run with --headful to inspect the page."
-        )
-
-    try:
-        current = field.text_content()
-    except PlaywrightError:
-        current = None
-    if current not in ("", None):
-        raise BrowserSessionError(
-            f"Could not clear the {label} field on the campaign edit page "
-            "— Yandex may have changed the page's markup. Re-run with "
-            "--headful to inspect the page."
-        )
+        ) from last_exc
 
     if not value:
         return

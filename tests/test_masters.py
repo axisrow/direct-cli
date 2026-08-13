@@ -9503,6 +9503,33 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertEqual(len(save_clicks), 1)
         self.assertEqual(result, {"CampaignId": 42, "TrackingParams": ""})
 
+    def test_retries_transient_contenteditable_clear_failure(self):
+        # Issue #829: the edit widget can be present before its keyboard
+        # handler is ready.  A one-shot select-all/Backspace reports a false
+        # "could not clear" error; retrying the idempotent clear is safe.
+        class _FlakyClearHandle(_FakeContentEditableHandle):
+            def __init__(self):
+                super().__init__(text="utm_source=old")
+                self.attempts = 0
+
+            def press(self, key):
+                if key == "ControlOrMeta+a" and self.attempts == 0:
+                    self.attempts += 1
+                    raise PlaywrightError("keyboard handler not ready")
+                return super().press(key)
+
+        field = _FlakyClearHandle()
+        page = FakePage(
+            locators={browser_masters._EDIT_URL_INPUT_TESTID: _FakeLocator([field])}
+        )
+
+        browser_masters._set_contenteditable_field(
+            page, browser_masters._EDIT_URL_INPUT_TESTID, "", label="landing-page URL"
+        )
+
+        self.assertEqual(field.text_content(), "")
+        self.assertEqual(field.attempts, 1)
+
     def test_updates_landing_url_and_tracking_params_together(self):
         landing_url_state = {"value": "https://lp.example.ru/old"}
         utm_input_state = {"value": "utm_source=old"}
