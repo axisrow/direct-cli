@@ -131,7 +131,13 @@ On timeout, `_click_draft_terminal_button` now re-reads the "Целевые
 `_read_target_actions_or_none`, the same reader `create_master`'s pre-click
 gate uses — confirmed to be the identical widget on both pages) and raises
 a specific error naming the empty goals table when that's the cause,
-falling back to the original generic message otherwise.
+falling back to the original generic message otherwise. This diagnosis
+itself polls for up to another ~25s after the original redirect deadline
+already elapsed, so a merely-slow (not stuck) Yandex redirect can land
+*during* the diagnosis; `page.url` is re-checked immediately before each
+`raise` so a redirect landing mid-diagnosis is treated as success rather
+than reported as a false failure on an already-successful, no-rollback
+launch/save (cycle-review PR #826, Codex).
 
 The suggestion-text format (`"{label} • {domain/path} • {numeric counter
 id}"`) and the read-back tag-display format (`"{domain} • {numeric

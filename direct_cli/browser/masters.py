@@ -6312,6 +6312,16 @@ def _click_draft_terminal_button(
     if _wait_for_target_actions_settled(page):
         rows = _read_target_actions_or_none(page)
         if rows is not None and len(rows) == 0:
+            # Cycle-review PR #826 (Codex): this diagnosis itself waits up to
+            # _TARGET_ACTION_SETTLE_TIMEOUT_MS (20s) + _TARGET_ACTION_WAIT_
+            # TIMEOUT_MS (5s) AFTER the original redirect deadline already
+            # elapsed — plenty of time for a merely-slow (not stuck) redirect
+            # to complete during the diagnosis itself. Raising unconditionally
+            # here would report failure on an actually-successful, no-
+            # rollback launch/save. Re-check page.url one last time before
+            # concluding the goal really is the cause.
+            if "/edit/" not in page.url:
+                return
             raise BrowserSessionError(
                 f"Clicked {button_label!r} for DRAFT campaign {campaign_id}, "
                 "but Yandex did not redirect away from the edit page within "
@@ -6323,6 +6333,12 @@ def _click_draft_terminal_button(
                 "disabling the button — add at least one goal (e.g. via "
                 "'masters update --add-target-action') and retry."
             )
+
+    # Same late-redirect race as above: the target-actions diagnosis itself
+    # (settle wait + section-visibility wait) can run long enough for an
+    # in-flight (not stuck) redirect to land during it.
+    if "/edit/" not in page.url:
+        return
 
     raise BrowserSessionError(
         f"Clicked {button_label!r} for DRAFT campaign {campaign_id}, but "
