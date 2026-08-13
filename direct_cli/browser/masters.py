@@ -623,7 +623,21 @@ _UNARCHIVE_MENU_ITEM_SELECTOR = '[data-testid="CampaignHeader.Menu.unarchive"]'
 # conflating it with a genuinely missing/renamed selector, which still fails
 # loudly after every retry is exhausted.
 _POPUP_APPEAR_TIMEOUT_MS = 1_500
-_POPUP_CLICK_MAX_ATTEMPTS = 3
+# Menus and their items are mounted by separate React renders.  A few extra
+# idempotent open attempts prevent a transient late mount from surfacing as
+# "menu item not found" during consecutive Masters operations (issue #829).
+_POPUP_CLICK_MAX_ATTEMPTS = 5
+_CONTENTEDITABLE_CLEAR_MAX_ATTEMPTS = 3
+
+# How many full attempts (open menu -> re-verify status -> click) to make
+# before giving up when the pre-click re-check (_reverify_status_or_raise)
+# hits a transiently unrecognised status (issue #829, see
+# _TransientUnrecognisedStatusError). Each retry beyond the first
+# re-navigates to the overview page first — a fresh page load, not just
+# another poll of the same already-stuck render — since a status that never
+# hydrated in _wait_for_recognised_status's own 60s budget will not hydrate
+# by waiting again without reloading.
+_REVERIFY_STATUS_MAX_ATTEMPTS = 2
 
 # How long to wait, after clicking Архивировать, for the grid API to report
 # the campaign as ARCHIVED before giving up (see archive_master).
@@ -1935,19 +1949,29 @@ _UTM_SECTION_READY_TIMEOUT_MS = 30_000
 # post-save reload served a stale render of the section. Polling harder
 # inside that one page (what ``_read_until_matches``' retry budget does)
 # cannot fix it — the stale value is what that page has; only a genuinely
-# new navigation re-fetches it. Three attempts covers the observed settle
-# time with headroom.
+# new navigation re-fetches it. Three attempts covered the originally
+# observed settle time with headroom.
+#
+# Raised to four (issue #829, live batch log): 17 sequential
+# resume->update->archive cycles against the same profile/account in a
+# short window (~35 minutes) hit "did not save as requested" on landing_url/
+# tracking_params 3 times even with the three-attempt budget above already
+# in place — a busier account under sustained sequential load can outlast
+# the originally observed settle time, not just miss it once. The extra
+# attempt costs one more backoff in the already-rare "still stale after two
+# reloads" case; the common case (resolves on the first re-navigation, as
+# #769 originally measured) is unaffected.
 #
 # Worst-case cost, spelled out because the naive reading is ~10x off: an
 # attempt is bounded by ``_UTM_SECTION_READY_TIMEOUT_MS`` (30s) plus
-# ``_VERIFY_FIELD_READ_TIMEOUT_MS * 4`` (20s), so three attempts plus two
-# backoffs is ~160s before a genuine mismatch is reported. That ceiling is
+# ``_VERIFY_FIELD_READ_TIMEOUT_MS * 4`` (20s), so four attempts plus three
+# backoffs is ~215s before a genuine mismatch is reported. That ceiling is
 # only reached when the section is slow on EVERY load; the case this
-# constant exists for (a stale render that resolves on the next
-# navigation) costs one backoff. An unmountable section short-circuits the
-# 20s read entirely — see the ``_wait_for_utm_section`` check in
-# ``_verify_saved`` — capping it at ~30s per attempt instead.
-_VERIFY_RELOAD_MAX_ATTEMPTS = 3
+# constant exists for (a stale render that resolves on a later navigation)
+# costs one backoff per retry actually needed. An unmountable section
+# short-circuits the 20s read entirely — see the ``_wait_for_utm_section``
+# check in ``_verify_saved`` — capping it at ~30s per attempt instead.
+_VERIFY_RELOAD_MAX_ATTEMPTS = 4
 _VERIFY_RELOAD_BACKOFF_MS = 5_000
 
 
@@ -3146,6 +3170,28 @@ def _find_master_row(
     return None
 
 
+class _TransientUnrecognisedStatusError(BrowserSessionError):
+    """Raised by ``_reverify_status_or_raise`` specifically when the
+    overview page's status text never becomes recognised (issue #829).
+
+    Deliberately a DIFFERENT exception than the "status changed to
+    something else" branch of the same function: that branch is a real
+    TOCTOU signal (another session concurrently moved the campaign) and
+    must abort immediately, never retried. This one is indistinguishable,
+    from a single read, between "another session changed it" and "this
+    particular page load/render hiccuped" — live batch runs (issue #829)
+    showed the latter is common enough on long sequential Masters
+    operations that ``archive_master`` (idempotent — a retried click is
+    safe) should get one more full attempt, via a fresh page load, before
+    treating it as a hard abort. ``copy_master`` also calls
+    ``_reverify_status_or_raise`` but is deliberately NOT wired into the
+    retry below: it is non-idempotent (a retried click creates a second
+    campaign), so retrying through a false "changed" reading there risks a
+    worse failure mode than just reporting it — see ``copy_master``'s own
+    docstring.
+    """
+
+
 def _reverify_status_or_raise(
     page: "Page",
     campaign_id: int,
@@ -3201,7 +3247,7 @@ def _reverify_status_or_raise(
     current_status = _wait_for_recognised_status(page)
     if current_status is None:
         hint = f" {not_found_hint}" if not_found_hint else ""
-        raise BrowserSessionError(
+        raise _TransientUnrecognisedStatusError(
             f"Campaign {campaign_id} was {expected_status} moments ago but "
             "its overview page no longer shows a recognised status — "
             "another session may have just changed or removed it. Not "
@@ -3315,6 +3361,56 @@ def _click_menu_item(
         ) from exc
 
 
+def _click_menu_item_with_reverify_retry(
+    page: "Page",
+    campaign_id: int,
+    *,
+    item_selector: str,
+    item_label: str,
+    reverify: "Callable[[], None]",
+) -> None:
+    """``_click_menu_item`` whose ``pre_click_check`` is ``reverify``,
+    retried up to ``_REVERIFY_STATUS_MAX_ATTEMPTS`` times when ``reverify``
+    raises ``_TransientUnrecognisedStatusError`` (issue #829).
+
+    Live batch runs (issue #829, 6 of 17 sequential archive attempts) showed
+    the pre-click TOCTOU re-check can read the overview page's status as
+    unrecognised even after its own internal hydration poll gives up — not
+    because the campaign actually changed, but because that particular page
+    load/render hiccuped. A single ``BrowserSessionError`` from this shape
+    was previously terminal on the first attempt, aborting a perfectly
+    healthy archive/clone.
+
+    Only the "never became recognised" branch is retried — the "status
+    changed to something else" branch (a real TOCTOU: another session
+    concurrently moved the campaign) raises the base
+    ``BrowserSessionError`` and is deliberately NOT caught here, so it still
+    aborts immediately on the first sighting. Each retry re-navigates via
+    ``_goto_overview_page`` first: a fresh page load, not just polling the
+    same already-stuck render again, since ``_wait_for_recognised_status``
+    already spent its own 60s budget polling that same state without
+    reloading.
+    """
+    last_exc: Optional[_TransientUnrecognisedStatusError] = None
+    for attempt in range(_REVERIFY_STATUS_MAX_ATTEMPTS):
+        if attempt > 0:
+            _goto_overview_page(page, campaign_id)
+        try:
+            _click_menu_item(
+                page,
+                campaign_id,
+                item_selector=item_selector,
+                item_label=item_label,
+                pre_click_check=reverify,
+            )
+            return
+        except _TransientUnrecognisedStatusError as exc:
+            last_exc = exc
+
+    assert last_exc is not None  # loop always runs >= 1 iteration
+    raise last_exc
+
+
 def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     """Archive a Мастер кампаний, verifying the grid actually reports it archived.
 
@@ -3389,12 +3485,12 @@ def archive_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
             "intend to archive it.",
         )
 
-    _click_menu_item(
+    _click_menu_item_with_reverify_retry(
         page,
         campaign_id,
         item_selector=_ARCHIVE_MENU_ITEM_SELECTOR,
         item_label="Архивировать",
-        pre_click_check=_reverify_suspended,
+        reverify=_reverify_suspended,
     )
 
     updated, verify_exc = _poll_master_row_tolerant(
@@ -4276,23 +4372,24 @@ def _set_contenteditable_field(
             "the page."
         ) from exc
 
-    if not _clear_text_field(field):
+    last_exc: Optional[Exception] = None
+    for attempt in range(_CONTENTEDITABLE_CLEAR_MAX_ATTEMPTS):
+        try:
+            field.click()
+            if _clear_text_field(field):
+                current = field.text_content()
+                if current in ("", None):
+                    break
+        except PlaywrightError as exc:
+            last_exc = exc
+        if attempt < _CONTENTEDITABLE_CLEAR_MAX_ATTEMPTS - 1:
+            page.wait_for_timeout(250)
+    else:
         raise BrowserSessionError(
             f"Could not clear the {label} field on the campaign edit page "
             "before typing the new value — Yandex may have changed the "
             "page's markup. Re-run with --headful to inspect the page."
-        )
-
-    try:
-        current = field.text_content()
-    except PlaywrightError:
-        current = None
-    if current not in ("", None):
-        raise BrowserSessionError(
-            f"Could not clear the {label} field on the campaign edit page "
-            "— Yandex may have changed the page's markup. Re-run with "
-            "--headful to inspect the page."
-        )
+        ) from last_exc
 
     if not value:
         return
