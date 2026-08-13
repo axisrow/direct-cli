@@ -6307,6 +6307,53 @@ def _click_draft_terminal_button(
             return
         page.wait_for_timeout(250)
 
+    # Issue #823: a missing "Целевые действия" (Metrika conversion) goal is a
+    # KNOWN cause of exactly this silent no-op — confirmed live on the create
+    # page (issue #777/#744, module docstring's "A required-field marker is
+    # not the list of required fields") and reused verbatim here because the
+    # edit page renders the very same TargetActionsSection widget (module
+    # docstring, "The widget itself is the same one the edit page uses").
+    # Yandex refuses the click with "Добавьте хотя бы одну цель для сайта,
+    # чтобы создать и запустить кампанию" but neither terminal button ever
+    # gains a disabled/aria-disabled marker, so the ONLY way to tell "goal
+    # missing" apart from "still hydrating"/"a different rejection reason" is
+    # to read the table's own row count after the redirect has already timed
+    # out. A landing-url change (this issue's repro) can invalidate goals
+    # inherited from a cloned campaign's original site, silently emptying
+    # this exact table. Reported as a distinct, actionable error rather than
+    # folded into the generic message so a caller doesn't have to rediscover
+    # this root cause by hand every time.
+    if _wait_for_target_actions_settled(page):
+        rows = _read_target_actions_or_none(page)
+        if rows is not None and len(rows) == 0:
+            # Cycle-review PR #826 (Codex): this diagnosis itself waits up to
+            # _TARGET_ACTION_SETTLE_TIMEOUT_MS (20s) + _TARGET_ACTION_WAIT_
+            # TIMEOUT_MS (5s) AFTER the original redirect deadline already
+            # elapsed — plenty of time for a merely-slow (not stuck) redirect
+            # to complete during the diagnosis itself. Raising unconditionally
+            # here would report failure on an actually-successful, no-
+            # rollback launch/save. Re-check page.url one last time before
+            # concluding the goal really is the cause.
+            if "/edit/" not in page.url:
+                return
+            raise BrowserSessionError(
+                f"Clicked {button_label!r} for DRAFT campaign {campaign_id}, "
+                "but Yandex did not redirect away from the edit page within "
+                f"{_DRAFT_SAVE_REDIRECT_TIMEOUT_MS / 1000:.0f}s — the "
+                "'Целевые действия' (Яндекс.Метрика conversion goals) table "
+                "is empty. Yandex silently refuses to save/launch a campaign "
+                'with no conversion goal ("Добавьте хотя бы одну цель для '
+                'сайта, чтобы создать и запустить кампанию") without ever '
+                "disabling the button — add at least one goal (e.g. via "
+                "'masters update --add-target-action') and retry."
+            )
+
+    # Same late-redirect race as above: the target-actions diagnosis itself
+    # (settle wait + section-visibility wait) can run long enough for an
+    # in-flight (not stuck) redirect to land during it.
+    if "/edit/" not in page.url:
+        return
+
     raise BrowserSessionError(
         f"Clicked {button_label!r} for DRAFT campaign {campaign_id}, but "
         "Yandex did not redirect away from the edit page within "

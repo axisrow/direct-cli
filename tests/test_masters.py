@@ -5238,6 +5238,136 @@ class TestClickDraftTerminalButton(unittest.TestCase):
         self.assertEqual(click_count["n"], 1)
         self.assertIn("did not redirect", str(ctx.exception))
 
+    def test_raises_specific_goal_error_when_target_actions_table_is_empty(self):
+        # Issue #823: an empty "Целевые действия" table is a KNOWN, silent
+        # cause of the click never redirecting (same widget/failure mode as
+        # create_master's #777 finding) — the timeout must surface that
+        # specific diagnosis, not the generic "may not have saved" message.
+        page = _FakeTargetActionsPage(
+            {},
+            locators={
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713469085)
+
+        clock = {"now": 0.0}
+
+        def _wait_for_timeout(timeout):
+            clock["now"] += timeout / 1000
+
+        page.wait_for_timeout = _wait_for_timeout
+
+        with patch.object(_clock, "_clock", lambda: clock["now"]):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._click_draft_terminal_button(
+                    page, 713469085, launch=True
+                )
+
+        self.assertIn("Целевые действия", str(ctx.exception))
+        self.assertIn("conversion goal", str(ctx.exception))
+
+    def test_generic_error_when_target_actions_table_has_rows(self):
+        # A stuck redirect with goals PRESENT must keep the generic message
+        # — the specific goal diagnosis only fires when the table is
+        # genuinely empty, not for every timeout.
+        page = _FakeTargetActionsPage(
+            {159614149: {"name": "Регистрация", "price": "150"}},
+            locators={
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713469085)
+
+        clock = {"now": 0.0}
+
+        def _wait_for_timeout(timeout):
+            clock["now"] += timeout / 1000
+
+        page.wait_for_timeout = _wait_for_timeout
+
+        with patch.object(_clock, "_clock", lambda: clock["now"]):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._click_draft_terminal_button(
+                    page, 713469085, launch=True
+                )
+
+        self.assertIn("did not redirect", str(ctx.exception))
+        self.assertNotIn("Целевые действия", str(ctx.exception))
+
+    def test_returns_normally_when_redirect_lands_during_empty_table_diagnosis(self):
+        # Cycle-review PR #826 (Codex, HIGH): the empty-table diagnosis itself
+        # polls for up to _TARGET_ACTION_SETTLE_TIMEOUT_MS after the original
+        # redirect deadline already elapsed — plenty of time for a merely-
+        # slow (not stuck) redirect to land DURING the diagnosis. Raising the
+        # goal-specific error in that case would report failure on an
+        # actually-successful, no-rollback launch/save. The table reads
+        # empty (the settle-poll's row count never moves off 0), but once
+        # the redirect is observed the function must return normally instead
+        # of raising.
+        page = _FakeTargetActionsPage(
+            {},
+            locators={
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713469085)
+
+        clock = {"now": 0.0}
+        ticks = {"n": 0}
+
+        def _wait_for_timeout(timeout):
+            clock["now"] += timeout / 1000
+            ticks["n"] += 1
+            # Let the redirect-deadline loop time out normally (that part
+            # ticks in 250ms steps — well under the settle poll's 400ms
+            # ticks), then land the redirect partway through the settle
+            # poll that follows, exactly like a merely-slow Yandex redirect
+            # completing while this function is busy diagnosing.
+            if ticks["n"] == 90:
+                page.url = "https://direct.yandex.ru/wizard/campaigns/713469085"
+
+        page.wait_for_timeout = _wait_for_timeout
+
+        with patch.object(_clock, "_clock", lambda: clock["now"]):
+            # Must NOT raise — the late redirect means the click actually
+            # succeeded.
+            browser_masters._click_draft_terminal_button(page, 713469085, launch=True)
+
+    def test_returns_normally_when_redirect_lands_during_settle_wait_timeout(self):
+        # Same late-redirect race, but hitting the *second* url re-check
+        # (after a settle-wait timeout / non-empty table) rather than the
+        # one inside the empty-table branch.
+        page = _FakeTargetActionsPage(
+            {159614149: {"name": "Регистрация", "price": "150"}},
+            locators={
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713469085)
+
+        clock = {"now": 0.0}
+        ticks = {"n": 0}
+
+        def _wait_for_timeout(timeout):
+            clock["now"] += timeout / 1000
+            ticks["n"] += 1
+            if ticks["n"] == 90:
+                page.url = "https://direct.yandex.ru/wizard/campaigns/713469085"
+
+        page.wait_for_timeout = _wait_for_timeout
+
+        with patch.object(_clock, "_clock", lambda: clock["now"]):
+            browser_masters._click_draft_terminal_button(page, 713469085, launch=True)
+
 
 class TestLaunchMaster(unittest.TestCase):
     """``launch_master`` (issue #704): publish a DRAFT via the edit page's
