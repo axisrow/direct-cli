@@ -4,6 +4,48 @@
 
 ### Added
 
+**`direct history get` — read «История изменений» (#837).**
+
+The API has no per-field change journal at all: `changes.checkCampaigns`
+reports only `ChangesIn: SELF|CHILDREN|STAT`, `changes.check` returns bare
+lists of changed IDs, and Live v4's `GetEventsLog` logs system events
+(`BannerModerated`, `MoneyOut`, …). None of them answer "who changed this
+field, when, and from what to what" — the question that arises after a bulk
+edit silently drops a strategy goal or a Metrika counter.
+
+That history exists only in the web interface, so this is a new browser-backed
+group alongside `masters`, sharing its session stack (`--headful`/
+`--profile-dir`/`--chrome-profile`, no `--login`):
+
+```
+direct history get --campaign-ids 77593206 --categories CAMPAIGN_STRATEGY
+direct history get --date-from 2026-07-01 --date-to 2026-08-13 --limit 50
+```
+
+A separate group rather than a `masters` subcommand because the section is
+account-wide: its records cover ordinary ТГО/ЕПК campaigns, ad groups and ads
+as much as Мастера, and `--campaign-ids` is only a filter over that.
+
+Like `masters list` (#639), it does not scrape the DOM — it replays the
+section's own data call, `POST /web-api/user-action-log/api`. Live recon
+established two things that differ from the campaigns grid: `variables.login`
+is required (dropping it returns HTTP 200 with `errors: ["Нет прав"]`, not an
+auth failure), while the URL-level `ulogin` parameter is *not* needed — the
+opposite of `GridCampaigns`, where one's own login as `ulogin` causes HTTP
+401. Filters are applied server-side; results paginate automatically.
+
+Each record carries `Datetime`, `Login`, `ChangeSource`, `Category`,
+`EventType` and `CampaignId`/`CampaignName`, with the event's own fields under
+`Event`, passed through as-is because it is a union with a different shape per
+`EventType`. A dropped strategy goal reads directly off
+`Event.oldStrategy.goalId` → `Event.newStrategy.goalId`.
+
+Pagination de-duplicates on `gtid`: the cursor is a timestamp with one-second
+granularity, so consecutive pages overlap on records sharing a second. Live
+measurement over 2026-07-01..08-13 returned 6877 rows for 3257 distinct
+records — an inflation invisible in a two-page check, since the first overlap
+landed on page 3.
+
 **`masters get --tracking-params` — read a campaign's UTM string (#824).**
 
 `masters get` never returned `TrackingParams`, either set or empty: the

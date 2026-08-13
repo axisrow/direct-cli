@@ -1,0 +1,85 @@
+{
+  "_comment": "Trimmed real response captured live from POST /web-api/user-action-log/api?operationName=userActionLog on 2026-08-13 (issue #837 recon). Record shapes are verbatim; ids/logins/names are scrubbed. Kept deliberately heterogeneous: CampaignStrategyEvent carries oldStrategy/newStrategy (the pair issue #837 needs to see a dropped strategy goal), while CampaignStatusChangeEvent carries neither — the `event` union has at least 7 __typename variants live (CampaignStrategyEvent, CampaignStatusChangeEvent, DemographyMultipliersEvent, AdGroupsRegionsEvent, CampaignValueChangeEvent, CampaignTimeTargetEvent, SingleMultiplierEvent), which is why fetch_change_history passes `event` through untouched instead of parsing per-type.",
+  "data": {
+    "userActionLog": {
+      "nextPageToken": "eyJwYWdlIjoyfQ",
+      "logRecords": [
+        {
+          "datetime": "2026-08-13T16:22:39",
+          "user": {
+            "uid": 1000000001,
+            "login": "example-login"
+          },
+          "changeSource": "WEB",
+          "gtid": "00000000-0000-0000-0000-000000000000:8547615",
+          "event": {
+            "__typename": "CampaignStrategyEvent",
+            "category": "CAMPAIGN_STRATEGY",
+            "clientId": 90000001,
+            "campaign": {
+              "id": 77593206,
+              "name": "Мастер РД (холодный) набор 3",
+              "calcType": "CPC",
+              "source": "UAC"
+            },
+            "currencyCode": "RUB",
+            "oldStrategy": {
+              "__typename": "GdStrategyOptimizeClicks",
+              "strategyType": "OPTIMIZE_CLICKS",
+              "avgBid": null,
+              "attributionModel": "AUTOMATIC",
+              "clicksLimit": null,
+              "bid": null,
+              "platform": "BOTH",
+              "isAutoBudget": true,
+              "budget": {
+                "autoProlongation": null,
+                "start": null,
+                "finish": null,
+                "period": "WEEK",
+                "sum": 10000
+              }
+            },
+            "newStrategy": {
+              "__typename": "GdStrategyOptimizeConversions",
+              "strategyType": "OPTIMIZE_CONVERSIONS",
+              "avgCpa": 150,
+              "goalId": 3000000001,
+              "attributionModel": "AUTOMATIC",
+              "payForConversion": false,
+              "platform": "BOTH",
+              "isAutoBudget": true,
+              "budget": {
+                "period": "WEEK",
+                "sum": 12000
+              }
+            }
+          }
+        },
+        {
+          "datetime": "2026-08-13T14:14:02",
+          "user": {
+            "uid": 1000000001,
+            "login": "example-login"
+          },
+          "changeSource": "OTHER",
+          "gtid": "00000000-0000-0000-0000-000000000000:8547600",
+          "event": {
+            "__typename": "CampaignStatusChangeEvent",
+            "category": "CAMPAIGN_ARCHIVED",
+            "clientId": 90000001,
+            "campaign": {
+              "id": 107706575,
+              "name": "Мастер РД (ретаргет)",
+              "calcType": "CPC",
+              "source": "UAC"
+            }
+          }
+        }
+      ]
+    },
+    "reqId": "1234567890123456789",
+    "telemetryTraceId": "00000000000000000000000000000000"
+  },
+  "errors": []
+}
