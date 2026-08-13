@@ -2846,9 +2846,17 @@ class TestReadStatusText(unittest.TestCase):
     that make an invisible character unable to defeat a marker again.
     """
 
-    def _page(self, *, header=None, body=""):
+    def _page(self, *, header=None, body="", header_raises=False):
         locators = {}
-        if header is not None:
+        if header_raises:
+            # Models an element that IS present (Locator.count() == 1) but
+            # whose .inner_text() raises — e.g. a timeout mid-hydration —
+            # as distinct from a structurally absent element
+            # (Locator.count() == 0, no handles at all).
+            locators[browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR] = _FakeLocator(
+                [_FakeLocatorHandle(raises=True)]
+            )
+        elif header is not None:
             locators[browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR] = _FakeLocator(
                 [_FakeLocatorHandle(text=header)]
             )
@@ -2927,6 +2935,32 @@ class TestReadStatusText(unittest.TestCase):
             body="Одно из объявлений отклонено, кампания на модерации ожидает решения.",
         )
         self.assertIsNone(browser_masters._read_status_text(page))
+
+    def test_present_but_timed_out_header_does_not_fall_back_to_noisy_body(self):
+        # Round-2 review (#848): a header element that IS present
+        # (Locator.count() == 1) but whose read raises/times out mid-
+        # hydration must be treated the same as "present but unrecognised"
+        # (see test_unrecognised_header_does_not_fall_back_to_noisy_body),
+        # NOT the same as "structurally absent" — round-1's fix conflated
+        # the two by only checking `header_text is None`, which a timeout
+        # also produces. A present-but-slow element must not fall back to
+        # body-text matching even when the body happens to contain a real
+        # marker for an unrelated banner, since that reopens the exact
+        # false-positive-status bug this PR set out to close, just via a
+        # transient hydration race instead of a permanently-absent header.
+        page = self._page(
+            header_raises=True,
+            body="Одно из объявлений отклонено, кампания на модерации ожидает решения.",
+        )
+        self.assertIsNone(browser_masters._read_status_text(page))
+
+    def test_structurally_absent_header_still_falls_back_to_body(self):
+        # Companion to the above: a page shape that genuinely has NO
+        # CampaignHeader.Status element at all (Locator.count() == 0, no
+        # handles registered) must still fall back to body-text matching —
+        # this is the pre-#848 legacy path and must keep working.
+        page = self._page(header=None, body="Кампания в\xa0архиве")
+        self.assertEqual(browser_masters._read_status_text(page), "ARCHIVED")
 
     def test_header_probe_uses_a_bounded_timeout(self):
         # Round-2 review (#848): an absent/not-yet-rendered header element

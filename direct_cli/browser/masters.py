@@ -2652,17 +2652,31 @@ def _read_status_text(page: "Page") -> Optional[str]:
     match over an invisible character, which has now cost two debugging
     passes (#704, #730).
     """
-    header_text = _read_campaign_header_status_text(page)
-    if header_text is not None:
-        # The header is authoritative once it was actually read: falling
-        # through to body-text matching here would reopen the exact
-        # substring-over-everything failure mode this fix closed, just for
-        # an unrecognised header string instead of a missing one (#848
-        # review) — an unrelated banner could still supply a marker
-        # substring that isn't the campaign's real (new/unrecognised)
-        # status. Only an ABSENT header element (``header_text is None``)
-        # falls back to body text below.
-        return _match_status_text(header_text)
+    # ``count()`` distinguishes a header element that is STRUCTURALLY ABSENT
+    # (this page shape has no such node — safe to fall back to body text)
+    # from one that is PRESENT but whose text read raised/timed out (still
+    # mid-hydration — a transient state, not "no such element"). Round-1's
+    # fix conflated both into a single ``None`` from
+    # ``_read_campaign_header_status_text``, which meant a slow-to-render
+    # header could still trip the unreliable body-text fallback during
+    # exactly the transition window callers are polling through (#848
+    # round-2 review) — count() is synchronous/non-waiting, so this adds no
+    # extra delay.
+    try:
+        header_present = page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).count() > 0
+    except PlaywrightError:
+        header_present = False
+    if header_present:
+        header_text = _read_campaign_header_status_text(page)
+        if header_text is not None:
+            return _match_status_text(header_text)
+        # Present but unreadable (timeout) or present-but-unrecognised: the
+        # header is authoritative once it exists on the page at all, so
+        # returning None here (rather than trying body text) preserves the
+        # refuse-to-click-blind guard instead of risking an unrelated
+        # banner's marker substring. Callers already poll on their own
+        # short interval and will retry the header read next tick.
+        return None
     try:
         body_text = page.inner_text("body")
     except PlaywrightError:
