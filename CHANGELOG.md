@@ -229,6 +229,35 @@ confirmed unchanged before and after.
 
 ### Fixed
 
+**`masters update --promotion-goal` — retry a swallowed dropdown click, and
+report Yandex's own rejection text (#840).**
+
+`--promotion-goal max-conversions` failed with "Could not find the 'Максимум
+целевых действий' option in the 'Цель продвижения' dropdown — Yandex may have
+changed the page's markup" on campaigns whose markup had not changed at all.
+Live recon (campaign 74736436) confirmed the heading, the trigger XPath and
+the `CampaignTargetSelect.TargetSelect.ListBox.INVOLVED_CONVERSION` testid all
+still match; instrumenting a failing run found the real cause — the same
+menu-trigger hydration race as #723/#725. The trigger already matched
+(`count=1`) while un-hydrated (`aria-expanded=None`, empty `inner_text()`), so
+Playwright's actionability check passed, the click landed on a node with no
+React handler attached, and nothing opened. Because the option rows exist in
+the DOM only while the dropdown is open, the follow-up `option.click()` then
+misreported a hydration race as a markup change. `_set_promotion_goal` now
+opens the dropdown through `_click_and_wait_for_popup` (retrying the open),
+like the other menu/modal triggers in this module.
+
+Saves refused by Yandex's client-side validation are also no longer reported
+with a generic "Yandex may have rejected the value". `update_master` now reads
+the inline error text before `_verify_saved`'s reload discards it and quotes it
+back — closing the follow-up the module docstring's "Save verification"
+paragraph had left open. On a campaign with no Metrika goals, switching to
+`max-conversions` is refused outright (the save request is never sent), and the
+error now names why: "Добавьте хотя бы одну цель для сайта, чтобы создать и
+запустить кампанию." Note that the "Счетчики Яндекс Метрики" section itself
+only renders once the promotion goal is `max-conversions`, so a campaign that
+lost both needs the counter, the goal and the promotion goal set in one call.
+
 **`masters launch`/`masters update --launch` — diagnose an empty "Целевые
 действия" table instead of a generic redirect timeout (#823).**
 

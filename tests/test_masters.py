@@ -6403,6 +6403,110 @@ class TestSetPromotionGoal(unittest.TestCase):
             browser_masters._set_promotion_goal(page, "max-clicks")
         self.assertIn("does not show it", str(ctx.exception))
 
+    def test_retries_open_when_first_trigger_click_is_swallowed(self):
+        # Regression test for issue #840, reproduced live on campaign
+        # 74736436: the trigger matches (count=1) while React has not yet
+        # attached its click handler, so Playwright's actionability check
+        # passes, the click lands on the un-hydrated node and NOTHING
+        # happens — instrumenting a real failing run showed the trigger
+        # still reporting aria-expanded=None with an empty inner_text() at
+        # click time, hydrating to 'false' 2s later. Because the option
+        # rows only exist in the DOM while the dropdown is open, the old
+        # single-click code then reported "Could not find the ... option
+        # ... Yandex may have changed the page's markup" — a misdiagnosis,
+        # since the markup was verified byte-identical. The open must
+        # therefore be retried (via _click_and_wait_for_popup) rather than
+        # trusted once.
+        state = {"selected_line": "Максимум переходов", "trigger_clicks": 0}
+
+        def _select():
+            state["selected_line"] = "Максимум целевых действий"
+
+        option = _FakeLocatorHandle(visible=False, on_click=_select)
+        option_selector = f'[data-testid="{self._option_testid("max-conversions")}"]'
+
+        def _on_trigger_click():
+            # The FIRST click is swallowed by the hydration race and leaves
+            # the listbox unmounted; only a later one actually opens it.
+            state["trigger_clicks"] += 1
+            if state["trigger_clicks"] > 1:
+                option._visible = True
+
+        trigger = _FakeLocatorHandle(
+            text=self._TRIGGER_LABEL, on_click=_on_trigger_click
+        )
+        trigger.inner_text = lambda: f"{self._TRIGGER_LABEL}\n{state['selected_line']}"
+
+        page = FakePage(
+            locators={
+                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger]),
+                option_selector: _FakeLocator([option]),
+            },
+        )
+
+        browser_masters._set_promotion_goal(page, "max-conversions")
+
+        self.assertGreater(state["trigger_clicks"], 1)
+        self.assertEqual(state["selected_line"], "Максимум целевых действий")
+
+
+class TestReadSaveValidationErrors(unittest.TestCase):
+    """``_read_save_validation_errors`` (issue #840).
+
+    Yandex's client-side validation can refuse a save outright — confirmed
+    live on campaign 74736436, where ``--promotion-goal max-conversions``
+    never reaches the server because the campaign has no Metrika goals.
+    Before this the operator only saw "it did not save"; the reason is now
+    quoted back.
+    """
+
+    def test_reads_and_normalises_messages(self):
+        goal_required_raw = (
+            "Добавьте хотя\xa0бы одну цель для сайта,\n"
+            "чтобы создать и\xa0запустить кампанию."
+        )
+        goal_required = (
+            "Добавьте хотя бы одну цель для сайта, "
+            "чтобы создать и запустить кампанию."
+        )
+        page = FakePage()
+        page.eval_on_selector_all = lambda selector, script: [
+            # NBSP + newlines, exactly as the live page renders them.
+            "Вы\xa0добавили 200 ключевых фраз\xa0— это пока максимум",
+            goal_required_raw,
+        ]
+
+        self.assertEqual(
+            browser_masters._read_save_validation_errors(page),
+            [
+                "Вы добавили 200 ключевых фраз — это пока максимум",
+                goal_required,
+            ],
+        )
+
+    def test_deduplicates_and_caps(self):
+        page = FakePage()
+        page.eval_on_selector_all = lambda selector, script: ["же самое"] * 3 + [
+            f"ошибка {i}" for i in range(10)
+        ]
+
+        result = browser_masters._read_save_validation_errors(page)
+
+        self.assertEqual(result[0], "же самое")
+        self.assertEqual(len(result), browser_masters._SAVE_VALIDATION_ERROR_LIMIT)
+
+    def test_returns_empty_on_read_failure(self):
+        # Best-effort by design: this only enriches an error that is already
+        # being raised, so a selector miss must never mask the real mismatch.
+        page = FakePage()
+
+        def _raise(selector, script):
+            raise PlaywrightError("no such selector")
+
+        page.eval_on_selector_all = _raise
+
+        self.assertEqual(browser_masters._read_save_validation_errors(page), [])
+
 
 class TestSetGoalPrice(unittest.TestCase):
     """``_set_goal_price``/``_read_goal_price`` (issue #696).
@@ -9627,9 +9731,10 @@ class TestUpdateMaster(unittest.TestCase):
             calls.append(("landing_url", value))
             original_set_landing_url(_page, value)
 
-        with patch.object(
-            browser_masters, "_set_tracking_params", set_tracking_params
-        ), patch.object(browser_masters, "_set_landing_url", set_landing_url):
+        with (
+            patch.object(browser_masters, "_set_tracking_params", set_tracking_params),
+            patch.object(browser_masters, "_set_landing_url", set_landing_url),
+        ):
             browser_masters.update_master(
                 page,
                 42,
