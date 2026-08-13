@@ -267,6 +267,43 @@ in), so it can't run unattended. Run `direct masters logout` to delete the
 profile and revoke the on-disk session (a no-op warning, not an error, if
 none exists).
 
+### История изменений (change history) — browser-only
+
+The API has **no per-field change journal**: `changes.checkCampaigns` reports
+only `ChangesIn: SELF|CHILDREN|STAT`, `changes.check` returns bare lists of
+changed IDs, and Live v4's `GetEventsLog` logs *system* events
+(`BannerModerated`, `MoneyOut`, …) — none of them can answer "who changed
+this field, when, and from what to what". That history exists only in the web
+interface's «История изменений» section, so `direct history` reads it through
+the same browser session `direct masters` uses (same `--headful`/
+`--profile-dir`/`--chrome-profile` options, same no-`--login` rule):
+
+```bash
+direct history get
+direct history get --limit 50
+direct history get --campaign-ids 77593206
+direct history get --date-from 2026-07-01 --date-to 2026-08-13
+direct history get --categories CAMPAIGN_STRATEGY
+direct history get --logins someone --change-sources WEB
+```
+
+It is a separate group rather than a `masters` subcommand because the section
+is **account-wide**: records cover ordinary ТГО/ЕПК campaigns, ad groups and
+ads just as much as Мастера, and `--campaign-ids` is only a filter over that.
+Every filter is applied server-side, and results paginate automatically.
+
+Each record carries `Datetime`, `Login`, `ChangeSource`, `Category`,
+`EventType`, `CampaignId`/`CampaignName`, plus the event's own fields under
+`Event`. `Event` is passed through as-is: it is a union with a different
+shape per `EventType` (`CampaignStrategyEvent` carries the
+`oldStrategy`/`newStrategy` pair, `CampaignStatusChangeEvent` carries
+neither), so a change that dropped a strategy goal is visible as
+`Event.oldStrategy.goalId` → `Event.newStrategy.goalId`.
+
+A bare `--date-from`/`--date-to` date covers the whole day; pass
+`YYYY-MM-DDTHH:MM:SS` for an exact window. Without them, the period the
+section itself defaults to is used.
+
 ### Configuration
 
 Create a `.env` file in your working directory:

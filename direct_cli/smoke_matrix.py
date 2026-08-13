@@ -45,6 +45,11 @@ SMOKE_MATRIX = {
         "dynamicads.get",
         "dynamicfeedadtargets.get",
         "feeds.get",
+        # Read-only: navigates «История изменений» and replays that section's
+        # own data call to read the account's change log (see
+        # fetch_change_history's docstring). No page it touches has a Save
+        # control at all, so this is safe to exercise like any other *.get.
+        "history.get",
         "keywordbids.get",
         "keywords.get",
         "keywordsresearch.deduplicate",

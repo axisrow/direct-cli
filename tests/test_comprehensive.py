@@ -65,6 +65,7 @@ class TestCommandsRegistered(unittest.TestCase):
         "v4meta",
         "auth",
         "masters",
+        "history",
         "playwright",
     ]
 

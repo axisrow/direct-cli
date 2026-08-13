@@ -63,6 +63,7 @@ from .commands.v4wordstat import v4wordstat
 from .commands.v4keywords import v4keywords
 from .commands.v4adimage import v4adimage
 from .commands.masters import masters
+from .commands.history import history
 from .commands.browser_session import playwright_group
 
 # Load .env file
@@ -75,9 +76,11 @@ load_env_file()
 # Мастер кампаний for the logged-in browser session's own account only (no
 # agency/managed-client support, see direct_cli/browser/masters.py module
 # docstring -- issue #639 found that passing a login as `?ulogin=` there
-# actually broke access with HTTP 401). None of the three read
+# actually broke access with HTTP 401). `history` is browser-backed the same
+# way (issue #837): «История изменений» has no API surface, and its data call
+# authorizes off the browser session, not off a token. None of the four read
 # ctx.obj["token"] or ctx.obj["login"].
-_NO_CREDENTIALS_GROUPS = ("auth", "playwright", "masters")
+_NO_CREDENTIALS_GROUPS = ("auth", "playwright", "masters", "history")
 
 
 CLI_EPILOG = """\b
@@ -486,6 +489,7 @@ for command in (
     v4meta,
     auth,
     masters,
+    history,
     playwright_group,
 ):
     _register_command(command)
