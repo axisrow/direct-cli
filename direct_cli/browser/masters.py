@@ -2355,12 +2355,20 @@ def _is_draft_overview_page(page: "Page") -> bool:
 
 
 def _fetch_draft_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
-    """Read name/status/weekly budget from a DRAFT campaign's overview page.
+    """Read name/status/weekly budget/landing URL from a DRAFT campaign's
+    overview page.
 
-    No stat tiles, no landing-URL link with the confirmed ``utm_source=``
-    marker the non-DRAFT extractor keys off (the form's landing-URL field is
-    a plain input, not a rendered link) — DRAFT results simply omit
-    ``LandingUrl``/``Stats`` rather than guessing at a different selector.
+    No stat tiles — nothing has run yet for a campaign that was never
+    launched. No landing-URL link with the confirmed ``utm_source=`` marker
+    the non-DRAFT extractor keys off either (the form's landing-URL field is
+    a plain contenteditable input, not a rendered link) — but per the live
+    recon in ``masters_wizard_draft_overview.html``, a DRAFT campaign's
+    overview page IS the same single-page wizard form ``update_master``'s
+    edit-page path reads/writes (issue #660), so the edit form's own
+    ``_read_landing_url`` (``CampaignLinkEditorLite.LinkInput.Textinput``)
+    works here unchanged (issue #822: ``masters get`` on a DRAFT campaign
+    used to omit ``LandingUrl`` entirely, with no way to verify
+    ``masters update --landing-url`` short of ``--headful``).
     """
     result: Dict[str, Any] = {"CampaignId": campaign_id, "Status": "DRAFT"}
 
@@ -2379,6 +2387,12 @@ def _fetch_draft_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         )
     except PlaywrightError:
         print_warning(f"Could not read weekly budget for {campaign_id}.")
+
+    landing_url = _read_landing_url(page)
+    if landing_url is not None:
+        result["LandingUrl"] = landing_url
+    else:
+        print_warning(f"Could not read landing URL for {campaign_id}.")
 
     return result
 

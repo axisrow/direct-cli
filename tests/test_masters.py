@@ -2832,21 +2832,27 @@ class TestFetchMasterDraft(unittest.TestCase):
     """
 
     def _draft_page(
-        self, title="Мастер ИЖ-1 Сосуды и вены (холодный)", budget="80 000"
+        self,
+        title="Мастер ИЖ-1 Сосуды и вены (холодный)",
+        budget="80 000",
+        landing_url="https://lp.ksamata.ru/",
     ):
-        return FakePage(
-            locators={
-                browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator(
-                    [_FakeLocatorHandle(text=browser_masters._DRAFT_STATUS_TEXT)]
-                ),
-                browser_masters._CAMPAIGN_HEADER_TITLE_NAME_SELECTOR: _FakeLocator(
-                    [_FakeLocatorHandle(text=title)]
-                ),
-                browser_masters._BUDGET_INPUT_SELECTOR: _FakeLocator(
-                    [_FakeLocatorHandle(text=budget)]
-                ),
-            },
-        )
+        locators = {
+            browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator(
+                [_FakeLocatorHandle(text=browser_masters._DRAFT_STATUS_TEXT)]
+            ),
+            browser_masters._CAMPAIGN_HEADER_TITLE_NAME_SELECTOR: _FakeLocator(
+                [_FakeLocatorHandle(text=title)]
+            ),
+            browser_masters._BUDGET_INPUT_SELECTOR: _FakeLocator(
+                [_FakeLocatorHandle(text=budget)]
+            ),
+        }
+        if landing_url is not None:
+            locators[browser_masters._EDIT_URL_INPUT_TESTID] = _FakeLocator(
+                [_FakeLocatorHandle(text=landing_url)]
+            )
+        return FakePage(locators=locators)
 
     def test_parses_draft_overview(self):
         page = self._draft_page()
@@ -2860,14 +2866,24 @@ class TestFetchMasterDraft(unittest.TestCase):
                 "Status": "DRAFT",
                 "Name": "Мастер ИЖ-1 Сосуды и вены (холодный)",
                 "WeeklyBudget": "80 000",
+                "LandingUrl": "https://lp.ksamata.ru/",
             },
         )
 
-    def test_draft_result_has_no_landing_url_or_stats(self):
+    def test_draft_result_has_no_stats(self):
         result = browser_masters.fetch_master(self._draft_page(), 1)
 
-        self.assertNotIn("LandingUrl", result)
         self.assertNotIn("Stats", result)
+
+    def test_draft_result_omits_landing_url_when_field_unreadable(self):
+        # issue #822: the field genuinely missing/unreadable is reported via
+        # print_warning and simply omitted, same convention as name/budget —
+        # not a hard failure of the whole `masters get` call.
+        with patch("direct_cli.browser.masters.print_warning") as warn:
+            result = browser_masters.fetch_master(self._draft_page(landing_url=None), 1)
+
+        self.assertNotIn("LandingUrl", result)
+        warn.assert_any_call("Could not read landing URL for 1.")
 
     def test_draft_partial_result_on_missing_name_and_budget(self):
         page = FakePage(
@@ -2882,7 +2898,7 @@ class TestFetchMasterDraft(unittest.TestCase):
             result = browser_masters.fetch_master(page, 1)
 
         self.assertEqual(result, {"CampaignId": 1, "Status": "DRAFT"})
-        self.assertEqual(warn.call_count, 2)  # name, budget
+        self.assertEqual(warn.call_count, 3)  # name, budget, landing URL
 
     def test_non_draft_page_unaffected(self):
         # A page whose CampaignHeader.Status reads something other than
