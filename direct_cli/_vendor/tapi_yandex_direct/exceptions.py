@@ -11,7 +11,7 @@ class YandexDirectApiError(Exception):
         data: Union[str, dict],
         client: TapiClient,
         *args,
-        **kwargs
+        **kwargs,
     ):
         self.response = response
         self.data = data
@@ -34,7 +34,7 @@ class YandexDirectClientError(YandexDirectApiError):
         message: Dict[str, dict],
         client: TapiClient,
         *args,
-        **kwargs
+        **kwargs,
     ):
         self.error_code = message["error"]["error_code"]
         self.request_id = message["error"]["request_id"]

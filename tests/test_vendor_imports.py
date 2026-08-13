@@ -196,8 +196,7 @@ def test_vendored_executor_stub_declares_timeout_kwarg():
     cls = next(
         node
         for node in tree.body
-        if isinstance(node, ast.ClassDef)
-        and node.name == "YandexDirectClientExecutor"
+        if isinstance(node, ast.ClassDef) and node.name == "YandexDirectClientExecutor"
     )
     for method_name in ("get", "post"):
         func = next(

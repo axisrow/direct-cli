@@ -2231,6 +2231,59 @@ def targetactions_get(
     format_output(result, output_format, output)
 
 
+@masters.group("counters")
+def counters():
+    """Read a Мастер кампаний campaign's linked "Счетчики Яндекс Метрики"
+    (browser-driven, no API)
+
+    Sibling of the ``targetactions``/``audience`` groups above, and the
+    missing half of the target-action story (issue #842): a goal can only be
+    added from a LINKED counter's goals, so "``--add-target-action`` can't
+    find the goal" and "no counter is linked at all" are different problems
+    that used to look identical from the CLI. Read-only: linking a counter
+    is ``masters update --add-metrika-counter``.
+    """
+
+
+@counters.command("get")
+@click.argument("campaign_id", type=int)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def counters_get(
+    ctx, campaign_id, headful, profile_dir, chrome_profile, output_format, output
+):
+    """Get a Мастер кампаний campaign's currently linked Metrika counters
+
+    ``SectionPresent: false`` means the "Счетчики Яндекс Метрики" section
+    does not exist on the page at all — live-confirmed (issue #840/#843)
+    to be an ordinary consequence of the campaign's promotion goal being
+    "max-clicks", NOT markup drift: the whole block mounts only under
+    "max-conversions". In that state no counter can be linked (and
+    ``--add-metrika-counter`` would fail), so pass ``--promotion-goal
+    max-conversions`` in the same ``masters update`` call.
+
+    ``SectionPresent: true`` with ``Count: 0`` is the genuinely
+    counter-less case.
+
+    Each entry carries the raw two-line tag ``Text`` plus the ``CounterId``
+    and ``Domain`` parsed from it. Note ``Text`` is NOT the same shape as
+    the autocomplete value ``--add-metrika-counter`` expects (the linked
+    tag carries no label) — compare on ``CounterId``.
+    """
+    from ..browser.masters import fetch_master_metrika_counters
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: fetch_master_metrika_counters(page, campaign_id),
+    )
+
+    format_output(result, output_format, output)
+
+
 @masters.group("audience")
 def audience():
     """Read a Мастер кампаний campaign's "Аудитория" manual-targeting
