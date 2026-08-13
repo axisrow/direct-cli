@@ -31,20 +31,12 @@ class YandexDirectClientExecutorResponse(YandexDirectBaseMethodsClientResponse):
 class YandexDirectClientExecutor:
     def open_docs(self) -> YandexDirectClientExecutor:
         """Open API official docs of resource in browser."""
-
     def open_in_browser(self) -> YandexDirectClientExecutor:
         """Send a request in the browser."""
-
     def help(self) -> YandexDirectClientExecutor:
         """Print docs of resource."""
-
     def get(
-        self,
-        *,
-        params: dict = None,
-        data: dict = None,
-        headers: dict = None,
-        timeout: float = None,
+        self, *, params: dict = None, data: dict = None, headers: dict = None, timeout: float = None
     ) -> YandexDirectClientExecutorResponse:
         """
         Send HTTP 'GET' request.
@@ -53,14 +45,8 @@ class YandexDirectClientExecutor:
         :param data: send data in the body of the request
         :param timeout: forwarded to requests as the connect+read timeout
         """
-
     def post(
-        self,
-        *,
-        params: dict = None,
-        data: dict = None,
-        headers: dict = None,
-        timeout: float = None,
+        self, *, params: dict = None, data: dict = None, headers: dict = None, timeout: float = None
     ) -> YandexDirectClientExecutorResponse:
         """
         Send HTTP 'POST' request.
@@ -94,13 +80,10 @@ class YandexDirectClientReportExecutorResponse(YandexDirectBaseMethodsClientResp
 class YandexDirectClientReportExecutor:
     def open_docs(self) -> YandexDirectClientReportExecutor:
         """Open API official docs of resource in browser."""
-
     def open_in_browser(self) -> YandexDirectClientReportExecutor:
         """Send a request in the browser."""
-
     def help(self) -> YandexDirectClientReportExecutor:
         """Print docs of resource."""
-
     def post(
         self, *, params: dict = None, data: dict = None, headers: dict = None
     ) -> YandexDirectClientReportExecutorResponse:
@@ -153,7 +136,6 @@ class YandexDirect:
         :param skip_column_header: (report resource) Do not display a line with field names in the report.
         :param skip_report_summary: (report resource) Do not display a line with the number of statistics lines in the report.
         """
-
     def reports(self) -> YandexDirectClientReportExecutor: ...
     def adextensions(self) -> YandexDirectClientExecutor: ...
     def adgroups(self) -> YandexDirectClientExecutor: ...

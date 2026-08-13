@@ -21,46 +21,46 @@ SUPPORTED_V4_METHODS: dict[str, dict] = {
     # Finance — high priority candidates from the matrix.
     # Note: GetBalance was removed by Yandex from v4 Live (error_code 509);
     # use the v5 client and read campaigns.get → Funds instead.
-    "GetClientsUnits": {"group": "finance"},
-    "GetCreditLimits": {"group": "finance"},
-    "TransferMoney": {"group": "finance"},
-    "PayCampaigns": {"group": "finance"},
-    "PayCampaignsByCard": {"group": "finance"},
-    "CheckPayment": {"group": "finance"},
-    "CreateInvoice": {"group": "finance"},
+    "GetClientsUnits":         {"group": "finance"},
+    "GetCreditLimits":         {"group": "finance"},
+    "TransferMoney":           {"group": "finance"},
+    "PayCampaigns":            {"group": "finance"},
+    "PayCampaignsByCard":      {"group": "finance"},
+    "CheckPayment":            {"group": "finance"},
+    "CreateInvoice":           {"group": "finance"},
     # Shared account
-    "AccountManagement": {"group": "shared_account"},
-    "EnableSharedAccount": {"group": "shared_account"},
+    "AccountManagement":       {"group": "shared_account"},
+    "EnableSharedAccount":     {"group": "shared_account"},
     # Events
-    "GetEventsLog": {"group": "events"},
+    "GetEventsLog":            {"group": "events"},
     # Goals
-    "GetStatGoals": {"group": "goals"},
-    "GetRetargetingGoals": {"group": "goals"},
+    "GetStatGoals":            {"group": "goals"},
+    "GetRetargetingGoals":     {"group": "goals"},
     # Wordstat
     "CreateNewWordstatReport": {"group": "wordstat"},
-    "GetWordstatReportList": {"group": "wordstat"},
-    "GetWordstatReport": {"group": "wordstat"},
-    "DeleteWordstatReport": {"group": "wordstat"},
+    "GetWordstatReportList":   {"group": "wordstat"},
+    "GetWordstatReport":       {"group": "wordstat"},
+    "DeleteWordstatReport":    {"group": "wordstat"},
     # Forecast
-    "CreateNewForecast": {"group": "forecast"},
-    "GetForecastList": {"group": "forecast"},
-    "GetForecast": {"group": "forecast"},
-    "DeleteForecastReport": {"group": "forecast"},
+    "CreateNewForecast":       {"group": "forecast"},
+    "GetForecastList":         {"group": "forecast"},
+    "GetForecast":             {"group": "forecast"},
+    "DeleteForecastReport":    {"group": "forecast"},
     # Offline reports
-    "DeleteOfflineReport": {"group": "offline_reports"},
-    "DeleteReport": {"group": "offline_reports"},
+    "DeleteOfflineReport":     {"group": "offline_reports"},
+    "DeleteReport":            {"group": "offline_reports"},
     # Tags (Live-only)
-    "GetBannersTags": {"group": "tags"},
-    "GetCampaignsTags": {"group": "tags"},
-    "UpdateBannersTags": {"group": "tags"},
-    "UpdateCampaignsTags": {"group": "tags"},
+    "GetBannersTags":          {"group": "tags"},
+    "GetCampaignsTags":        {"group": "tags"},
+    "UpdateBannersTags":       {"group": "tags"},
+    "UpdateCampaignsTags":     {"group": "tags"},
     # Ad image association
-    "AdImageAssociation": {"group": "ad_image"},
+    "AdImageAssociation":      {"group": "ad_image"},
     # Keyword suggestions — phrase-suggestion engine, no real v5 analogue
-    "GetKeywordsSuggestion": {"group": "keywords"},
+    "GetKeywordsSuggestion":   {"group": "keywords"},
     # API meta
-    "PingAPI": {"group": "meta"},
-    "PingAPI_X": {"group": "meta"},
-    "GetVersion": {"group": "meta"},
-    "GetAvailableVersions": {"group": "meta"},
+    "PingAPI":                 {"group": "meta"},
+    "PingAPI_X":               {"group": "meta"},
+    "GetVersion":              {"group": "meta"},
+    "GetAvailableVersions":    {"group": "meta"},
 }
