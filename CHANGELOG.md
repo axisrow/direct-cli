@@ -109,8 +109,29 @@ confirmed unchanged before and after.
 
 ### Fixed
 
-**`masters` — `_metrika_counter_identity` now normalizes surrounding
-whitespace around a non-empty counter id (#809).**
+**`masters launch`/`masters update --launch` — diagnose an empty "Целевые
+действия" table instead of a generic redirect timeout (#823).**
+
+Yandex silently refuses to save/launch a DRAFT campaign with no Яндекс
+Метрика conversion goal ("Добавьте хотя бы одну цель для сайта, чтобы
+создать и запустить кампанию") — same failure mode `create_master` already
+diagnoses (#777), but the edit page's launch/save-as-draft click
+(`_click_draft_terminal_button`, shared by `launch_master` and
+`update_master --launch`) previously only reported the generic "Yandex did
+not redirect away from the edit page" message on timeout, with no clue as
+to why. Neither terminal button ever gains a disabled/`aria-disabled`
+marker in this state, so a caller had to rediscover the root cause by hand
+each time (live-reported in #823: a cloned Мастер кампаний whose landing
+URL was then changed via `masters update --landing-url` lost its inherited
+goals, and `masters launch` failed identically on three consecutive
+attempts, including `--headful`).
+
+On timeout, `_click_draft_terminal_button` now re-reads the "Целевые
+действия" table (reusing `_wait_for_target_actions_settled`/
+`_read_target_actions_or_none`, the same reader `create_master`'s pre-click
+gate uses — confirmed to be the identical widget on both pages) and raises
+a specific error naming the empty goals table when that's the cause,
+falling back to the original generic message otherwise.
 
 The suggestion-text format (`"{label} • {domain/path} • {numeric counter
 id}"`) and the read-back tag-display format (`"{domain} • {numeric

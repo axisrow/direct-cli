@@ -5222,6 +5222,67 @@ class TestClickDraftTerminalButton(unittest.TestCase):
         self.assertEqual(click_count["n"], 1)
         self.assertIn("did not redirect", str(ctx.exception))
 
+    def test_raises_specific_goal_error_when_target_actions_table_is_empty(self):
+        # Issue #823: an empty "Целевые действия" table is a KNOWN, silent
+        # cause of the click never redirecting (same widget/failure mode as
+        # create_master's #777 finding) — the timeout must surface that
+        # specific diagnosis, not the generic "may not have saved" message.
+        page = _FakeTargetActionsPage(
+            {},
+            locators={
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713469085)
+
+        clock = {"now": 0.0}
+
+        def _wait_for_timeout(timeout):
+            clock["now"] += timeout / 1000
+
+        page.wait_for_timeout = _wait_for_timeout
+
+        with patch.object(_clock, "_clock", lambda: clock["now"]):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._click_draft_terminal_button(
+                    page, 713469085, launch=True
+                )
+
+        self.assertIn("Целевые действия", str(ctx.exception))
+        self.assertIn("conversion goal", str(ctx.exception))
+
+    def test_generic_error_when_target_actions_table_has_rows(self):
+        # A stuck redirect with goals PRESENT must keep the generic message
+        # — the specific goal diagnosis only fires when the table is
+        # genuinely empty, not for every timeout.
+        page = _FakeTargetActionsPage(
+            {159614149: {"name": "Регистрация", "price": "150"}},
+            locators={
+                browser_masters._DRAFT_LAUNCH_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                )
+            },
+        )
+        page.url = browser_masters.WIZARD_EDIT_URL.format(campaign_id=713469085)
+
+        clock = {"now": 0.0}
+
+        def _wait_for_timeout(timeout):
+            clock["now"] += timeout / 1000
+
+        page.wait_for_timeout = _wait_for_timeout
+
+        with patch.object(_clock, "_clock", lambda: clock["now"]):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._click_draft_terminal_button(
+                    page, 713469085, launch=True
+                )
+
+        self.assertIn("did not redirect", str(ctx.exception))
+        self.assertNotIn("Целевые действия", str(ctx.exception))
+
 
 class TestLaunchMaster(unittest.TestCase):
     """``launch_master`` (issue #704): publish a DRAFT via the edit page's
