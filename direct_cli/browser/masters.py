@@ -2654,9 +2654,15 @@ def _read_status_text(page: "Page") -> Optional[str]:
     """
     header_text = _read_campaign_header_status_text(page)
     if header_text is not None:
-        status = _match_status_text(header_text)
-        if status is not None:
-            return status
+        # The header is authoritative once it was actually read: falling
+        # through to body-text matching here would reopen the exact
+        # substring-over-everything failure mode this fix closed, just for
+        # an unrecognised header string instead of a missing one (#848
+        # review) — an unrelated banner could still supply a marker
+        # substring that isn't the campaign's real (new/unrecognised)
+        # status. Only an ABSENT header element (``header_text is None``)
+        # falls back to body text below.
+        return _match_status_text(header_text)
     try:
         body_text = page.inner_text("body")
     except PlaywrightError:
@@ -2665,9 +2671,21 @@ def _read_status_text(page: "Page") -> Optional[str]:
 
 
 def _read_campaign_header_status_text(page: "Page") -> Optional[str]:
-    """Return ``CampaignHeader.Status``'s trimmed text, or ``None``."""
+    """Return ``CampaignHeader.Status``'s trimmed text, or ``None``.
+
+    Uses an explicit short ``timeout=`` (matching this file's convention for
+    other probe reads, e.g. the ``timeout=1_000`` calls elsewhere in this
+    module) rather than Playwright's ~30s default. Every caller of
+    ``_read_status_text`` polls on a much shorter deadline
+    (``_STATUS_CHANGE_TIMEOUT_MS`` = 8s, retried up to
+    ``_STATUS_CLICK_MAX_ATTEMPTS`` times); an absent/not-yet-rendered header
+    element paying the default wait would single-handedly blow that budget
+    on every poll iteration (#848 review).
+    """
     try:
-        text = page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).first.inner_text()
+        text = page.locator(_CAMPAIGN_HEADER_STATUS_SELECTOR).first.inner_text(
+            timeout=1_000
+        )
     except PlaywrightError:
         return None
     text = (text or "").strip()
