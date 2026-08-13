@@ -9532,6 +9532,42 @@ class TestUpdateMaster(unittest.TestCase):
             },
         )
 
+    def test_sets_tracking_params_before_landing_url_when_combined(self):
+        """Issue #830: UTM expansion must not invalidate the URL edit."""
+        page, _save_clicks = self._page_with_save_button(
+            landing_url_state={"value": "https://lp.example.ru/old"},
+            utm_input_state={"value": "utm_source=old"},
+        )
+        calls = []
+        original_set_tracking_params = browser_masters._set_tracking_params
+        original_set_landing_url = browser_masters._set_landing_url
+
+        def set_tracking_params(_page, value):
+            calls.append(("tracking_params", value))
+            original_set_tracking_params(_page, value)
+
+        def set_landing_url(_page, value):
+            calls.append(("landing_url", value))
+            original_set_landing_url(_page, value)
+
+        with patch.object(
+            browser_masters, "_set_tracking_params", set_tracking_params
+        ), patch.object(browser_masters, "_set_landing_url", set_landing_url):
+            browser_masters.update_master(
+                page,
+                42,
+                landing_url="https://lp.example.ru/new",
+                tracking_params="utm_source=new",
+            )
+
+        self.assertEqual(
+            calls,
+            [
+                ("tracking_params", "utm_source=new"),
+                ("landing_url", "https://lp.example.ru/new"),
+            ],
+        )
+
     def test_raises_when_landing_url_field_is_read_only_archived(self):
         # cycle-review round 2 (issue #761 fixup, Codex-confirmed):
         # _set_landing_url no longer pre-checks the Clear button's disabled

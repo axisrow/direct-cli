@@ -7891,10 +7891,15 @@ def update_master(
 
     if name is not None:
         _set_campaign_name(page, name)
-    if landing_url is not None:
-        _set_landing_url(page, landing_url)
+    # Expand and fill the lazily-mounted UTM section first.  On campaigns
+    # with a long existing landing URL, expanding that section can re-render
+    # the surrounding form and restore the landing URL from server state.
+    # Filling the landing URL last keeps that re-render from discarding it
+    # before the single whole-form save (issue #830).
     if tracking_params is not None:
         _set_tracking_params(page, tracking_params)
+    if landing_url is not None:
+        _set_landing_url(page, landing_url)
     if weekly_budget is not None:
         _set_weekly_budget(page, weekly_budget)
     if promotion_goal is not None:
