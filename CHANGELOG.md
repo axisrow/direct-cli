@@ -260,6 +260,29 @@ Both are handled by polling for a *stable* reading, mirroring
 
 ### Fixed
 
+**`masters update` — apply Metrika counters BEFORE target actions (#844).**
+
+`update_master` linked counters ~200 lines *after* it added target actions, so
+`--add-metrika-counter` together with `--add-target-action` in one call was
+impossible by construction: the "Добавить" popup only lists goals belonging to
+an already-linked counter, so the goal was looked up against the counter set as
+it stood before the counter was attached, and the call failed with "Could not
+find goal N in the 'Добавить' target-action popup".
+
+This is an ordering bug, not a hydration race — waiting longer at the old
+position never helped, because the counter simply was not linked yet.
+Live-confirmed on campaign 74736436: the same call that used to fail now links
+the counter and adds the goal, and the restore path
+
+```
+direct masters update <id> --promotion-goal max-conversions \
+  --add-metrika-counter "…" --add-target-action "<goal_id>=150"
+```
+
+completes end to end — which matters because none of its three parts can be
+applied on their own (`max-conversions` will not save without a goal, and a goal
+cannot be added without a counter).
+
 **`masters update --add-metrika-counter` — name the promotion-goal
 precondition instead of blaming markup drift (#843).**
 
