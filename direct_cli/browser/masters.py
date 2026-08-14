@@ -7490,6 +7490,8 @@ def _verify_saved(
     add_target_actions: Optional[Dict[int, float]] = None,
     remove_target_action_goal_ids: Optional[List[int]] = None,
     target_action_goal_ids_before: Optional[List[int]] = None,
+    target_actions_unchanged_before: Optional[List[int]] = None,
+    target_actions_unchanged_requested: bool = False,
     gender: Optional[str] = None,
     age_from_requested: bool = False,
     age_from: Optional[int] = None,
@@ -8123,6 +8125,64 @@ def _verify_saved(
                         "still be hydrating, or the save did not take effect"
                     )
 
+    if target_actions_unchanged_requested:
+        # Issue #836: this save touched no target action at all (a URL/UTM
+        # -only update), so the block above never ran — yet the whole-form
+        # save still resubmits this section, and the UTM spoiler's
+        # live-confirmed re-render (issue #830) can empty it first. Assert
+        # the untouched set came back UNCHANGED, mirroring what
+        # ``audience_tags_before`` does for a gender/age/device-only save.
+        #
+        # Scoped to a NON-EMPTY baseline, set by ``update_master`` only when
+        # the pre-save read actually saw goal rows. ``_read_target_actions_
+        # or_none`` returns ``None`` both when the table failed to hydrate
+        # AND when the section is simply not visible — which is the normal,
+        # correct state for a campaign that has no target actions at all —
+        # so "unreadable" and "legitimately none" are indistinguishable
+        # here. Treating that ambiguity as a failure would block every
+        # URL/UTM update on every campaign without goals, for no safety
+        # gain: a campaign with nothing to lose cannot silently lose it.
+        #
+        # The protection therefore covers exactly the case that has
+        # something at stake — goals demonstrably present before the save —
+        # and within that case it IS closed: once a non-empty baseline
+        # exists, a post-save read that is empty, partial, or unreadable
+        # all fail the set comparison below rather than passing.
+        expected_unchanged = set(target_actions_unchanged_before or [])
+        if expected_unchanged:
+
+            # Defined locally rather than reusing the identically-shaped
+            # reader in the add/remove block above: that one is nested
+            # inside its own ``if``, so it is unbound on this path (the two
+            # blocks never both run).
+            def _read_unchanged_goal_ids(p: "Page") -> Optional[Set[int]]:
+                rows = _read_target_actions_or_none(p)
+                if rows is None:
+                    return None
+                return {row["GoalId"] for row in rows}
+
+            def _unchanged_matches(actual: Optional[Set[int]], _expected: Any) -> bool:
+                return actual is not None and actual == expected_unchanged
+
+            actual_unchanged = _read_until_matches(
+                page,
+                _read_unchanged_goal_ids,
+                None,
+                matches=_unchanged_matches,
+                timeout_ms=_VERIFY_FIELD_READ_TIMEOUT_MS
+                + _TARGET_ACTION_SETTLE_TIMEOUT_MS,
+            )
+            if not _unchanged_matches(actual_unchanged, None):
+                _shown = (
+                    sorted(actual_unchanged) if actual_unchanged is not None else None
+                )
+                mismatches.append(
+                    "target actions: this update did not request any "
+                    "target-action change, but goal ids "
+                    f"{sorted(expected_unchanged)!r} are no longer intact — "
+                    f"page now shows {_shown!r}"
+                )
+
     mismatches.extend(
         _verify_repeating_value_mismatches(
             page,
@@ -8181,6 +8241,53 @@ def _verify_saved(
             + detail
             + " Verify manually before retrying."
         )
+
+
+def _warn_on_cross_domain_landing_url(
+    page: "Page",
+    landing_url: Optional[str],
+    counters: Optional[List[str]],
+) -> None:
+    """Warn when ``landing_url`` moves the campaign to a different domain
+    while it still has linked Metrika counters (issue #836, point 3).
+
+    Yandex links a Metrika counter and its goals to the landing page's
+    DOMAIN — on the create page the counter is auto-discovered from it (see
+    ``_add_target_action``/``create_master``). The edit page does not appear
+    to re-sync that link when the URL alone changes, so pointing a campaign
+    at a different domain can leave its counters and target actions
+    referring to a site the campaign no longer promotes.
+
+    That desync happens server-side, in Yandex's own data model — this
+    module cannot prevent or repair it, so this is a non-blocking
+    ``print_warning`` rather than a refusal: the update itself is still a
+    legitimate thing to ask for, and the user is the one who can judge
+    whether the new domain is covered by the same counter.
+
+    Only a real domain CHANGE warns — a path/query-only edit keeps the same
+    counter binding and would make this pure noise. A landing URL that
+    cannot be read (``None``) is inconclusive, and a campaign with no
+    counters has nothing to desync; both stay silent.
+    """
+    if landing_url is None or not counters:
+        return
+    current_url = _read_landing_url(page)
+    if not current_url:
+        return
+    current_domain = urlsplit(current_url.strip()).netloc.lower()
+    requested_domain = urlsplit(landing_url.strip()).netloc.lower()
+    if not current_domain or not requested_domain:
+        return
+    if current_domain == requested_domain:
+        return
+    print_warning(
+        f"Landing URL moves from '{current_domain}' to '{requested_domain}', "
+        f"but this campaign has {len(counters)} linked Yandex Metrika "
+        "counter(s). Yandex links counters and their target-action goals to "
+        "the landing page's domain, so they may no longer match the new "
+        "site — check the campaign's 'Счётчики Яндекс Метрики' and "
+        "'Целевые действия' sections after this update."
+    )
 
 
 def update_master(
@@ -8504,6 +8611,51 @@ def update_master(
     # ``_wait_for_draft_status``'s docstring).
     was_draft = _wait_for_draft_status(page, campaign_id)
 
+    # Issue #836: a URL/UTM-only update mutates neither the Metrika-counters
+    # nor the "Целевые действия" section, but still submits the WHOLE form
+    # (see this module's docstring) — and expanding the UTM spoiler is
+    # live-confirmed (issue #830, 4 campaigns, 100% reproduction) to
+    # re-render the surrounding form from server state. Nothing used to
+    # re-check either untouched section afterwards, so a re-render that
+    # dropped a counter or a goal row would be saved and reported as a
+    # success. Same "snapshot the untouched section so _verify_saved can
+    # assert it came back UNCHANGED" fix issue #752 (R2-1) applied to the
+    # audience tags below.
+    #
+    # Taken HERE, before ``_set_tracking_params`` expands that spoiler,
+    # because a snapshot read after the re-render would capture the already
+    # corrupted state and certify the loss as the expected baseline.
+    #
+    # Only for a URL/UTM update: an explicit counters/target-actions
+    # mutation takes its own, later snapshot below, whose position must be
+    # resolved against the state those mutations actually operate on.
+    _url_or_utm_only_save = (
+        landing_url is not None or tracking_params is not None
+    ) and not (
+        add_metrika_counters
+        or remove_metrika_counters
+        or add_target_actions
+        or remove_target_action_goal_ids
+        or target_action_prices
+    )
+    metrika_counters_before: Optional[List[str]] = None
+    target_actions_unchanged_before: Optional[List[int]] = None
+    if _url_or_utm_only_save:
+        metrika_counters_before = _read_metrika_counters(page)
+        # ``_read_target_actions_or_none`` (not ``_read_target_actions``):
+        # the latter flattens "the table never hydrated" into a well-formed
+        # ``[]``, which would certify "this campaign had no goals" as the
+        # baseline and make a genuine wipe unverifiable. ``None`` keeps
+        # "unreadable" distinct, and _verify_saved fails closed on it.
+        _rows_before = (
+            _read_target_actions_or_none(page)
+            if _wait_for_target_actions_ready(page)
+            else None
+        )
+        if _rows_before is not None:
+            target_actions_unchanged_before = [row["GoalId"] for row in _rows_before]
+        _warn_on_cross_domain_landing_url(page, landing_url, metrika_counters_before)
+
     if name is not None:
         _set_campaign_name(page, name)
     # Expand and fill the lazily-mounted UTM section first.  On campaigns
@@ -8621,11 +8773,20 @@ def update_master(
     # counter is linked first (61 options available, stable from t+1s).
     # This is an ordering bug, not a hydration race — waiting longer at the
     # old position never helps, because the counter simply is not linked yet.
-    metrika_counters_before = _apply_metrika_counters(
+    _metrika_baseline = _apply_metrika_counters(
         page,
         add_metrika_counters=add_metrika_counters,
         remove_metrika_counters=remove_metrika_counters,
     )
+    # ``_apply_metrika_counters`` returns ``None`` when no counter mutation
+    # was requested — which is exactly the URL/UTM-only case that already
+    # captured this section above, BEFORE the UTM spoiler's re-render
+    # (issue #836). Assigning its ``None`` unconditionally would discard
+    # that baseline and disable the untouched-section check. The two are
+    # mutually exclusive by ``_url_or_utm_only_save``'s own definition, so
+    # only a real mutation's baseline overwrites it.
+    if _metrika_baseline is not None:
+        metrika_counters_before = _metrika_baseline
 
     for goal_id in remove_target_action_goal_ids or []:
         _remove_target_action(page, goal_id)
@@ -8966,6 +9127,8 @@ def update_master(
             add_target_actions=add_target_actions,
             remove_target_action_goal_ids=remove_target_action_goal_ids,
             target_action_goal_ids_before=target_action_goal_ids_before,
+            target_actions_unchanged_before=target_actions_unchanged_before,
+            target_actions_unchanged_requested=_url_or_utm_only_save,
             gender=gender,
             age_from_requested=age_from_requested,
             age_from=age_from,
