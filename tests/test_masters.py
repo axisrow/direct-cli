@@ -10592,6 +10592,60 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertEqual(len(page_save_clicks), 1)
         self.assertEqual(result, {"CampaignId": 42, "AddedVideo": "/tmp/fake.mp4"})
 
+    def test_update_master_adds_a_video_from_library(self):
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"],
+            library_urls=["https://a.test/library.mp4"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(
+            page, 42, add_video_url="https://a.test/library.mp4"
+        )
+
+        self.assertEqual(
+            page.urls, ["https://a.test/1.mp4", "https://a.test/library.mp4"]
+        )
+        self.assertEqual(len(page_save_clicks), 1)
+        self.assertEqual(
+            result,
+            {"CampaignId": 42, "AddedVideoUrl": "https://a.test/library.mp4"},
+        )
+
+    def test_update_master_add_video_url_already_present_is_a_clean_no_op(self):
+        # Codex adversarial review (cycle-review of PR #856, cycle 2): the
+        # cycle-1 fix made _add_video_from_library itself a safe no-op for
+        # an already-present URL, but update_master's own bookkeeping
+        # (video_added, AddedVideoUrl) did not learn about it -- it always
+        # assumed a real add happened whenever add_video_url was passed.
+        # That means _verify_video_mismatches expected the set to have
+        # grown by one, and the unchanged set would be misreported as a
+        # save failure ("did not save as requested") on every idempotent
+        # call -- exactly the case --add-video-url's no-op guard exists to
+        # make safe. This must not raise, and must not falsely report
+        # AddedVideoUrl for a call that changed nothing.
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"],
+            library_urls=["https://a.test/1.mp4"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(
+            page, 42, add_video_url="https://a.test/1.mp4"
+        )
+
+        self.assertEqual(page.urls, ["https://a.test/1.mp4"])
+        self.assertNotIn("AddedVideoUrl", result)
+        self.assertEqual(result, {"CampaignId": 42})
+
     def test_update_master_removes_a_video(self):
         page_save_clicks = []
         save_handle = _FakeTextLocatorHandle(
@@ -12042,6 +12096,96 @@ class TestMastersUpdateCommand(unittest.TestCase):
                 self.assertEqual(result.exit_code, 0, result.output)
                 self.assertEqual(mock_update.call_args.kwargs["add_video"], f.name)
                 self.assertIsNone(mock_update.call_args.kwargs["remove_videos"])
+
+    def test_documents_add_video_url_flag(self):
+        result = self.runner.invoke(cli, ["masters", "update", "--help"])
+        self.assertIn("--add-video-url", result.output)
+
+    def test_calls_update_master_with_add_video_url(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--add-video-url",
+                    "https://a.test/library.mp4",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(
+            mock_update.call_args.kwargs["add_video_url"],
+            "https://a.test/library.mp4",
+        )
+        self.assertIsNone(mock_update.call_args.kwargs["add_video"])
+
+    def test_add_video_url_does_not_require_a_local_file(self):
+        # Unlike --add-video, --add-video-url takes an existing video's URL
+        # — it must not be routed through _validate_video_path's local-file
+        # existence/extension check.
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--add-video-url",
+                    "https://a.test/library.mp4",
+                ],
+            )
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_add_video_url_flag_alone_satisfies_the_at_least_one_field_guard(self):
+        with (
+            patch("direct_cli.browser.masters.update_master") as mock_update,
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            mock_update.return_value = {"CampaignId": 42}
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--add-video-url",
+                    "https://a.test/library.mp4",
+                ],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_rejects_add_video_and_add_video_url_together(self):
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4") as f:
+            result = self.runner.invoke(
+                cli,
+                [
+                    "masters",
+                    "update",
+                    "42",
+                    "--add-video",
+                    f.name,
+                    "--add-video-url",
+                    "https://a.test/library.mp4",
+                ],
+            )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("mutually exclusive", result.output.lower())
 
     def test_calls_update_master_with_remove_video_urls(self):
         with (
@@ -14133,7 +14277,15 @@ class _FakeVideosPage(FakePage):
     removal needs no modal at all.
     """
 
-    def __init__(self, urls, *, save_clicks=None, upload_urls=None, **kwargs):
+    def __init__(
+        self,
+        urls,
+        *,
+        save_clicks=None,
+        upload_urls=None,
+        library_urls=None,
+        **kwargs,
+    ):
         kwargs.setdefault(
             "role_elements",
             [
@@ -14153,6 +14305,15 @@ class _FakeVideosPage(FakePage):
         self._upload_urls = list(upload_urls or [])
         self._upload_call = 0
         self.upload_paths = []
+        # Videos available on the modal's "Ваши кампании" (USER) tab,
+        # issue #812 — selecting one immediately (synchronously, confirmed
+        # live) moves it into the page-level/modal-shared list, no upload
+        # wait needed. Defaults to the campaign's OWN current videos, since
+        # that is what was observed live (the campaign's one existing video
+        # showed up pre-selected on that tab).
+        self.library_urls = list(library_urls if library_urls is not None else urls)
+        self.library_tab_clicks = 0
+        self.library_selections = []
 
     def locator(self, selector):
         edit_form_ready_selector = (
@@ -14183,6 +14344,43 @@ class _FakeVideosPage(FakePage):
                     )
                 ]
             )
+        if selector == browser_masters._VIDEOS_LIBRARY_TAB_SELECTOR:
+            return _FakeLocator(
+                [
+                    _FakeLocatorHandle(
+                        on_click=lambda: setattr(
+                            self, "library_tab_clicks", self.library_tab_clicks + 1
+                        )
+                    )
+                ]
+            )
+        for url in self.library_urls:
+            select_testid = (
+                browser_masters._VIDEOS_LIBRARY_SELECT_TESTID_TEMPLATE.format(
+                    video_url=url
+                )
+            )
+            select_selector = f'[data-testid="{select_testid}"]'
+            if selector == select_selector:
+                bound_url = url
+                return _FakeLocator(
+                    [
+                        _FakeLocatorHandle(
+                            on_click=lambda bound_url=bound_url: (
+                                self.library_selections.append(bound_url),
+                                # Real button is a TOGGLE (confirmed live,
+                                # issue #812) — a card already selected
+                                # (i.e. already in self.urls) is DESELECTED
+                                # by a click, not left alone/re-added.
+                                (
+                                    self.urls.remove(bound_url)
+                                    if bound_url in self.urls
+                                    else self.urls.append(bound_url)
+                                ),
+                            )
+                        )
+                    ]
+                )
         content_prefix = (
             f'[data-testid^="{browser_masters._VIDEOS_CONTENT_TESTID_PREFIX}"]'
         )
@@ -14352,6 +14550,104 @@ class TestAddVideo(unittest.TestCase):
 
         self.assertIn("no new", str(ctx.exception).lower())
         self.assertEqual(page.save_clicks, [])
+
+
+class TestAddVideoFromLibrary(unittest.TestCase):
+    """``_add_video_from_library`` (issue #812) — CONFIRMED LIVE 2026-08-26,
+    campaign 713234191: selecting an already-uploaded video via the modal's
+    "Ваши кампании" tab immediately toggles it into the shared
+    modal-internal list, no upload-processing wait needed."""
+
+    def test_selects_and_appends_to_the_set(self):
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"], library_urls=["https://a.test/library.mp4"]
+        )
+
+        browser_masters._add_video_from_library(page, "https://a.test/library.mp4")
+
+        self.assertEqual(page.library_tab_clicks, 1)
+        self.assertEqual(page.library_selections, ["https://a.test/library.mp4"])
+        self.assertEqual(
+            page.urls, ["https://a.test/1.mp4", "https://a.test/library.mp4"]
+        )
+        self.assertEqual(len(page.save_clicks), 1)
+        self.assertFalse(page.modal_open)
+
+    def test_refuses_when_already_at_slot_count(self):
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4", "https://a.test/2.mp4"],
+            library_urls=["https://a.test/library.mp4"],
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._add_video_from_library(page, "https://a.test/library.mp4")
+
+        self.assertIn("already has 2", str(ctx.exception).lower())
+        self.assertEqual(page.save_clicks, [])
+        self.assertEqual(page.library_tab_clicks, 0)
+        self.assertFalse(page.modal_open)
+
+    def test_raises_when_url_not_in_library(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4"], library_urls=[])
+        with patch.object(browser_masters, "_VIDEO_MODAL_OPEN_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._add_video_from_library(
+                    page, "https://nonexistent.test/x.mp4"
+                )
+
+        self.assertIn("not found", str(ctx.exception).lower())
+        self.assertEqual(page.save_clicks, [])
+
+    def test_prior_removals_note_appears_on_failure(self):
+        # Mirrors _add_video's "must not claim untouched" guard — a prior
+        # --remove-video already ran directly on the page with no Save gate
+        # of its own, so a subsequent add_video_url failure must say so.
+        page = _FakeVideosPage(["https://a.test/1.mp4"], library_urls=[])
+        with patch.object(browser_masters, "_VIDEO_MODAL_OPEN_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._add_video_from_library(
+                    page, "https://nonexistent.test/x.mp4", prior_removals=1
+                )
+
+        self.assertIn("1 --remove-video removal(s)", str(ctx.exception))
+
+    def test_adding_an_already_present_video_is_a_safe_no_op(self):
+        # Codex adversarial review (cycle-review of PR #856): the modal's
+        # Select button is a TOGGLE (confirmed live, see the module comment
+        # above _VIDEOS_LIBRARY_TAB_SELECTOR — an already-selected card
+        # shows a .Selected marker before any click this session). The
+        # library tab lists a campaign's OWN current videos too (this is
+        # exactly what the live recon observed), so calling --add-video-url
+        # with a URL already in the campaign's set must NOT click the
+        # toggle — a blind click would DESELECT it, and Save would then
+        # persist that as a removal: "add" silently becoming "remove".
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"], library_urls=["https://a.test/1.mp4"]
+        )
+
+        browser_masters._add_video_from_library(page, "https://a.test/1.mp4")
+
+        self.assertEqual(page.urls, ["https://a.test/1.mp4"])
+        self.assertEqual(page.library_selections, [])
+
+    def test_adding_an_already_present_video_does_not_click_unrelated_cards(self):
+        # Same guard, with OTHER (not-yet-selected) videos also listed on
+        # the library tab — confirms the no-op path recognizes the
+        # requested URL as already-present without touching any other
+        # card's toggle.
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"],
+            library_urls=["https://a.test/1.mp4", "https://a.test/other.mp4"],
+        )
+
+        browser_masters._add_video_from_library(page, "https://a.test/1.mp4")
+
+        self.assertEqual(page.urls, ["https://a.test/1.mp4"])
+        self.assertEqual(page.library_selections, [])
+        # No Save needed either -- nothing changed, so the modal need not be
+        # committed at all.
+        self.assertEqual(page.save_clicks, [])
+        self.assertFalse(page.modal_open)
 
 
 class TestRemoveVideo(unittest.TestCase):

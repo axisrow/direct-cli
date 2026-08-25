@@ -1033,6 +1033,56 @@ _VIDEOS_MODAL_SAVE_SELECTOR = '[data-testid="VideoSuggestionsEditor.Save"]'
 _VIDEO_UPLOAD_SUFFIXES = frozenset({".mp4", ".webm", ".mov", ".flv", ".avi"})
 _VIDEO_MODAL_OPEN_TIMEOUT_MS = 10_000
 _VIDEO_UPLOAD_TIMEOUT_MS = 60_000
+#
+# CONFIRMED LIVE 2026-08-26 (issue #812, campaign 713234191, SUSPENDED
+# throwaway — the modal's "Ваши кампании" tab was opened, one previously-
+# uploaded video was selected via its Select button, a second was selected
+# to confirm both land in the SAME modal-internal grid the UPLOAD tab uses,
+# and a third selection was attempted to observe the cap. The modal was
+# then closed via Cancel — no Save was clicked, so nothing was persisted).
+#
+# ``VideoSuggestionsEditor.CreativeSourcePanel.USER`` (its tab button) is
+# the "выбрать из уже загруженных" tab this issue asked for — labeled
+# "Ваши кампании" in the UI, not "Ваши видео"/"Библиотека" as the guessed
+# name might suggest. Selecting it renders "Видео из кампаний": a grid of
+# every video previously uploaded to ANY of this account's campaigns
+# (``VideoSuggestionsEditor.SuggestedCreativesContainer``), each a
+# ``SuggestedCreative.<video_url>`` card with a
+# ``SuggestedCreative.Select.<video_url>`` BUTTON toggle (containing a
+# nested ``.Selected``/``.NotSelected`` marker for current state — the
+# testid itself does not change, only which marker child is present).
+#
+# Clicking that Select button is NOT a no-op preview-only toggle: it
+# immediately mutates ``VideoSuggestionsEditor.SelectedCreativesGrid`` —
+# the SAME modal-internal "Выбранные видео" panel the UPLOAD tab's own
+# freshly-uploaded card lands in (confirmed by the campaign's one
+# pre-existing video already showing there, pre-selected, before any click
+# this session). This CORRECTS this module's earlier claim (see
+# ``_add_video``'s docstring) that "no modal-internal video list has been
+# found" — one has, and it is shared across all three creative-source
+# tabs, not per-tab. A freshly toggled-on card renders a transient
+# ``SelectedCreativesGrid.SelectedCreative.Spinner.<video_url>`` sibling
+# while its thumbnail loads, then settles to the same four child testids
+# ``_read_videos``'s docstring already documents for the page-level list
+# (``.Content``/``.VideoElement``/``.PlayButton``, plus a grid-scoped
+# ``SelectedCreativesGrid.SelectedCreative.CloseButton.<video_url>`` to
+# deselect again before Save).
+#
+# The ``_VIDEOS_SLOT_COUNT`` (2) cap IS live-enforced client-side here,
+# confirmed by actually exceeding it (not just reading UI copy, unlike the
+# open-coded check in ``_add_video``): selecting a 3rd video changes
+# ``VideoSuggestionsEditor.Save``'s own text from "Добавить в кампанию" to
+# "Выбрано больше 2 видео" and sets its ``disabled`` attribute — the SAME
+# testid as the upload flow's Save button, this tab does not have its own.
+# No separate error toast/dialog appears; the disabled Save button IS the
+# rejection.
+_VIDEOS_LIBRARY_TAB_SELECTOR = (
+    '[data-testid="VideoSuggestionsEditor.CreativeSourcePanel.USER"]'
+)
+_VIDEOS_LIBRARY_SELECT_TESTID_TEMPLATE = (
+    "VideoSuggestionsEditor.SuggestedCreativesContainer.SuggestedCreative."
+    "Select.{video_url}"
+)
 _VIDEOS_EDITOR_TIMEOUT_MS = 60_000
 
 # Per-element moderation rejection (issue #814, `masters get
@@ -8448,6 +8498,7 @@ def update_master(
     clear_texts: Optional[List[int]] = None,
     images: Optional[Dict[int, str]] = None,
     add_video: Optional[str] = None,
+    add_video_url: Optional[str] = None,
     remove_videos: Optional[List[str]] = None,
     gender: Optional[str] = None,
     age_from: Optional[int] = None,
@@ -8569,6 +8620,23 @@ def update_master(
     this account), so the upload-poll → Save sequence and whether
     ``_remove_video``'s click commits immediately remain unconfirmed — see
     ``_add_video``/``_remove_video``'s own docstrings for specifics.
+
+    ``add_video_url`` (issue #812) is the alternative to ``add_video``: it
+    selects a video the account has ALREADY uploaded to some campaign
+    (Yandex keeps a single account-wide video library, not one per
+    campaign — confirmed live, see the module comment above
+    ``_VIDEOS_LIBRARY_TAB_SELECTOR``) by its exact URL, via the modal's
+    "Ваши кампании" tab, instead of uploading a new local file. Mutually
+    exclusive with ``add_video`` at the CLI boundary — both add exactly one
+    video and the same ``_VIDEOS_SLOT_COUNT`` cap/refusal applies to
+    either. Unlike ``add_video``'s upload path, this one IS fully
+    CONFIRMED LIVE 2026-08-26 (issue #812, campaign 713234191): selecting
+    an existing card immediately (synchronously, no async processing wait)
+    moves it into the modal's ``SelectedCreativesGrid``, and attempting a
+    3rd selection was observed disabling ``VideoSuggestionsEditor.Save``
+    with its text changed to "Выбрано больше 2 видео" rather than allowing
+    the click — see ``_add_video_from_library``'s docstring for the full
+    verified sequence.
 
     ``gender``/``age_from``/``age_to``/``devices``/``add_audience_tags``/
     ``remove_audience_tags`` (issue #681, Этап C) cover the "Аудитория"
@@ -8703,6 +8771,7 @@ def update_master(
         and not clear_texts
         and not images
         and add_video is None
+        and add_video_url is None
         and not remove_videos
         and gender is None
         and not age_from_requested
@@ -8722,7 +8791,7 @@ def update_master(
             "remove_target_action_goal_ids, directs_helps, name, "
             "landing_url, tracking_params, headlines, texts, "
             "clear_headlines, clear_texts, images, add_video, "
-            "remove_videos, gender, age_from, age_to, devices, "
+            "add_video_url, remove_videos, gender, age_from, age_to, devices, "
             "add_audience_tags, remove_audience_tags, "
             "add_metrika_counters, remove_metrika_counters, "
             "add_sitelinks, remove_sitelinks)."
@@ -9184,10 +9253,12 @@ def update_master(
     # per-item resolution step here (add/remove are both identity-based by
     # URL, not position — see ``update_master``'s own docstring for why),
     # so this is a simple snapshot rather than an index->id map.
-    if add_video is not None or remove_videos:
+    if add_video is not None or add_video_url is not None or remove_videos:
         _wait_for_videos_editor(page)
     videos_before_urls = (
-        _read_videos(page) if (add_video is not None or remove_videos) else []
+        _read_videos(page)
+        if (add_video is not None or add_video_url is not None or remove_videos)
+        else []
     )
     # Preflight ALL --remove-video URLs against the pre-mutation snapshot
     # before clicking anything — mirrors _set_image's "resolve every target
@@ -9224,6 +9295,16 @@ def update_master(
         _remove_video(page, video_url)
     if add_video is not None:
         _add_video(page, add_video, prior_removals=len(remove_videos or []))
+    # video_url_actually_added (issue #812 cycle-review, cycle 2): False on
+    # the safe-no-op path (video_url already present) — must NOT be folded
+    # into "video_added" as an unconditional True, or _verify_video_mismatches
+    # below expects a count increase that never happened and misreports the
+    # unchanged set as a save failure on every idempotent call.
+    video_url_actually_added = False
+    if add_video_url is not None:
+        video_url_actually_added = _add_video_from_library(
+            page, add_video_url, prior_removals=len(remove_videos or [])
+        )
 
     # was_draft was captured right after _wait_for_edit_form, above — reused
     # here rather than re-derived, for the same reason _click_save takes it
@@ -9304,7 +9385,7 @@ def update_master(
             images_before_ids=images_before_ids,
             images_replaced_ids=images_replaced_ids,
             videos_before_urls=videos_before_urls,
-            video_added=add_video is not None,
+            video_added=add_video is not None or video_url_actually_added,
             videos_removed=remove_videos,
             goal_price=goal_price,
             target_action_prices=target_action_prices,
@@ -9374,6 +9455,8 @@ def update_master(
         result["Images"] = images
     if add_video is not None:
         result["AddedVideo"] = add_video
+    if video_url_actually_added:
+        result["AddedVideoUrl"] = add_video_url
     if remove_videos:
         result["RemovedVideos"] = list(remove_videos)
     if gender is not None:
@@ -11836,12 +11919,20 @@ def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
     unconfirmed. Likewise the upload-landing poll below reads
     ``_read_videos``, the same page-level list ``_remove_video`` polls —
     unlike images, where the modal has its own confirmed-live
-    modal-internal list (``_read_modal_selected_thumb_urls``) precisely
-    because the page-level list only updates on Save. No modal-internal
-    video list has been found or confirmed, so this poll's assumption that
-    an uploaded video shows up in the page-level list before Save is
-    unverified and, if wrong, ``--add-video`` fails after every real
-    upload.
+    modal-internal list (``_read_modal_selected_thumb_urls``).
+
+    UPDATE (issue #812, 2026-08-26): a modal-internal list DOES exist for
+    video — ``VideoSuggestionsEditor.SelectedCreativesGrid``, confirmed
+    live via the "Ваши кампании"/USER tab (see the module comment above
+    ``_VIDEOS_LIBRARY_TAB_SELECTOR`` and ``_add_video_from_library``) — but
+    that recon exercised the library-select path, not a real file upload,
+    so it does not by itself confirm whether ``set_input_files`` on the
+    UPLOAD tab lands a new card in that SAME grid before Save. This
+    function's poll against the page-level ``_read_videos`` list (not the
+    modal-internal grid) therefore remains genuinely unverified for the
+    upload path specifically — the two tabs share one Save button and one
+    modal-internal grid, but only the library-select tab's use of that grid
+    has been observed live.
     """
     _wait_for_videos_editor(page)
     before_urls = _read_videos(page)
@@ -11910,6 +12001,148 @@ def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
         _VIDEO_MODAL_OPEN_TIMEOUT_MS,
     ):
         return
+
+    raise BrowserSessionError(
+        "Clicked the video manager modal's Save button but it did not "
+        f"close within {_VIDEO_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s — the "
+        "commit may not have completed. Verify manually before retrying."
+    )
+
+
+def _add_video_from_library(
+    page: "Page", video_url: str, *, prior_removals: int = 0
+) -> bool:
+    """Add a video the account has already uploaded to SOME campaign,
+    selecting it by URL on the modal's "Ваши кампании" (USER) tab instead
+    of uploading a new file — the "выбрать из уже загруженных" flow issue
+    #812 asked for.
+
+    CONFIRMED LIVE 2026-08-26 (issue #812, campaign 713234191, SUSPENDED
+    throwaway — the USER tab was opened, two library videos were selected
+    via their own Select buttons, a third selection was attempted to
+    observe the 2-video cap disabling Save, then the modal was closed via
+    Cancel; no Save was ever clicked, so nothing was persisted). See the
+    module comment above ``_VIDEOS_LIBRARY_TAB_SELECTOR`` for the full
+    testid map this corrects/confirms.
+
+    Mirrors ``_add_video``'s shape (refuse at the cap, open modal, mutate,
+    Save, wait for the modal to close) but selects an existing card instead
+    of calling ``set_input_files`` — there is no upload-processing wait
+    here, since the video already exists server-side; the click itself
+    synchronously toggles the card into
+    ``VideoSuggestionsEditor.SelectedCreativesGrid`` (confirmed live, see
+    above), so no poll is needed before clicking Save.
+
+    ``prior_removals`` carries the same meaning as in ``_add_video`` — see
+    that function's docstring for why every error message below must not
+    claim the video set is untouched when a prior ``--remove-video`` may
+    already have committed.
+
+    SAFE NO-OP when ``video_url`` is already in the campaign's current
+    video set (issue #812 cycle-review, Codex adversarial finding): the
+    library tab lists a campaign's OWN videos too (confirmed live — the
+    campaign's one pre-existing video showed up there, pre-selected,
+    before any click), and its Select button is a TOGGLE, not an
+    idempotent "ensure selected" control. A blind click on an
+    already-selected card would DESELECT it, and the modal's Save would
+    then persist that as a REMOVAL — turning ``--add-video-url`` into a
+    silent delete for the one case that matters most (re-running the same
+    command, or adding a URL a caller copied from this campaign's own
+    prior output). This function therefore checks ``before_urls`` first
+    and returns immediately, without opening the modal or clicking
+    anything, when the video is already present — mirroring how
+    ``_add_video`` never uploads a duplicate either (Yandex would just
+    create a second copy under a new URL there, a different failure mode,
+    but the same principle: don't mutate when the requested end state
+    already holds).
+
+    Returns ``True`` when a video was actually added, ``False`` for the
+    already-present no-op (issue #812 cycle-review, cycle 2: the caller
+    must NOT assume ``video_added=True`` just because this function was
+    called — the no-op path leaves the video set genuinely unchanged, and
+    the caller's own post-save verification needs to know that or it will
+    misreport an unchanged set as a save failure).
+    """
+    _wait_for_videos_editor(page)
+    before_urls = _read_videos(page)
+
+    if video_url in before_urls:
+        return False
+
+    if len(before_urls) >= _VIDEOS_SLOT_COUNT:
+        raise BrowserSessionError(
+            f"This campaign already has {len(before_urls)} video(s) — "
+            f"Yandex's own UI states a maximum of {_VIDEOS_SLOT_COUNT} "
+            "per campaign. Remove one first with --remove-video."
+        )
+
+    _open_videos_modal(page)
+
+    no_change_note = (
+        "The campaign's saved video set has NOT been changed (the "
+        "modal was never saved)."
+        if not prior_removals
+        else (
+            f"NOTE: {prior_removals} --remove-video removal(s) requested "
+            "earlier in this same command already ran, but this add "
+            "failure happened before the modal's Save — whether those "
+            "removals are actually committed on Yandex's side is NOT "
+            "LIVE-VERIFIED (they may require the page's own Save like "
+            "every other field, or may already be final). Verify the "
+            "campaign's current video set manually before retrying."
+        )
+    )
+
+    try:
+        page.locator(_VIDEOS_LIBRARY_TAB_SELECTOR).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find/click the video manager modal's 'Ваши "
+            "кампании' tab — Yandex may have changed the page's markup. "
+            f"Re-run with --headful to inspect the page. {no_change_note}"
+        ) from exc
+
+    select_selector = (
+        f'[data-testid="'
+        f"{_VIDEOS_LIBRARY_SELECT_TESTID_TEMPLATE.format(video_url=video_url)}"
+        f'"]'
+    )
+    select_button = page.locator(select_selector).first
+    if not _poll_until(
+        page,
+        lambda: select_button.count() > 0,
+        _VIDEO_MODAL_OPEN_TIMEOUT_MS,
+    ):
+        raise BrowserSessionError(
+            f"Video {video_url!r} was not found on the 'Ваши кампании' tab "
+            "— it may never have been uploaded to any campaign on this "
+            "account, or Yandex may have changed the page's markup. "
+            f"{no_change_note}"
+        )
+
+    try:
+        select_button.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            f"Could not click the select button for video {video_url!r} on "
+            f"the 'Ваши кампании' tab. {no_change_note}"
+        ) from exc
+
+    try:
+        page.locator(_VIDEOS_MODAL_SAVE_SELECTOR).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find/click the video manager modal's Save button — "
+            "Yandex may have changed the page's markup. Re-run with "
+            f"--headful to inspect the page. {no_change_note}"
+        ) from exc
+
+    if _poll_until(
+        page,
+        lambda: page.locator(_VIDEOS_MODAL_SELECTOR).first.count() == 0,
+        _VIDEO_MODAL_OPEN_TIMEOUT_MS,
+    ):
+        return True
 
     raise BrowserSessionError(
         "Clicked the video manager modal's Save button but it did not "

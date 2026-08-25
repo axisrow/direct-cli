@@ -4,6 +4,39 @@
 
 ### Added
 
+**`masters update --add-video-url` — select an already-uploaded video (#812).**
+
+Adds a video to a campaign's "Варианты видео" section by selecting one the
+account has already uploaded to some other campaign, instead of uploading a
+new local file. Yandex keeps a single account-wide video library shared
+across all campaigns, exposed on the video manager modal's "Ваши кампании"
+tab.
+
+Live-verified 2026-08-26 (campaign 713234191, throwaway, read-only up to
+Cancel — no Save was clicked): selecting a card there
+(`VideoSuggestionsEditor.CreativeSourcePanel.USER` →
+`SuggestedCreativesContainer.SuggestedCreative.Select.<url>`) immediately
+moves it into the modal's `SelectedCreativesGrid` — no async upload-processing
+wait needed, since the video already exists server-side. The 2-video cap is
+enforced client-side: selecting a 3rd disables `VideoSuggestionsEditor.Save`
+and changes its label to "Выбрано больше 2 видео", the same Save button the
+upload flow uses. Mutually exclusive with `--add-video` (and `AddVideoUrl`
+with `AddVideo` in `--from-file`/`--masters-json` batch rows).
+
+`--add-video`'s own file-upload sequence remains **NOT LIVE-VERIFIED**
+(issue #812's original ask) — only the surrounding modal's DOM was confirmed
+live in #811; a real `set_input_files` upload was never attempted on this
+account.
+
+Requesting a URL already present in the campaign's video set is a safe
+no-op — the library tab's Select control is a TOGGLE, not an idempotent
+"ensure selected" button, so a blind click on an already-selected card
+would have deselected it and Save would have persisted that as a removal.
+`--add-video-url` now checks the current set first and returns without
+opening the modal when the video is already there, and correctly reports
+no change was made (no `AddedVideoUrl` in the JSON output, no false "did
+not save as requested" from the post-save verification pass).
+
 **`direct history get` — read «История изменений» (#837).**
 
 The API has no per-field change journal at all: `changes.checkCampaigns`
