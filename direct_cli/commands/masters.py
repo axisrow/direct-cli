@@ -956,6 +956,7 @@ _UPDATE_FILE_FIELDS = {
     "ClearTexts": "clear_texts",
     "Images": "images",
     "AddVideo": "add_video",
+    "AddVideoUrl": "add_video_url",
     "RemoveVideos": "remove_videos",
     "Gender": "gender",
     "AgeFrom": "age_from",
@@ -989,6 +990,7 @@ _UPDATE_FILE_FIELD_FLAGS = {
     "ClearTexts": "--clear-text",
     "Images": "--image",
     "AddVideo": "--add-video",
+    "AddVideoUrl": "--add-video-url",
     "RemoveVideos": "--remove-video",
     "Gender": "--gender",
     "AgeFrom": "--age-from",
@@ -1312,7 +1314,7 @@ def _normalize_master_update_row(row: Any, row_index: int) -> Dict[str, Any]:
     for key in update_keys:
         value = row[key]
         target = _UPDATE_FILE_FIELDS[key]
-        if key in ("Name", "LandingUrl", "TrackingParams", "AddVideo"):
+        if key in ("Name", "LandingUrl", "TrackingParams", "AddVideo", "AddVideoUrl"):
             item[target] = _require_type(
                 value,
                 str,
@@ -1636,6 +1638,16 @@ def _run_update_file_batch(
     for index, row in enumerate(rows, start=1):
         try:
             _validate_image_paths(row.get("images") or {})
+            if (
+                row.get("add_video") is not None
+                and row.get("add_video_url") is not None
+            ):
+                raise click.UsageError(
+                    "AddVideo and AddVideoUrl are mutually exclusive — "
+                    "provide a local file path to upload a new video, or "
+                    "an existing video's URL to select it from the "
+                    "account's video library, not both."
+                )
             if row.get("add_video") is not None:
                 _validate_video_path(row["add_video"])
         except click.UsageError as exc:
@@ -2547,15 +2559,35 @@ def audience_get(
     help=(
         "Upload a local video file, appending it to the 'Варианты видео' "
         "section (Yandex's own UI states a maximum of 2 videos per "
-        "campaign — NOT independently verified by exceeding it). Refused "
-        "if the campaign already has 2 videos. UNLIKE --image, this is a "
-        "plain add, not a positional replacement — Yandex assigns the new "
-        "video's URL, which is not known ahead of time. NOTE: this "
-        "command's video-upload flow (the modal it opens, the fields "
-        "inside it) has NOT been confirmed against the real Yandex UI — "
-        "only the section itself and its open button were observed live; "
-        "see direct_cli/browser/masters.py's module comments above "
-        "_VIDEOS_SLOT_COUNT for exactly what is/isn't confirmed."
+        "campaign, live-confirmed via --add-video-url's selection path). "
+        "Refused if the campaign already has 2 videos. UNLIKE --image, "
+        "this is a plain add, not a positional replacement — Yandex "
+        "assigns the new video's URL, which is not known ahead of time. "
+        "Mutually exclusive with --add-video-url. NOTE: this command's "
+        "actual file-upload sequence (upload → poll for the new card → "
+        "Save) has NOT been confirmed against the real Yandex UI, only "
+        "the surrounding modal's DOM was observed live; see "
+        "direct_cli/browser/masters.py's module comments above "
+        "_VIDEOS_SLOT_COUNT for exactly what is/isn't confirmed. If the "
+        "video you want is already in the account's video library (e.g. "
+        "used on another campaign), prefer --add-video-url instead — that "
+        "path is fully live-verified."
+    ),
+)
+@click.option(
+    "--add-video-url",
+    help=(
+        "Add a video the account has already uploaded to some campaign, "
+        "by its exact URL (as shown by another campaign's edit page, or "
+        "in this command's own JSON output under AddedVideo/AddedVideoUrl "
+        "after a prior --add-video/--add-video-url call). Yandex keeps a "
+        "single account-wide video library shared across all campaigns, "
+        "not a per-campaign one. Selects it via the 'Варианты видео' "
+        "modal's 'Ваши кампании' tab instead of uploading a new file — no "
+        "asynchronous processing wait needed, since the video already "
+        "exists server-side. Subject to the same 2-video cap as "
+        "--add-video (live-confirmed: exceeding it disables the modal's "
+        "Save button). Mutually exclusive with --add-video."
     ),
 )
 @click.option(
@@ -2721,6 +2753,7 @@ def update(
     clear_texts,
     images,
     add_video,
+    add_video_url,
     remove_videos,
     gender,
     age_from,
@@ -2943,6 +2976,7 @@ def update(
             "ClearTexts": clear_texts,
             "Images": images,
             "AddVideo": add_video,
+            "AddVideoUrl": add_video_url,
             "RemoveVideos": remove_videos,
             "Gender": gender,
             "AgeFrom": age_from,
@@ -3028,6 +3062,7 @@ def update(
         and not clear_texts
         and not images
         and add_video is None
+        and add_video_url is None
         and not remove_videos
         and gender is None
         and age_from is None
@@ -3046,7 +3081,8 @@ def update(
             "--remove-target-action, --directs-helps/--no-directs-helps, "
             "--name, --landing-url, --tracking-params, --headline, --text, "
             "--clear-headline, --clear-text, --image, --add-video, "
-            "--remove-video, --gender, --age-from, --age-to, --device, "
+            "--add-video-url, --remove-video, --gender, --age-from, "
+            "--age-to, --device, "
             "--add-audience-tag, --remove-audience-tag, "
             "--add-metrika-counter, --remove-metrika-counter, "
             "--add-sitelink, --remove-sitelink."
@@ -3141,6 +3177,13 @@ def update(
         ),
     )
     _validate_image_paths(parsed_images)
+    if add_video is not None and add_video_url is not None:
+        raise click.UsageError(
+            "--add-video and --add-video-url are mutually exclusive — "
+            "pass a local file path to upload a new video, or an existing "
+            "video's URL to select it from the account's video library, "
+            "not both."
+        )
     if add_video is not None:
         _validate_video_path(add_video)
 
@@ -3183,6 +3226,7 @@ def update(
                     "clear_texts": parsed_clear_texts or None,
                     "images": parsed_images or None,
                     "add_video": add_video,
+                    "add_video_url": add_video_url,
                     "remove_videos": list(remove_videos) or None,
                     "gender": gender,
                     "devices": set(devices) if devices else None,
@@ -3230,6 +3274,7 @@ def update(
             clear_texts=parsed_clear_texts or None,
             images=parsed_images,
             add_video=add_video,
+            add_video_url=add_video_url,
             remove_videos=list(remove_videos) or None,
             gender=gender,
             age_from=parsed_age_from,

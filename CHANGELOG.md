@@ -4,6 +4,30 @@
 
 ### Added
 
+**`masters update --add-video-url` — select an already-uploaded video (#812).**
+
+Adds a video to a campaign's "Варианты видео" section by selecting one the
+account has already uploaded to some other campaign, instead of uploading a
+new local file. Yandex keeps a single account-wide video library shared
+across all campaigns, exposed on the video manager modal's "Ваши кампании"
+tab.
+
+Live-verified 2026-08-26 (campaign 713234191, throwaway, read-only up to
+Cancel — no Save was clicked): selecting a card there
+(`VideoSuggestionsEditor.CreativeSourcePanel.USER` →
+`SuggestedCreativesContainer.SuggestedCreative.Select.<url>`) immediately
+moves it into the modal's `SelectedCreativesGrid` — no async upload-processing
+wait needed, since the video already exists server-side. The 2-video cap is
+enforced client-side: selecting a 3rd disables `VideoSuggestionsEditor.Save`
+and changes its label to "Выбрано больше 2 видео", the same Save button the
+upload flow uses. Mutually exclusive with `--add-video` (and `AddVideoUrl`
+with `AddVideo` in `--from-file`/`--masters-json` batch rows).
+
+`--add-video`'s own file-upload sequence remains **NOT LIVE-VERIFIED**
+(issue #812's original ask) — only the surrounding modal's DOM was confirmed
+live in #811; a real `set_input_files` upload was never attempted on this
+account.
+
 **`direct history get` — read «История изменений» (#837).**
 
 The API has no per-field change journal at all: `changes.checkCampaigns`
