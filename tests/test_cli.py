@@ -759,6 +759,81 @@ class TestCLI(unittest.TestCase):
         self.assertIn("current Client-Login/account", result.output)
         self.assertIn("YANDEX_DIRECT_LOGIN", result.output)
 
+    def test_ads_add_surfaces_combinatorial_banner_warning(self):
+        """Warning 10251 (silent TEXT_AD-to-combinatorial substitution, #850)
+        must be surfaced on stderr, not only visible in the JSON body."""
+
+        class FakeResponse:
+            def __call__(self):
+                return self
+
+            def extract(self):
+                return {
+                    "AddResults": [
+                        {
+                            "Id": 1918459304756685779,
+                            "Warnings": [
+                                {
+                                    "Code": 10165,
+                                    "Message": "Parameter will not be applied",
+                                },
+                                {
+                                    "Code": 10251,
+                                    "Message": (
+                                        "Создание " "текстовых " "баннеров " "закрыто"
+                                    ),
+                                },
+                            ],
+                            "Errors": [],
+                        }
+                    ]
+                }
+
+        class FakeClient:
+            def ads(self):
+                return self
+
+            def post(self, data):
+                return FakeResponse()
+
+        ads_module = import_module("direct_cli.commands.ads._cli")
+        with patch.object(ads_module, "create_client", return_value=FakeClient()):
+            result = self.runner.invoke(
+                cli,
+                [
+                    "ads",
+                    "add",
+                    "--adgroup-id",
+                    "5786702368",
+                    "--title",
+                    "Test",
+                    "--text",
+                    "Test text",
+                    "--href",
+                    "https://example.com",
+                ],
+                env={
+                    "YANDEX_DIRECT_TOKEN": "test-token",
+                    "YANDEX_DIRECT_LOGIN": "axisrow",
+                },
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        # The JSON result body (stdout) is unaffected — still parses cleanly
+        # once the stderr-only warning banner is excluded.
+        json_body = "\n".join(
+            line
+            for line in result.output.splitlines()
+            if not line.startswith("\x1b[33m")
+        )
+        parsed = json.loads(json_body)
+        self.assertEqual(parsed["AddResults"][0]["Warnings"][1]["Code"], 10251)
+        # A human-readable explanation is printed via the stderr-only helper.
+        self.assertIn("10251", result.stderr)
+        self.assertIn("combinatorial banner", result.stderr)
+        # The unexplained code (10165) still gets a raw pass-through line.
+        self.assertIn("10165", result.stderr)
+
     def test_keywords_bulk_add_surfaces_item_errors(self):
         """Bulk-add path must not bypass the item-level error renderer. See #211."""
 
