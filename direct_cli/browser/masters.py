@@ -12031,9 +12031,30 @@ def _add_video_from_library(
     that function's docstring for why every error message below must not
     claim the video set is untouched when a prior ``--remove-video`` may
     already have committed.
+
+    SAFE NO-OP when ``video_url`` is already in the campaign's current
+    video set (issue #812 cycle-review, Codex adversarial finding): the
+    library tab lists a campaign's OWN videos too (confirmed live — the
+    campaign's one pre-existing video showed up there, pre-selected,
+    before any click), and its Select button is a TOGGLE, not an
+    idempotent "ensure selected" control. A blind click on an
+    already-selected card would DESELECT it, and the modal's Save would
+    then persist that as a REMOVAL — turning ``--add-video-url`` into a
+    silent delete for the one case that matters most (re-running the same
+    command, or adding a URL a caller copied from this campaign's own
+    prior output). This function therefore checks ``before_urls`` first
+    and returns immediately, without opening the modal or clicking
+    anything, when the video is already present — mirroring how
+    ``_add_video`` never uploads a duplicate either (Yandex would just
+    create a second copy under a new URL there, a different failure mode,
+    but the same principle: don't mutate when the requested end state
+    already holds).
     """
     _wait_for_videos_editor(page)
     before_urls = _read_videos(page)
+
+    if video_url in before_urls:
+        return
 
     if len(before_urls) >= _VIDEOS_SLOT_COUNT:
         raise BrowserSessionError(

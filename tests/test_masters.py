@@ -14338,9 +14338,15 @@ class _FakeVideosPage(FakePage):
                         _FakeLocatorHandle(
                             on_click=lambda bound_url=bound_url: (
                                 self.library_selections.append(bound_url),
-                                self.urls.append(bound_url)
-                                if bound_url not in self.urls
-                                else None,
+                                # Real button is a TOGGLE (confirmed live,
+                                # issue #812) — a card already selected
+                                # (i.e. already in self.urls) is DESELECTED
+                                # by a click, not left alone/re-added.
+                                (
+                                    self.urls.remove(bound_url)
+                                    if bound_url in self.urls
+                                    else self.urls.append(bound_url)
+                                ),
                             )
                         )
                     ]
@@ -14574,6 +14580,44 @@ class TestAddVideoFromLibrary(unittest.TestCase):
                 )
 
         self.assertIn("1 --remove-video removal(s)", str(ctx.exception))
+
+    def test_adding_an_already_present_video_is_a_safe_no_op(self):
+        # Codex adversarial review (cycle-review of PR #856): the modal's
+        # Select button is a TOGGLE (confirmed live, see the module comment
+        # above _VIDEOS_LIBRARY_TAB_SELECTOR — an already-selected card
+        # shows a .Selected marker before any click this session). The
+        # library tab lists a campaign's OWN current videos too (this is
+        # exactly what the live recon observed), so calling --add-video-url
+        # with a URL already in the campaign's set must NOT click the
+        # toggle — a blind click would DESELECT it, and Save would then
+        # persist that as a removal: "add" silently becoming "remove".
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"], library_urls=["https://a.test/1.mp4"]
+        )
+
+        browser_masters._add_video_from_library(page, "https://a.test/1.mp4")
+
+        self.assertEqual(page.urls, ["https://a.test/1.mp4"])
+        self.assertEqual(page.library_selections, [])
+
+    def test_adding_an_already_present_video_does_not_click_unrelated_cards(self):
+        # Same guard, with OTHER (not-yet-selected) videos also listed on
+        # the library tab — confirms the no-op path recognizes the
+        # requested URL as already-present without touching any other
+        # card's toggle.
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"],
+            library_urls=["https://a.test/1.mp4", "https://a.test/other.mp4"],
+        )
+
+        browser_masters._add_video_from_library(page, "https://a.test/1.mp4")
+
+        self.assertEqual(page.urls, ["https://a.test/1.mp4"])
+        self.assertEqual(page.library_selections, [])
+        # No Save needed either -- nothing changed, so the modal need not be
+        # committed at all.
+        self.assertEqual(page.save_clicks, [])
+        self.assertFalse(page.modal_open)
 
 
 class TestRemoveVideo(unittest.TestCase):

@@ -28,6 +28,13 @@ with `AddVideo` in `--from-file`/`--masters-json` batch rows).
 live in #811; a real `set_input_files` upload was never attempted on this
 account.
 
+Requesting a URL already present in the campaign's video set is a safe
+no-op — the library tab's Select control is a TOGGLE, not an idempotent
+"ensure selected" button, so a blind click on an already-selected card
+would have deselected it and Save would have persisted that as a removal.
+`--add-video-url` now checks the current set first and returns without
+opening the modal when the video is already there.
+
 **`direct history get` — read «История изменений» (#837).**
 
 The API has no per-field change journal at all: `changes.checkCampaigns`

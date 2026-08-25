@@ -1638,16 +1638,9 @@ def _run_update_file_batch(
     for index, row in enumerate(rows, start=1):
         try:
             _validate_image_paths(row.get("images") or {})
-            if (
-                row.get("add_video") is not None
-                and row.get("add_video_url") is not None
-            ):
-                raise click.UsageError(
-                    "AddVideo and AddVideoUrl are mutually exclusive — "
-                    "provide a local file path to upload a new video, or "
-                    "an existing video's URL to select it from the "
-                    "account's video library, not both."
-                )
+            _reject_add_video_and_add_video_url_together(
+                row.get("add_video"), row.get("add_video_url")
+            )
             if row.get("add_video") is not None:
                 _validate_video_path(row["add_video"])
         except click.UsageError as exc:
@@ -1912,6 +1905,21 @@ def _validate_video_path(raw_path: str) -> None:
             "direct_cli/browser/masters.py's _VIDEO_UPLOAD_SUFFIXES "
             "comment), so a genuinely valid video file may still be "
             "rejected here."
+        )
+
+
+def _reject_add_video_and_add_video_url_together(add_video, add_video_url):
+    """Reject the combination of ``--add-video``/``AddVideo`` and
+    ``--add-video-url``/``AddVideoUrl`` in the same call — shared by both
+    the interactive single-campaign path (``update``) and the batch path
+    (``_run_update_file_batch``), which previously each defined this exact
+    guard independently (cycle-review of PR #856, ``/review`` finding)."""
+    if add_video is not None and add_video_url is not None:
+        raise click.UsageError(
+            "--add-video/AddVideo and --add-video-url/AddVideoUrl are "
+            "mutually exclusive — pass a local file path to upload a new "
+            "video, or an existing video's URL to select it from the "
+            "account's video library, not both."
         )
 
 
@@ -3177,13 +3185,7 @@ def update(
         ),
     )
     _validate_image_paths(parsed_images)
-    if add_video is not None and add_video_url is not None:
-        raise click.UsageError(
-            "--add-video and --add-video-url are mutually exclusive — "
-            "pass a local file path to upload a new video, or an existing "
-            "video's URL to select it from the account's video library, "
-            "not both."
-        )
+    _reject_add_video_and_add_video_url_together(add_video, add_video_url)
     if add_video is not None:
         _validate_video_path(add_video)
 
