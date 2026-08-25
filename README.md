@@ -1007,7 +1007,6 @@ direct dictionaries get-retargeting-goals --ids 19000000660,19000001592
 > — pick the entry with the `Type` your use case needs.
 
 ```bash
-
 # Bids and modifiers
 direct bids get --campaign-ids 123 --fields CampaignId,AdGroupId,KeywordId,Bid
 direct bids set --keyword-id 123 --bid 15000000
