@@ -7592,6 +7592,29 @@ class TestClickSave(unittest.TestCase):
 
         self.assertEqual(clicks, [True])
 
+    def test_runs_final_guard_immediately_before_non_draft_click(self):
+        events = []
+        page = FakePage(
+            role_elements=[
+                (
+                    "button",
+                    browser_masters._SAVE_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: events.append("click")
+                    ),
+                )
+            ]
+        )
+
+        browser_masters._click_save(
+            page,
+            42,
+            is_draft=False,
+            before_click=lambda: events.append("guard"),
+        )
+
+        self.assertEqual(events, ["guard", "click"])
+
 
 class TestDraftEditPageSave(unittest.TestCase):
     """``_is_draft_edit_page``/``_click_save`` DRAFT path (issue #668).
@@ -7637,6 +7660,29 @@ class TestDraftEditPageSave(unittest.TestCase):
         # The publish button must never be touched unless --launch was
         # explicitly requested.
         self.assertEqual(clicks, ["draft"])
+
+    def test_final_guard_can_block_draft_click(self):
+        clicks = []
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("draft"))]
+                )
+            }
+        )
+
+        def _block():
+            raise BrowserSessionError("unsafe protected section")
+
+        with self.assertRaisesRegex(BrowserSessionError, "unsafe protected section"):
+            browser_masters._click_save(
+                page,
+                713231614,
+                is_draft=True,
+                before_click=_block,
+            )
+
+        self.assertEqual(clicks, [])
 
     def test_click_save_on_draft_clicks_launch_button_when_requested(self):
         clicks = []
@@ -22019,6 +22065,28 @@ class TestUrlUtmSavePreservesSections(unittest.TestCase):
             role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
         )
 
+    def _add_utm_controls(self, page, *, on_expand=None):
+        state = {"expanded": False}
+
+        def _expand():
+            state["expanded"] = True
+            if on_expand is not None:
+                on_expand()
+
+        spoiler = _DynamicAttrsLocatorHandle(
+            get_attrs=lambda: {
+                "aria-expanded": "true" if state["expanded"] else "false"
+            },
+            on_click=_expand,
+        )
+        page._locators[browser_masters._EDIT_UTM_SPOILER_BUTTON_TESTID] = _FakeLocator(
+            [spoiler]
+        )
+        page._locators[browser_masters._EDIT_UTM_INPUT_TESTID] = _FakeLocator(
+            [_FakeContentEditableHandle(text="utm_source=old")]
+        )
+        return state
+
     def test_untouched_sections_that_survive_the_save_are_accepted(self):
         """The baseline case: counters and goals read back intact after a
         tracking-params-only save, so the update must succeed. Guards
@@ -22288,6 +22356,66 @@ class TestUrlUtmSavePreservesSections(unittest.TestCase):
 
         self.assertIn(str(other_goal), str(ctx.exception))
 
+    def test_utm_counter_loss_aborts_before_save_during_combined_update(self):
+        counter = "gc.ksamata.ru • 72112213\n30 целей"
+        page = self._page(goal_ids_after=[self.GOAL_ID], counters_after=[counter])
+        state = {"rerendered": False}
+        original_locator = page.locator
+        counter_tag = '[data-testid="MetrikaCountersTagGroup.tag.0"]'
+        empty = _FakeLocator([])
+
+        def _locator(selector):
+            if state["rerendered"] and selector == counter_tag:
+                return empty
+            return original_locator(selector)
+
+        page.locator = _locator
+        self._add_utm_controls(
+            page, on_expand=lambda: state.__setitem__("rerendered", True)
+        )
+        clicks = []
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        save._on_click = lambda: clicks.append(True)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page,
+                42,
+                tracking_params="utm_source=new",
+                target_action_prices={self.GOAL_ID: 150},
+            )
+
+        self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertIn("Metrika counters", str(ctx.exception))
+        self.assertEqual(clicks, [])
+
+    def test_utm_target_action_loss_aborts_before_save(self):
+        page = self._page(goal_ids_after=[self.GOAL_ID], counters_after=[])
+        state = {"rerendered": False}
+        original_locator = page.locator
+        row_prefix = self._row_prefix_selector()
+        empty = _FakeLocator([])
+
+        def _locator(selector):
+            if state["rerendered"] and selector == row_prefix:
+                return empty
+            return original_locator(selector)
+
+        page.locator = _locator
+        self._add_utm_controls(
+            page, on_expand=lambda: state.__setitem__("rerendered", True)
+        )
+        clicks = []
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        save._on_click = lambda: clicks.append(True)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, tracking_params="utm_source=new")
+
+        self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertIn("target-action goal ids", str(ctx.exception))
+        self.assertEqual(clicks, [])
+
     def test_target_price_update_does_not_disable_metrika_preservation(self):
         counter = "gc.ksamata.ru • 72112213\n30 целей"
         page = self._page(
@@ -22329,12 +22457,12 @@ class TestUrlUtmSavePreservesSections(unittest.TestCase):
         counter = "gc.ksamata.ru • 72112213\n30 целей"
         counter_tag = '[data-testid="MetrikaCountersTagGroup.tag.0"]'
         page = self._page(goal_ids_after=[self.GOAL_ID], counters_after=[])
-        state = {"saved": False}
+        state = {"saved": False, "counter_added": False}
         original_locator = page.locator
         empty_rows = _FakeLocator([])
 
         def _locator(selector):
-            if state["saved"] and selector == counter_tag:
+            if state["counter_added"] and selector == counter_tag:
                 return _FakeLocator([_FakeLocatorHandle(text=counter)])
             if state["saved"] and selector == self._row_prefix_selector():
                 return empty_rows
@@ -22350,8 +22478,16 @@ class TestUrlUtmSavePreservesSections(unittest.TestCase):
 
         save.click = _click_then_lose_targets
 
+        def _apply_counter(*_args, **_kwargs):
+            state["counter_added"] = True
+            return []
+
         with (
-            patch.object(browser_masters, "_apply_metrika_counters", return_value=[]),
+            patch.object(
+                browser_masters,
+                "_apply_metrika_counters",
+                side_effect=_apply_counter,
+            ),
             self.assertRaises(BrowserSessionError) as ctx,
         ):
             browser_masters.update_master(
@@ -22434,19 +22570,7 @@ class TestUrlUtmSavePreservesSections(unittest.TestCase):
             goal_ids_after=[self.GOAL_ID],
             counters_after=["gc.ksamata.ru • 72112213\n30 целей"],
         )
-        state = {"expanded": False}
-        spoiler = _DynamicAttrsLocatorHandle(
-            get_attrs=lambda: {
-                "aria-expanded": "true" if state["expanded"] else "false"
-            },
-            on_click=lambda: state.__setitem__("expanded", True),
-        )
-        page._locators[browser_masters._EDIT_UTM_SPOILER_BUTTON_TESTID] = _FakeLocator(
-            [spoiler]
-        )
-        page._locators[browser_masters._EDIT_UTM_INPUT_TESTID] = _FakeLocator(
-            [_FakeContentEditableHandle(text="utm_source=old")]
-        )
+        self._add_utm_controls(page)
 
         result = browser_masters.update_master(
             page, 42, tracking_params="utm_source=new"

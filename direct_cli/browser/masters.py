@@ -7145,8 +7145,88 @@ def _read_save_validation_errors(page: "Page") -> List[str]:
     return seen[:_SAVE_VALIDATION_ERROR_LIMIT]
 
 
+def _assert_preserved_sections_before_save(
+    page: "Page",
+    *,
+    metrika_counters_before: Optional[List[str]],
+    metrika_preservation_requested: bool,
+    add_metrika_counters: Optional[List[str]],
+    remove_metrika_counter_indices: Optional[List[int]],
+    target_action_goal_ids_before: Optional[List[int]],
+    target_actions_unchanged_before: Optional[List[int]],
+    target_actions_preservation_requested: bool,
+    add_target_actions: Optional[Dict[int, float]],
+    remove_target_action_goal_ids: Optional[List[int]],
+) -> None:
+    """Abort before Save if URL/UTM hydration changed a protected section.
+
+    Post-save verification is still required for server-side persistence,
+    but it is too late to prevent issue #836's whole-form data loss. This
+    guard compares the stabilized current DOM with each independently
+    derived expected state immediately before the irreversible click.
+    """
+    if metrika_preservation_requested:
+        if metrika_counters_before is None:
+            raise BrowserSessionError(
+                "Refusing to save the URL/UTM update: no readable pre-save "
+                "Metrika-counter baseline is available."
+            )
+        expected_counters = Counter(
+            _metrika_counter_identity(value) for value in metrika_counters_before
+        )
+        for index in remove_metrika_counter_indices or []:
+            expected_counters[
+                _metrika_counter_identity(metrika_counters_before[index])
+            ] -= 1
+        expected_counters += Counter(
+            _metrika_counter_identity(value) for value in (add_metrika_counters or [])
+        )
+        actual_counters = _read_confirmed_metrika_counters_or_none(page)
+        actual_counter_ids = (
+            None
+            if actual_counters is None
+            else Counter(_metrika_counter_identity(value) for value in actual_counters)
+        )
+        if actual_counter_ids != expected_counters:
+            shown = sorted(actual_counters) if actual_counters is not None else None
+            raise BrowserSessionError(
+                "Refusing to save the URL/UTM update because the current "
+                "Metrika counters no longer match their protected pre-save "
+                f"state: expected ids {sorted(expected_counters.elements())!r}, "
+                f"page now shows {shown!r}. No Save button was clicked."
+            )
+
+    if target_actions_preservation_requested:
+        baseline = (
+            target_action_goal_ids_before
+            if target_action_goal_ids_before is not None
+            else target_actions_unchanged_before
+        )
+        if baseline is None:
+            raise BrowserSessionError(
+                "Refusing to save the URL/UTM update: no readable pre-save "
+                "target-action baseline is available."
+            )
+        expected_goal_ids = set(baseline)
+        expected_goal_ids -= set(remove_target_action_goal_ids or [])
+        expected_goal_ids |= set(add_target_actions or {})
+        actual_goal_ids = _read_confirmed_target_action_goal_ids(page)
+        if actual_goal_ids is None or set(actual_goal_ids) != expected_goal_ids:
+            raise BrowserSessionError(
+                "Refusing to save the URL/UTM update because the current "
+                "target-action goal ids no longer match their protected "
+                f"pre-save state: expected {sorted(expected_goal_ids)!r}, "
+                f"page now shows {actual_goal_ids!r}. No Save button was clicked."
+            )
+
+
 def _click_save(
-    page: "Page", campaign_id: int, *, is_draft: bool, launch: bool = False
+    page: "Page",
+    campaign_id: int,
+    *,
+    is_draft: bool,
+    launch: bool = False,
+    before_click: Optional[Callable[[], None]] = None,
 ) -> None:
     """Click the edit page's save button — "Сохранить кампанию" on a
     non-DRAFT campaign, or the DRAFT-specific save-as-draft/launch button.
@@ -7169,8 +7249,15 @@ def _click_save(
     ``is_draft`` before doing any of the mutations that precede this click,
     for the same "read it while the page still reflects what's about to
     happen" reason ``update_master`` documents at its own call site.
+
+    ``before_click`` runs only after the terminal button is available and
+    immediately before each click attempt. Issue #836 uses it for the final
+    protected-section guard so even the scroll needed to mount a non-DRAFT
+    Save button cannot create an unchecked re-render window.
     """
     if is_draft:
+        if before_click is not None:
+            before_click()
         _click_draft_terminal_button(page, campaign_id, launch=launch)
         return
 
@@ -7217,6 +7304,8 @@ def _click_save(
         handle = _find_visible_save_button()
         if handle is not None:
             try:
+                if before_click is not None:
+                    before_click()
                 handle.click()
                 return
             except PlaywrightError:
@@ -8688,6 +8777,7 @@ def update_master(
     metrika_preservation_requested = False
     target_actions_unchanged_before: Optional[List[int]] = None
     target_actions_unchanged_requested = False
+    target_actions_preservation_requested = False
     target_action_goal_ids_before: Optional[List[int]] = None
     if _url_or_utm_save:
         section_present = _metrika_counters_section_present(page)
@@ -8716,6 +8806,7 @@ def update_master(
                     "saved because an unreadable baseline could hide target-"
                     "action loss; retry after the page has fully loaded."
                 )
+            target_actions_preservation_requested = True
             if add_target_actions or remove_target_action_goal_ids:
                 # The existing add/remove verifier derives its full expected
                 # final set from this baseline. Supplying the pre-UTM snapshot
@@ -9144,7 +9235,33 @@ def update_master(
     else:
         clicked_button_label = _SAVE_BUTTON_TEXT
 
-    _click_save(page, campaign_id, is_draft=was_draft, launch=launch)
+    def _validate_preserved_sections_before_click() -> None:
+        _assert_preserved_sections_before_save(
+            page,
+            metrika_counters_before=metrika_counters_before,
+            metrika_preservation_requested=metrika_preservation_requested,
+            add_metrika_counters=add_metrika_counters,
+            remove_metrika_counter_indices=remove_metrika_counters,
+            target_action_goal_ids_before=target_action_goal_ids_before,
+            target_actions_unchanged_before=target_actions_unchanged_before,
+            target_actions_preservation_requested=(
+                target_actions_preservation_requested
+            ),
+            add_target_actions=add_target_actions,
+            remove_target_action_goal_ids=remove_target_action_goal_ids,
+        )
+
+    _click_save(
+        page,
+        campaign_id,
+        is_draft=was_draft,
+        launch=launch,
+        before_click=(
+            _validate_preserved_sections_before_click
+            if (metrika_preservation_requested or target_actions_preservation_requested)
+            else None
+        ),
+    )
 
     # Read Yandex's inline rejection text BEFORE _verify_saved reloads the
     # page away (issue #840) — these messages live only in the still-open
