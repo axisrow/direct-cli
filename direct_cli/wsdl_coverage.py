@@ -148,6 +148,13 @@ INTENTIONAL_EXTRA_METHODS = {
         "emulates 'resume the group' via ads.get + ads.resume; see its "
         "--help for the resulting resume-everything limitation."
     ),
+    ("dictionaries", "getRetargetingGoals"): (
+        "Issue #852: undocumented/internal v5 method (not declared in the "
+        "dictionaries WSDL) that Direct Commander uses to resolve a site/app "
+        "into the ExternalId used by RetargetingList(Type=AUDIENCE) -> "
+        "Rules[].Arguments[].ExternalId. Confirmed live against production; "
+        "Yandex gives no stability guarantees for it."
+    ),
 }
 
 RUNTIME_DEPRECATED_METHODS = {
@@ -167,6 +174,7 @@ METHOD_NAME_OVERRIDES = {
     "check-campaigns": "checkCampaigns",
     "check-dictionaries": "checkDictionaries",
     "get-geo-regions": "getGeoRegions",
+    "get-retargeting-goals": "getRetargetingGoals",
     "has-search-volume": "hasSearchVolume",
     "list-names": "get",
     "list-types": "get",

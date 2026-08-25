@@ -37,6 +37,25 @@ opening the modal when the video is already there, and correctly reports
 no change was made (no `AddedVideoUrl` in the JSON output, no false "did
 not save as requested" from the post-save verification pass).
 
+**`direct dictionaries get-retargeting-goals` — domain/app → `ExternalId` (#852).**
+
+Direct Commander can resolve a site address or app name into the
+`ExternalId` used by `RetargetingList(Type=AUDIENCE) -> Rules[].Arguments[].ExternalId`,
+but `direct-cli` had no equivalent. It calls `getRetargetingGoals`, an
+**undocumented/internal v5 method** not declared in the `dictionaries` WSDL
+(confirmed live: it is absent from the cached WSDL, no `X-Direct-Commander`
+header is required or wanted, and Yandex gives no stability guarantees for
+it). `--name` and `--ids` are mutually exclusive and one is required:
+
+```
+direct dictionaries get-retargeting-goals --name exist.ru
+direct dictionaries get-retargeting-goals --ids 19000000660,19000001592
+```
+
+A `--name` search can return more than one goal `Type` for similar names
+(e.g. `HOST` and `APPLICATION`) — pick the entry with the `Type` your use
+case needs. Unblocks `axisrow/yandex-direct-mcp-plugin#168`.
+
 **`direct history get` — read «История изменений» (#837).**
 
 The API has no per-field change journal at all: `changes.checkCampaigns`

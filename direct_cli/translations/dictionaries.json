@@ -6,5 +6,9 @@
   "Geo region name contains this value": "Имя географического региона содержит это значение",
   "Comma-separated geo region IDs": "ID географических регионов через запятую",
   "Comma-separated exact geo region names": "Точные имена географических регионов через запятую",
-  "List available dictionary names": "Список доступных имён справочников"
+  "List available dictionary names": "Список доступных имён справочников",
+  "Retargeting goal name to search for (e.g. a domain)": "Имя цели ретаргетинга для поиска (например, домен)",
+  "Comma-separated retargeting goal IDs to look up": "ID целей ретаргетинга через запятую для поиска",
+  "Get RetargetingGoals dictionary entries (undocumented/internal v5 method)\n\n    Resolves a site address or app name into the ExternalId used by\n    RetargetingList(Type=AUDIENCE) -> Rules[].Arguments[].ExternalId. Yandex\n    does not document this method and gives no stability guarantees for it.\n\n    A search by --name can return multiple goal types with similar names\n    (e.g. Type=HOST and Type=APPLICATION) -- pick the entry with the Type\n    your use case needs.\n    ": "Получить записи справочника RetargetingGoals (недокументированный/внутренний метод v5)\n\n    Преобразует адрес сайта или имя приложения в ExternalId, который\n    используется в RetargetingList(Type=AUDIENCE) -> Rules[].Arguments[].ExternalId.\n    Яндекс не документирует этот метод и не даёт гарантий стабильности.\n\n    Поиск по --name может вернуть несколько типов целей с похожими именами\n    (например, Type=HOST и Type=APPLICATION) — выбирайте запись с нужным Type.\n    ",
+  "Exactly one of --name or --ids is required": "Требуется указать ровно один из параметров: --name или --ids"
 }

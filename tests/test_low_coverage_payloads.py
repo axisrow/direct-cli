@@ -301,6 +301,63 @@ def test_dictionaries_get_geo_regions_defaults_locale_to_ru():
     assert mock_create_client.call_args.kwargs["language"] == "ru"
 
 
+def test_dictionaries_get_retargeting_goals_by_name_payload():
+    """#852: --name reaches getRetargetingGoals as SelectionCriteria.Name."""
+    body = _mock_service_command(
+        "direct_cli.commands.dictionaries",
+        "dictionaries",
+        ["dictionaries", "get-retargeting-goals", "--name", "exist.ru"],
+    )
+    assert body["method"] == "getRetargetingGoals"
+    assert body["params"]["SelectionCriteria"] == {"Name": "exist.ru"}
+    assert body["params"]["FieldNames"] == [
+        "Id",
+        "Name",
+        "Type",
+        "Description",
+        "CoverageType",
+        "SuggestionSource",
+        "StoreLink",
+    ]
+
+
+def test_dictionaries_get_retargeting_goals_by_ids_payload():
+    """#852: --ids reaches getRetargetingGoals as SelectionCriteria.Ids.Items."""
+    body = _mock_service_command(
+        "direct_cli.commands.dictionaries",
+        "dictionaries",
+        [
+            "dictionaries",
+            "get-retargeting-goals",
+            "--ids",
+            "19000000660,19000001592",
+        ],
+    )
+    assert body["method"] == "getRetargetingGoals"
+    assert body["params"]["SelectionCriteria"] == {
+        "Ids": {"Items": [19000000660, 19000001592]}
+    }
+
+
+def test_dictionaries_get_retargeting_goals_requires_name_or_ids():
+    result = _failing_run("dictionaries", "get-retargeting-goals")
+    assert result.exit_code != 0
+    assert "Exactly one of --name or --ids" in result.output
+
+
+def test_dictionaries_get_retargeting_goals_rejects_both_name_and_ids():
+    result = _failing_run(
+        "dictionaries",
+        "get-retargeting-goals",
+        "--name",
+        "exist.ru",
+        "--ids",
+        "19000000660",
+    )
+    assert result.exit_code != 0
+    assert "Exactly one of --name or --ids" in result.output
+
+
 def test_strategies_add_typed_fields_payload():
     body = _dry_run(
         "strategies",
