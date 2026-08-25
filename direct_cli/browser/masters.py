@@ -9295,8 +9295,14 @@ def update_master(
         _remove_video(page, video_url)
     if add_video is not None:
         _add_video(page, add_video, prior_removals=len(remove_videos or []))
+    # video_url_actually_added (issue #812 cycle-review, cycle 2): False on
+    # the safe-no-op path (video_url already present) — must NOT be folded
+    # into "video_added" as an unconditional True, or _verify_video_mismatches
+    # below expects a count increase that never happened and misreports the
+    # unchanged set as a save failure on every idempotent call.
+    video_url_actually_added = False
     if add_video_url is not None:
-        _add_video_from_library(
+        video_url_actually_added = _add_video_from_library(
             page, add_video_url, prior_removals=len(remove_videos or [])
         )
 
@@ -9379,7 +9385,7 @@ def update_master(
             images_before_ids=images_before_ids,
             images_replaced_ids=images_replaced_ids,
             videos_before_urls=videos_before_urls,
-            video_added=add_video is not None or add_video_url is not None,
+            video_added=add_video is not None or video_url_actually_added,
             videos_removed=remove_videos,
             goal_price=goal_price,
             target_action_prices=target_action_prices,
@@ -9449,7 +9455,7 @@ def update_master(
         result["Images"] = images
     if add_video is not None:
         result["AddedVideo"] = add_video
-    if add_video_url is not None:
+    if video_url_actually_added:
         result["AddedVideoUrl"] = add_video_url
     if remove_videos:
         result["RemovedVideos"] = list(remove_videos)
@@ -12005,7 +12011,7 @@ def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
 
 def _add_video_from_library(
     page: "Page", video_url: str, *, prior_removals: int = 0
-) -> None:
+) -> bool:
     """Add a video the account has already uploaded to SOME campaign,
     selecting it by URL on the modal's "Ваши кампании" (USER) tab instead
     of uploading a new file — the "выбрать из уже загруженных" flow issue
@@ -12049,12 +12055,19 @@ def _add_video_from_library(
     create a second copy under a new URL there, a different failure mode,
     but the same principle: don't mutate when the requested end state
     already holds).
+
+    Returns ``True`` when a video was actually added, ``False`` for the
+    already-present no-op (issue #812 cycle-review, cycle 2: the caller
+    must NOT assume ``video_added=True`` just because this function was
+    called — the no-op path leaves the video set genuinely unchanged, and
+    the caller's own post-save verification needs to know that or it will
+    misreport an unchanged set as a save failure).
     """
     _wait_for_videos_editor(page)
     before_urls = _read_videos(page)
 
     if video_url in before_urls:
-        return
+        return False
 
     if len(before_urls) >= _VIDEOS_SLOT_COUNT:
         raise BrowserSessionError(
@@ -12129,7 +12142,7 @@ def _add_video_from_library(
         lambda: page.locator(_VIDEOS_MODAL_SELECTOR).first.count() == 0,
         _VIDEO_MODAL_OPEN_TIMEOUT_MS,
     ):
-        return
+        return True
 
     raise BrowserSessionError(
         "Clicked the video manager modal's Save button but it did not "

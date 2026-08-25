@@ -10616,6 +10616,36 @@ class TestUpdateMaster(unittest.TestCase):
             {"CampaignId": 42, "AddedVideoUrl": "https://a.test/library.mp4"},
         )
 
+    def test_update_master_add_video_url_already_present_is_a_clean_no_op(self):
+        # Codex adversarial review (cycle-review of PR #856, cycle 2): the
+        # cycle-1 fix made _add_video_from_library itself a safe no-op for
+        # an already-present URL, but update_master's own bookkeeping
+        # (video_added, AddedVideoUrl) did not learn about it -- it always
+        # assumed a real add happened whenever add_video_url was passed.
+        # That means _verify_video_mismatches expected the set to have
+        # grown by one, and the unchanged set would be misreported as a
+        # save failure ("did not save as requested") on every idempotent
+        # call -- exactly the case --add-video-url's no-op guard exists to
+        # make safe. This must not raise, and must not falsely report
+        # AddedVideoUrl for a call that changed nothing.
+        page_save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: page_save_clicks.append(True)
+        )
+        page = _FakeVideosPage(
+            ["https://a.test/1.mp4"],
+            library_urls=["https://a.test/1.mp4"],
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(
+            page, 42, add_video_url="https://a.test/1.mp4"
+        )
+
+        self.assertEqual(page.urls, ["https://a.test/1.mp4"])
+        self.assertNotIn("AddedVideoUrl", result)
+        self.assertEqual(result, {"CampaignId": 42})
+
     def test_update_master_removes_a_video(self):
         page_save_clicks = []
         save_handle = _FakeTextLocatorHandle(

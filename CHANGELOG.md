@@ -33,7 +33,9 @@ no-op — the library tab's Select control is a TOGGLE, not an idempotent
 "ensure selected" button, so a blind click on an already-selected card
 would have deselected it and Save would have persisted that as a removal.
 `--add-video-url` now checks the current set first and returns without
-opening the modal when the video is already there.
+opening the modal when the video is already there, and correctly reports
+no change was made (no `AddedVideoUrl` in the JSON output, no false "did
+not save as requested" from the post-save verification pass).
 
 **`direct history get` — read «История изменений» (#837).**
 
