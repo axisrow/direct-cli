@@ -1609,6 +1609,7 @@ def _run_update_file_batch(
     moderation_statuses: bool,
     dry_run: bool,
     pacing_ms: Optional[int] = None,
+    show_progress: bool = True,
 ) -> List[Dict[str, Any]]:
     """Apply a validated update plan to every campaign in ONE browser session.
 
@@ -1655,6 +1656,7 @@ def _run_update_file_batch(
 
     completed: "set[int]" = set()
     outcomes: Dict[int, Dict[str, Any]] = {}
+    total = len(rows)
 
     def operation(page):
         for position, row in enumerate(rows):
@@ -1680,11 +1682,22 @@ def _run_update_file_batch(
                     result["ModerationStatuses"] = fetch_master_moderation_statuses(
                         page, campaign_id
                     )
+                if show_progress:
+                    click.echo(
+                        f"[{position + 1}/{total}] campaign {campaign_id}: saved",
+                        err=True,
+                    )
             except BrowserAuthError:
                 raise
             except (BrowserSessionError, PlaywrightError) as exc:
                 completed.add(campaign_id)
                 outcomes[campaign_id] = {"CampaignId": campaign_id, "Error": str(exc)}
+                if show_progress:
+                    click.echo(
+                        f"[{position + 1}/{total}] campaign {campaign_id}: "
+                        f"failed: {exc}",
+                        err=True,
+                    )
             if pause_ms and position != len(rows) - 1:
                 # Pace after EVERY attempt, including a failed one: the live
                 # failures behind issue #829 tracked how often the profile hit
@@ -2398,6 +2411,15 @@ def audience_get(
     ),
 )
 @click.option(
+    "--no-progress",
+    "no_progress",
+    is_flag=True,
+    help=(
+        "Batch mode only: suppress the per-campaign progress line normally "
+        "printed to stderr as each row is processed (issue #839)."
+    ),
+)
+@click.option(
     "--weekly-budget",
     type=int,
     help="Weekly budget in account currency (Недельный бюджет)",
@@ -2745,6 +2767,7 @@ def update(
     moderation_statuses,
     dry_run,
     pacing_ms,
+    no_progress,
     weekly_budget,
     promotion_goal,
     goal_price,
@@ -3031,6 +3054,7 @@ def update(
             moderation_statuses=moderation_statuses,
             dry_run=dry_run,
             pacing_ms=pacing_ms,
+            show_progress=not no_progress,
         )
         format_output(result, output_format, output)
         errors = [row for row in result if row.get("Error")]
@@ -3051,6 +3075,11 @@ def update(
         raise click.UsageError(
             "--pacing-ms paces the gap BETWEEN campaigns and is supported "
             "only with --from-file/--masters-json batch mode."
+        )
+    if no_progress:
+        raise click.UsageError(
+            "--no-progress suppresses batch progress output and is "
+            "supported only with --from-file/--masters-json batch mode."
         )
 
     if (

@@ -21780,7 +21780,7 @@ class TestMastersUpdateBatch(unittest.TestCase):
         # 1 is saved once despite the replay; 2 succeeds on the second pass.
         self.assertEqual(saved, [1, 2])
         self.assertEqual(
-            [row["CampaignId"] for row in json.loads(result.output)], [1, 2]
+            [row["CampaignId"] for row in json.loads(result.stdout)], [1, 2]
         )
 
     def test_auth_failure_while_reading_moderation_keeps_saved_row_reported(self):
@@ -21837,7 +21837,7 @@ class TestMastersUpdateBatch(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(saved, [1, 2])
-        payload = json.loads(result.output)
+        payload = json.loads(result.stdout)
         self.assertEqual([row["CampaignId"] for row in payload], [1, 2])
         # Campaign 1 was saved but its statuses could not be read -- say so
         # explicitly instead of omitting the key.
@@ -22262,6 +22262,55 @@ class TestMastersUpdateBatch(unittest.TestCase):
                 continue
             with self.subTest(key=key):
                 self.assertIn(target, browser_kwargs)
+
+    # --- progress indication (issue #839) -----------------------------------
+
+    def test_batch_prints_per_campaign_progress_to_stderr(self):
+        """Each row must print a stderr progress line as it is processed —
+        the whole point is visibility DURING a long batch, not just a final
+        report. stdout must stay pure JSON (unaffected)."""
+
+        def _update(page, campaign_id, **kwargs):
+            if campaign_id == 2:
+                raise BrowserSessionError("edit page never loaded")
+            return {"CampaignId": campaign_id}
+
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(
+                tmp,
+                [
+                    {"CampaignId": 1, "Name": "one"},
+                    {"CampaignId": 2, "Name": "two"},
+                    {"CampaignId": 3, "Name": "three"},
+                ],
+            )
+            with self._session(update=_update):
+                result = self.runner.invoke(
+                    cli, ["masters", "update", "--from-file", plan]
+                )
+
+        # stdout stays a clean JSON array — progress must not leak into it.
+        json.loads(result.stdout)
+
+        self.assertIn("1/3", result.stderr)
+        self.assertIn("2/3", result.stderr)
+        self.assertIn("3/3", result.stderr)
+        self.assertIn("campaign 1", result.stderr.lower())
+        self.assertIn("saved", result.stderr.lower())
+        self.assertIn("campaign 2", result.stderr.lower())
+        self.assertIn("failed", result.stderr.lower())
+        self.assertIn("edit page never loaded", result.stderr)
+
+    def test_batch_progress_is_suppressed_by_no_progress_flag(self):
+        with self.runner.isolated_filesystem() as tmp:
+            plan = self._plan(tmp, [{"CampaignId": 1, "Name": "one"}])
+            with self._session():
+                result = self.runner.invoke(
+                    cli,
+                    ["masters", "update", "--from-file", plan, "--no-progress"],
+                )
+
+        self.assertEqual(result.stderr.strip(), "")
 
 
 class TestUrlUtmSavePreservesSections(unittest.TestCase):
