@@ -994,6 +994,19 @@ direct changes check-dictionaries
 direct keywordsresearch has-search-volume --keywords "buy laptop,buy desktop"
 direct retargeting add --name "List A" --description "High intent users" --type AUDIENCE --rule "ALL:12345:30|67890:7" --dry-run
 direct retargeting update --id 55 --name "Renamed" --description "Updated note" --rule "ANY:12345:30" --dry-run
+direct dictionaries get-retargeting-goals --name exist.ru
+direct dictionaries get-retargeting-goals --ids 19000000660,19000001592
+```
+
+> ⚠ `dictionaries get-retargeting-goals` calls `getRetargetingGoals`, an
+> **undocumented/internal v5 method** (not declared in the `dictionaries`
+> WSDL). Direct Commander uses it to resolve a site/app into the `ExternalId`
+> used by `RetargetingList(Type=AUDIENCE) -> Rules[].Arguments[].ExternalId`.
+> Yandex gives no stability guarantees for it. A `--name` search can match
+> more than one goal `Type` (e.g. `HOST` and `APPLICATION`) for similar names
+> — pick the entry with the `Type` your use case needs.
+
+```bash
 
 # Bids and modifiers
 direct bids get --campaign-ids 123 --fields CampaignId,AdGroupId,KeywordId,Bid

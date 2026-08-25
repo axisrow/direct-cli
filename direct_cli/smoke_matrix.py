@@ -41,6 +41,7 @@ SMOKE_MATRIX = {
         "creatives.get",
         "dictionaries.get",
         "dictionaries.get-geo-regions",
+        "dictionaries.get-retargeting-goals",
         "dictionaries.list-names",
         "dynamicads.get",
         "dynamicfeedadtargets.get",
