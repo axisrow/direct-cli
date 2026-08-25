@@ -11,6 +11,8 @@ from typing import Any, Iterator, List, Optional
 
 import click
 
+from .i18n import t
+
 try:
     from tabulate import tabulate
 except ImportError:
@@ -40,6 +42,7 @@ def format_output(
         Formatted string
     """
     raise_for_api_result_errors(data)
+    warn_for_api_result_warnings(data)
 
     if format_type == "json":
         output = format_json(data)
@@ -114,6 +117,65 @@ def _iter_api_result_errors(data: Any) -> Iterator[dict]:
     elif isinstance(data, list):
         for item in data:
             yield from _iter_api_result_errors(item)
+
+
+# Yandex Direct Warning codes that get a human-readable explanation appended
+# to the raw ``Code``/``Message`` pair (issue #850). Both are emitted by
+# ``ads add``/``ads update`` when text-ad creation is closed and Yandex
+# silently substitutes/edits a combinatorial banner instead.
+_KNOWN_API_WARNINGS = {
+    10251: (
+        "Ad created as a combinatorial banner, not TEXT_AD as requested "
+        "(Yandex has closed text-banner creation). Layout and limits differ "
+        "from a text ad; `ads get` will still report Type: TEXT_AD."
+    ),
+    10252: (
+        "This ad is a combinatorial banner and was just edited through the "
+        "legacy text-ad update API. This path may stop working once Yandex "
+        "retires it."
+    ),
+}
+
+
+def warn_for_api_result_warnings(data: Any) -> None:
+    """Print embedded Direct API action ``Warnings`` to stderr.
+
+    Mirrors :func:`raise_for_api_result_errors`'s tree walk, but warnings
+    don't block the result (unlike ``Errors``) — they're only surfaced so a
+    silent type/behavior substitution (e.g. #850's TEXT_AD-to-combinatorial
+    swap) isn't visible only by reading the JSON result body.
+    """
+    for warning in _iter_api_result_warnings(data):
+        code = _error_code(warning)
+        message = warning.get("Message", "")
+        known = _KNOWN_API_WARNINGS.get(code) if code is not None else None
+        if known:
+            print_warning_stderr(
+                t("Warning {code}: {message} — {known}").format(
+                    code=code, message=message, known=t(known)
+                )
+            )
+        else:
+            print_warning_stderr(
+                t("Warning {code}: {message}").format(code=code, message=message)
+            )
+
+
+def _iter_api_result_warnings(data: Any) -> Iterator[dict]:
+    if isinstance(data, dict):
+        warnings = data.get("Warnings")
+        if isinstance(warnings, list):
+            for warning in warnings:
+                if isinstance(warning, dict):
+                    yield warning
+                else:
+                    yield {"Message": str(warning)}
+        for key, value in data.items():
+            if key != "Warnings":
+                yield from _iter_api_result_warnings(value)
+    elif isinstance(data, list):
+        for item in data:
+            yield from _iter_api_result_warnings(item)
 
 
 def _format_api_result_error(error: dict) -> str:
@@ -257,6 +319,17 @@ def print_error(message: str) -> None:
 def print_warning(message: str) -> None:
     """Print warning message"""
     print(f"\033[33m⚠ {message}\033[0m")
+
+
+def print_warning_stderr(message: str) -> None:
+    """Print warning message to stderr.
+
+    Unlike :func:`print_warning` (stdout, same stream as JSON results),
+    this keeps the machine-readable stdout payload clean for scripted/batch
+    callers while still surfacing the warning to a human running the command
+    interactively (#850).
+    """
+    print(f"\033[33m⚠ {message}\033[0m", file=sys.stderr)
 
 
 def print_info(message: str) -> None:
