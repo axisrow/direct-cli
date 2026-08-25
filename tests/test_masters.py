@@ -7592,6 +7592,29 @@ class TestClickSave(unittest.TestCase):
 
         self.assertEqual(clicks, [True])
 
+    def test_runs_final_guard_immediately_before_non_draft_click(self):
+        events = []
+        page = FakePage(
+            role_elements=[
+                (
+                    "button",
+                    browser_masters._SAVE_BUTTON_TEXT,
+                    _FakeTextLocatorHandle(
+                        visible=True, on_click=lambda: events.append("click")
+                    ),
+                )
+            ]
+        )
+
+        browser_masters._click_save(
+            page,
+            42,
+            is_draft=False,
+            before_click=lambda: events.append("guard"),
+        )
+
+        self.assertEqual(events, ["guard", "click"])
+
 
 class TestDraftEditPageSave(unittest.TestCase):
     """``_is_draft_edit_page``/``_click_save`` DRAFT path (issue #668).
@@ -7637,6 +7660,29 @@ class TestDraftEditPageSave(unittest.TestCase):
         # The publish button must never be touched unless --launch was
         # explicitly requested.
         self.assertEqual(clicks, ["draft"])
+
+    def test_final_guard_can_block_draft_click(self):
+        clicks = []
+        page = FakePage(
+            locators={
+                browser_masters._DRAFT_SAVE_DRAFT_BUTTON_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle(on_click=lambda: clicks.append("draft"))]
+                )
+            }
+        )
+
+        def _block():
+            raise BrowserSessionError("unsafe protected section")
+
+        with self.assertRaisesRegex(BrowserSessionError, "unsafe protected section"):
+            browser_masters._click_save(
+                page,
+                713231614,
+                is_draft=True,
+                before_click=_block,
+            )
+
+        self.assertEqual(clicks, [])
 
     def test_click_save_on_draft_clicks_launch_button_when_requested(self):
         clicks = []
@@ -19772,6 +19818,20 @@ class TestReadMetrikaCounters(unittest.TestCase):
 
         self.assertEqual(browser_masters._read_metrika_counters(page), [])
 
+    def test_failure_aware_reader_rejects_an_unreadable_existing_tag(self):
+        page = FakePage(
+            locators={
+                browser_masters._METRIKA_COUNTER_WRAPPER_TESTID: _FakeLocator(
+                    [_FakeLocatorHandle()]
+                ),
+                self._tag_testid(0): _FakeLocator(
+                    [_FakeLocatorHandle(text="ignored", raises=True)]
+                ),
+            }
+        )
+
+        self.assertIsNone(browser_masters._read_metrika_counters_or_none(page))
+
     def test_stops_at_first_missing_index(self):
         page = FakePage(
             locators={
@@ -21906,6 +21966,707 @@ class TestMastersUpdateBatch(unittest.TestCase):
                 continue
             with self.subTest(key=key):
                 self.assertIn(target, browser_kwargs)
+
+
+class TestUrlUtmSavePreservesSections(unittest.TestCase):
+    """Issue #836 — a URL/UTM ``masters update`` must not silently drop the
+    campaign's Metrika counters or target actions, including combined calls.
+
+    The edit page is a single whole-form save (module docstring), and
+    expanding the UTM spoiler is live-confirmed (issue #830) to re-render
+    the surrounding form from server state. Before this fix, neither
+    section was read on a URL/UTM update, so a re-render that emptied
+    one of them was saved and reported as a success.
+
+    These fakes model the sections as they read back AFTER the save (the
+    ``_verify_saved`` reload), which is where the loss becomes observable.
+    """
+
+    GOAL_ID = 159614149
+
+    def _row_prefix_selector(self):
+        return (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+
+    def _target_action_locators(self, goal_ids):
+        """Locators for a rendered 'Целевые действия' table holding
+        ``goal_ids``. An empty list models a section that rendered with no
+        rows at all — the shape a dropped-goals save reads back as."""
+        row_testids = [
+            browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE.format(
+                category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+            )
+            for goal_id in goal_ids
+        ]
+        locators = {
+            browser_masters._TARGET_ACTIONS_SECTION_TESTID: _FakeLocator(
+                [_FakeLocatorHandle()]
+            ),
+            self._row_prefix_selector(): _FakeLocator(
+                [
+                    _FakeLocatorHandle(attrs={"data-testid": row_testid})
+                    for row_testid in row_testids
+                ]
+            ),
+        }
+        for goal_id, row_testid in zip(goal_ids, row_testids):
+            price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+                category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+            )
+            locators[f'[data-testid="{row_testid}"] [data-testid="Text"]'] = (
+                _FakeLocator([_FakeLocatorHandle(text="Покупка")])
+            )
+            locators[f'[data-testid="{price_testid}"]'] = _FakeLocator(
+                [_FakeLocatorHandle(get_value=lambda: "150")]
+            )
+        return locators
+
+    def _metrika_locators(self, counters):
+        # This class models max-conversions campaigns: the block and wrapper
+        # render even when no counter is linked, making ``[]`` a genuine
+        # readable empty state rather than an absent/unreadable section.
+        locators = {
+            browser_masters._METRIKA_COUNTERS_BLOCK_TESTID: _FakeLocator(
+                [_FakeLocatorHandle()]
+            ),
+            browser_masters._METRIKA_COUNTER_WRAPPER_TESTID: _FakeLocator(
+                [_FakeLocatorHandle()]
+            ),
+        }
+        for index, counter in enumerate(counters):
+            locators[f'[data-testid="MetrikaCountersTagGroup.tag.{index}"]'] = (
+                _FakeLocator([_FakeLocatorHandle(text=counter)])
+            )
+        return locators
+
+    def _page(self, *, goal_ids_after, counters_after, landing_url="https://a.ru/x"):
+        """A fake edit page whose sections read back ``*_after`` state.
+
+        The pre-save baseline and the post-save re-read share these same
+        locators, so a test that wants to model a LOSS passes a smaller
+        ``*_after`` set than the baseline read will see — see
+        ``_LosingPage`` below, which switches state at save time.
+        """
+        save_handle = _FakeTextLocatorHandle(visible=True)
+        locators = {
+            browser_masters._EDIT_URL_INPUT_TESTID: _FakeLocator(
+                [_FakeContentEditableHandle(text=landing_url)]
+            ),
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]': _FakeLocator(
+                [_FakeLocatorHandle()]
+            ),
+        }
+        locators.update(self._target_action_locators(goal_ids_after))
+        locators.update(self._metrika_locators(counters_after))
+        return FakePage(
+            locators=locators,
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+    def _add_utm_controls(self, page, *, on_expand=None):
+        state = {"expanded": False}
+
+        def _expand():
+            state["expanded"] = True
+            if on_expand is not None:
+                on_expand()
+
+        spoiler = _DynamicAttrsLocatorHandle(
+            get_attrs=lambda: {
+                "aria-expanded": "true" if state["expanded"] else "false"
+            },
+            on_click=_expand,
+        )
+        page._locators[browser_masters._EDIT_UTM_SPOILER_BUTTON_TESTID] = _FakeLocator(
+            [spoiler]
+        )
+        page._locators[browser_masters._EDIT_UTM_INPUT_TESTID] = _FakeLocator(
+            [_FakeContentEditableHandle(text="utm_source=old")]
+        )
+        return state
+
+    def test_untouched_sections_that_survive_the_save_are_accepted(self):
+        """The baseline case: counters and goals read back intact after a
+        tracking-params-only save, so the update must succeed. Guards
+        against the new check becoming a blanket failure."""
+        page = self._page(
+            goal_ids_after=[self.GOAL_ID],
+            counters_after=["gc.ksamata.ru • 72112213\n30 целей"],
+        )
+
+        result = browser_masters.update_master(
+            page, 42, landing_url="https://a.ru/new-page"
+        )
+
+        self.assertEqual(result["CampaignId"], 42)
+
+    def test_dropped_target_actions_are_reported_not_silently_saved(self):
+        """The core issue #836 failure: goals present before the save are
+        gone from the post-save page. This is exactly the silent data loss
+        the user hit, and it must raise rather than report success."""
+        goal_id = self.GOAL_ID
+        page = self._page(goal_ids_after=[goal_id], counters_after=[])
+        # After the save click, the target-actions table comes back empty —
+        # the whole-form save persisted a re-rendered, emptied section.
+        original_locator = page.locator
+        state = {"saved": False}
+        empty_rows = _FakeLocator([])
+
+        def _locator(selector):
+            if state["saved"] and selector == self._row_prefix_selector():
+                return empty_rows
+            return original_locator(selector)
+
+        page.locator = _locator
+        save_button = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT)
+        original_click = save_button.first.click
+
+        def _click_then_lose():
+            state["saved"] = True
+            return original_click()
+
+        save_button.first.click = _click_then_lose
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, landing_url="https://a.ru/new-page")
+
+        self.assertIn("target actions", str(ctx.exception))
+        self.assertIn(str(goal_id), str(ctx.exception))
+
+    def test_dropped_metrika_counters_are_reported_not_silently_saved(self):
+        """Same failure for the Metrika section: a counter linked before
+        the save is missing afterwards."""
+        page = self._page(
+            goal_ids_after=[],
+            counters_after=["gc.ksamata.ru • 72112213\n30 целей"],
+        )
+        state = {"saved": False}
+        original_locator = page.locator
+        empty = _FakeLocator([])
+        counter_tag = '[data-testid="MetrikaCountersTagGroup.tag.0"]'
+
+        def _locator(selector):
+            if state["saved"] and selector == counter_tag:
+                return empty
+            return original_locator(selector)
+
+        page.locator = _locator
+        save_button = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT)
+        original_click = save_button.first.click
+
+        def _click_then_lose():
+            state["saved"] = True
+            return original_click()
+
+        save_button.first.click = _click_then_lose
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, landing_url="https://a.ru/new-page")
+
+        self.assertIn("metrika_counters", str(ctx.exception))
+
+    def test_campaign_without_target_actions_is_not_blocked(self):
+        """A rendered, readable empty table is a legitimate no-goals state
+        and must not block a URL/UTM update."""
+        page = self._page(goal_ids_after=[], counters_after=[])
+
+        result = browser_masters.update_master(
+            page, 42, landing_url="https://a.ru/new-page"
+        )
+
+        self.assertEqual(result["CampaignId"], 42)
+
+    def test_unreadable_metrika_baseline_blocks_before_save(self):
+        page = self._page(goal_ids_after=[self.GOAL_ID], counters_after=[])
+        page._locators[browser_masters._METRIKA_COUNTER_WRAPPER_TESTID] = _FakeLocator(
+            []
+        )
+        clicks = []
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        save._on_click = lambda: clicks.append(True)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, landing_url="https://a.ru/new")
+
+        self.assertIn("stable pre-save snapshot", str(ctx.exception))
+        self.assertIn("Метрики", str(ctx.exception))
+        self.assertEqual(clicks, [])
+
+    def test_unreadable_target_action_baseline_blocks_before_save(self):
+        page = self._page(goal_ids_after=[], counters_after=[])
+        page._locators[browser_masters._TARGET_ACTIONS_SECTION_TESTID] = _FakeLocator(
+            []
+        )
+        clicks = []
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        save._on_click = lambda: clicks.append(True)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, landing_url="https://a.ru/new")
+
+        self.assertIn("stable pre-save snapshot", str(ctx.exception))
+        self.assertIn("Целевые действия", str(ctx.exception))
+        self.assertEqual(clicks, [])
+
+    def test_transient_matching_post_save_target_read_is_not_trusted(self):
+        """The first post-save read can still show the intact old rows before
+        hydration settles on the persisted empty table."""
+        page = self._page(goal_ids_after=[self.GOAL_ID], counters_after=[])
+        state = {"saved": False, "row_lookups": 0}
+        row_prefix = self._row_prefix_selector()
+        original_locator = page.locator
+        empty_rows = _FakeLocator([])
+
+        def _locator(selector):
+            if state["saved"] and selector == row_prefix:
+                state["row_lookups"] += 1
+                # The first two identity reads still see the old row. Every
+                # later read sees the settled persisted loss.
+                if state["row_lookups"] > 2:
+                    return empty_rows
+            return original_locator(selector)
+
+        page.locator = _locator
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        original_click = save.click
+
+        def _click_then_hydrate_empty():
+            state["saved"] = True
+            return original_click()
+
+        save.click = _click_then_hydrate_empty
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, landing_url="https://a.ru/new")
+
+        self.assertIn("target actions", str(ctx.exception))
+
+    def test_transient_matching_post_save_metrika_read_is_not_trusted(self):
+        """A stale intact render that lasts one ordinary stability window
+        must not hide the empty state that settles immediately afterwards."""
+        counter = "gc.ksamata.ru • 72112213\n30 целей"
+        page = self._page(goal_ids_after=[], counters_after=[counter])
+        state = {"saved": False, "tag_reads": 0}
+        original_locator = page.locator
+        counter_tag = '[data-testid="MetrikaCountersTagGroup.tag.0"]'
+        empty = _FakeLocator([])
+
+        def _locator(selector):
+            if state["saved"] and selector == counter_tag:
+                state["tag_reads"] += 1
+                if state["tag_reads"] > (
+                    browser_masters._METRIKA_COUNTERS_SECTION_STABLE_TICKS
+                ):
+                    return empty
+            return original_locator(selector)
+
+        page.locator = _locator
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        original_click = save.click
+
+        def _click_then_hydrate_empty():
+            state["saved"] = True
+            return original_click()
+
+        save.click = _click_then_hydrate_empty
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, landing_url="https://a.ru/new")
+
+        self.assertIn("metrika_counters", str(ctx.exception))
+
+    def test_partial_pre_save_metrika_baseline_waits_for_complete_state(self):
+        """A partial early list must not lower the expected post-save set.
+
+        The second counter appears while the preservation streak is still
+        running; after Save it is deliberately lost. The stabilized baseline
+        must include it, so post-save verification reports the loss.
+        """
+        first = "a.example • 72112213\n30 целей"
+        second = "b.example • 72112214\n10 целей"
+        page = self._page(goal_ids_after=[], counters_after=[first, second])
+        state = {"saved": False, "second_reads": 0}
+        original_locator = page.locator
+        second_tag = '[data-testid="MetrikaCountersTagGroup.tag.1"]'
+        missing = _FakeLocator([])
+
+        def _locator(selector):
+            if selector != second_tag:
+                return original_locator(selector)
+            if state["saved"]:
+                return missing
+            state["second_reads"] += 1
+            if state["second_reads"] <= (
+                browser_masters._METRIKA_COUNTERS_SECTION_STABLE_TICKS
+            ):
+                return missing
+            return original_locator(selector)
+
+        page.locator = _locator
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        original_click = save.click
+
+        def _click_then_drop_second():
+            state["saved"] = True
+            return original_click()
+
+        save.click = _click_then_drop_second
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, landing_url="https://a.ru/new")
+
+        self.assertIn("72112214", str(ctx.exception))
+
+    def test_partial_pre_save_target_baseline_is_not_certified(self):
+        """A stable count followed by one partial identity read must not set
+        the verification bar below the campaign's real row set."""
+        other_goal = 281285474
+        page = self._page(goal_ids_after=[self.GOAL_ID, other_goal], counters_after=[])
+        state = {"saved": False, "row_lookups": 0}
+        row_prefix = self._row_prefix_selector()
+        partial = self._target_action_locators([self.GOAL_ID])[row_prefix]
+        original_locator = page.locator
+
+        def _locator(selector):
+            if selector != row_prefix:
+                return original_locator(selector)
+            if state["saved"]:
+                return partial  # the omitted row was persisted as lost
+            state["row_lookups"] += 1
+            # The initial count/read is partial; continued identity reads
+            # reveal the complete two-row baseline before Save.
+            if state["row_lookups"] <= 3:
+                return partial
+            return original_locator(selector)
+
+        page.locator = _locator
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        original_click = save.click
+
+        def _click_then_persist_partial():
+            state["saved"] = True
+            return original_click()
+
+        save.click = _click_then_persist_partial
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, landing_url="https://a.ru/new")
+
+        self.assertIn(str(other_goal), str(ctx.exception))
+
+    def test_utm_counter_loss_aborts_before_save_during_combined_update(self):
+        counter = "gc.ksamata.ru • 72112213\n30 целей"
+        page = self._page(goal_ids_after=[self.GOAL_ID], counters_after=[counter])
+        state = {"rerendered": False}
+        original_locator = page.locator
+        counter_tag = '[data-testid="MetrikaCountersTagGroup.tag.0"]'
+        empty = _FakeLocator([])
+
+        def _locator(selector):
+            if state["rerendered"] and selector == counter_tag:
+                return empty
+            return original_locator(selector)
+
+        page.locator = _locator
+        self._add_utm_controls(
+            page, on_expand=lambda: state.__setitem__("rerendered", True)
+        )
+        clicks = []
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        save._on_click = lambda: clicks.append(True)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page,
+                42,
+                tracking_params="utm_source=new",
+                target_action_prices={self.GOAL_ID: 150},
+            )
+
+        self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertIn("Metrika counters", str(ctx.exception))
+        self.assertEqual(clicks, [])
+
+    def test_utm_target_action_loss_aborts_before_save(self):
+        page = self._page(goal_ids_after=[self.GOAL_ID], counters_after=[])
+        state = {"rerendered": False}
+        original_locator = page.locator
+        row_prefix = self._row_prefix_selector()
+        empty = _FakeLocator([])
+
+        def _locator(selector):
+            if state["rerendered"] and selector == row_prefix:
+                return empty
+            return original_locator(selector)
+
+        page.locator = _locator
+        self._add_utm_controls(
+            page, on_expand=lambda: state.__setitem__("rerendered", True)
+        )
+        clicks = []
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        save._on_click = lambda: clicks.append(True)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, tracking_params="utm_source=new")
+
+        self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertIn("target-action goal ids", str(ctx.exception))
+        self.assertEqual(clicks, [])
+
+    def test_target_price_update_does_not_disable_metrika_preservation(self):
+        counter = "gc.ksamata.ru • 72112213\n30 целей"
+        page = self._page(
+            goal_ids_after=[self.GOAL_ID],
+            counters_after=[counter],
+            landing_url="https://old.example.com/page",
+        )
+        state = {"saved": False}
+        original_locator = page.locator
+        empty = _FakeLocator([])
+        counter_tag = '[data-testid="MetrikaCountersTagGroup.tag.0"]'
+
+        def _locator(selector):
+            if state["saved"] and selector == counter_tag:
+                return empty
+            return original_locator(selector)
+
+        page.locator = _locator
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        original_click = save.click
+
+        def _click_then_lose_counter():
+            state["saved"] = True
+            return original_click()
+
+        save.click = _click_then_lose_counter
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page,
+                42,
+                landing_url="https://new.example.org/page",
+                target_action_prices={self.GOAL_ID: 150},
+            )
+
+        self.assertIn("metrika_counters", str(ctx.exception))
+
+    def test_metrika_update_does_not_disable_target_action_preservation(self):
+        counter = "gc.ksamata.ru • 72112213\n30 целей"
+        counter_tag = '[data-testid="MetrikaCountersTagGroup.tag.0"]'
+        page = self._page(goal_ids_after=[self.GOAL_ID], counters_after=[])
+        state = {"saved": False, "counter_added": False}
+        original_locator = page.locator
+        empty_rows = _FakeLocator([])
+
+        def _locator(selector):
+            if state["counter_added"] and selector == counter_tag:
+                return _FakeLocator([_FakeLocatorHandle(text=counter)])
+            if state["saved"] and selector == self._row_prefix_selector():
+                return empty_rows
+            return original_locator(selector)
+
+        page.locator = _locator
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        original_click = save.click
+
+        def _click_then_lose_targets():
+            state["saved"] = True
+            return original_click()
+
+        save.click = _click_then_lose_targets
+
+        def _apply_counter(*_args, **_kwargs):
+            state["counter_added"] = True
+            return []
+
+        with (
+            patch.object(
+                browser_masters,
+                "_apply_metrika_counters",
+                side_effect=_apply_counter,
+            ),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters.update_master(
+                page,
+                42,
+                landing_url="https://a.ru/new",
+                add_metrika_counters=["Ксамата • gc.ksamata.ru • 72112213"],
+            )
+
+        self.assertIn("target actions", str(ctx.exception))
+
+    def test_promotion_goal_change_skips_obsolete_section_expectations(self):
+        page = self._page(
+            goal_ids_after=[self.GOAL_ID],
+            counters_after=["gc.ksamata.ru • 72112213\n30 целей"],
+        )
+        expected_label = browser_masters.PROMOTION_GOAL_CHOICES["max-clicks"]
+
+        with (
+            patch.object(browser_masters, "_set_promotion_goal"),
+            patch.object(
+                browser_masters,
+                "_read_promotion_goal_label",
+                return_value=expected_label,
+            ),
+        ):
+            result = browser_masters.update_master(
+                page,
+                42,
+                landing_url="https://a.ru/new",
+                promotion_goal="max-clicks",
+            )
+
+        self.assertEqual(result["CampaignId"], 42)
+
+    def test_reselecting_max_conversions_keeps_section_protection(self):
+        counter = "gc.ksamata.ru • 72112213\n30 целей"
+        page = self._page(goal_ids_after=[self.GOAL_ID], counters_after=[counter])
+        state = {"saved": False}
+        original_locator = page.locator
+        counter_tag = '[data-testid="MetrikaCountersTagGroup.tag.0"]'
+        empty = _FakeLocator([])
+        expected_label = browser_masters.PROMOTION_GOAL_CHOICES["max-conversions"]
+
+        def _locator(selector):
+            if state["saved"] and selector == counter_tag:
+                return empty
+            return original_locator(selector)
+
+        page.locator = _locator
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        original_click = save.click
+
+        def _click_then_lose_counter():
+            state["saved"] = True
+            return original_click()
+
+        save.click = _click_then_lose_counter
+
+        with (
+            patch.object(browser_masters, "_set_promotion_goal"),
+            patch.object(
+                browser_masters,
+                "_read_promotion_goal_label",
+                return_value=expected_label,
+            ),
+            self.assertRaises(BrowserSessionError) as ctx,
+        ):
+            browser_masters.update_master(
+                page,
+                42,
+                landing_url="https://a.ru/new",
+                promotion_goal="max-conversions",
+            )
+
+        self.assertIn("metrika_counters", str(ctx.exception))
+
+    def test_tracking_params_path_preserves_sections_too(self):
+        page = self._page(
+            goal_ids_after=[self.GOAL_ID],
+            counters_after=["gc.ksamata.ru • 72112213\n30 целей"],
+        )
+        self._add_utm_controls(page)
+
+        result = browser_masters.update_master(
+            page, 42, tracking_params="utm_source=new"
+        )
+
+        self.assertEqual(result["TrackingParams"], "utm_source=new")
+
+
+class TestCrossDomainLandingUrlWarning(unittest.TestCase):
+    """Issue #836 point 3 — Yandex binds a Metrika counter and its goals to
+    the landing page's DOMAIN, so moving a campaign to a different domain
+    can leave them pointing at a site it no longer promotes. Non-blocking:
+    the update is still legitimate, the user is warned."""
+
+    COUNTER = "gc.ksamata.ru • 72112213\n30 целей"
+
+    def _page(self, current_url):
+        return FakePage(
+            locators={
+                browser_masters._EDIT_URL_INPUT_TESTID: _FakeLocator(
+                    [_FakeContentEditableHandle(text=current_url)]
+                ),
+            }
+        )
+
+    def test_warns_when_the_domain_changes_and_counters_are_linked(self):
+        warnings = []
+        page = self._page("https://old.example.com/landing")
+
+        with patch.object(browser_masters, "print_warning", warnings.append):
+            browser_masters._warn_on_cross_domain_landing_url(
+                page, "https://new.example.org/landing", [self.COUNTER]
+            )
+
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("old.example.com", warnings[0])
+        self.assertIn("new.example.org", warnings[0])
+
+    def test_does_not_warn_when_only_the_path_changes(self):
+        """Same domain keeps the counter binding valid — warning here would
+        be pure noise on the most common kind of URL edit."""
+        warnings = []
+        page = self._page("https://shop.example.com/old-page?a=1")
+
+        with patch.object(browser_masters, "print_warning", warnings.append):
+            browser_masters._warn_on_cross_domain_landing_url(
+                page, "https://shop.example.com/new-page?b=2", [self.COUNTER]
+            )
+
+        self.assertEqual(warnings, [])
+
+    def test_does_not_warn_when_the_campaign_has_no_counters(self):
+        """Nothing is bound to the old domain, so nothing can desync."""
+        warnings = []
+        page = self._page("https://old.example.com/landing")
+
+        with patch.object(browser_masters, "print_warning", warnings.append):
+            browser_masters._warn_on_cross_domain_landing_url(
+                page, "https://new.example.org/landing", []
+            )
+
+        self.assertEqual(warnings, [])
+
+    def test_does_not_warn_when_the_current_url_is_unreadable(self):
+        """An unreadable current URL is inconclusive, not evidence of a
+        domain change — guessing would cry wolf on every such read."""
+        warnings = []
+        page = FakePage(locators={})
+
+        with patch.object(browser_masters, "print_warning", warnings.append):
+            browser_masters._warn_on_cross_domain_landing_url(
+                page, "https://new.example.org/landing", [self.COUNTER]
+            )
+
+        self.assertEqual(warnings, [])
+
+    def test_combined_target_action_update_still_warns(self):
+        """A mutation in the other protected section must not disable the
+        landing-domain warning."""
+        fixture = TestUrlUtmSavePreservesSections()
+        page = fixture._page(
+            goal_ids_after=[fixture.GOAL_ID],
+            counters_after=[self.COUNTER],
+            landing_url="https://old.example.com/landing",
+        )
+        warnings = []
+
+        with patch.object(browser_masters, "print_warning", warnings.append):
+            browser_masters.update_master(
+                page,
+                42,
+                landing_url="https://new.example.org/landing",
+                target_action_prices={fixture.GOAL_ID: 150},
+            )
+
+        self.assertEqual(len(warnings), 1)
 
 
 if __name__ == "__main__":

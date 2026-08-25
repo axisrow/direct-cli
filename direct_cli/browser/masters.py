@@ -1829,7 +1829,7 @@ _METRIKA_COUNTERS_BLOCK_TESTID = '[data-testid="MetrikaCountersBlock"]'
 # The window is now 500ms x 8 = ~3.5s of agreement, which spans the flip with
 # margin. Keep POLL_MS * (STABLE_TICKS - 1) comfortably ABOVE 3000ms if these
 # are ever retuned; raising POLL_MS alone widens it just as well as raising
-# the tick count. The 5s overall budget still bounds the call.
+# the tick count. The 8s overall budget still bounds the call.
 _METRIKA_COUNTERS_SECTION_POLL_MS = 500
 _METRIKA_COUNTERS_SECTION_STABLE_TICKS = 8
 
@@ -1842,6 +1842,16 @@ _METRIKA_COUNTERS_SECTION_STABLE_TICKS = 8
 # their own merits: max-conversions (never flips) at ~3.5s, max-clicks at
 # ~6.5s. Only reached on campaigns whose section is genuinely absent.
 _METRIKA_COUNTERS_SECTION_TIMEOUT_MS = 8_000
+
+# Preservation reads need a wider FULL-LIST stability window than the
+# section-presence probe above. A linked tag's label is known to change at
+# about t+4s (bare id -> hydrated label), so the 3.5s presence window can
+# still certify an early partial/text-incomplete counter list. Twelve 500ms
+# samples span ~5.5s and therefore cross that measured transition with
+# margin; the 12s budget leaves enough room for the streak to restart after
+# such a change instead of turning normal hydration into a false failure.
+_METRIKA_PRESERVATION_STABLE_TICKS = 12
+_METRIKA_PRESERVATION_TIMEOUT_MS = 12_000
 
 # Reuses the same 5s budget ``_AUDIENCE_TAG_SUGGEST_TIMEOUT_MS`` uses for its
 # own autocomplete popup — no live timing recon exists yet for THIS widget's
@@ -5796,6 +5806,41 @@ def _metrika_counter_identity(text: str) -> str:
     return stripped_identity if stripped_identity.isdigit() else text
 
 
+def _read_metrika_counters_or_none(page: "Page") -> Optional[List[str]]:
+    """Failure-aware variant of ``_read_metrika_counters``.
+
+    ``None`` means the tags wrapper could not be read; ``[]`` means the
+    wrapper rendered successfully and genuinely contains no counter tags.
+    The distinction is required for pre-save preservation snapshots: an
+    unreadable wrapper must never be certified as an empty baseline.
+    """
+    try:
+        page.locator(_METRIKA_COUNTER_WRAPPER_TESTID).first.wait_for(
+            state="attached", timeout=_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS
+        )
+    except PlaywrightError:
+        return None
+
+    counters: List[str] = []
+    index = 0
+    while True:
+        selector = (
+            f'[data-testid="{_METRIKA_COUNTER_TESTID_TEMPLATE.format(index=index)}"]'
+        )
+        try:
+            tag = page.locator(selector)
+            if tag.count() == 0:
+                break
+            text = tag.first.inner_text(timeout=1_000).strip()
+        except PlaywrightError:
+            return None
+        if not text:
+            return None
+        counters.append(text)
+        index += 1
+    return counters
+
+
 def _read_metrika_counters(page: "Page") -> List[str]:
     """Read every currently linked Metrika counter's display text in
     "Счетчики Яндекс Метрики" (in on-page order).
@@ -5814,28 +5859,8 @@ def _read_metrika_counters(page: "Page") -> List[str]:
     than raising, since an edit page whose audience section hasn't hydrated
     yet is a normal, retriable state, not a markup-drift signal.
     """
-    try:
-        page.locator(_METRIKA_COUNTER_WRAPPER_TESTID).first.wait_for(
-            state="attached", timeout=_METRIKA_COUNTER_SUGGEST_TIMEOUT_MS
-        )
-    except PlaywrightError:
-        return []
-
-    counters: List[str] = []
-    index = 0
-    while True:
-        selector = (
-            f'[data-testid="{_METRIKA_COUNTER_TESTID_TEMPLATE.format(index=index)}"]'
-        )
-        try:
-            text = page.locator(selector).first.inner_text(timeout=1_000).strip()
-        except PlaywrightError:
-            break
-        if not text:
-            break
-        counters.append(text)
-        index += 1
-    return counters
+    counters = _read_metrika_counters_or_none(page)
+    return [] if counters is None else counters
 
 
 def _metrika_counters_section_present(page: "Page") -> bool:
@@ -6009,6 +6034,39 @@ def _read_settled_metrika_counters(page: "Page") -> List[str]:
         page.wait_for_timeout(_METRIKA_COUNTERS_SECTION_POLL_MS)
 
     return previous if previous is not None else []
+
+
+def _read_confirmed_metrika_counters_or_none(
+    page: "Page",
+) -> Optional[List[str]]:
+    """Return a failure-aware, stabilized full counter snapshot.
+
+    Issue #836's preservation guard cannot trust one readable DOM sample:
+    the widget can hold an early partial render before rehydrating again.
+    Require a consecutive streak of identical FULL-LIST reads wide enough
+    to span the widget's measured ~4s label transition. A changed list
+    restarts the streak; an unreadable attempt clears it. Returning ``None``
+    therefore means no trustworthy baseline/post-save snapshot was obtained,
+    never a fabricated empty list.
+    """
+    deadline = _clock.now() + _METRIKA_PRESERVATION_TIMEOUT_MS / 1000
+    previous: Optional[List[str]] = None
+    stable_ticks = 0
+
+    while _clock.now() < deadline:
+        current = _read_metrika_counters_or_none(page)
+        if current is None:
+            previous = None
+            stable_ticks = 0
+        elif current == previous:
+            stable_ticks += 1
+            if stable_ticks >= _METRIKA_PRESERVATION_STABLE_TICKS:
+                return current
+        else:
+            previous = current
+            stable_ticks = 1
+        page.wait_for_timeout(_METRIKA_COUNTERS_SECTION_POLL_MS)
+    return None
 
 
 def _parse_metrika_counter_tag(text: str) -> Dict[str, Any]:
@@ -6762,6 +6820,39 @@ def _wait_for_target_actions_settled(page: "Page") -> bool:
     )
 
 
+def _read_confirmed_target_action_goal_ids(page: "Page") -> Optional[List[int]]:
+    """Read a stable target-action goal-id set, or ``None`` if inconclusive.
+
+    A stable row *count* does not prove that the same complete rows were
+    present throughout hydration. After waiting out the page-level fallback,
+    require a full streak of successful reads whose exact id sets agree. The
+    identity streak itself subsumes the older count-only settle loop and is
+    used both before and after URL/UTM saves, so neither a partial baseline nor
+    one transient matching post-save render can certify silent row loss.
+    """
+    _wait_for_page_fallback_gone(page)
+
+    deadline = _clock.now() + _TARGET_ACTION_SETTLE_TIMEOUT_MS / 1000
+    previous: Optional[Set[int]] = None
+    stable_streak = 0
+    while _clock.now() < deadline:
+        rows = _read_target_actions_or_none(page)
+        if rows is None:
+            previous = None
+            stable_streak = 0
+        else:
+            current = {row["GoalId"] for row in rows}
+            if current == previous:
+                stable_streak += 1
+                if stable_streak >= _TARGET_ACTION_STABLE_STREAK:
+                    return sorted(current)
+            else:
+                previous = current
+                stable_streak = 1
+        page.wait_for_timeout(_TARGET_ACTION_STABLE_TICK_MS)
+    return None
+
+
 def _parse_target_action_price(raw: str) -> Optional[float]:
     """Parse a target-action price input's raw string value, same
     normalization as ``_goal_price_matches`` (comma decimal separator,
@@ -7054,8 +7145,88 @@ def _read_save_validation_errors(page: "Page") -> List[str]:
     return seen[:_SAVE_VALIDATION_ERROR_LIMIT]
 
 
+def _assert_preserved_sections_before_save(
+    page: "Page",
+    *,
+    metrika_counters_before: Optional[List[str]],
+    metrika_preservation_requested: bool,
+    add_metrika_counters: Optional[List[str]],
+    remove_metrika_counter_indices: Optional[List[int]],
+    target_action_goal_ids_before: Optional[List[int]],
+    target_actions_unchanged_before: Optional[List[int]],
+    target_actions_preservation_requested: bool,
+    add_target_actions: Optional[Dict[int, float]],
+    remove_target_action_goal_ids: Optional[List[int]],
+) -> None:
+    """Abort before Save if URL/UTM hydration changed a protected section.
+
+    Post-save verification is still required for server-side persistence,
+    but it is too late to prevent issue #836's whole-form data loss. This
+    guard compares the stabilized current DOM with each independently
+    derived expected state immediately before the irreversible click.
+    """
+    if metrika_preservation_requested:
+        if metrika_counters_before is None:
+            raise BrowserSessionError(
+                "Refusing to save the URL/UTM update: no readable pre-save "
+                "Metrika-counter baseline is available."
+            )
+        expected_counters = Counter(
+            _metrika_counter_identity(value) for value in metrika_counters_before
+        )
+        for index in remove_metrika_counter_indices or []:
+            expected_counters[
+                _metrika_counter_identity(metrika_counters_before[index])
+            ] -= 1
+        expected_counters += Counter(
+            _metrika_counter_identity(value) for value in (add_metrika_counters or [])
+        )
+        actual_counters = _read_confirmed_metrika_counters_or_none(page)
+        actual_counter_ids = (
+            None
+            if actual_counters is None
+            else Counter(_metrika_counter_identity(value) for value in actual_counters)
+        )
+        if actual_counter_ids != expected_counters:
+            shown = sorted(actual_counters) if actual_counters is not None else None
+            raise BrowserSessionError(
+                "Refusing to save the URL/UTM update because the current "
+                "Metrika counters no longer match their protected pre-save "
+                f"state: expected ids {sorted(expected_counters.elements())!r}, "
+                f"page now shows {shown!r}. No Save button was clicked."
+            )
+
+    if target_actions_preservation_requested:
+        baseline = (
+            target_action_goal_ids_before
+            if target_action_goal_ids_before is not None
+            else target_actions_unchanged_before
+        )
+        if baseline is None:
+            raise BrowserSessionError(
+                "Refusing to save the URL/UTM update: no readable pre-save "
+                "target-action baseline is available."
+            )
+        expected_goal_ids = set(baseline)
+        expected_goal_ids -= set(remove_target_action_goal_ids or [])
+        expected_goal_ids |= set(add_target_actions or {})
+        actual_goal_ids = _read_confirmed_target_action_goal_ids(page)
+        if actual_goal_ids is None or set(actual_goal_ids) != expected_goal_ids:
+            raise BrowserSessionError(
+                "Refusing to save the URL/UTM update because the current "
+                "target-action goal ids no longer match their protected "
+                f"pre-save state: expected {sorted(expected_goal_ids)!r}, "
+                f"page now shows {actual_goal_ids!r}. No Save button was clicked."
+            )
+
+
 def _click_save(
-    page: "Page", campaign_id: int, *, is_draft: bool, launch: bool = False
+    page: "Page",
+    campaign_id: int,
+    *,
+    is_draft: bool,
+    launch: bool = False,
+    before_click: Optional[Callable[[], None]] = None,
 ) -> None:
     """Click the edit page's save button — "Сохранить кампанию" on a
     non-DRAFT campaign, or the DRAFT-specific save-as-draft/launch button.
@@ -7078,8 +7249,15 @@ def _click_save(
     ``is_draft`` before doing any of the mutations that precede this click,
     for the same "read it while the page still reflects what's about to
     happen" reason ``update_master`` documents at its own call site.
+
+    ``before_click`` runs only after the terminal button is available and
+    immediately before each click attempt. Issue #836 uses it for the final
+    protected-section guard so even the scroll needed to mount a non-DRAFT
+    Save button cannot create an unchecked re-render window.
     """
     if is_draft:
+        if before_click is not None:
+            before_click()
         _click_draft_terminal_button(page, campaign_id, launch=launch)
         return
 
@@ -7126,6 +7304,8 @@ def _click_save(
         handle = _find_visible_save_button()
         if handle is not None:
             try:
+                if before_click is not None:
+                    before_click()
                 handle.click()
                 return
             except PlaywrightError:
@@ -7490,6 +7670,8 @@ def _verify_saved(
     add_target_actions: Optional[Dict[int, float]] = None,
     remove_target_action_goal_ids: Optional[List[int]] = None,
     target_action_goal_ids_before: Optional[List[int]] = None,
+    target_actions_unchanged_before: Optional[List[int]] = None,
+    target_actions_unchanged_requested: bool = False,
     gender: Optional[str] = None,
     age_from_requested: bool = False,
     age_from: Optional[int] = None,
@@ -7500,6 +7682,7 @@ def _verify_saved(
     add_audience_tags: Optional[List[str]] = None,
     remove_audience_tag_indices: Optional[List[int]] = None,
     metrika_counters_before: Optional[List[str]] = None,
+    metrika_preservation_requested: bool = False,
     add_metrika_counters: Optional[List[str]] = None,
     remove_metrika_counter_indices: Optional[List[int]] = None,
     sitelinks_before: Optional[List[Dict[str, str]]] = None,
@@ -7789,18 +7972,11 @@ def _verify_saved(
                 f"page now shows {sorted(actual_tags)!r}"
             )
 
-    if metrika_counters_before is not None:
-        # Mirrors the audience-tags block immediately above verbatim (same
-        # "expected multiset derived from the pre-mutation baseline, so an
-        # untouched save is asserted UNCHANGED rather than left
-        # unverified" reasoning applies here too) — see that block's own
-        # comments for the full rationale. Not live-verified: this section
-        # has no confirmed settle-timing recon of its own (see the module
-        # comment above ``_METRIKA_COUNTER_WRAPPER_TESTID``), so this uses
-        # the shared default read budget rather than inventing an
-        # unconfirmed multiplier the way the audience-tags block's
-        # ``_AUDIENCE_SECTION_READY_TIMEOUT_MS * 3`` does from its own
-        # live-measured settle time.
+    if metrika_counters_before is not None or metrika_preservation_requested:
+        # Same expected-multiset-from-the-pre-mutation-baseline contract as
+        # audience tags above, but using the failure-aware stabilized reader:
+        # an unreadable or transiently partial post-save widget must not turn
+        # into a false empty/successful preservation check (issue #836).
         # Built from _metrika_counter_identity(...), NOT the raw text
         # (cycle-review finding, issue #648): add_metrika_counters is the
         # user-supplied autocomplete-suggestion text
@@ -7812,35 +7988,39 @@ def _verify_saved(
         # formats agree on the counter's numeric id (see
         # _metrika_counter_identity's own docstring), which is the actual
         # identity a caller cares about.
-        expected_counters = Counter(
-            _metrika_counter_identity(c) for c in metrika_counters_before
-        )
-        for index in remove_metrika_counter_indices or []:
-            expected_counters[
-                _metrika_counter_identity(metrika_counters_before[index])
-            ] -= 1
-        expected_counters += Counter(
-            _metrika_counter_identity(c) for c in (add_metrika_counters or [])
-        )
-
-        def _counter_state_matches(actual_counters: List[str], _expected: Any) -> bool:
-            return (
-                Counter(_metrika_counter_identity(c) for c in actual_counters)
-                == expected_counters
-            )
-
-        actual_counters = _read_until_matches(
-            page,
-            _read_metrika_counters,
-            None,
-            matches=_counter_state_matches,
-        )
-        if not _counter_state_matches(actual_counters, None):
+        if metrika_counters_before is None:
             mismatches.append(
-                "metrika_counters: expected counter ids "
-                f"{sorted(expected_counters.elements())!r}, page now shows "
-                f"{sorted(actual_counters)!r}"
+                "metrika_counters: the preservation check was requested, "
+                "but no readable pre-save baseline is available"
             )
+        else:
+            expected_counters = Counter(
+                _metrika_counter_identity(c) for c in metrika_counters_before
+            )
+            for index in remove_metrika_counter_indices or []:
+                expected_counters[
+                    _metrika_counter_identity(metrika_counters_before[index])
+                ] -= 1
+            expected_counters += Counter(
+                _metrika_counter_identity(c) for c in (add_metrika_counters or [])
+            )
+
+            def _counter_state_matches(
+                actual_counters: Optional[List[str]], _expected: Any
+            ) -> bool:
+                return actual_counters is not None and (
+                    Counter(_metrika_counter_identity(c) for c in actual_counters)
+                    == expected_counters
+                )
+
+            actual_counters = _read_confirmed_metrika_counters_or_none(page)
+            if not _counter_state_matches(actual_counters, None):
+                shown = sorted(actual_counters) if actual_counters is not None else None
+                mismatches.append(
+                    "metrika_counters: expected counter ids "
+                    f"{sorted(expected_counters.elements())!r}, page now shows "
+                    f"{shown!r}"
+                )
 
     if sitelinks_before is not None:
         # Same "one expected multiset derived from the pre-mutation
@@ -8123,6 +8303,24 @@ def _verify_saved(
                         "still be hydrating, or the save did not take effect"
                     )
 
+    if target_actions_unchanged_requested:
+        # Issue #836: this URL/UTM save requested no row add/remove (a price
+        # update may still be present), yet the whole-form save resubmits the
+        # complete table. Compare the exact set from independently stabilized
+        # pre/post-save reads. An empty set is valid when the rendered section
+        # genuinely has no goals; an unreadable baseline is rejected before
+        # Save and an unreadable post-save state is a mismatch here.
+        expected_unchanged = set(target_actions_unchanged_before or [])
+        actual_unchanged = _read_confirmed_target_action_goal_ids(page)
+        actual_set = set(actual_unchanged) if actual_unchanged is not None else None
+        if actual_set != expected_unchanged:
+            mismatches.append(
+                "target actions: this update did not request any "
+                "target-action row change, but goal ids "
+                f"{sorted(expected_unchanged)!r} are no longer intact — "
+                f"page now shows {actual_unchanged!r}"
+            )
+
     mismatches.extend(
         _verify_repeating_value_mismatches(
             page,
@@ -8181,6 +8379,53 @@ def _verify_saved(
             + detail
             + " Verify manually before retrying."
         )
+
+
+def _warn_on_cross_domain_landing_url(
+    page: "Page",
+    landing_url: Optional[str],
+    counters: Optional[List[str]],
+) -> None:
+    """Warn when ``landing_url`` moves the campaign to a different domain
+    while it still has linked Metrika counters (issue #836, point 3).
+
+    Yandex links a Metrika counter and its goals to the landing page's
+    DOMAIN — on the create page the counter is auto-discovered from it (see
+    ``_add_target_action``/``create_master``). The edit page does not appear
+    to re-sync that link when the URL alone changes, so pointing a campaign
+    at a different domain can leave its counters and target actions
+    referring to a site the campaign no longer promotes.
+
+    That desync happens server-side, in Yandex's own data model — this
+    module cannot prevent or repair it, so this is a non-blocking
+    ``print_warning`` rather than a refusal: the update itself is still a
+    legitimate thing to ask for, and the user is the one who can judge
+    whether the new domain is covered by the same counter.
+
+    Only a real domain CHANGE warns — a path/query-only edit keeps the same
+    counter binding and would make this pure noise. A landing URL that
+    cannot be read (``None``) is inconclusive, and a campaign with no
+    counters has nothing to desync; both stay silent.
+    """
+    if landing_url is None or not counters:
+        return
+    current_url = _read_landing_url(page)
+    if not current_url:
+        return
+    current_domain = urlsplit(current_url.strip()).netloc.lower()
+    requested_domain = urlsplit(landing_url.strip()).netloc.lower()
+    if not current_domain or not requested_domain:
+        return
+    if current_domain == requested_domain:
+        return
+    print_warning(
+        f"Landing URL moves from '{current_domain}' to '{requested_domain}', "
+        f"but this campaign has {len(counters)} linked Yandex Metrika "
+        "counter(s). Yandex links counters and their target-action goals to "
+        "the landing page's domain, so they may no longer match the new "
+        "site — check the campaign's 'Счётчики Яндекс Метрики' and "
+        "'Целевые действия' sections after this update."
+    )
 
 
 def update_master(
@@ -8504,6 +8749,75 @@ def update_master(
     # ``_wait_for_draft_status``'s docstring).
     was_draft = _wait_for_draft_status(page, campaign_id)
 
+    # Issue #836: a URL/UTM update still submits the WHOLE form (see this
+    # module's docstring) — and expanding the UTM spoiler is live-confirmed
+    # (issue #830, 4 campaigns, 100% reproduction) to re-render the
+    # surrounding form from server state. Nothing used to re-check these
+    # sections afterwards when they were not themselves mutated, so a
+    # re-render that dropped a counter or goal row could be saved and
+    # reported as a success. Snapshot each protected section so verification
+    # can assert the unchanged or explicitly requested final state.
+    #
+    # Taken HERE, before ``_set_tracking_params`` expands that spoiler,
+    # because a snapshot read after the re-render would capture the already
+    # corrupted state and certify the loss as the expected baseline.
+    #
+    # The two protections are deliberately independent: mutating target
+    # actions must not disable preservation of Metrika counters, and vice
+    # versa. Switching the promotion goal to max-clicks is the one exception
+    # because that transition legitimately removes both sections.
+    _url_or_utm_save = landing_url is not None or tracking_params is not None
+    # Only max-clicks intentionally removes these widgets. Re-selecting or
+    # switching to max-conversions must keep protection enabled: if the
+    # sections already exist, they still participate in the same whole-form
+    # URL/UTM save and remain vulnerable to the hydration race.
+    _preserve_metrika = _url_or_utm_save and promotion_goal != "max-clicks"
+    _preserve_target_actions = _url_or_utm_save and promotion_goal != "max-clicks"
+    metrika_counters_before: Optional[List[str]] = None
+    metrika_preservation_requested = False
+    target_actions_unchanged_before: Optional[List[int]] = None
+    target_actions_unchanged_requested = False
+    target_actions_preservation_requested = False
+    target_action_goal_ids_before: Optional[List[int]] = None
+    if _url_or_utm_save:
+        section_present = _metrika_counters_section_present(page)
+        counters_at_load: Optional[List[str]] = None
+        if section_present:
+            counters_at_load = _read_confirmed_metrika_counters_or_none(page)
+            if counters_at_load is None and _preserve_metrika:
+                raise BrowserSessionError(
+                    "Could not obtain a stable pre-save snapshot of the "
+                    "'Счетчики Яндекс Метрики' section. The URL/UTM update "
+                    "was not saved because an unreadable baseline could hide "
+                    "counter loss; retry after the page has fully loaded."
+                )
+        _warn_on_cross_domain_landing_url(page, landing_url, counters_at_load)
+
+        if _preserve_metrika and section_present:
+            metrika_counters_before = counters_at_load
+            metrika_preservation_requested = True
+
+        if _preserve_target_actions and section_present:
+            target_ids = _read_confirmed_target_action_goal_ids(page)
+            if target_ids is None:
+                raise BrowserSessionError(
+                    "Could not obtain a stable pre-save snapshot of the "
+                    "'Целевые действия' section. The URL/UTM update was not "
+                    "saved because an unreadable baseline could hide target-"
+                    "action loss; retry after the page has fully loaded."
+                )
+            target_actions_preservation_requested = True
+            if add_target_actions or remove_target_action_goal_ids:
+                # The existing add/remove verifier derives its full expected
+                # final set from this baseline. Supplying the pre-UTM snapshot
+                # prevents a re-rendered partial table from lowering that bar.
+                target_action_goal_ids_before = target_ids
+            else:
+                # Price-only mutations do not change row identity, so the full
+                # id set is still expected to survive unchanged.
+                target_actions_unchanged_before = target_ids
+                target_actions_unchanged_requested = True
+
     if name is not None:
         _set_campaign_name(page, name)
     # Expand and fill the lazily-mounted UTM section first.  On campaigns
@@ -8584,8 +8898,7 @@ def update_master(
     # streak-only verification, whose `added_ok` check is positive-going
     # (it requires the added goal to be PRESENT) and so is not satisfied by
     # an empty dip in the first place.
-    target_action_goal_ids_before: Optional[List[int]] = None
-    if remove_target_action_goal_ids:
+    if remove_target_action_goal_ids and target_action_goal_ids_before is None:
         _rows_before = (
             _read_target_actions_or_none(page)
             if _wait_for_target_actions_ready(page)
@@ -8621,11 +8934,17 @@ def update_master(
     # counter is linked first (61 options available, stable from t+1s).
     # This is an ordering bug, not a hydration race — waiting longer at the
     # old position never helps, because the counter simply is not linked yet.
-    metrika_counters_before = _apply_metrika_counters(
+    _metrika_baseline = _apply_metrika_counters(
         page,
         add_metrika_counters=add_metrika_counters,
         remove_metrika_counters=remove_metrika_counters,
     )
+    # Preserve an early pre-UTM baseline whenever one exists. The helper's
+    # later baseline is still needed for ordinary counter-only updates, but
+    # on a combined URL/UTM update it may already reflect the very re-render
+    # loss issue #836 is guarding against.
+    if metrika_counters_before is None and _metrika_baseline is not None:
+        metrika_counters_before = _metrika_baseline
 
     for goal_id in remove_target_action_goal_ids or []:
         _remove_target_action(page, goal_id)
@@ -8916,7 +9235,33 @@ def update_master(
     else:
         clicked_button_label = _SAVE_BUTTON_TEXT
 
-    _click_save(page, campaign_id, is_draft=was_draft, launch=launch)
+    def _validate_preserved_sections_before_click() -> None:
+        _assert_preserved_sections_before_save(
+            page,
+            metrika_counters_before=metrika_counters_before,
+            metrika_preservation_requested=metrika_preservation_requested,
+            add_metrika_counters=add_metrika_counters,
+            remove_metrika_counter_indices=remove_metrika_counters,
+            target_action_goal_ids_before=target_action_goal_ids_before,
+            target_actions_unchanged_before=target_actions_unchanged_before,
+            target_actions_preservation_requested=(
+                target_actions_preservation_requested
+            ),
+            add_target_actions=add_target_actions,
+            remove_target_action_goal_ids=remove_target_action_goal_ids,
+        )
+
+    _click_save(
+        page,
+        campaign_id,
+        is_draft=was_draft,
+        launch=launch,
+        before_click=(
+            _validate_preserved_sections_before_click
+            if (metrika_preservation_requested or target_actions_preservation_requested)
+            else None
+        ),
+    )
 
     # Read Yandex's inline rejection text BEFORE _verify_saved reloads the
     # page away (issue #840) — these messages live only in the still-open
@@ -8966,6 +9311,8 @@ def update_master(
             add_target_actions=add_target_actions,
             remove_target_action_goal_ids=remove_target_action_goal_ids,
             target_action_goal_ids_before=target_action_goal_ids_before,
+            target_actions_unchanged_before=target_actions_unchanged_before,
+            target_actions_unchanged_requested=target_actions_unchanged_requested,
             gender=gender,
             age_from_requested=age_from_requested,
             age_from=age_from,
@@ -8976,6 +9323,7 @@ def update_master(
             add_audience_tags=add_audience_tags,
             remove_audience_tag_indices=remove_audience_tags,
             metrika_counters_before=metrika_counters_before,
+            metrika_preservation_requested=metrika_preservation_requested,
             add_metrika_counters=add_metrika_counters,
             remove_metrika_counter_indices=remove_metrika_counters,
             sitelinks_before=sitelinks_before,
