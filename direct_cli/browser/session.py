@@ -213,8 +213,10 @@ def _stale_marker_hint() -> str:
         "This can mean either your session is expired/slow, or the page's "
         "markup changed and the marker this tool looks for is now outdated "
         "(this has happened before, see issue #859). If the page opens fine "
-        f"in your own Chrome, please report this at {_ISSUE_TRACKER_URL} "
-        "with the page's HTML or a screenshot."
+        f"in your own Chrome, please report this at {_ISSUE_TRACKER_URL} — "
+        "the tracker is public, so first redact any account-identifying "
+        "details (campaign names/IDs, account login, tokens) before "
+        "attaching the page's HTML or a screenshot."
     )
 
 

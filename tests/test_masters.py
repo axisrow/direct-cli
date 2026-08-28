@@ -1671,6 +1671,21 @@ class TestCaptureStorageState(unittest.TestCase):
         self.assertIn("outdated", message.lower())
         self.assertIn("github", message.lower())
 
+    def test_stale_marker_hint_warns_before_asking_for_page_evidence(self):
+        """Codex adversarial review of PR #861: the timeout hint asked users
+        to attach the page's raw HTML or a screenshot to a *public* GitHub
+        issue with no redaction warning. For the authenticated Direct grid
+        path that page can contain account/campaign identifiers and other
+        account data — a user following the message literally could paste
+        that into a public tracker. The hint must warn to redact
+        account-identifying details before attaching evidence, not just ask
+        for "the page's HTML or a screenshot" unconditionally."""
+        from direct_cli.browser.session import _stale_marker_hint
+
+        message = _stale_marker_hint().lower()
+        self.assertIn("redact", message)
+        self.assertIn("account", message)
+
 
 class TestOpenSessionTiers(unittest.TestCase):
     """_open_session's tiered resolution: explicit profile / persistent CLI
