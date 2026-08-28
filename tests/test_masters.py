@@ -1433,7 +1433,18 @@ class TestPersistentSession(unittest.TestCase):
                 session_module.login_persistent_session(
                     profile_dir=self.profile_dir, timeout_ms=5_000
                 )
-        self.assertIn("Timed out", str(ctx.exception))
+        message = str(ctx.exception)
+        self.assertIn("Timed out", message)
+        self.assertIn("outdated", message.lower())
+        self.assertIn("github", message.lower())
+        self.assertIn(
+            "direct masters login",
+            message,
+            "cycle-review round 2: the retry instruction present before the "
+            "#859 diagnostic-hint refactor must not be dropped — a genuinely "
+            "expired/slow session (the common, non-marker-rot case) still "
+            "needs an actionable retry command, not just the report-a-bug hint",
+        )
         self.assertFalse(
             session_module.PROFILE_POINTER_PATH.exists(),
             "an unrendered login must not be recorded as a usable profile",
@@ -1593,6 +1604,43 @@ class TestCaptureStorageState(unittest.TestCase):
 
         self.assertEqual(storage_state, {"cookies": []})
 
+    def test_verify_succeeds_when_only_the_older_sidebar_marker_is_present(self):
+        """cycle-review round 2 (/review deferred finding): the reverse of
+        `test_verify_succeeds_when_only_the_directgrid_marker_is_present`.
+        `_DIRECT_PAGE_MARKERS`'s OR-union must still match on the older
+        `Sidebar` marker alone (kept deliberately in case Yandex reintroduces
+        it, see #859) — not just on the newer `DirectGrid` marker. Both
+        directions of the union need coverage, not only the one #859's own
+        regression test exercised."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        page = _direct_page(
+            locators={
+                '[data-testid="DirectGrid"]': _FakeLocator([]),
+                '[data-testid="Sidebar"]': _FakeLocator([_FakeLocatorHandle()]),
+            }
+        )
+        fake_browser = _FakeBrowser()
+        fake_context = _FakeVerifyContext(page, storage_state={"cookies": []})
+        fake_browser.new_context = lambda **kwargs: fake_context
+        fake_chromium = _FakeChromium(fake_browser)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with (
+            patch("playwright.sync_api.sync_playwright", return_value=fake_playwright),
+            self._patch_decrypt(),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+        ):
+            storage_state, _source_meta = session_module.capture_storage_state()
+
+        self.assertEqual(storage_state, {"cookies": []})
+
     def test_verify_fails_closed_when_grid_marker_never_appears(self):
         """Issue #692 cycle-review: `_wait_for_marker`'s `False` return must
         not be discarded here either — a blank/unrendered grid response
@@ -1625,7 +1673,72 @@ class TestCaptureStorageState(unittest.TestCase):
             with self.assertRaises(BrowserAuthError) as ctx:
                 session_module.capture_storage_state()
 
-        self.assertIn("Timed out", str(ctx.exception))
+        message = str(ctx.exception)
+        self.assertIn("Timed out", message)
+        self.assertIn(
+            "direct playwright login",
+            message,
+            "cycle-review round 2: the retry instruction present before the "
+            "#859 diagnostic-hint refactor must not be dropped — a genuinely "
+            "expired/slow session (the common, non-marker-rot case) still "
+            "needs an actionable retry command, not just the report-a-bug hint",
+        )
+
+    def test_verify_timeout_message_hints_at_a_stale_dom_marker(self):
+        """Issue #859 follow-up: a marker timeout here is ambiguous between
+        two different causes — a genuinely expired/slow session, or Yandex
+        having changed the grid's markup so the specific DOM marker(s)
+        `_wait_for_marker` polls for (`_DIRECT_PAGE_MARKERS`) no longer
+        exist, even though the page renders fine (this is exactly what
+        happened to `[data-testid="Sidebar"]`, see #859). Yandex can rename
+        any of these markers again at any time, so the timeout message must
+        name this hypothesis explicitly — rather than reading like a plain
+        session/network failure — so a user whose session is actually valid
+        (page opens fine in their own Chrome) knows to report a stale
+        selector instead of just retrying forever."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserAuthError
+
+        blank_page = FakePage(locators={}, html="<html></html>")
+        fake_browser = _FakeBrowser()
+        fake_context = _FakeVerifyContext(blank_page, storage_state={"cookies": []})
+        fake_browser.new_context = lambda **kwargs: fake_context
+        fake_chromium = _FakeChromium(fake_browser)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with (
+            patch("playwright.sync_api.sync_playwright", return_value=fake_playwright),
+            self._patch_decrypt(),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+            patch.object(session_module, "_PAGE_MARKER_TIMEOUT_MS", 10),
+        ):
+            with self.assertRaises(BrowserAuthError) as ctx:
+                session_module.capture_storage_state()
+
+        message = str(ctx.exception)
+        self.assertIn("outdated", message.lower())
+        self.assertIn("github", message.lower())
+
+    def test_stale_marker_hint_warns_before_asking_for_page_evidence(self):
+        """Codex adversarial review of PR #861: the timeout hint asked users
+        to attach the page's raw HTML or a screenshot to a *public* GitHub
+        issue with no redaction warning. For the authenticated Direct grid
+        path that page can contain account/campaign identifiers and other
+        account data — a user following the message literally could paste
+        that into a public tracker. The hint must warn to redact
+        account-identifying details before attaching evidence, not just ask
+        for "the page's HTML or a screenshot" unconditionally."""
+        from direct_cli.browser.session import _stale_marker_hint
+
+        message = _stale_marker_hint().lower()
+        self.assertIn("redact", message)
+        self.assertIn("account", message)
 
 
 class TestOpenSessionTiers(unittest.TestCase):
