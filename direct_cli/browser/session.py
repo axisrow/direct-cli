@@ -514,7 +514,7 @@ def login_persistent_session(
             # were a real one (issue #692 cycle-review).
             raise BrowserSessionError(
                 f"Timed out waiting for {_PASSPORT_LOGIN_URL} to render. "
-                f"{_stale_marker_hint()}"
+                f"Retry `direct masters login`. {_stale_marker_hint()}"
             )
 
         # Poll on a second page, never on `page`: the human is typing into
@@ -660,7 +660,8 @@ def capture_storage_state(
                 # verified, authenticated grid (issue #692 cycle-review).
                 raise BrowserAuthError(
                     f"Timed out waiting for {GRID_URL} to render while "
-                    f"verifying the session. {_stale_marker_hint()}"
+                    "verifying the session. Retry `direct playwright login`. "
+                    f"{_stale_marker_hint()}"
                 )
             html = page.content()
             assert_not_captcha(html)

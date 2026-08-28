@@ -1437,6 +1437,14 @@ class TestPersistentSession(unittest.TestCase):
         self.assertIn("Timed out", message)
         self.assertIn("outdated", message.lower())
         self.assertIn("github", message.lower())
+        self.assertIn(
+            "direct masters login",
+            message,
+            "cycle-review round 2: the retry instruction present before the "
+            "#859 diagnostic-hint refactor must not be dropped — a genuinely "
+            "expired/slow session (the common, non-marker-rot case) still "
+            "needs an actionable retry command, not just the report-a-bug hint",
+        )
         self.assertFalse(
             session_module.PROFILE_POINTER_PATH.exists(),
             "an unrendered login must not be recorded as a usable profile",
@@ -1596,6 +1604,43 @@ class TestCaptureStorageState(unittest.TestCase):
 
         self.assertEqual(storage_state, {"cookies": []})
 
+    def test_verify_succeeds_when_only_the_older_sidebar_marker_is_present(self):
+        """cycle-review round 2 (/review deferred finding): the reverse of
+        `test_verify_succeeds_when_only_the_directgrid_marker_is_present`.
+        `_DIRECT_PAGE_MARKERS`'s OR-union must still match on the older
+        `Sidebar` marker alone (kept deliberately in case Yandex reintroduces
+        it, see #859) — not just on the newer `DirectGrid` marker. Both
+        directions of the union need coverage, not only the one #859's own
+        regression test exercised."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        page = _direct_page(
+            locators={
+                '[data-testid="DirectGrid"]': _FakeLocator([]),
+                '[data-testid="Sidebar"]': _FakeLocator([_FakeLocatorHandle()]),
+            }
+        )
+        fake_browser = _FakeBrowser()
+        fake_context = _FakeVerifyContext(page, storage_state={"cookies": []})
+        fake_browser.new_context = lambda **kwargs: fake_context
+        fake_chromium = _FakeChromium(fake_browser)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with (
+            patch("playwright.sync_api.sync_playwright", return_value=fake_playwright),
+            self._patch_decrypt(),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+        ):
+            storage_state, _source_meta = session_module.capture_storage_state()
+
+        self.assertEqual(storage_state, {"cookies": []})
+
     def test_verify_fails_closed_when_grid_marker_never_appears(self):
         """Issue #692 cycle-review: `_wait_for_marker`'s `False` return must
         not be discarded here either — a blank/unrendered grid response
@@ -1628,7 +1673,16 @@ class TestCaptureStorageState(unittest.TestCase):
             with self.assertRaises(BrowserAuthError) as ctx:
                 session_module.capture_storage_state()
 
-        self.assertIn("Timed out", str(ctx.exception))
+        message = str(ctx.exception)
+        self.assertIn("Timed out", message)
+        self.assertIn(
+            "direct playwright login",
+            message,
+            "cycle-review round 2: the retry instruction present before the "
+            "#859 diagnostic-hint refactor must not be dropped — a genuinely "
+            "expired/slow session (the common, non-marker-rot case) still "
+            "needs an actionable retry command, not just the report-a-bug hint",
+        )
 
     def test_verify_timeout_message_hints_at_a_stale_dom_marker(self):
         """Issue #859 follow-up: a marker timeout here is ambiguous between
