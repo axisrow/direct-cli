@@ -987,6 +987,23 @@ class TestMastersRegistered(unittest.TestCase):
                     "direct_cli.browser.store.session_status",
                     return_value={"exists": False, "error": None, "expired": None},
                 ),
+                # Same isolation as TestOpenSessionTiers.setUp: without
+                # this, _open_session's Tier 1.5 check
+                # (persistent_profile_is_usable) reads the real
+                # ~/.direct-cli/chrome-profile/Default/Cookies. On a
+                # machine that has ever run `direct masters
+                # login`/`direct playwright login` for real, that file
+                # exists, Tier 1.5 wins over the patched
+                # open_chrome_session above, and this test then exercises
+                # a real Chromium session instead of the injected error.
+                patch(
+                    "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
+                    Path("/nonexistent/chrome-profile"),
+                ),
+                patch(
+                    "direct_cli.browser.session.PROFILE_POINTER_PATH",
+                    Path("/nonexistent/chrome-profile-path"),
+                ),
             ):
                 with self.assertRaises(click.ClickException) as cm:
                     with _open_session(
@@ -1990,6 +2007,31 @@ class TestWithSessionRetry(unittest.TestCase):
     yield a second time from the same _open_session generator invocation
     (which raises RuntimeError: generator didn't stop after throw()).
     """
+
+    def setUp(self):
+        # Same isolation as TestOpenSessionTiers.setUp: every test here
+        # exercises tiers below 1.5 (persistent CLI profile) via a patched
+        # open_chrome_session/open_saved_session, but _open_session's Tier
+        # 1.5 check (persistent_profile_is_usable) reads the real
+        # filesystem regardless of those patches. On a machine that has
+        # ever run `direct masters login`/`direct playwright login` for
+        # real, ~/.direct-cli/chrome-profile/Default/Cookies exists, Tier
+        # 1.5 wins over the intended tier, and the *real*
+        # open_persistent_session launches an actual Chromium instead of
+        # hitting either patched fake — the test then asserts against a
+        # real Page object instead of "fresh-page"/the injected exception.
+        patcher = patch(
+            "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
+            Path("/nonexistent/chrome-profile"),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        pointer = patch(
+            "direct_cli.browser.session.PROFILE_POINTER_PATH",
+            Path("/nonexistent/chrome-profile-path"),
+        )
+        pointer.start()
+        self.addCleanup(pointer.stop)
 
     def _list_ctx(self, args=None):
         from direct_cli.commands.masters import masters
