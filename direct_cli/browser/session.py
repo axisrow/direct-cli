@@ -150,16 +150,28 @@ _LOGIN_PAGE_MARKERS = (
 # any single step's own markup.
 _PASSPORT_PAGE_MARKERS = ('[data-testid="auth-logo"]',)
 
-# ``Sidebar`` confirmed live 2026-08-03 against a real, authenticated
-# ``https://direct.yandex.ru/dna/grid/campaigns/`` response — Direct's own
-# left navigation shell, present on every authenticated Direct page
-# regardless of the grid's own virtualized content (issue #639: the grid
-# never renders a stable content marker of its own, only its
-# ``GridCampaigns`` data call does — see ``direct_cli/browser/masters.py``'s
-# ``_capture_grid_campaigns_request``). Waiting on the general Direct shell
-# is sufficient here: both call sites only need ``page.content()`` to be
-# real markup for the captcha/auth checks, not the grid's own data.
-_DIRECT_PAGE_MARKERS = ('[data-testid="Sidebar"]',)
+# issue #859: Yandex dropped the ``Sidebar`` testid from the campaigns grid's
+# left navigation shell entirely — live-confirmed 2026-08-29 against a real,
+# authenticated ``https://direct.yandex.ru/dna/grid/campaigns/`` response
+# (611 KB of real markup, no login/captcha marker, but no ``Sidebar`` testid
+# either) that made ``direct playwright login`` time out and fail closed even
+# though the underlying Chrome session was valid — the same failure mode
+# #666's login-page marker rot hit, just on the authenticated side this time.
+# ``DirectGrid`` replaces it: the grid's own outer shell (confirmed unique,
+# single occurrence, present regardless of the grid's own virtualized row
+# content — issue #639: the grid never renders a stable content marker of
+# its own, only its ``GridCampaigns`` data call does, see
+# ``direct_cli/browser/masters.py``'s ``_capture_grid_campaigns_request``).
+# The old ``Sidebar`` marker is kept alongside the new one rather than
+# replaced outright, same rationale as ``_LOGIN_PAGE_MARKERS`` above — Yandex
+# could reintroduce it, and a marker that's merely unused costs nothing.
+# Waiting on either is sufficient here: both call sites only need
+# ``page.content()`` to be real markup for the captcha/auth checks, not the
+# grid's own data.
+_DIRECT_PAGE_MARKERS = (
+    '[data-testid="DirectGrid"]',
+    '[data-testid="Sidebar"]',
+)
 
 # Union of both marker sets — for a navigation that can legitimately land on
 # either page (see ``_wait_for_marker``'s "Accepts multiple selectors"
