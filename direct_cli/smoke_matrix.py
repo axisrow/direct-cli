@@ -72,6 +72,11 @@ SMOKE_MATRIX = {
         "masters.counters.get",
         "masters.get",
         "masters.list",
+        # No network call at all -- pure on-disk inspection of which browser
+        # session tier `masters` would use (see status's own docstring,
+        # issue #862). Safer than every other masters.* entry here, none of
+        # which even launches a browser.
+        "masters.status",
         # Read-only: navigates to the edit page and reads the "Целевые
         # действия" table, never clicks Save (see
         # fetch_master_target_actions's docstring) — same "opens the edit

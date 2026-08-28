@@ -82,7 +82,7 @@ from ..output import (
     print_info,
     print_warning,
 )
-from ..utils import parse_ids
+from ..utils import parse_ids, reference_output_options
 
 _BROWSER_INSTALL_HINT = (
     'pip install "direct-cli[browser]" && playwright install chromium'
@@ -523,6 +523,88 @@ def logout(profile_dir):
     if pointer_target and Path(pointer_target) == resolved_profile_dir.resolve():
         PROFILE_POINTER_PATH.unlink(missing_ok=True)
     print_info(f"Deleted persistent browser profile at {resolved_profile_dir}")
+
+
+@masters.command(name="status")
+@click.option(
+    "--profile-dir",
+    help="Directory for the CLI's own persistent Chrome profile "
+    "(default: ~/.direct-cli/chrome-profile/)",
+)
+@reference_output_options
+def status(profile_dir, output_format, output):
+    """Show which session `masters` commands would use, no network call
+
+    Read-only inspection of the same on-disk state `_open_session` consults
+    to pick a tier (issue #862) — never launches a browser, never touches
+    Yandex. Reports which tier is currently active (the CLI's own persistent
+    profile from `masters login`, tier 1.5; or a saved `direct playwright
+    login` session, tier 2; or neither, meaning every `masters` call falls
+    back to a fresh Keychain decrypt, tier 3) plus what is known about that
+    session's freshness.
+
+    The persistent profile (tier 1.5) has no expiry to report — Chromium
+    manages that cookie store's own on-disk format, unlike the Playwright
+    `storage_state` JSON tier 2 saves, whose cookie expiry timestamps
+    `direct_cli.browser.store.session_status` already reads for `direct
+    playwright doctor`. "usable" for tier 1.5 means only "a session was
+    ever captured" (`persistent_profile_is_usable`) -- whether it is still
+    valid server-side is unknown until the next real `masters` call.
+    """
+    from ..browser import store
+    from ..browser.session import (
+        configured_persistent_profile_dir,
+        persistent_profile_is_usable,
+    )
+
+    resolved_persistent_dir = (
+        Path(profile_dir) if profile_dir else configured_persistent_profile_dir()
+    )
+    persistent_usable = persistent_profile_is_usable(resolved_persistent_dir)
+    saved_status = store.session_status()
+
+    if persistent_usable:
+        active_tier = "1.5"
+        active_source = "masters login"
+    elif (
+        saved_status["exists"]
+        and not saved_status["error"]
+        and saved_status["expired"] is not True
+    ):
+        active_tier = "2"
+        active_source = "playwright login"
+    else:
+        active_tier = "3"
+        active_source = "chrome-cookie-injection"
+
+    payload = {
+        "active_tier": active_tier,
+        "active_source": active_source,
+        "persistent_profile": {
+            "path": str(resolved_persistent_dir),
+            "usable": persistent_usable,
+        },
+        "saved_session": saved_status,
+    }
+
+    if output_format == "text":
+        click.echo(f"active_tier={active_tier} ({active_source})")
+        click.echo(
+            "persistent_profile: "
+            f"path={resolved_persistent_dir} usable={persistent_usable}"
+        )
+        click.echo(
+            "saved_session: "
+            f"exists={saved_status['exists']} "
+            f"expired={saved_status['expired']} "
+            f"cookie_count={saved_status['cookie_count']} "
+            f"path={saved_status['path']}"
+        )
+        if saved_status["error"]:
+            click.echo(f"  error: {saved_status['error']}")
+        return
+
+    format_output(payload, output_format, output)
 
 
 _STATUS_CHOICES = ("not-archived", "active", "stopped", "archived", "all")
