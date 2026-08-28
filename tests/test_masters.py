@@ -1554,6 +1554,45 @@ class TestCaptureStorageState(unittest.TestCase):
 
         self.assertEqual(page.goto_wait_until, "commit")
 
+    def test_verify_succeeds_when_only_the_directgrid_marker_is_present(self):
+        """Issue #859: Yandex dropped the ``Sidebar`` testid from the grid's
+        left navigation shell entirely — live-confirmed 2026-08-29 against a
+        real, authenticated grid response that had no ``Sidebar`` testid
+        anywhere in 611 KB of real markup, causing `direct playwright login`
+        to time out and fail closed even though the underlying Chrome
+        session was valid (same failure shape as #666's login-page marker
+        rot, just on the authenticated side). `_DIRECT_PAGE_MARKERS` must
+        keep matching on the newer `DirectGrid` marker alone, without the
+        older `Sidebar` marker also being present."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        page = _direct_page(
+            locators={
+                '[data-testid="DirectGrid"]': _FakeLocator([_FakeLocatorHandle()]),
+                '[data-testid="Sidebar"]': _FakeLocator([]),
+            }
+        )
+        fake_browser = _FakeBrowser()
+        fake_context = _FakeVerifyContext(page, storage_state={"cookies": []})
+        fake_browser.new_context = lambda **kwargs: fake_context
+        fake_chromium = _FakeChromium(fake_browser)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with (
+            patch("playwright.sync_api.sync_playwright", return_value=fake_playwright),
+            self._patch_decrypt(),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+        ):
+            storage_state, _source_meta = session_module.capture_storage_state()
+
+        self.assertEqual(storage_state, {"cookies": []})
+
     def test_verify_fails_closed_when_grid_marker_never_appears(self):
         """Issue #692 cycle-review: `_wait_for_marker`'s `False` return must
         not be discarded here either — a blank/unrendered grid response
