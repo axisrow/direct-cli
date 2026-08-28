@@ -1433,7 +1433,10 @@ class TestPersistentSession(unittest.TestCase):
                 session_module.login_persistent_session(
                     profile_dir=self.profile_dir, timeout_ms=5_000
                 )
-        self.assertIn("Timed out", str(ctx.exception))
+        message = str(ctx.exception)
+        self.assertIn("Timed out", message)
+        self.assertIn("outdated", message.lower())
+        self.assertIn("github", message.lower())
         self.assertFalse(
             session_module.PROFILE_POINTER_PATH.exists(),
             "an unrendered login must not be recorded as a usable profile",
@@ -1626,6 +1629,47 @@ class TestCaptureStorageState(unittest.TestCase):
                 session_module.capture_storage_state()
 
         self.assertIn("Timed out", str(ctx.exception))
+
+    def test_verify_timeout_message_hints_at_a_stale_dom_marker(self):
+        """Issue #859 follow-up: a marker timeout here is ambiguous between
+        two different causes — a genuinely expired/slow session, or Yandex
+        having changed the grid's markup so the specific DOM marker(s)
+        `_wait_for_marker` polls for (`_DIRECT_PAGE_MARKERS`) no longer
+        exist, even though the page renders fine (this is exactly what
+        happened to `[data-testid="Sidebar"]`, see #859). Yandex can rename
+        any of these markers again at any time, so the timeout message must
+        name this hypothesis explicitly — rather than reading like a plain
+        session/network failure — so a user whose session is actually valid
+        (page opens fine in their own Chrome) knows to report a stale
+        selector instead of just retrying forever."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserAuthError
+
+        blank_page = FakePage(locators={}, html="<html></html>")
+        fake_browser = _FakeBrowser()
+        fake_context = _FakeVerifyContext(blank_page, storage_state={"cookies": []})
+        fake_browser.new_context = lambda **kwargs: fake_context
+        fake_chromium = _FakeChromium(fake_browser)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with (
+            patch("playwright.sync_api.sync_playwright", return_value=fake_playwright),
+            self._patch_decrypt(),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+            patch.object(session_module, "_PAGE_MARKER_TIMEOUT_MS", 10),
+        ):
+            with self.assertRaises(BrowserAuthError) as ctx:
+                session_module.capture_storage_state()
+
+        message = str(ctx.exception)
+        self.assertIn("outdated", message.lower())
+        self.assertIn("github", message.lower())
 
 
 class TestOpenSessionTiers(unittest.TestCase):

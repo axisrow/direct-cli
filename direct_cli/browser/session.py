@@ -184,6 +184,39 @@ _DIRECT_OR_PASSPORT_PAGE_MARKERS = _DIRECT_PAGE_MARKERS + _PASSPORT_PAGE_MARKERS
 _PAGE_MARKER_TIMEOUT_MS = 30_000
 _PAGE_MARKER_POLL_MS = 250
 
+#: GitHub issue tracker URL for reporting a stale/renamed DOM marker — kept
+#: as a single literal here rather than repeated in each timeout message
+#: (CLAUDE.md "No URL literals outside the registry" spirit, even though this
+#: one isn't a Yandex docs URL: a second copy would drift the same way #426's
+#: duplicated captcha URL did).
+_ISSUE_TRACKER_URL = "https://github.com/axisrow/direct-cli/issues"
+
+
+def _stale_marker_hint() -> str:
+    """Diagnostic addendum for a "timed out waiting for ... to render"
+    message — appended when the first navigation to a page (Passport or the
+    Direct grid) never shows a marker `_wait_for_marker` recognizes.
+
+    A bare "timed out" reads as a session/network problem, but issue #859
+    showed a second, systemic cause: Yandex silently renamed or removed the
+    specific DOM marker(s) this module polls for (``[data-testid="Sidebar"]``
+    disappeared from the grid entirely, even though the grid itself rendered
+    611 KB of real, authenticated markup) — the two markers this file polls
+    for today (``_PASSPORT_PAGE_MARKERS``, ``_DIRECT_PAGE_MARKERS``) are just
+    as vulnerable to Yandex renaming them again tomorrow. Without this hint a
+    user whose session is actually fine (the page opens normally in their own
+    Chrome) has no way to tell "retry" from "report a bug" apart, and would
+    just keep retrying a timeout that can never succeed until the marker
+    itself is fixed in code.
+    """
+    return (
+        "This can mean either your session is expired/slow, or the page's "
+        "markup changed and the marker this tool looks for is now outdated "
+        "(this has happened before, see issue #859). If the page opens fine "
+        f"in your own Chrome, please report this at {_ISSUE_TRACKER_URL} "
+        "with the page's HTML or a screenshot."
+    )
+
 
 def _wait_for_marker(
     page: "Page",
@@ -479,8 +512,7 @@ def login_persistent_session(
             # were a real one (issue #692 cycle-review).
             raise BrowserSessionError(
                 f"Timed out waiting for {_PASSPORT_LOGIN_URL} to render. "
-                "This can happen on a slow connection — retry `direct "
-                "masters login`."
+                f"{_stale_marker_hint()}"
             )
 
         # Poll on a second page, never on `page`: the human is typing into
@@ -626,7 +658,7 @@ def capture_storage_state(
                 # verified, authenticated grid (issue #692 cycle-review).
                 raise BrowserAuthError(
                     f"Timed out waiting for {GRID_URL} to render while "
-                    "verifying the session. Retry `direct playwright login`."
+                    f"verifying the session. {_stale_marker_hint()}"
                 )
             html = page.content()
             assert_not_captcha(html)
