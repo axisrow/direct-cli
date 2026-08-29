@@ -529,19 +529,25 @@ def logout(profile_dir):
 @click.option(
     "--profile-dir",
     help="Directory for the CLI's own persistent Chrome profile "
-    "(default: ~/.direct-cli/chrome-profile/)",
+    "(default: ~/.direct-cli/chrome-profile/). Passing this explicitly "
+    "mirrors `_open_session`'s tier-1 override: a real `masters` read "
+    "command given the same flag always decrypts fresh from that profile, "
+    "bypassing tier 1.5/2 entirely -- so `status` reports tier 1 too.",
 )
+@click.pass_context
 @reference_output_options
-def status(profile_dir, output_format, output):
+def status(ctx, profile_dir, output_format, output):
     """Show which session `masters` commands would use, no network call
 
     Read-only inspection of the same on-disk state `_open_session` consults
     to pick a tier (issue #862) — never launches a browser, never touches
-    Yandex. Reports which tier is currently active (the CLI's own persistent
-    profile from `masters login`, tier 1.5; or a saved `direct playwright
-    login` session, tier 2; or neither, meaning every `masters` call falls
-    back to a fresh Keychain decrypt, tier 3) plus what is known about that
-    session's freshness.
+    Yandex. Reports which tier is currently active: an explicit
+    `--profile-dir` on this call, tier 1 (matches `_open_session`'s own
+    precedence -- see `_profile_options_explicit`); else the CLI's own
+    persistent profile from `masters login`, tier 1.5; or a saved `direct
+    playwright login` session, tier 2; or neither, meaning every `masters`
+    call falls back to a fresh Keychain decrypt, tier 3 — plus what is
+    known about that session's freshness.
 
     The persistent profile (tier 1.5) has no expiry to report — Chromium
     manages that cookie store's own on-disk format, unlike the Playwright
@@ -551,6 +557,8 @@ def status(profile_dir, output_format, output):
     ever captured" (`persistent_profile_is_usable`) -- whether it is still
     valid server-side is unknown until the next real `masters` call.
     """
+    from click.core import ParameterSource
+
     from ..browser import store
     from ..browser.session import (
         configured_persistent_profile_dir,
@@ -562,8 +570,19 @@ def status(profile_dir, output_format, output):
     )
     persistent_usable = persistent_profile_is_usable(resolved_persistent_dir)
     saved_status = store.session_status()
+    profile_dir_explicit = (
+        ctx.get_parameter_source("profile_dir") is ParameterSource.COMMANDLINE
+    )
 
-    if persistent_usable:
+    if profile_dir_explicit:
+        # Tier 1 (see `_open_session`/`_profile_options_explicit`): an
+        # explicit --profile-dir on a real `masters` read command always
+        # forces a fresh decrypt from that profile, ignoring tier 1.5/2
+        # entirely -- `status` must model that same precedence or it
+        # reports a tier the real command would not actually use.
+        active_tier = "1"
+        active_source = "explicit --profile-dir"
+    elif persistent_usable:
         active_tier = "1.5"
         active_source = "masters login"
     elif (

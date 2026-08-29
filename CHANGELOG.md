@@ -15,7 +15,12 @@ path/usability and the saved session's existence/expiry (reusing
 doctor` already does). Never launches a browser or touches Yandex; unlike
 every other `masters` subcommand, `status` is pure on-disk inspection.
 Defaults to `text` output like other local reference/diagnostic commands
-(`direct playwright doctor`, `trackingparams`).
+(`direct playwright doctor`, `trackingparams`). An explicit `--profile-dir`
+on the `status` call itself reports tier 1 ("explicit --profile-dir"),
+matching `_open_session`'s real precedence: a real `masters` read command
+given the same flag always decrypts fresh from that profile, bypassing
+tier 1.5/2 entirely — `status` models that override instead of reporting a
+tier the real command would not actually use (cycle-review of #864).
 
 **`masters update --add-video-url` — select an already-uploaded video (#812).**
 

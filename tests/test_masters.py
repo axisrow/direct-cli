@@ -13032,19 +13032,24 @@ class TestMastersStatusCommand(unittest.TestCase):
 
     def test_status_never_imports_playwright(self):
         # Read-only inspection of on-disk state only -- no browser, ever.
-        with patch.dict(
-            "sys.modules", {"playwright": None, "playwright.sync_api": None}
+        with (
+            patch.dict(
+                "sys.modules", {"playwright": None, "playwright.sync_api": None}
+            ),
+            patch(
+                "direct_cli.browser.session.configured_persistent_profile_dir",
+                return_value=self.persistent_dir,
+            ),
         ):
-            result = self.runner.invoke(
-                cli,
-                ["masters", "status", "--profile-dir", str(self.persistent_dir)],
-            )
+            result = self.runner.invoke(cli, ["masters", "status"])
         self.assertEqual(result.exit_code, 0, result.output)
 
     def test_status_reports_tier_3_when_nothing_saved(self):
-        result = self.runner.invoke(
-            cli, ["masters", "status", "--profile-dir", str(self.persistent_dir)]
-        )
+        with patch(
+            "direct_cli.browser.session.configured_persistent_profile_dir",
+            return_value=self.persistent_dir,
+        ):
+            result = self.runner.invoke(cli, ["masters", "status"])
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("active_tier=3", result.output)
@@ -13052,9 +13057,11 @@ class TestMastersStatusCommand(unittest.TestCase):
     def test_status_reports_tier_1_5_when_persistent_profile_usable(self):
         self._make_usable_persistent_profile()
 
-        result = self.runner.invoke(
-            cli, ["masters", "status", "--profile-dir", str(self.persistent_dir)]
-        )
+        with patch(
+            "direct_cli.browser.session.configured_persistent_profile_dir",
+            return_value=self.persistent_dir,
+        ):
+            result = self.runner.invoke(cli, ["masters", "status"])
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("active_tier=1.5", result.output)
@@ -13065,9 +13072,11 @@ class TestMastersStatusCommand(unittest.TestCase):
 
         store.save_session({"cookies": [{"domain": "direct.yandex.ru"}]})
 
-        result = self.runner.invoke(
-            cli, ["masters", "status", "--profile-dir", str(self.persistent_dir)]
-        )
+        with patch(
+            "direct_cli.browser.session.configured_persistent_profile_dir",
+            return_value=self.persistent_dir,
+        ):
+            result = self.runner.invoke(cli, ["masters", "status"])
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("active_tier=2", result.output)
@@ -13079,29 +13088,30 @@ class TestMastersStatusCommand(unittest.TestCase):
         self._make_usable_persistent_profile()
         store.save_session({"cookies": [{"domain": "direct.yandex.ru"}]})
 
-        result = self.runner.invoke(
-            cli, ["masters", "status", "--profile-dir", str(self.persistent_dir)]
-        )
+        with patch(
+            "direct_cli.browser.session.configured_persistent_profile_dir",
+            return_value=self.persistent_dir,
+        ):
+            result = self.runner.invoke(cli, ["masters", "status"])
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("active_tier=1.5", result.output)
 
     def test_status_json_output_reports_saved_session_details(self):
+        # No --profile-dir on the CLI invocation here (the option below is
+        # consumed by the runner's own args list, not passed through as a
+        # user-supplied --profile-dir -- see setUp: persistent_dir is only
+        # the *default* lookup target, not an explicit CLI flag) -- so tier
+        # precedence is unaffected and tier 2 (saved session) applies.
         from direct_cli.browser import store
 
         store.save_session({"cookies": [{"domain": "direct.yandex.ru"}]})
 
-        result = self.runner.invoke(
-            cli,
-            [
-                "masters",
-                "status",
-                "--profile-dir",
-                str(self.persistent_dir),
-                "--format",
-                "json",
-            ],
-        )
+        with patch(
+            "direct_cli.browser.session.configured_persistent_profile_dir",
+            return_value=self.persistent_dir,
+        ):
+            result = self.runner.invoke(cli, ["masters", "status", "--format", "json"])
 
         self.assertEqual(result.exit_code, 0, result.output)
         payload = json.loads(result.output)
@@ -13118,6 +13128,44 @@ class TestMastersStatusCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         with self.assertRaises(json.JSONDecodeError):
             json.loads(result.output)
+
+    def test_status_reports_tier_1_when_profile_dir_explicit_even_with_saved_session(
+        self,
+    ):
+        # `_open_session`'s own tier-1 rule (masters.py's
+        # `_profile_options_explicit`): an explicit --profile-dir always
+        # forces a fresh decrypt from that profile, bypassing tier 1.5/2
+        # entirely -- regardless of a saved session or a usable persistent
+        # profile existing elsewhere. `status` must model that same
+        # precedence, or it reports a tier that a real `masters list
+        # --profile-dir <path>` call would not actually use.
+        from direct_cli.browser import store
+
+        self._make_usable_persistent_profile()
+        store.save_session({"cookies": [{"domain": "direct.yandex.ru"}]})
+
+        result = self.runner.invoke(
+            cli, ["masters", "status", "--profile-dir", str(self.persistent_dir)]
+        )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("active_tier=1 ", result.output)
+
+    def test_status_reports_tier_1_5_when_profile_dir_not_explicit(self):
+        # Without an explicit --profile-dir on the command line, tier
+        # precedence is unaffected -- confirms the fix does not regress the
+        # default (no-flag) path, which still prefers the configured
+        # persistent profile.
+        self._make_usable_persistent_profile()
+
+        with patch(
+            "direct_cli.browser.session.configured_persistent_profile_dir",
+            return_value=self.persistent_dir,
+        ):
+            result = self.runner.invoke(cli, ["masters", "status"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("active_tier=1.5", result.output)
 
 
 class TestCaptchaDetection(unittest.TestCase):
