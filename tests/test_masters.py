@@ -1180,6 +1180,26 @@ class _FakePersistentContext:
         self.closed = True
 
 
+class _DyingPersistentContext(_FakePersistentContext):
+    """A browser process that dies mid-wait (review of #858).
+
+    CDP-only calls — ``context.cookies()`` here — start raising ``Target
+    closed`` from the second poll on. Unlike a verification ``goto``, no
+    Yandex network is involved: an exception from these calls means the
+    browser itself is gone.
+    """
+
+    def __init__(self, pages=None):
+        super().__init__(pages=pages)
+        self.cookie_polls = 0
+
+    def cookies(self, urls=None):
+        self.cookie_polls += 1
+        if self.cookie_polls > 1:
+            raise PlaywrightError("Target closed")
+        return []
+
+
 class _FakeChromium:
     def __init__(self, browser, persistent_context=None):
         self._browser = browser
@@ -1672,6 +1692,24 @@ class TestPersistentSession(unittest.TestCase):
             ),
             "a foreign-domain Session_id is not a Yandex session",
         )
+        # Review of #858: `endswith("yandex.ru")` alone would accept these
+        # suffix look-alikes; the grid content checks would catch the fake
+        # session anyway, but a look-alike must not even trigger a probe.
+        for lookalike in ("notyandex.ru", "fake-yandex.ru", "yandex.ru.com"):
+            self.assertIsNone(
+                _session_cookie_signature(
+                    [{"name": "Session_id", "value": "x", "domain": lookalike}]
+                ),
+                f"a look-alike domain ({lookalike}) must not read as Yandex",
+            )
+        # Host-only forms are genuine Yandex domains and must pass.
+        for genuine in ("yandex.ru", "passport.yandex.ru"):
+            self.assertIsNotNone(
+                _session_cookie_signature(
+                    [{"name": "Session_id", "value": "x", "domain": genuine}]
+                ),
+                f"a host-only Yandex domain ({genuine}) must read as Yandex",
+            )
         signature = _session_cookie_signature(
             [
                 {"name": "yandexuid", "value": "u", "domain": ".yandex.ru"},
@@ -2060,6 +2098,47 @@ class TestPersistentSession(unittest.TestCase):
 
         self.assertEqual(login_page.goto_attempts, 2, "goto timeout was not retried")
         self.assertTrue(session_module.PROFILE_POINTER_PATH.exists())
+
+    def test_login_wait_fails_cleanly_when_the_browser_dies_mid_wait(self):
+        """Review of #858: `context.cookies()`/`context.new_page()` sit
+        outside the transient-verification guard — a browser that dies
+        mid-wait must surface as a clean `BrowserSessionError` (run login
+        again), not a raw PlaywrightError traceback, and must not burn the
+        rest of the timeout retrying calls that can never succeed again."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserSessionError
+
+        login_page = _passport_page()
+        persistent_ctx = _DyingPersistentContext(pages=[login_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir,
+                    timeout_ms=5_000,
+                )
+
+        # Not the timeout error: a dead browser is its own, immediate
+        # failure — waiting out the remaining budget is pointless.
+        self.assertNotIsInstance(
+            ctx.exception,
+            session_module.BrowserAuthError,
+            "a dead browser must fail fast, not as a login timeout",
+        )
+        self.assertIn("browser window", str(ctx.exception))
+        self.assertIn("direct masters login", str(ctx.exception))
+        self.assertEqual(
+            persistent_ctx.cookie_polls,
+            2,
+            "the wait kept polling a dead context",
+        )
+        self.assertFalse(
+            session_module.PROFILE_POINTER_PATH.exists(),
+            "a crashed login wait must not be recorded as a usable profile",
+        )
 
 
 class _FakeVerifyContext(_FakeContext):

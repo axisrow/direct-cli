@@ -358,11 +358,18 @@ page the human is typing into is never navigated, exactly as before.
 
 Verification outcomes are now a tri-state: authenticated (login recorded,
 command exits), login-page-served (conclusive "jar does not add up to a valid
-session" — wait for different cookies), or inconclusive (unrendered page /
-transient network error, retried next tick). A transport failure during the
-one-shot verification — issue #857's `net::ERR_ABORTED` on `probe.goto` — no
-longer crashes the whole login wait: it is treated as inconclusive and
-retried on the next tick.
+session" — wait for different cookies), or inconclusive (unrendered page,
+retried next tick). The one-shot verification's navigation reuses #865's
+`_goto_with_network_retry` unchanged: a transient network-layer abort
+(issue #857's `net::ERR_ABORTED` on a flaky VPN) is retried in place, and a
+connection that stays dead fails as `BrowserNetworkError` — never mistaken
+for an auth problem. A browser/context that dies mid-wait (crash, or the
+user closing the window to abort the login) fails fast with a clean "run
+`direct masters login` again" error instead of a raw PlaywrightError
+traceback — every call such a death can break is CDP-only, so retrying it
+until the timeout could never succeed (review of #858). The session-cookie
+signature also rejects look-alike domains (`notyandex.ru`) that a bare
+`endswith("yandex.ru")` would have accepted.
 
 **`masters` status parsing — read the header status element, not the whole
 page body (#848).**
