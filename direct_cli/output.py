@@ -216,7 +216,7 @@ def _error_code(error: dict) -> Optional[int]:
     return None
 
 
-def format_json(data: Any, indent: int = 2) -> str:
+def format_json(data: Any, indent: Optional[int] = 2) -> str:
     """Format data as JSON"""
     return json.dumps(data, ensure_ascii=False, indent=indent, default=str)
 

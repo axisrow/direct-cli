@@ -76,6 +76,7 @@ from ..browser.masters import DEVICE_OPTION_VALUES as _DEVICE_OPTION_VALUES
 from ..browser.masters import GENDER_CHOICES as _GENDER_CHOICES
 from ..browser.masters import PROMOTION_GOAL_CHOICES as _PROMOTION_GOAL_CHOICES
 from ..output import (
+    format_json,
     format_output,
     handle_api_errors,
     print_error,
@@ -350,9 +351,30 @@ def _run_per_id(
     errored. Each ID's outcome — the resulting row, or an ``Error`` entry —
     goes into the formatted output; if any ID failed, the command exits
     non-zero after printing every outcome, never just the last error.
+
+    For ``--format json`` (the default) each outcome is streamed the moment
+    it is known — one compact JSON object per line, ``flush()`` after every
+    record (issue #866). A killed process (a wrapper's subprocess timeout,
+    OOM, a crash) used to take every already-applied mutation's report with
+    it, leaving an irreversible batch (launch/archive) unreconcilable
+    without a blind retry re-applying live mutations. On POSIX,
+    ``subprocess.run`` attaches the stdout collected before a timeout kill
+    to ``TimeoutExpired``, so a flushed partial stream survives the kill —
+    but stdout in a non-tty subprocess is block-buffered, hence the explicit
+    per-record flush rather than relying on interpreter exit. An empty batch
+    still prints ``[]`` so ``json.loads`` keeps working on a zero-ID call.
+
+    Non-JSON formats keep the consolidated end-of-run output: they are
+    human-readable reports, not machine-consumed streams.
+
+    Note: ``_with_session``'s stale-session retry re-runs the whole
+    operation, so IDs completed before the auth failure appear twice — once
+    for each real attempt. Every line is still a genuine outcome.
     """
 
-    def _all(page):
+    stream_json = output_format == "json"
+
+    def _all(page, emit):
         from ..browser.session import BrowserAuthError, BrowserSessionError
         from ..browser.masters import PlaywrightError
 
@@ -360,7 +382,7 @@ def _run_per_id(
         errors = []
         for campaign_id in ids:
             try:
-                results.append(action(page, campaign_id))
+                row = action(page, campaign_id)
             except BrowserAuthError:
                 # A stale saved session must keep propagating to
                 # _with_session's whole-operation retry (issue #816
@@ -370,12 +392,43 @@ def _run_per_id(
                 raise
             except (BrowserSessionError, PlaywrightError) as exc:
                 errors.append((campaign_id, exc))
-                results.append({"CampaignId": campaign_id, "Error": str(exc)})
+                row = {"CampaignId": campaign_id, "Error": str(exc)}
+            results.append(row)
+            emit(row)
         return results, errors
 
-    results, errors = _with_session(ctx, headful, profile_dir, chrome_profile, _all)
+    if stream_json:
+        # --output gets the same per-record durability as stdout: the file
+        # is opened once up front and each record is written+flushed into it
+        # as soon as its ID completes (closed by `with sink_cm` below).
+        sink_cm = (
+            open(output, "w", encoding="utf-8")  # noqa: SIM115
+            if output
+            else contextlib.nullcontext(sys.stdout)
+        )
+    else:
+        sink_cm = contextlib.nullcontext(None)
 
-    format_output(results if len(results) != 1 else results[0], output_format, output)
+    with sink_cm as sink:
+
+        def emit(row):
+            if sink is None:
+                return
+            sink.write(format_json(row, indent=None))
+            sink.write("\n")
+            sink.flush()
+
+        results, errors = _with_session(
+            ctx, headful, profile_dir, chrome_profile, lambda page: _all(page, emit)
+        )
+
+    if stream_json:
+        if not results:  # empty batch: keep a parseable empty list
+            print(format_json([], indent=None), flush=True)
+    else:
+        format_output(
+            results if len(results) != 1 else results[0], output_format, output
+        )
 
     if errors:
         for campaign_id, exc in errors:
