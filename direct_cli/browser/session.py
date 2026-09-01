@@ -76,6 +76,16 @@ _PASSPORT_LOGIN_URL = "https://passport.yandex.ru/auth"
 _LOGIN_WAIT_TIMEOUT_MS = 5 * 60 * 1000
 _LOGIN_POLL_INTERVAL_MS = 1_000
 
+# issue #857: how many *consecutive* network-layer failures of the grid probe
+# the login poll loop tolerates before giving up with a
+# :class:`BrowserNetworkError`. Each failed tick costs one
+# ``_LOGIN_POLL_INTERVAL_MS`` of the login timeout budget (same accounting as
+# a not-yet-authenticated tick), so the default rides out a ~30s VPN blip
+# without killing a login the user may be mid-way through, while still
+# failing well inside the 5-minute window when the connection is properly
+# down. A single successful navigation resets the count.
+_LOGIN_NETWORK_FAILURE_LIMIT = 30
+
 
 class BrowserSessionError(RuntimeError):
     """Raised when a Playwright/Chrome session cannot be established."""
@@ -92,6 +102,21 @@ class BrowserAuthError(BrowserSessionError):
     this means the cookies decrypted fine but the session they represent is
     no longer valid (expired, or belongs to a different account) — see
     ``assert_authenticated``.
+    """
+
+
+class BrowserNetworkError(BrowserSessionError):
+    """Raised when a navigation is aborted at the network layer (issue #857).
+
+    An unstable VPN/proxy/connection can kill ``Page.goto`` before Playwright
+    receives any response (``net::ERR_ABORTED``, ``net::ERR_CONNECTION_*``,
+    …) — which says nothing about whether the Yandex session is valid.
+    Deliberately distinct from :class:`BrowserAuthError` (expired or
+    wrong-account cookies) so an error message can tell "restore the
+    connection and retry" apart from "re-login": before this class existed
+    the raw Playwright traceback escaped ``direct masters login`` uncaught,
+    and the natural reading — an auth problem — sent the user chasing a
+    session that was fine (the live #857 report blamed exactly that).
     """
 
 
@@ -263,6 +288,68 @@ def _wait_for_marker(
                 return True
         page.wait_for_timeout(_PAGE_MARKER_POLL_MS)
     return False
+
+
+# Every network-layer failure Chromium reports for a navigation surfaces from
+# Playwright as an error whose message carries the Chromium network error
+# code — ``net::ERR_ABORTED``, ``net::ERR_CONNECTION_RESET``,
+# ``net::ERR_NAME_NOT_RESOLVED``, ``net::ERR_TIMED_OUT``, … (Chromium's
+# ``net_error_list.h`` is the full family). This package only ever drives
+# ``playwright.chromium``, so the Firefox ``NS_ERROR_*`` family cannot appear
+# here, and one prefix covers the whole family — no per-code denylist to
+# drift out of sync with Chromium (same "declare the marker once" spirit as
+# ``_LOGIN_PAGE_MARKERS`` above).
+_NETWORK_NAVIGATION_MARKER = "net::ERR_"
+
+# Retry budget for :func:`_goto_with_network_retry` — enough attempts to ride
+# out a flaky-VPN blip on a navigation the flow cannot continue without (the
+# Passport login page, ``playwright login``'s verification probe), while still
+# failing fast with a clear network-level message when the connection is
+# genuinely down. The login poll loop has its own, longer tolerance
+# (:data:`_LOGIN_NETWORK_FAILURE_LIMIT`) because the user may be mid-login.
+_GOTO_NETWORK_ATTEMPTS = 3
+_GOTO_NETWORK_RETRY_INTERVAL_MS = 1_000
+
+
+def _is_network_navigation_error(exc: BaseException) -> bool:
+    """True if ``exc`` is a Playwright navigation failure from the network layer.
+
+    Issue #857: an unstable VPN/proxy aborts ``Page.goto`` before Playwright
+    ever sees a response — ``net::ERR_ABORTED`` in the live report. Such an
+    error says nothing about the session's validity, so it must be retried
+    and reported as a connectivity problem, never folded into the
+    expired/wrong-account story :class:`BrowserAuthError` tells.
+    """
+    return isinstance(exc, PlaywrightError) and _NETWORK_NAVIGATION_MARKER in str(exc)
+
+
+def _goto_with_network_retry(page: "Page", url: str) -> None:
+    """``page.goto(url, wait_until="commit")``, retrying network-layer aborts.
+
+    Transient ``net::ERR_*`` failures (flaky VPN/proxy — issue #857) are
+    retried up to :data:`_GOTO_NETWORK_ATTEMPTS` times, waiting
+    :data:`_GOTO_NETWORK_RETRY_INTERVAL_MS` between attempts via
+    ``page.wait_for_timeout`` — the #767 tick primitive, never a raw sleep the
+    offline harness cannot advance. Any other Playwright failure is re-raised
+    untouched: only the network layer is ours to retry. Exhaustion raises
+    :class:`BrowserNetworkError`, which names the connectivity cause
+    explicitly so the user is not sent chasing a session that isn't expired.
+    """
+    for attempt in range(1, _GOTO_NETWORK_ATTEMPTS + 1):
+        try:
+            page.goto(url, wait_until="commit")
+            return
+        except PlaywrightError as exc:
+            if not _is_network_navigation_error(exc):
+                raise
+            if attempt == _GOTO_NETWORK_ATTEMPTS:
+                raise BrowserNetworkError(
+                    f"Navigation to {url} failed at the network level "
+                    f"({exc}). This is a connectivity problem (VPN, proxy or "
+                    "unstable network), not an expired or wrong-account "
+                    "session. Restore the connection and retry."
+                ) from exc
+            page.wait_for_timeout(_GOTO_NETWORK_RETRY_INTERVAL_MS)
 
 
 def default_chrome_profile_dir() -> Optional[Path]:
@@ -484,7 +571,11 @@ def login_persistent_session(
     :data:`_LOGIN_POLL_INTERVAL_MS`) until :func:`assert_authenticated` no
     longer raises against ``direct.yandex.ru`` — i.e. until the user has
     finished logging in by hand in the visible window. Raises
-    :class:`BrowserAuthError` if ``timeout_ms`` elapses first.
+    :class:`BrowserAuthError` if ``timeout_ms`` elapses first. Navigation
+    aborts at the network layer (unstable VPN/proxy, issue #857) are
+    retried, never mistaken for an auth problem: transient ones are
+    tolerated inside the poll budget, persistent ones raise
+    :class:`BrowserNetworkError`.
 
     Deliberately defaults ``headless=False``: a headless window cannot be
     logged into by a human, so ``direct masters login`` always shows the
@@ -504,7 +595,7 @@ def login_persistent_session(
         sync_playwright, resolved_dir, headless=headless
     ) as context:
         page = context.new_page()
-        page.goto(_PASSPORT_LOGIN_URL, wait_until="commit")
+        _goto_with_network_retry(page, _PASSPORT_LOGIN_URL)
         if not _wait_for_marker(page, _PASSPORT_PAGE_MARKERS):
             # Fail closed: a timed-out marker means the page never rendered
             # far enough to trust `page.content()` — an in-progress/blank
@@ -525,8 +616,39 @@ def login_persistent_session(
         probe = context.new_page()
         try:
             elapsed_ms = 0
+            # issue #857: a network-layer abort of the grid probe (flaky
+            # VPN/proxy) says nothing about the login's progress, so it must
+            # not crash the flow the user may be mid-way through. Tolerate
+            # consecutive aborts up to _LOGIN_NETWORK_FAILURE_LIMIT — each
+            # consuming one poll interval of the timeout budget, exactly like
+            # a not-yet-authenticated tick — and only then fail with the
+            # distinct BrowserNetworkError, so a dead connection is not
+            # reported as the misleading "timed out waiting for login" below
+            # (or worse, as the raw Playwright traceback that used to escape
+            # the command uncaught). Any successful navigation resets the
+            # count: only *consecutive* failures mean the connection is down.
+            consecutive_network_failures = 0
             while elapsed_ms < timeout_ms:
-                probe.goto(GRID_URL, wait_until="commit")
+                try:
+                    probe.goto(GRID_URL, wait_until="commit")
+                except PlaywrightError as exc:
+                    if not _is_network_navigation_error(exc):
+                        raise
+                    consecutive_network_failures += 1
+                    if consecutive_network_failures >= _LOGIN_NETWORK_FAILURE_LIMIT:
+                        raise BrowserNetworkError(
+                            f"Navigation to {GRID_URL} kept failing at the "
+                            f"network level ({exc}) for "
+                            f"{consecutive_network_failures} consecutive "
+                            "attempts. This is a connectivity problem (VPN, "
+                            "proxy or unstable network), not an expired or "
+                            "wrong-account session. Restore the connection "
+                            "and run `direct masters login` again."
+                        ) from exc
+                    probe.wait_for_timeout(_LOGIN_POLL_INTERVAL_MS)
+                    elapsed_ms += _LOGIN_POLL_INTERVAL_MS
+                    continue
+                consecutive_network_failures = 0
                 # Either marker is a valid landing spot here: an unfinished
                 # login redirects the grid URL right back to Passport, so
                 # waiting on the grid's own marker alone would burn the full
@@ -647,7 +769,12 @@ def capture_storage_state(
             from .masters import GRID_URL
 
             page = context.new_page()
-            page.goto(GRID_URL, wait_until="commit")
+            # Same retry-and-classify treatment as the login flow's
+            # navigations (issue #857): a network-layer abort here used to
+            # escape `direct playwright login` as a raw Playwright traceback,
+            # reading like a session problem when the connection was the
+            # culprit.
+            _goto_with_network_retry(page, GRID_URL)
             # Either marker is a valid landing spot: a bad/expired cookie
             # jar redirects the grid URL to Passport instead of rendering
             # the grid, and `assert_authenticated` below is what turns that
