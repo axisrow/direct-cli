@@ -303,6 +303,11 @@ in), so it can't run unattended. Run `direct masters logout` to delete the
 profile and revoke the on-disk session (a no-op warning, not an error, if
 none exists).
 
+Run `direct masters status` to check which of these two sessions `masters`
+commands would currently use — which tier is active, the persistent
+profile's path, and the saved session's expiry — without any network call
+or side effect (no browser launch, unlike every other `masters` command).
+
 ### История изменений (change history) — browser-only
 
 The API has **no per-field change journal**: `changes.checkCampaigns` reports

@@ -4,6 +4,24 @@
 
 ### Added
 
+**`masters status` — inspect the active browser session with no network call (#862).**
+
+Reports which of `_open_session`'s tiers `masters` commands would currently
+use — the CLI's own persistent profile from `masters login` (tier 1.5), a
+saved `direct playwright login` session (tier 2), or neither (tier 3,
+fresh Chrome-cookie decrypt on every call) — plus the persistent profile's
+path/usability and the saved session's existence/expiry (reusing
+`direct_cli.browser.store.session_status`, the same read `direct playwright
+doctor` already does). Never launches a browser or touches Yandex; unlike
+every other `masters` subcommand, `status` is pure on-disk inspection.
+Defaults to `text` output like other local reference/diagnostic commands
+(`direct playwright doctor`, `trackingparams`). An explicit `--profile-dir`
+on the `status` call itself reports tier 1 ("explicit --profile-dir"),
+matching `_open_session`'s real precedence: a real `masters` read command
+given the same flag always decrypts fresh from that profile, bypassing
+tier 1.5/2 entirely — `status` models that override instead of reporting a
+tier the real command would not actually use (cycle-review of #864).
+
 **`masters update --add-video-url` — select an already-uploaded video (#812).**
 
 Adds a video to a campaign's "Варианты видео" section by selecting one the
