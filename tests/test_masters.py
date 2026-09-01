@@ -904,18 +904,30 @@ class _NetworkFlakyPage(FakePage):
     class would silently not be caught and the test would pass vacuously.
     """
 
-    def __init__(self, failures, *, always=False, message="net::ERR_ABORTED", **kwargs):
+    def __init__(
+        self,
+        failures,
+        *,
+        always=False,
+        message="net::ERR_ABORTED",
+        error_cls=None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self._failures_remaining = failures
         self._always = always
         self._message = message
+        # A goto that times out raises Playwright's own TimeoutError, not a
+        # net::ERR_*-coded Error — tests pass error_cls to model the
+        # slow-connection half of issue #865's review round.
+        self._error_cls = error_cls if error_cls is not None else PlaywrightError
         self.goto_attempts = 0
 
     def goto(self, url, wait_until=None):
         self.goto_attempts += 1
         if self._always or self._failures_remaining > 0:
             self._failures_remaining -= 1
-            raise PlaywrightError(
+            raise self._error_cls(
                 f"Page.goto: {self._message} at {url}\n"
                 "Call log:\n"
                 f'  - navigating to "{url}", waiting until "commit"'
@@ -924,7 +936,14 @@ class _NetworkFlakyPage(FakePage):
 
 
 def _flaky_network_page(
-    failures, *, markers, html, always=False, message="net::ERR_ABORTED", **kwargs
+    failures,
+    *,
+    markers,
+    html,
+    always=False,
+    message="net::ERR_ABORTED",
+    error_cls=None,
+    **kwargs,
 ):
     """A ``_NetworkFlakyPage`` carrying the given page markers once navigated.
 
@@ -936,6 +955,7 @@ def _flaky_network_page(
         failures,
         always=always,
         message=message,
+        error_cls=error_cls,
         locators=_marker_locators(markers),
         html=html,
         **kwargs,
@@ -1732,6 +1752,134 @@ class TestPersistentSession(unittest.TestCase):
             "a non-network Playwright failure was reclassified as a session problem",
         )
         self.assertEqual(login_page.goto_attempts, 1, "a non-network error was retried")
+
+    def test_login_reports_dead_connection_when_budget_is_under_the_failure_limit(self):
+        """#865 review: `masters login --timeout 10` (any budget under the
+        30-tick failure limit) must still diagnose a dead connection as
+        network — every failed tick spends a poll interval of `elapsed_ms`,
+        so the uncapped limit was unreachable and the loop expired into the
+        misleading BrowserAuthError "timed out waiting for login" first."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        login_page = _passport_page()
+        probe_page = _flaky_network_page(
+            0,
+            markers=session_module._DIRECT_PAGE_MARKERS,
+            html="<body>never rendered</body>",
+            always=True,
+        )
+        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        # 5s budget, limit deliberately NOT patched down: the cap must do
+        # the work — min(30, 5000//1000 - 1) = 4.
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(session_module.BrowserNetworkError) as ctx:
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir, timeout_ms=5_000
+                )
+
+        self.assertNotIsInstance(
+            ctx.exception,
+            BrowserAuthError,
+            "a dead connection was reported as an auth failure",
+        )
+        self.assertEqual(
+            probe_page.goto_attempts,
+            4,
+            "failure limit was not capped by the timeout budget",
+        )
+
+    def test_login_diagnoses_network_on_first_failure_with_a_tiny_timeout(self):
+        """#865 review, floor of the cap: a budget shorter than one poll
+        interval still classifies its only failed tick as network, never
+        lets it expire silently into the auth timeout."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        login_page = _passport_page()
+        probe_page = _flaky_network_page(
+            0,
+            markers=session_module._DIRECT_PAGE_MARKERS,
+            html="<body>never rendered</body>",
+            always=True,
+        )
+        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(session_module.BrowserNetworkError):
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir, timeout_ms=500
+                )
+
+        self.assertEqual(probe_page.goto_attempts, 1)
+
+    def test_login_treats_a_goto_timeout_as_a_network_failure(self):
+        """#865 review: on a merely *slow* flaky-VPN connection `Page.goto`
+        raises Playwright's own TimeoutError (no net::ERR_* code) — the
+        same connectivity class as ERR_ABORTED, so the poll loop must
+        tolerate and report it as network, not let it escape as a raw
+        traceback."""
+        pytest.importorskip("playwright")
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+        from direct_cli.browser import session as session_module
+
+        login_page = _passport_page()
+        probe_page = _flaky_network_page(
+            0,
+            markers=session_module._DIRECT_PAGE_MARKERS,
+            html="<body>never rendered</body>",
+            always=True,
+            message="Timeout 30000ms exceeded",
+            error_cls=PlaywrightTimeoutError,
+        )
+        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(session_module.BrowserNetworkError) as ctx:
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir, timeout_ms=5_000
+                )
+
+        self.assertIn("network level", str(ctx.exception))
+        self.assertEqual(probe_page.goto_attempts, 4)
+
+    def test_login_retries_a_goto_timeout_on_the_passport_navigation(self):
+        """#865 review, first navigation: a slow-connection timeout on the
+        Passport `goto` gets the same bounded retry as an ERR_ABORTED — a
+        blip that clears must not kill the login before any window opens."""
+        pytest.importorskip("playwright")
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+        from direct_cli.browser import session as session_module
+
+        # One timeout, then the login page renders.
+        login_page = _flaky_network_page(
+            1,
+            markers=session_module._PASSPORT_PAGE_MARKERS,
+            html="<body>Войдите с Яндекс ID</body>",
+            message="Timeout 30000ms exceeded",
+            error_cls=PlaywrightTimeoutError,
+        )
+        probe_page = _direct_page()
+        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            session_module.login_persistent_session(
+                profile_dir=self.profile_dir, timeout_ms=5_000
+            )
+
+        self.assertEqual(login_page.goto_attempts, 2, "goto timeout was not retried")
+        self.assertTrue(session_module.PROFILE_POINTER_PATH.exists())
 
 
 class _FakeVerifyContext(_FakeContext):

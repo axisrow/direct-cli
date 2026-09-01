@@ -50,8 +50,20 @@ if TYPE_CHECKING:
 
 try:
     from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 except ImportError:  # pragma: no cover - exercised only when playwright is absent
     PlaywrightError = Exception  # type: ignore[assignment,misc]
+
+    # A fallback that can never match a real raised exception: with
+    # playwright absent no navigation — and hence no goto timeout — can
+    # happen at all, so the isinstance() check in
+    # `_is_network_navigation_error` must simply never be true. Aliasing
+    # this to ``Exception`` (PlaywrightError's own fallback shape) would
+    # instead classify *every* error as a navigation timeout.
+    class _AbsentPlaywrightTimeout(Exception):
+        pass
+
+    PlaywrightTimeoutError = _AbsentPlaywrightTimeout  # type: ignore[misc]
 
 _BROWSER_INSTALL_HINT = (
     'pip install "direct-cli[browser]" && playwright install chromium'
@@ -83,7 +95,9 @@ _LOGIN_POLL_INTERVAL_MS = 1_000
 # a not-yet-authenticated tick), so the default rides out a ~30s VPN blip
 # without killing a login the user may be mid-way through, while still
 # failing well inside the 5-minute window when the connection is properly
-# down. A single successful navigation resets the count.
+# down. A single successful navigation resets the count. Capped by the
+# caller's ``timeout_ms`` budget inside the poll loop — see
+# ``network_failure_limit`` there.
 _LOGIN_NETWORK_FAILURE_LIMIT = 30
 
 
@@ -315,12 +329,25 @@ def _is_network_navigation_error(exc: BaseException) -> bool:
     """True if ``exc`` is a Playwright navigation failure from the network layer.
 
     Issue #857: an unstable VPN/proxy aborts ``Page.goto`` before Playwright
-    ever sees a response — ``net::ERR_ABORTED`` in the live report. Such an
-    error says nothing about the session's validity, so it must be retried
-    and reported as a connectivity problem, never folded into the
-    expired/wrong-account story :class:`BrowserAuthError` tells.
+    ever sees a response — ``net::ERR_ABORTED`` in the live report — or, on
+    a merely *slow* connection, lets the navigation hit Playwright's own
+    timeout first (``Page.goto: Timeout 30000ms exceeded``, no ``net::ERR_``
+    code in sight — #865 review flagged it as the more frequent companion
+    of a flaky VPN). Either way the failure says nothing about the session's
+    validity, so it must be retried and reported as a connectivity problem,
+    never folded into the expired/wrong-account story
+    :class:`BrowserAuthError` tells.
+
+    Scoped by call site, not by message alone: this helper is only ever
+    asked about exceptions raised by a ``goto`` navigation, so matching
+    Playwright's :class:`TimeoutError` by class here cannot misclassify a
+    timeout from some unrelated ``wait_for_*`` call.
     """
-    return isinstance(exc, PlaywrightError) and _NETWORK_NAVIGATION_MARKER in str(exc)
+    if not isinstance(exc, PlaywrightError):
+        return False
+    return _NETWORK_NAVIGATION_MARKER in str(exc) or isinstance(
+        exc, PlaywrightTimeoutError
+    )
 
 
 def _goto_with_network_retry(page: "Page", url: str) -> None:
@@ -628,6 +655,21 @@ def login_persistent_session(
             # the command uncaught). Any successful navigation resets the
             # count: only *consecutive* failures mean the connection is down.
             consecutive_network_failures = 0
+            # Cap the failure limit by the caller's timeout budget: every
+            # failed tick spends one poll interval of ``elapsed_ms``, so a
+            # budget shorter than the limit in ticks — e.g. ``masters login
+            # --timeout 10`` — would expire the loop first and report the
+            # dead connection as the misleading "timed out waiting for
+            # login" below, the exact framing this block exists to remove
+            # (#865 review). The floor of 1 keeps a single network failure
+            # diagnosable as network whatever the budget.
+            network_failure_limit = max(
+                1,
+                min(
+                    _LOGIN_NETWORK_FAILURE_LIMIT,
+                    timeout_ms // _LOGIN_POLL_INTERVAL_MS - 1,
+                ),
+            )
             while elapsed_ms < timeout_ms:
                 try:
                     probe.goto(GRID_URL, wait_until="commit")
@@ -635,7 +677,7 @@ def login_persistent_session(
                     if not _is_network_navigation_error(exc):
                         raise
                     consecutive_network_failures += 1
-                    if consecutive_network_failures >= _LOGIN_NETWORK_FAILURE_LIMIT:
+                    if consecutive_network_failures >= network_failure_limit:
                         raise BrowserNetworkError(
                             f"Navigation to {GRID_URL} kept failing at the "
                             f"network level ({exc}) for "
