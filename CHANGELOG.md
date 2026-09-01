@@ -330,6 +330,40 @@ Both are handled by polling for a *stable* reading, mirroring
 
 ### Fixed
 
+**`masters login` — no more visible blinking probe tab next to the login
+form (#858).**
+
+`login_persistent_session` (`direct_cli/browser/session.py`) detected a
+completed manual login by keeping a second, visible tab open in the same
+browser window and re-navigating it to the campaigns grid once a second
+(`probe.goto(GRID_URL)` + HTML marker scans in a loop) until the session
+appeared or the timeout hit. Next to the form the user was typing into, that
+tab blinked/reloaded every second with no explanation — the motivation (never
+navigate the page the human is typing into, so a half-filled form or a pending
+2FA prompt is never wiped) was right, but the mechanism was both noisy UX and
+a heavyweight way to ask "is there a session cookie yet".
+
+The wait now polls the shared cookie jar instead: `context.cookies()` is read
+every second for Yandex's SSO session cookies (`Session_id`/`sessionid2` —
+the same jar `_chrome_crypto` copies out of Chrome to authenticate a fresh
+context, so their presence *is* the Direct session). No navigation and no
+second tab happen while the user is still typing. Only when a session-cookie
+signature appears (or changes after a rejected attempt — a stale
+`Session_id` left in a reused profile does not re-trigger the probe every
+second) is a short-lived probe tab opened for a single verification
+navigation, running the same fail-closed checks as before (`commit`
+navigation per #686, marker poll per #692, captcha and login-page content
+scans) on the full marker budget rather than a 1s slice, then closed. The
+page the human is typing into is never navigated, exactly as before.
+
+Verification outcomes are now a tri-state: authenticated (login recorded,
+command exits), login-page-served (conclusive "jar does not add up to a valid
+session" — wait for different cookies), or inconclusive (unrendered page /
+transient network error, retried next tick). A transport failure during the
+one-shot verification — issue #857's `net::ERR_ABORTED` on `probe.goto` — no
+longer crashes the whole login wait: it is treated as inconclusive and
+retried on the next tick.
+
 **`masters` status parsing — read the header status element, not the whole
 page body (#848).**
 

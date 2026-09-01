@@ -40,7 +40,7 @@ import contextlib
 import os
 import platform
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Sequence, Tuple
 
 from . import _clock
 from .._captcha import find_captcha_marker, find_marker
@@ -88,17 +88,16 @@ _PASSPORT_LOGIN_URL = "https://passport.yandex.ru/auth"
 _LOGIN_WAIT_TIMEOUT_MS = 5 * 60 * 1000
 _LOGIN_POLL_INTERVAL_MS = 1_000
 
-# issue #857: how many *consecutive* network-layer failures of the grid probe
-# the login poll loop tolerates before giving up with a
-# :class:`BrowserNetworkError`. Each failed tick costs one
-# ``_LOGIN_POLL_INTERVAL_MS`` of the login timeout budget (same accounting as
-# a not-yet-authenticated tick), so the default rides out a ~30s VPN blip
-# without killing a login the user may be mid-way through, while still
-# failing well inside the 5-minute window when the connection is properly
-# down. A single successful navigation resets the count. Capped by the
-# caller's ``timeout_ms`` budget inside the poll loop — see
-# ``network_failure_limit`` there.
-_LOGIN_NETWORK_FAILURE_LIMIT = 30
+# Yandex Passport's authenticated-session cookies — the SSO pair shared by
+# every *.yandex.ru host. Their presence in the context's cookie jar is what
+# ``login_persistent_session`` polls for as the "the human finished signing
+# in" signal (issue #858): the same jar is what ``_chrome_crypto`` copies out
+# of Chrome to authenticate a fresh context, so these cookies *are* the
+# Direct session. Deliberately excludes the pre-authentication cookies
+# Passport sets on the very first page load (``yandexuid``, ``gdpr``, csrf
+# tokens) — those appear long before the user has typed anything, so keying
+# the verification probe on them would fire it under the user's fingers.
+_AUTH_SESSION_COOKIE_NAMES = frozenset({"Session_id", "sessionid2"})
 
 
 class BrowserSessionError(RuntimeError):
@@ -282,11 +281,12 @@ def _wait_for_marker(
     whichever network event Playwright happens to fire first.
 
     Accepts multiple selectors (matched as "any of") rather than one,
-    because a single ``goto`` can legitimately land on either page: the
-    ``login_persistent_session`` polling loop re-navigates to the grid every
-    tick, but an unfinished login redirects that same URL back to Passport —
-    waiting on the grid's marker alone would burn ``timeout_ms`` every tick
-    until the user finishes logging in.
+    because a single ``goto`` can legitimately land on either page: an
+    unfinished (or stale) login redirects the grid URL right back to
+    Passport — ``login_persistent_session``'s one-shot verification probe and
+    ``capture_storage_state``'s verify path can both be sent to the grid in
+    that state, and waiting on the grid's marker alone would burn
+    ``timeout_ms`` on every such attempt until the user finishes logging in.
 
     Returns ``True`` once a marker is found, ``False`` on timeout — mirrors
     ``direct_cli/browser/masters.py``'s ``_poll_until`` so a timeout is a
@@ -319,8 +319,12 @@ _NETWORK_NAVIGATION_MARKER = "net::ERR_"
 # out a flaky-VPN blip on a navigation the flow cannot continue without (the
 # Passport login page, ``playwright login``'s verification probe), while still
 # failing fast with a clear network-level message when the connection is
-# genuinely down. The login poll loop has its own, longer tolerance
-# (:data:`_LOGIN_NETWORK_FAILURE_LIMIT`) because the user may be mid-login.
+# genuinely down. The login verification probe
+# (:func:`_grid_shows_authenticated_session`) uses the same budget: while the
+# user is still typing, the cookie poll navigates nothing at all (issue
+# #858), so a network failure can only strike once there is a session to
+# verify — and a rerun after restoring the connection re-verifies the
+# still-saved session instantly.
 _GOTO_NETWORK_ATTEMPTS = 3
 _GOTO_NETWORK_RETRY_INTERVAL_MS = 1_000
 
@@ -377,6 +381,91 @@ def _goto_with_network_retry(page: "Page", url: str) -> None:
                     "session. Restore the connection and retry."
                 ) from exc
             page.wait_for_timeout(_GOTO_NETWORK_RETRY_INTERVAL_MS)
+
+
+def _is_yandex_ru_domain(domain: str) -> bool:
+    """True for ``yandex.ru`` itself and any dotted subdomain of it.
+
+    Covers both forms Playwright reports — host-only (``yandex.ru``,
+    ``passport.yandex.ru``) and the dotted cookie-domain (``.yandex.ru``) —
+    without accepting suffix look-alikes: a naive ``endswith("yandex.ru")``
+    would let ``notyandex.ru`` through (review of #858).
+    """
+    return domain == "yandex.ru" or domain.endswith(".yandex.ru")
+
+
+def _session_cookie_signature(
+    cookies: Sequence[Dict[str, Any]],
+) -> Optional[Tuple[Tuple[str, str], ...]]:
+    """Fingerprint the Yandex SSO session cookies in a ``context.cookies()`` jar.
+
+    Returns the sorted ``(name, value)`` pairs of the authenticated-session
+    cookies (:data:`_AUTH_SESSION_COOKIE_NAMES`) on a :func:`_is_yandex_ru_domain`
+    domain, or ``None`` when the jar holds none — i.e. "no session yet" vs.
+    "some session". ``login_persistent_session`` re-runs its grid
+    verification exactly when this signature *changes*, so a rejected
+    session stays rejected until Passport actually issues different cookies
+    (a stale ``Session_id`` sitting in a reused profile does not re-trigger
+    the probe every second), while a state that was merely inconclusive is
+    retried.
+    """
+    pairs = sorted(
+        (cookie["name"], cookie["value"])
+        for cookie in cookies
+        if cookie.get("name") in _AUTH_SESSION_COOKIE_NAMES
+        and _is_yandex_ru_domain(str(cookie.get("domain", "")))
+    )
+    return tuple(pairs) if pairs else None
+
+
+def _grid_shows_authenticated_session(page: "Page") -> Optional[bool]:
+    """One-shot "is the session real?" check: navigate ``page`` to the grid once.
+
+    Extracted from ``login_persistent_session``'s poll loop (issue #858) so
+    the loop can poll the cookie jar for free and only pay for a navigation
+    when there is a session to verify. The checks are exactly the triad the
+    old per-second loop ran — ``wait_until="commit"`` navigation (issue
+    #686), marker poll (fail-closed on unrendered pages, issue #692), then
+    the captcha and auth content scans.
+
+    Returns a tri-state:
+
+    - ``True`` — the grid rendered with an authenticated session;
+    - ``False`` — Yandex served its login page instead: the cookie jar does
+      not add up to a valid session (expired, or issued mid-login before the
+      human actually finished). Only a *changed* jar is worth re-checking;
+    - ``None`` — inconclusive: the page never rendered far enough to trust
+      ``page.content()``. Retried on the next tick, unlike ``False``.
+    """
+    # Deferred import: GRID_URL's canonical source is masters.py (CLAUDE.md
+    # "No URL literals outside the registry"); imported here rather than at
+    # module load to avoid a session.py <-> masters.py import cycle — same
+    # rationale as `capture_storage_state` below.
+    from .masters import GRID_URL
+
+    # Same retry-and-classify treatment as the Passport navigation and
+    # `capture_storage_state`'s verify path (issues #857/#865): a flaky
+    # VPN/proxy aborts `goto` at the network layer — transient aborts are
+    # retried in place, a connection that stays dead fails as
+    # `BrowserNetworkError`, and non-network Playwright errors are re-raised
+    # untouched for the poll loop's guard to classify.
+    _goto_with_network_retry(page, GRID_URL)
+    # Either marker is a valid landing spot: an unfinished login redirects
+    # the grid URL right back to Passport, so waiting on the grid's own
+    # marker alone would burn the full timeout on a login-page landing (see
+    # `_wait_for_marker`'s docstring). On the verification budget (a
+    # dedicated one-shot page, not a once-a-second shared cadence anymore) a
+    # full `_PAGE_MARKER_TIMEOUT_MS` is affordable and lets a slow first
+    # paint of the grid SPA resolve instead of reporting a false "None".
+    if not _wait_for_marker(page, _DIRECT_OR_PASSPORT_PAGE_MARKERS):
+        return None
+    html = page.content()
+    assert_not_captcha(html)
+    try:
+        assert_authenticated(html)
+    except BrowserAuthError:
+        return False
+    return True
 
 
 def default_chrome_profile_dir() -> Optional[Path]:
@@ -594,15 +683,25 @@ def login_persistent_session(
 ) -> None:
     """Open the CLI's own persistent Chromium profile for a one-time manual login.
 
-    Navigates to Yandex Passport's login page and polls (every
-    :data:`_LOGIN_POLL_INTERVAL_MS`) until :func:`assert_authenticated` no
-    longer raises against ``direct.yandex.ru`` — i.e. until the user has
-    finished logging in by hand in the visible window. Raises
-    :class:`BrowserAuthError` if ``timeout_ms`` elapses first. Navigation
-    aborts at the network layer (unstable VPN/proxy, issue #857) are
-    retried, never mistaken for an auth problem: transient ones are
-    tolerated inside the poll budget, persistent ones raise
-    :class:`BrowserNetworkError`.
+    Navigates to Yandex Passport's login page and waits (up to ``timeout_ms``)
+    for the user to finish logging in by hand in the visible window.
+    Readiness is detected from the shared cookie jar: ``context.cookies()`` is
+    polled every :data:`_LOGIN_POLL_INTERVAL_MS` for Yandex's SSO session
+    cookies (:data:`_AUTH_SESSION_COOKIE_NAMES`) — no navigation and no second
+    browser tab while the user is still typing (issue #858: the previous
+    implementation kept a visible probe tab next to the login form and
+    reloaded the Direct grid on it once a second). Only when a session-cookie
+    signature appears (or changes after a rejected attempt) is a short-lived
+    probe tab opened for a single verification navigation
+    (:func:`_grid_shows_authenticated_session`), then closed immediately; the
+    page the human is typing into is never navigated away from under them.
+    Raises :class:`BrowserAuthError` if ``timeout_ms`` elapses first.
+    Navigation failures keep their #865 classification: a network-layer abort
+    (unstable VPN/proxy, issue #857) is retried by
+    :func:`_goto_with_network_retry`, and a connection that stays dead fails
+    as :class:`BrowserNetworkError` — never mistaken for an auth problem —
+    while a browser window that dies mid-wait fails fast with a clean
+    :class:`BrowserSessionError`.
 
     Deliberately defaults ``headless=False``: a headless window cannot be
     logged into by a human, so ``direct masters login`` always shows the
@@ -611,12 +710,6 @@ def login_persistent_session(
     """
     sync_playwright = _import_sync_playwright()
     resolved_dir = _resolve_persistent_profile_dir(profile_dir)
-
-    # Deferred import: direct_cli/browser/masters.py's GRID_URL is the single
-    # canonical source for this URL (CLAUDE.md "No URL literals outside the
-    # registry"); imported here rather than at module load to avoid a
-    # session.py <-> masters.py import cycle (masters.py imports session.py).
-    from .masters import GRID_URL
 
     with _launch_persistent_context(
         sync_playwright, resolved_dir, headless=headless
@@ -635,100 +728,76 @@ def login_persistent_session(
                 f"Retry `direct masters login`. {_stale_marker_hint()}"
             )
 
-        # Poll on a second page, never on `page`: the human is typing into
-        # that one, and navigating it to the grid once a second would wipe a
-        # half-filled login form or a pending 2FA prompt out from under them.
-        # Both pages share the persistent context's cookie jar, so a login
-        # completed on `page` is immediately visible to `probe`.
-        probe = context.new_page()
+        # Poll the cookie jar, not a page (issue #858). `context.cookies()`
+        # reads the persistent context's jar directly — zero rendering, zero
+        # navigation, invisible to the user — and both pages share that jar,
+        # so a login completed on `page` is visible here immediately. The
+        # human keeps typing into `page` undisturbed for the whole wait: the
+        # verification probe below is a separate tab that exists only for
+        # the duration of one check. That also scopes #857's network
+        # failures to the verification navigation alone — while the user is
+        # still typing, nothing navigates, so a flaky VPN cannot strike.
+        #
+        # A dead context mid-wait is deliberately fatal, not retried: every
+        # PlaywrightError that can escape the verification guard below
+        # (`context.cookies()`, `context.new_page()`, `probe.close()`,
+        # `page.wait_for_timeout()`) comes from a call that talks only to
+        # the local browser over CDP — no Yandex network involved — so an
+        # exception from one of them means the browser process itself is
+        # gone (crashed, or the user closed the window to abort the login).
+        # Retrying that until `timeout_ms` can never succeed, so it is
+        # converted to a clean :class:`BrowserSessionError` instead of a
+        # raw PlaywrightError traceback. The network layer is the opposite
+        # case and stays retryable — see the guard below.
+        deadline = _clock.now() + timeout_ms / 1000
+        rejected_signature: Optional[Tuple[Tuple[str, str], ...]] = None
         try:
-            elapsed_ms = 0
-            # issue #857: a network-layer abort of the grid probe (flaky
-            # VPN/proxy) says nothing about the login's progress, so it must
-            # not crash the flow the user may be mid-way through. Tolerate
-            # consecutive aborts up to _LOGIN_NETWORK_FAILURE_LIMIT — each
-            # consuming one poll interval of the timeout budget, exactly like
-            # a not-yet-authenticated tick — and only then fail with the
-            # distinct BrowserNetworkError, so a dead connection is not
-            # reported as the misleading "timed out waiting for login" below
-            # (or worse, as the raw Playwright traceback that used to escape
-            # the command uncaught). Any successful navigation resets the
-            # count: only *consecutive* failures mean the connection is down.
-            consecutive_network_failures = 0
-            # Cap the failure limit by the caller's timeout budget: every
-            # failed tick spends one poll interval of ``elapsed_ms``, so a
-            # budget shorter than the limit in ticks — e.g. ``masters login
-            # --timeout 10`` — would expire the loop first and report the
-            # dead connection as the misleading "timed out waiting for
-            # login" below, the exact framing this block exists to remove
-            # (#865 review). The floor of 1 keeps a single network failure
-            # diagnosable as network whatever the budget.
-            network_failure_limit = max(
-                1,
-                min(
-                    _LOGIN_NETWORK_FAILURE_LIMIT,
-                    timeout_ms // _LOGIN_POLL_INTERVAL_MS - 1,
-                ),
-            )
-            while elapsed_ms < timeout_ms:
-                try:
-                    probe.goto(GRID_URL, wait_until="commit")
-                except PlaywrightError as exc:
-                    if not _is_network_navigation_error(exc):
-                        raise
-                    consecutive_network_failures += 1
-                    if consecutive_network_failures >= network_failure_limit:
-                        raise BrowserNetworkError(
-                            f"Navigation to {GRID_URL} kept failing at the "
-                            f"network level ({exc}) for "
-                            f"{consecutive_network_failures} consecutive "
-                            "attempts. This is a connectivity problem (VPN, "
-                            "proxy or unstable network), not an expired or "
-                            "wrong-account session. Restore the connection "
-                            "and run `direct masters login` again."
-                        ) from exc
-                    probe.wait_for_timeout(_LOGIN_POLL_INTERVAL_MS)
-                    elapsed_ms += _LOGIN_POLL_INTERVAL_MS
-                    continue
-                consecutive_network_failures = 0
-                # Either marker is a valid landing spot here: an unfinished
-                # login redirects the grid URL right back to Passport, so
-                # waiting on the grid's own marker alone would burn the full
-                # timeout every tick until the user finishes logging in (see
-                # `_wait_for_marker`'s docstring). Capped at the poll
-                # interval, not `_PAGE_MARKER_TIMEOUT_MS`, so a slow-to-paint
-                # page degrades to "try again next tick" rather than
-                # stalling this loop's own cadence.
-                marker_found = _wait_for_marker(
-                    probe,
-                    _DIRECT_OR_PASSPORT_PAGE_MARKERS,
-                    timeout_ms=_LOGIN_POLL_INTERVAL_MS,
-                )
-                if not marker_found:
-                    # Neither page rendered far enough this tick to trust
-                    # `probe.content()` — a blank/in-progress shell can
-                    # contain neither the login-page nor captcha markers, so
-                    # treat this exactly like "not authenticated yet" rather
-                    # than risking `assert_authenticated` passing an
-                    # unrendered page (issue #692 cycle-review). This is the
-                    # expected outcome on a slow tick, not an error.
-                    elapsed_ms += _LOGIN_POLL_INTERVAL_MS
-                    continue
-                html = probe.content()
-                assert_not_captcha(html)
-                try:
-                    assert_authenticated(html)
-                except BrowserAuthError:
-                    probe.wait_for_timeout(_LOGIN_POLL_INTERVAL_MS)
-                    elapsed_ms += _LOGIN_POLL_INTERVAL_MS
-                    continue
-                # Only once the session is real: read commands resolve the
-                # profile through this pointer, so recording an unfinished
-                # login would point them at an empty profile.
-                remember_persistent_profile_dir(resolved_dir)
-                return
-        finally:
-            probe.close()
+            while _clock.now() < deadline:
+                signature = _session_cookie_signature(context.cookies())
+                if signature is not None and signature != rejected_signature:
+                    probe = context.new_page()
+                    try:
+                        verdict = _grid_shows_authenticated_session(probe)
+                    except PlaywrightError as exc:
+                        if not _is_network_navigation_error(exc):
+                            # Not the network layer: the browser/context
+                            # itself is gone — let the outer guard turn it
+                            # into the clean fatal error.
+                            raise
+                        # Defensive: `_goto_with_network_retry` inside the
+                        # verification already retries transient aborts and
+                        # converts persistent ones to `BrowserNetworkError`,
+                        # so a network-classified PlaywrightError can only
+                        # escape from outside the goto itself. Treat it as
+                        # inconclusive — the same signature is retried on
+                        # the next tick.
+                        verdict = None
+                    finally:
+                        # Teardown: a browser that died at the very end of a
+                        # *successful* verification must not turn that
+                        # success into a fatal error.
+                        with contextlib.suppress(PlaywrightError):
+                            probe.close()
+                    if verdict:
+                        # Only once the session is real: read commands
+                        # resolve the profile through this pointer, so
+                        # recording an unfinished login would point them at
+                        # an empty profile.
+                        remember_persistent_profile_dir(resolved_dir)
+                        return
+                    if verdict is False:
+                        # Conclusive "no valid session": don't re-probe this
+                        # jar every second — wait for Passport to issue
+                        # different cookies. `None` (unrendered/transient)
+                        # stays retryable.
+                        rejected_signature = signature
+                page.wait_for_timeout(_LOGIN_POLL_INTERVAL_MS)
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                "The browser window was closed (or crashed) while waiting "
+                "for you to log in — there is nothing left to wait for. Run "
+                "`direct masters login` again."
+            ) from exc
 
         raise BrowserAuthError(
             f"Timed out after {timeout_ms // 1000}s waiting for login to "
