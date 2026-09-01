@@ -962,6 +962,16 @@ def _flaky_network_page(
     )
 
 
+def _session_cookies(value="sid", name="Session_id"):
+    """A cookie jar carrying Yandex's SSO session cookies (issue #858).
+
+    Mirrors the dict shape Playwright's ``context.cookies()`` returns, with
+    the ``name``/``value``/``domain`` keys ``_session_cookie_signature``
+    reads — a fresh persistent profile holds nothing else that matters.
+    """
+    return [{"name": name, "value": value, "domain": ".yandex.ru"}]
+
+
 class TestMastersRegistered(unittest.TestCase):
     """The group and its subcommands must be wired into the root CLI."""
 
@@ -1136,20 +1146,58 @@ class _FakePersistentContext:
     Unlike ``_FakeBrowser``/``_FakeContext`` (a separate browser + context
     pair for ``chromium.launch()``), a persistent context IS the return
     value — there is no separate ``Browser`` object to close.
+
+    ``cookies`` scripts what ``context.cookies()`` reports — the jar
+    ``login_persistent_session`` polls for the Yandex SSO session cookies
+    (issue #858). A list holds for the whole run; for a jar that *changes*
+    mid-login (stale ``Session_id`` replaced by a fresh one) pass a callable
+    returning the current jar per call.
     """
 
-    def __init__(self, pages=None):
+    def __init__(self, pages=None, cookies=None):
         self.closed = False
         self.launch_kwargs = None
         self._pages = list(pages or [])
+        self._cookies = cookies if cookies is not None else []
+        # How many tabs the code under test actually opened — the login tab
+        # plus, with cookie-based polling (#858), one short-lived probe tab
+        # per verification attempt and nothing else.
+        self.pages_created = 0
+
+    def cookies(self, urls=None):
+        jar = self._cookies
+        if callable(jar):
+            jar = jar()
+        return list(jar)
 
     def new_page(self):
+        self.pages_created += 1
         if self._pages:
             return self._pages.pop(0)
         return FakePage()
 
     def close(self):
         self.closed = True
+
+
+class _DyingPersistentContext(_FakePersistentContext):
+    """A browser process that dies mid-wait (review of #858).
+
+    CDP-only calls — ``context.cookies()`` here — start raising ``Target
+    closed`` from the second poll on. Unlike a verification ``goto``, no
+    Yandex network is involved: an exception from these calls means the
+    browser itself is gone.
+    """
+
+    def __init__(self, pages=None):
+        super().__init__(pages=pages)
+        self.cookie_polls = 0
+
+    def cookies(self, urls=None):
+        self.cookie_polls += 1
+        if self.cookie_polls > 1:
+            raise PlaywrightError("Target closed")
+        return []
 
 
 class _FakeChromium:
@@ -1417,11 +1465,14 @@ class TestPersistentSession(unittest.TestCase):
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
 
-        # Page 1 is the visible Passport tab; page 2 is the poll probe whose
-        # HTML decides whether login has completed.
+        # Page 1 is the visible Passport tab; page 2 is the one-shot
+        # verification probe, opened only because the cookie jar already
+        # carries a session cookie.
         login_page = _passport_page()
         authed_page = _direct_page()
-        persistent_ctx = _FakePersistentContext(pages=[login_page, authed_page])
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, authed_page], cookies=_session_cookies()
+        )
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
@@ -1432,12 +1483,22 @@ class TestPersistentSession(unittest.TestCase):
 
         self.assertTrue(persistent_ctx.closed)
         self.assertTrue(self.profile_dir.exists())
+        self.assertTrue(
+            session_module.PROFILE_POINTER_PATH.exists(),
+            "a verified login was never recorded for later `masters` calls",
+        )
+        self.assertEqual(
+            persistent_ctx.pages_created,
+            2,
+            "expected exactly the login tab and one verification probe",
+        )
 
     def test_login_persistent_session_times_out_if_never_authenticated(self):
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
         from direct_cli.browser.session import BrowserAuthError
 
+        # No session cookies in the jar: the user never finishes logging in.
         login_page = _passport_page()
         probe_page = _passport_page()
         persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
@@ -1451,16 +1512,28 @@ class TestPersistentSession(unittest.TestCase):
                     timeout_ms=1_000,
                 )
         self.assertIn("Timed out", str(ctx.exception))
-        self.assertTrue(probe_page.closed, "poll probe page was left open")
+        # Issue #858: with no session cookie to verify, no probe tab may be
+        # opened at all — the wait must be invisible, not a blinking tab.
+        self.assertEqual(
+            persistent_ctx.pages_created,
+            1,
+            "opened a probe tab even though there was no session to verify",
+        )
+        self.assertEqual(
+            probe_page.navigated_to,
+            [],
+            "a page the login flow never requested was navigated",
+        )
 
     def test_login_polling_does_not_navigate_the_page_the_user_is_typing_into(self):
         """The visible login page must stay on Passport until login succeeds.
 
-        The poll loop checks authentication by driving the *same* page the
-        human is typing into. Every interval it navigates that page away to
-        the grid, wiping a half-filled login form and any 2FA prompt on it —
-        the user cannot finish signing in against a page that resets under
-        their hands once a second.
+        Even with a session cookie present (so the verification probe is
+        actively running — here it sees Yandex serve the login page, i.e. a
+        jar that does not add up to a valid session), the only page the
+        login flow may navigate is its own short-lived probe tab. Navigating
+        the page the human is typing into would wipe a half-filled login
+        form or a pending 2FA prompt out from under them.
         """
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
@@ -1468,7 +1541,9 @@ class TestPersistentSession(unittest.TestCase):
 
         login_page = _passport_page()
         probe_page = _passport_page()
-        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, probe_page], cookies=_session_cookies()
+        )
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
@@ -1476,23 +1551,29 @@ class TestPersistentSession(unittest.TestCase):
             with self.assertRaises(BrowserAuthError):
                 session_module.login_persistent_session(
                     profile_dir=self.profile_dir,
-                    timeout_ms=3_000,
+                    timeout_ms=1_000,
                 )
 
         # The page the user interacts with is navigated exactly once: to
-        # Passport. Polling must not steer it anywhere else.
+        # Passport. Verification must steer only its own probe tab.
         self.assertEqual(
             login_page.navigated_to,
             [session_module._PASSPORT_LOGIN_URL],
-            "poll loop navigated the user's login page away from Passport",
+            "verification navigated the user's login page away from Passport",
         )
+        self.assertEqual(
+            probe_page.navigated_to,
+            [browser_masters.GRID_URL],
+            "expected exactly one verification navigation on the probe tab",
+        )
+        self.assertTrue(probe_page.closed, "verification probe was left open")
 
     def test_login_navigations_use_commit_not_domcontentloaded(self):
         """Issue #686: both `goto` calls in the login flow (the visible
-        Passport tab and the poll probe) must use `wait_until="commit"`, not
-        `domcontentloaded` — Passport occasionally timed out on
-        `domcontentloaded` during its own slow initial paint. `commit`
-        returns as soon as the navigation is committed, and
+        Passport tab and the verification probe) must use
+        `wait_until="commit"`, not `domcontentloaded` — Passport occasionally
+        timed out on `domcontentloaded` during its own slow initial paint.
+        `commit` returns as soon as the navigation is committed, and
         `_wait_for_marker` polling for a concrete DOM marker afterwards is
         what actually confirms the page rendered (see `_wait_for_marker`'s
         docstring)."""
@@ -1501,7 +1582,9 @@ class TestPersistentSession(unittest.TestCase):
 
         login_page = _passport_page()
         authed_page = _direct_page()
-        persistent_ctx = _FakePersistentContext(pages=[login_page, authed_page])
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, authed_page], cookies=_session_cookies()
+        )
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
@@ -1553,19 +1636,21 @@ class TestPersistentSession(unittest.TestCase):
         )
 
     def test_login_poll_treats_unrendered_tick_as_not_yet_authenticated(self):
-        """Issue #692 cycle-review: a tick where neither the grid nor
-        Passport marker appears must be treated like "not authenticated
-        yet" (same as an explicit `BrowserAuthError`), not like a
-        successful, verified login — a blank grid response matches neither
-        `_LOGIN_PAGE_MARKERS` nor a captcha marker, so `assert_authenticated`
-        alone would silently accept it."""
+        """Issue #692 cycle-review: a verification attempt where neither the
+        grid nor Passport marker appears must be treated like "not
+        authenticated yet" (same as an explicit `BrowserAuthError`), not
+        like a successful, verified login — a blank grid response matches
+        neither `_LOGIN_PAGE_MARKERS` nor a captcha marker, so
+        `assert_authenticated` alone would silently accept it."""
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
         from direct_cli.browser.session import BrowserAuthError
 
         login_page = _passport_page()
         blank_probe = FakePage(locators={}, html="<html></html>")
-        persistent_ctx = _FakePersistentContext(pages=[login_page, blank_probe])
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, blank_probe], cookies=_session_cookies()
+        )
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
@@ -1578,25 +1663,133 @@ class TestPersistentSession(unittest.TestCase):
 
         # The unfinished login must never be recorded as a usable profile.
         self.assertFalse(session_module.PROFILE_POINTER_PATH.exists())
+        self.assertTrue(
+            blank_probe.closed,
+            "an inconclusive verification probe was left open",
+        )
+
+    def test_session_cookie_signature_ignores_pre_auth_and_foreign_cookies(self):
+        """Issue #858: only the Yandex SSO session cookies on a yandex.ru
+        domain are a login signal — the cookies Passport sets on the very
+        first page load (yandexuid, csrf) appear before the user has typed
+        anything, and a same-named cookie on an unrelated domain is not a
+        Yandex session at all."""
+        from direct_cli.browser.session import _session_cookie_signature
+
+        self.assertIsNone(_session_cookie_signature([]))
+        self.assertIsNone(
+            _session_cookie_signature(
+                [
+                    {"name": "yandexuid", "value": "u", "domain": ".yandex.ru"},
+                    {"name": "csrf", "value": "c", "domain": ".yandex.ru"},
+                ]
+            ),
+            "pre-authentication cookies must not read as a session",
+        )
+        self.assertIsNone(
+            _session_cookie_signature(
+                [{"name": "Session_id", "value": "x", "domain": "example.com"}]
+            ),
+            "a foreign-domain Session_id is not a Yandex session",
+        )
+        # Review of #858: `endswith("yandex.ru")` alone would accept these
+        # suffix look-alikes; the grid content checks would catch the fake
+        # session anyway, but a look-alike must not even trigger a probe.
+        for lookalike in ("notyandex.ru", "fake-yandex.ru", "yandex.ru.com"):
+            self.assertIsNone(
+                _session_cookie_signature(
+                    [{"name": "Session_id", "value": "x", "domain": lookalike}]
+                ),
+                f"a look-alike domain ({lookalike}) must not read as Yandex",
+            )
+        # Host-only forms are genuine Yandex domains and must pass.
+        for genuine in ("yandex.ru", "passport.yandex.ru"):
+            self.assertIsNotNone(
+                _session_cookie_signature(
+                    [{"name": "Session_id", "value": "x", "domain": genuine}]
+                ),
+                f"a host-only Yandex domain ({genuine}) must read as Yandex",
+            )
+        signature = _session_cookie_signature(
+            [
+                {"name": "yandexuid", "value": "u", "domain": ".yandex.ru"},
+                {"name": "Session_id", "value": "sid", "domain": ".yandex.ru"},
+                {"name": "sessionid2", "value": "sid2", "domain": ".yandex.ru"},
+            ]
+        )
+        self.assertEqual(
+            signature,
+            (("Session_id", "sid"), ("sessionid2", "sid2")),
+        )
+        # A different value means a different session — that is what
+        # triggers re-verification after a rejected first attempt.
+        self.assertNotEqual(
+            signature, _session_cookie_signature(_session_cookies("other"))
+        )
+
+    def test_login_reverifies_when_the_session_cookie_changes(self):
+        """A rejected jar must not be re-probed every second, but a *changed*
+        jar must: a stale Session_id left in a reused profile fails
+        verification once, then the user's fresh login issues different
+        cookies and that signature gets its own verification."""
+        pytest.importorskip("playwright")
+        import itertools
+
+        from direct_cli.browser import session as session_module
+
+        jar_calls = itertools.count()
+
+        def jar():
+            return _session_cookies(
+                "fresh-sid" if next(jar_calls) >= 2 else "stale-sid"
+            )
+
+        login_page = _passport_page()
+        stale_probe = _passport_page()  # grid redirects to the login page
+        fresh_probe = _direct_page()  # the real session renders the grid
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, stale_probe, fresh_probe], cookies=jar
+        )
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            session_module.login_persistent_session(
+                profile_dir=self.profile_dir, timeout_ms=5_000
+            )
+
+        self.assertTrue(session_module.PROFILE_POINTER_PATH.exists())
+        self.assertEqual(
+            persistent_ctx.pages_created,
+            3,
+            "expected one probe for the stale jar and one for the fresh one "
+            "in addition to the login tab — the unchanged middle tick must "
+            "not open any",
+        )
+        self.assertTrue(stale_probe.closed)
+        self.assertTrue(fresh_probe.closed)
 
     def test_login_rides_out_a_transient_network_abort_of_the_grid_probe(self):
-        """Issue #857: a flaky VPN aborts the grid probe's `goto` with
-        net::ERR_ABORTED before the login screen flow finishes — that says
-        nothing about the login's progress, so the poll loop must tolerate
-        the blip instead of crashing with the raw Playwright traceback the
-        live report showed."""
+        """Issue #857: a flaky VPN aborts the verification probe's `goto`
+        with net::ERR_ABORTED right as the session cookie appears — that
+        says nothing about the login's progress, so `_goto_with_network_retry`
+        must ride the blip out inside the one-shot verification instead of
+        crashing with the raw Playwright traceback the live report showed."""
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
 
         # The probe fails once (network blip), then navigates fine and sees
-        # an authenticated grid.
+        # an authenticated grid. The cookie jar already carries the session:
+        # verification fires on the first poll tick.
         login_page = _passport_page()
         probe_page = _flaky_network_page(
             1,
             markers=session_module._DIRECT_PAGE_MARKERS,
             html="<body>Кампания остановлена</body>",
         )
-        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, probe_page], cookies=_session_cookies()
+        )
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
@@ -1615,10 +1808,10 @@ class TestPersistentSession(unittest.TestCase):
         self.assertTrue(probe_page.closed)
 
     def test_login_reports_a_dead_connection_as_network_error_not_auth(self):
-        """Issue #857: when the probe never gets through at all, the error
-        must name the network as the cause — the pre-fix raw traceback (and
-        its natural 'your session expired' reading) sent the user re-logging
-        in over a VPN when the session was fine."""
+        """Issue #857: when the verification navigation never gets through at
+        all, the error must name the network as the cause — the pre-fix raw
+        traceback (and its natural 'your session expired' reading) sent the
+        user re-logging in over a VPN when the session was fine."""
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
 
@@ -1629,14 +1822,13 @@ class TestPersistentSession(unittest.TestCase):
             html="<body>never rendered</body>",
             always=True,
         )
-        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, probe_page], cookies=_session_cookies()
+        )
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
-        with (
-            patch("playwright.sync_api.sync_playwright", return_value=fake_playwright),
-            patch.object(session_module, "_LOGIN_NETWORK_FAILURE_LIMIT", 3),
-        ):
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
             with self.assertRaises(session_module.BrowserNetworkError) as ctx:
                 session_module.login_persistent_session(
                     profile_dir=self.profile_dir, timeout_ms=30_000
@@ -1651,7 +1843,12 @@ class TestPersistentSession(unittest.TestCase):
         self.assertIn("network level", message)
         self.assertIn("VPN", message)
         self.assertIn("not an expired or wrong-account session", message)
-        self.assertTrue(probe_page.closed, "poll probe page was left open")
+        self.assertEqual(
+            probe_page.goto_attempts,
+            session_module._GOTO_NETWORK_ATTEMPTS,
+            "more attempts were made than the retry budget allows",
+        )
+        self.assertTrue(probe_page.closed, "verification probe was left open")
         self.assertFalse(
             session_module.PROFILE_POINTER_PATH.exists(),
             "an unfinished login must not be recorded as a usable profile",
@@ -1665,14 +1862,17 @@ class TestPersistentSession(unittest.TestCase):
         from direct_cli.browser import session as session_module
 
         # Two aborts, then the login page renders on the third attempt
-        # (_GOTO_NETWORK_ATTEMPTS default).
+        # (_GOTO_NETWORK_ATTEMPTS default). The jar carries the session so
+        # the first poll tick verifies it against the grid.
         login_page = _flaky_network_page(
             2,
             markers=session_module._PASSPORT_PAGE_MARKERS,
             html="<body>Войдите с Яндекс ID</body>",
         )
         probe_page = _direct_page()
-        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, probe_page], cookies=_session_cookies()
+        )
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
@@ -1754,11 +1954,13 @@ class TestPersistentSession(unittest.TestCase):
         self.assertEqual(login_page.goto_attempts, 1, "a non-network error was retried")
 
     def test_login_reports_dead_connection_when_budget_is_under_the_failure_limit(self):
-        """#865 review: `masters login --timeout 10` (any budget under the
-        30-tick failure limit) must still diagnose a dead connection as
-        network — every failed tick spends a poll interval of `elapsed_ms`,
-        so the uncapped limit was unreachable and the loop expired into the
-        misleading BrowserAuthError "timed out waiting for login" first."""
+        """#865 review, ported to the cookie-poll design (#858): a short
+        `--timeout` must still diagnose a dead connection as network, never
+        expire into the misleading BrowserAuthError "timed out waiting for
+        login". The old per-tick failure cap is gone with the per-second
+        probe — the classification now happens inside
+        `_goto_with_network_retry`, which runs its own attempt budget
+        without consulting the outer login deadline."""
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
 
@@ -1769,12 +1971,14 @@ class TestPersistentSession(unittest.TestCase):
             html="<body>never rendered</body>",
             always=True,
         )
-        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, probe_page], cookies=_session_cookies()
+        )
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
-        # 5s budget, limit deliberately NOT patched down: the cap must do
-        # the work — min(30, 5000//1000 - 1) = 4.
+        # 5s budget: the verification fires on the first tick and exhausts
+        # the helper's attempt budget well inside it.
         with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
             with self.assertRaises(session_module.BrowserNetworkError) as ctx:
                 session_module.login_persistent_session(
@@ -1788,14 +1992,17 @@ class TestPersistentSession(unittest.TestCase):
         )
         self.assertEqual(
             probe_page.goto_attempts,
-            4,
-            "failure limit was not capped by the timeout budget",
+            session_module._GOTO_NETWORK_ATTEMPTS,
+            "the helper's attempt budget was not respected",
         )
 
     def test_login_diagnoses_network_on_first_failure_with_a_tiny_timeout(self):
-        """#865 review, floor of the cap: a budget shorter than one poll
-        interval still classifies its only failed tick as network, never
-        lets it expire silently into the auth timeout."""
+        """#865 review, floor case ported to the cookie-poll design (#858):
+        a budget shorter than one poll interval still classifies its failed
+        verification as network. The helper's retry budget is not capped by
+        the outer deadline — a tiny `--timeout` burns the same three
+        navigation attempts, then fails as network rather than letting the
+        auth timeout swallow the diagnosis."""
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
 
@@ -1806,7 +2013,9 @@ class TestPersistentSession(unittest.TestCase):
             html="<body>never rendered</body>",
             always=True,
         )
-        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, probe_page], cookies=_session_cookies()
+        )
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
@@ -1816,14 +2025,16 @@ class TestPersistentSession(unittest.TestCase):
                     profile_dir=self.profile_dir, timeout_ms=500
                 )
 
-        self.assertEqual(probe_page.goto_attempts, 1)
+        self.assertEqual(
+            probe_page.goto_attempts, session_module._GOTO_NETWORK_ATTEMPTS
+        )
 
     def test_login_treats_a_goto_timeout_as_a_network_failure(self):
         """#865 review: on a merely *slow* flaky-VPN connection `Page.goto`
         raises Playwright's own TimeoutError (no net::ERR_* code) — the
-        same connectivity class as ERR_ABORTED, so the poll loop must
-        tolerate and report it as network, not let it escape as a raw
-        traceback."""
+        same connectivity class as ERR_ABORTED, so the verification's retry
+        budget must exhaust and report it as network, not let it escape as
+        a raw traceback."""
         pytest.importorskip("playwright")
         from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
@@ -1838,7 +2049,9 @@ class TestPersistentSession(unittest.TestCase):
             message="Timeout 30000ms exceeded",
             error_cls=PlaywrightTimeoutError,
         )
-        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, probe_page], cookies=_session_cookies()
+        )
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
@@ -1849,7 +2062,9 @@ class TestPersistentSession(unittest.TestCase):
                 )
 
         self.assertIn("network level", str(ctx.exception))
-        self.assertEqual(probe_page.goto_attempts, 4)
+        self.assertEqual(
+            probe_page.goto_attempts, session_module._GOTO_NETWORK_ATTEMPTS
+        )
 
     def test_login_retries_a_goto_timeout_on_the_passport_navigation(self):
         """#865 review, first navigation: a slow-connection timeout on the
@@ -1860,7 +2075,8 @@ class TestPersistentSession(unittest.TestCase):
 
         from direct_cli.browser import session as session_module
 
-        # One timeout, then the login page renders.
+        # One timeout, then the login page renders. The jar carries the
+        # session so the first poll tick verifies it against the grid.
         login_page = _flaky_network_page(
             1,
             markers=session_module._PASSPORT_PAGE_MARKERS,
@@ -1869,7 +2085,9 @@ class TestPersistentSession(unittest.TestCase):
             error_cls=PlaywrightTimeoutError,
         )
         probe_page = _direct_page()
-        persistent_ctx = _FakePersistentContext(pages=[login_page, probe_page])
+        persistent_ctx = _FakePersistentContext(
+            pages=[login_page, probe_page], cookies=_session_cookies()
+        )
         fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
         fake_playwright = _FakePlaywright(fake_chromium)
 
@@ -1880,6 +2098,47 @@ class TestPersistentSession(unittest.TestCase):
 
         self.assertEqual(login_page.goto_attempts, 2, "goto timeout was not retried")
         self.assertTrue(session_module.PROFILE_POINTER_PATH.exists())
+
+    def test_login_wait_fails_cleanly_when_the_browser_dies_mid_wait(self):
+        """Review of #858: `context.cookies()`/`context.new_page()` sit
+        outside the transient-verification guard — a browser that dies
+        mid-wait must surface as a clean `BrowserSessionError` (run login
+        again), not a raw PlaywrightError traceback, and must not burn the
+        rest of the timeout retrying calls that can never succeed again."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+        from direct_cli.browser.session import BrowserSessionError
+
+        login_page = _passport_page()
+        persistent_ctx = _DyingPersistentContext(pages=[login_page])
+        fake_chromium = _FakeChromium(_FakeBrowser(), persistent_ctx)
+        fake_playwright = _FakePlaywright(fake_chromium)
+
+        with patch("playwright.sync_api.sync_playwright", return_value=fake_playwright):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                session_module.login_persistent_session(
+                    profile_dir=self.profile_dir,
+                    timeout_ms=5_000,
+                )
+
+        # Not the timeout error: a dead browser is its own, immediate
+        # failure — waiting out the remaining budget is pointless.
+        self.assertNotIsInstance(
+            ctx.exception,
+            session_module.BrowserAuthError,
+            "a dead browser must fail fast, not as a login timeout",
+        )
+        self.assertIn("browser window", str(ctx.exception))
+        self.assertIn("direct masters login", str(ctx.exception))
+        self.assertEqual(
+            persistent_ctx.cookie_polls,
+            2,
+            "the wait kept polling a dead context",
+        )
+        self.assertFalse(
+            session_module.PROFILE_POINTER_PATH.exists(),
+            "a crashed login wait must not be recorded as a usable profile",
+        )
 
 
 class _FakeVerifyContext(_FakeContext):
