@@ -370,6 +370,14 @@ def _run_per_id(
     Note: ``_with_session``'s stale-session retry re-runs the whole
     operation, so IDs completed before the auth failure appear twice — once
     for each real attempt. Every line is still a genuine outcome.
+
+    Note: the streamed JSON path does not go through ``format_output``, so
+    its ``raise_for_api_result_errors``/``warn_for_api_result_warnings``
+    pass no longer applies. That is a deliberate no-op here: those checks
+    look for Yandex API ``Errors``/``Warnings`` envelopes, and ``masters``
+    rows are UI-scraped report rows — per-ID failures are surfaced as
+    explicit ``Error`` entries in the stream itself, never as embedded API
+    error structures.
     """
 
     stream_json = output_format == "json"
@@ -422,10 +430,13 @@ def _run_per_id(
             ctx, headful, profile_dir, chrome_profile, lambda page: _all(page, emit)
         )
 
-    if stream_json:
-        if not results:  # empty batch: keep a parseable empty list
-            print(format_json([], indent=None), flush=True)
-    else:
+        if stream_json and not results:
+            # Empty batch: keep a parseable empty list, on the same stream
+            # the records would have gone to (the --output file if given,
+            # stdout otherwise) -- not always stdout.
+            emit([])
+
+    if not stream_json:
         format_output(
             results if len(results) != 1 else results[0], output_format, output
         )

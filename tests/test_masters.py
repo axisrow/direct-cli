@@ -4983,6 +4983,18 @@ class TestRunPerIdJsonlStreaming(unittest.TestCase):
 
         self.assertEqual(self.recorder.value, "[]\n")
 
+    def test_empty_batch_writes_the_empty_list_into_output_file(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.json"
+            self._run_per_id([], lambda page, campaign_id: {}, output=str(path))
+
+            # Same stream the records would have gone to: the file gets
+            # "[]", stdout gets nothing.
+            self.assertEqual(path.read_text(encoding="utf-8"), "[]\n")
+        self.assertEqual(self.recorder.value, "")
+
     def test_non_json_formats_keep_the_consolidated_output(self):
         def _suspend(page, campaign_id):
             return {"CampaignId": campaign_id, "Status": "SUSPENDED"}
