@@ -788,6 +788,40 @@ Code review on #782/PR #784 found two edge cases in `delete_master`
 
 ### BREAKING CHANGES
 
+**`masters` batch commands stream JSONL instead of a pretty JSON array (#866).**
+
+`masters get|suspend|resume|launch|archive` with several campaign IDs used to
+buffer every per-ID outcome in memory and print a single pretty JSON array
+after the whole loop. A process killed mid-batch (a wrapper's subprocess
+timeout — the Yandex Direct MCP plugin runs these with a 180 s default — or
+OOM/crash) took every already-applied mutation's report with it: a caller of
+irreversible `launch`/`archive` had no way to learn which campaigns had
+already changed, and a blind retry re-applied live mutations. Transport-level
+sibling of #766/#816, which fixed the in-process cases.
+
+- With `--format json` (the default), each ID's outcome — the resulting row,
+  or its `{"CampaignId": ..., "Error": ...}` entry — is printed the moment it
+  is known, as one compact JSON object per line (JSONL), with an explicit
+  `flush()` after every record. stdout in a non-tty subprocess is
+  block-buffered, so without the per-record flush nothing would survive a
+  kill; on POSIX `subprocess.run` attaches the flushed partial stdout to
+  `TimeoutExpired`, so wrappers (and the plugin's
+  `CliTimeoutError.partial_stdout`) can now reconcile a partial batch without
+  any plugin-side change.
+- **Migration:** parse stdout line-by-line instead of as one JSON document
+  (`for line in stdout.splitlines(): json.loads(line)`). Single-ID output
+  remains a single JSON object (one line, still `json.loads`-able whole); a
+  zero-ID batch prints `[]`. An empty batch keeps `json.loads`-compatibility
+  for that case only.
+- `_with_session`'s stale-session self-heal re-runs the whole operation, so
+  IDs completed before the auth failure appear once per real attempt — every
+  line is a genuine outcome, and the trailing lines are the final attempt's.
+- `--output` gets the same per-record durability: the file is opened once and
+  each record is written+flushed into it as its ID completes (previously a
+  single pretty array written at the end).
+- Non-JSON formats (`text`/`table`/`csv`/`tsv`) are unchanged — consolidated
+  end-of-run output; they are human-readable reports, not machine streams.
+
 **`masters add` now requires `--add-target-action` (#777).**
 
 `masters add` previously could not create a campaign at all. Yandex's create

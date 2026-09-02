@@ -4879,6 +4879,136 @@ class TestMastersSuspendResumeCommand(unittest.TestCase):
         self.assertIn("Failed to resume 1 of 2 campaign(s)", result.output)
 
 
+class _RecordingSink:
+    """A minimal ``sys.stdout`` stand-in recording every write/flush call."""
+
+    def __init__(self):
+        self.chunks = []
+        self.flushes = 0
+
+    def write(self, text):
+        self.chunks.append(text)
+
+    def flush(self):
+        self.flushes += 1
+
+    @property
+    def value(self):
+        return "".join(self.chunks)
+
+
+class TestRunPerIdJsonlStreaming(unittest.TestCase):
+    """`--format json` batches stream one JSON object per line, flushed per
+    record (issue #866). All per-ID outcomes used to be printed only after
+    the whole loop, so a killed process (a wrapper's subprocess timeout,
+    OOM) left no trace of which irreversible mutations (launch/archive) had
+    already applied.
+    """
+
+    def _run_per_id(self, ids, action, *, output_format="json", output=None):
+        from direct_cli.commands import masters as masters_commands
+
+        with (
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+            patch("direct_cli.commands.masters.sys.stdout", self.recorder),
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            return masters_commands._run_per_id(
+                ctx=None,
+                ids=ids,
+                action=action,
+                headful=False,
+                profile_dir=None,
+                chrome_profile="Default",
+                output_format=output_format,
+                output=output,
+                verb="suspend",
+            )
+
+    def setUp(self):
+        self.recorder = _RecordingSink()
+
+    def test_streams_each_record_before_the_next_id_starts(self):
+        snapshots = []
+
+        def _suspend(page, campaign_id):
+            # Snapshot what a killed process would already have seen.
+            snapshots.append(self.recorder.value)
+            return {"CampaignId": campaign_id, "Status": "SUSPENDED"}
+
+        self._run_per_id([1, 2, 3], _suspend)
+
+        # Before ID 2 was attempted, ID 1's outcome was already on the
+        # stream; before ID 3, ID 2's too.
+        self.assertEqual(snapshots[0], "")
+        self.assertIn('"CampaignId": 1', snapshots[1])
+        self.assertNotIn('"CampaignId": 2', snapshots[1])
+        self.assertIn('"CampaignId": 2', snapshots[2])
+        self.assertNotIn('"CampaignId": 3', snapshots[2])
+        # One explicit flush per record: stdout in a non-tty subprocess is
+        # block-buffered, so without it nothing survives the kill.
+        self.assertEqual(self.recorder.flushes, 3)
+        # The final stream is JSONL: every line parses on its own.
+        lines = self.recorder.value.splitlines()
+        self.assertEqual([json.loads(line)["CampaignId"] for line in lines], [1, 2, 3])
+
+    def test_error_rows_stream_as_soon_as_their_id_fails(self):
+        def _suspend(page, campaign_id):
+            if campaign_id == 2:
+                raise BrowserSessionError("boom for 2")
+            return {"CampaignId": campaign_id, "Status": "SUSPENDED"}
+
+        with self.assertRaises(click.ClickException):
+            self._run_per_id([1, 2, 3], _suspend)
+
+        lines = [json.loads(line) for line in self.recorder.value.splitlines()]
+        self.assertEqual(lines[1], {"CampaignId": 2, "Error": "boom for 2"})
+        self.assertEqual(self.recorder.flushes, 3)
+
+    def test_output_file_receives_one_json_object_per_line(self):
+        import tempfile
+
+        def _suspend(page, campaign_id):
+            return {"CampaignId": campaign_id, "Status": "SUSPENDED"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.json"
+            self._run_per_id([1, 2], _suspend, output=str(path))
+
+            lines = path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual([json.loads(line)["CampaignId"] for line in lines], [1, 2])
+
+    def test_empty_batch_still_prints_a_parseable_empty_list(self):
+        self._run_per_id([], lambda page, campaign_id: {})
+
+        self.assertEqual(self.recorder.value, "[]\n")
+
+    def test_empty_batch_writes_the_empty_list_into_output_file(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.json"
+            self._run_per_id([], lambda page, campaign_id: {}, output=str(path))
+
+            # Same stream the records would have gone to: the file gets
+            # "[]", stdout gets nothing.
+            self.assertEqual(path.read_text(encoding="utf-8"), "[]\n")
+        self.assertEqual(self.recorder.value, "")
+
+    def test_non_json_formats_keep_the_consolidated_output(self):
+        def _suspend(page, campaign_id):
+            return {"CampaignId": campaign_id, "Status": "SUSPENDED"}
+
+        self._run_per_id([1, 2], _suspend, output_format="text")
+
+        # Human formats print once at the end, not per record.
+        self.assertEqual(self.recorder.flushes, 0)
+        self.assertEqual(
+            self.recorder.value,
+            "CampaignId: 1\nStatus: SUSPENDED\n\nCampaignId: 2\nStatus: SUSPENDED\n",
+        )
+
+
 class _FakeHydratingPopupHandle(_FakeLocatorHandle):
     """A popup handle whose ``wait_for`` only succeeds after N total clicks
     of the trigger have happened — models issues #723/#725's hydration race,
@@ -22415,6 +22545,17 @@ class TestImageStatusContentIdJsAgainstRealDom(unittest.TestCase):
         self.assertIsNone(self._evaluate(html))
 
 
+def _jsonl_rows(output):
+    """Parse a batch command's streamed JSONL stdout (issue #866).
+
+    Batch `masters` commands print one JSON object per line as each ID
+    completes; with click's mixed stderr the stream can share the captured
+    output with human-readable error text, so only ``{``-prefixed lines are
+    records.
+    """
+    return [json.loads(line) for line in output.splitlines() if line.startswith("{")]
+
+
 class TestMastersGetModerationStatusesFlag(unittest.TestCase):
     """``masters get --moderation-statuses`` — issue #814's CLI surface."""
 
@@ -22494,7 +22635,7 @@ class TestMastersGetModerationStatusesFlag(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(mock_moderation.call_count, 2)
-        payload = json.loads(result.output)
+        payload = _jsonl_rows(result.output)
         self.assertEqual([row["CampaignId"] for row in payload], [42, 43])
         self.assertTrue(all("RejectedCount" in row for row in payload))
 
@@ -22570,7 +22711,7 @@ class TestMastersGetTrackingParamsFlag(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(mock_tracking.call_count, 2)
-        payload = json.loads(result.output)
+        payload = _jsonl_rows(result.output)
         self.assertEqual([row["CampaignId"] for row in payload], [42, 43])
         self.assertTrue(all("TrackingParams" in row for row in payload))
 
@@ -22621,9 +22762,7 @@ class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
             result = self._invoke(["masters", "get", "1,2,3"])
 
         self.assertEqual(result.exit_code, 2)
-        json_start = result.output.index("[\n")
-        json_end = result.output.rindex("]") + 1
-        payload = json.loads(result.output[json_start:json_end])
+        payload = _jsonl_rows(result.output)
         self.assertEqual([row["CampaignId"] for row in payload], [1, 2, 3])
         self.assertNotIn("Error", payload[0])
         self.assertIn("overview timeout", payload[1]["Error"])
@@ -22638,7 +22777,7 @@ class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
             result = self._invoke(["masters", "get", "1,2"])
 
         self.assertEqual(result.exit_code, 1)
-        payload = json.loads(result.output[result.output.index("[\n") :])
+        payload = _jsonl_rows(result.output)
         self.assertEqual([row["CampaignId"] for row in payload], [1, 2])
         self.assertTrue(all("Error" in row for row in payload))
 
@@ -22679,8 +22818,12 @@ class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertTrue(auth_error_raised["done"])
-        payload = json.loads(result.output)
-        self.assertEqual([row["CampaignId"] for row in payload], [1, 2, 3])
+        # Issue #866: records stream per attempt, so ID 1's record from the
+        # aborted first attempt is followed by the retry's full pass — every
+        # line is a real outcome of a real attempt (see _run_per_id's
+        # docstring). The last three lines are the successful retry's [1,2,3].
+        payload = _jsonl_rows(result.output)
+        self.assertEqual([row["CampaignId"] for row in payload], [1, 1, 2, 3])
         for row in payload:
             self.assertNotIn("Error", row)
 
