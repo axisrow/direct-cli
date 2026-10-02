@@ -9650,7 +9650,12 @@ class TestUpdateMaster(unittest.TestCase):
         )
 
         self.assertEqual(
-            result, {"CampaignId": 42, "TargetActionPrices": {159614149: 200}}
+            result,
+            {
+                "CampaignId": 42,
+                "TargetActions": [159614149],
+                "TargetActionPrices": {159614149: 200},
+            },
         )
 
     def test_updates_only_target_action_price(self):
@@ -9665,8 +9670,15 @@ class TestUpdateMaster(unittest.TestCase):
 
         self.assertEqual(prices_state[159614149], "200")
         self.assertEqual(len(save_clicks), 1)
+        # Issue #872: the whole-form save now verifies the untouched goal
+        # set survived and reports it in the result row.
         self.assertEqual(
-            result, {"CampaignId": 42, "TargetActionPrices": {159614149: 200}}
+            result,
+            {
+                "CampaignId": 42,
+                "TargetActions": [159614149],
+                "TargetActionPrices": {159614149: 200},
+            },
         )
 
     def test_updates_multiple_target_action_prices_in_one_call(self):
@@ -23514,15 +23526,20 @@ class TestMastersUpdateBatch(unittest.TestCase):
         self.assertEqual(result.stderr.strip(), "")
 
 
-class TestUrlUtmSavePreservesSections(unittest.TestCase):
-    """Issue #836 — a URL/UTM ``masters update`` must not silently drop the
-    campaign's Metrika counters or target actions, including combined calls.
+class TestWholeFormSavePreservesSections(unittest.TestCase):
+    """Issues #836 and #872 — a ``masters update`` must not silently drop
+    the campaign's Metrika counters or target actions, whichever field the
+    call mutates.
 
-    The edit page is a single whole-form save (module docstring), and
-    expanding the UTM spoiler is live-confirmed (issue #830) to re-render
-    the surrounding form from server state. Before this fix, neither
-    section was read on a URL/UTM update, so a re-render that emptied
-    one of them was saved and reported as a success.
+    The edit page is a single whole-form save (module docstring): EVERY
+    update resubmits the whole form, so every update is exposed to the
+    same section-loss races. #836 fixed this for URL/UTM updates; #872
+    (weekly-budget-only saves wiping TargetActions) proved the protection
+    must not be gated on which field the call names. Before the #872 fix,
+    a budget-only save read no baseline and ran no pre-save guard or
+    post-save verification, so a hydration dip that emptied the
+    target-action table at save time was persisted and reported as a
+    success — 4 live campaigns stopped spending.
 
     These fakes model the sections as they read back AFTER the save (the
     ``_verify_saved`` reload), which is where the loss becomes observable.
@@ -23741,9 +23758,18 @@ class TestUrlUtmSavePreservesSections(unittest.TestCase):
         self.assertEqual(clicks, [])
 
     def test_unreadable_target_action_baseline_blocks_before_save(self):
+        """A RENDERED section whose rows never read (unreadable baseline)
+        must block the save — the unreadable state could equally be hiding
+        goal loss. #872 extends this from URL/UTM saves to every
+        whole-form save."""
         page = self._page(goal_ids_after=[], counters_after=[])
+
+        class _NeverReadableHandle(_FakeLocatorHandle):
+            def wait_for(self, state="visible", timeout=None):
+                raise PlaywrightError("Timeout waiting for element state")
+
         page._locators[browser_masters._TARGET_ACTIONS_SECTION_TESTID] = _FakeLocator(
-            []
+            [_NeverReadableHandle()]
         )
         clicks = []
         save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
@@ -23755,6 +23781,20 @@ class TestUrlUtmSavePreservesSections(unittest.TestCase):
         self.assertIn("stable pre-save snapshot", str(ctx.exception))
         self.assertIn("Целевые действия", str(ctx.exception))
         self.assertEqual(clicks, [])
+
+    def test_save_proceeds_when_no_target_actions_section_is_rendered(self):
+        """A max-clicks campaign renders no "Целевые действия" section at
+        all — there is nothing to protect, and the update must proceed
+        instead of aborting on a missing baseline (the target-actions
+        mirror of the Metrika section_present gating)."""
+        page = self._budget_only_page(goal_ids_after=[], counters_after=[])
+        for selector in list(page._locators):
+            if "TargetActions" in selector:
+                del page._locators[selector]
+
+        result = browser_masters.update_master(page, 42, weekly_budget=55000)
+
+        self.assertEqual(result["CampaignId"], 42)
 
     def test_transient_matching_post_save_target_read_is_not_trusted(self):
         """The first post-save read can still show the intact old rows before
@@ -24124,6 +24164,83 @@ class TestUrlUtmSavePreservesSections(unittest.TestCase):
 
         self.assertEqual(result["TrackingParams"], "utm_source=new")
 
+    # --- issue #872: the weekly-budget path is the same whole-form save -----
+
+    def _budget_only_page(self, *, goal_ids_after, counters_after, budget_on_fill=None):
+        """The class ``_page`` plus the weekly-budget input this class's own
+        tests never needed (they all mutate URL/UTM fields)."""
+        page = self._page(goal_ids_after=goal_ids_after, counters_after=counters_after)
+        page._locators[browser_masters._WEEKLY_BUDGET_INPUT_XPATH] = _FakeLocator(
+            [_FakeLocatorHandle(on_fill=budget_on_fill)]
+        )
+        return page
+
+    def test_budget_only_save_reports_dropped_target_actions(self):
+        """Issue #872's live failure: a weekly-budget-only save emptied the
+        target-action table (whole-form save resubmitted a mid-hydration
+        section) and was reported as a success — 4 campaigns stopped
+        spending. Budget-only updates must verify the table exactly like
+        URL/UTM ones."""
+        goal_id = self.GOAL_ID
+        page = self._budget_only_page(goal_ids_after=[goal_id], counters_after=[])
+        original_locator = page.locator
+        state = {"saved": False}
+        empty_rows = _FakeLocator([])
+
+        def _locator(selector):
+            if state["saved"] and selector == self._row_prefix_selector():
+                return empty_rows
+            return original_locator(selector)
+
+        page.locator = _locator
+        save_button = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT)
+        original_click = save_button.first.click
+
+        def _click_then_lose():
+            state["saved"] = True
+            return original_click()
+
+        save_button.first.click = _click_then_lose
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, weekly_budget=55000)
+
+        self.assertIn("target actions", str(ctx.exception))
+        self.assertIn(str(goal_id), str(ctx.exception))
+
+    def test_budget_only_save_aborts_before_save_when_rows_drop(self):
+        """A hydration dip that empties the table between the baseline read
+        and the save click must refuse to save at all — clicking Save with
+        an emptied table is what wipes the goals server-side. The dip here
+        fires from the budget fill itself, exactly where the race window
+        opens on the live page."""
+        state = {"dipped": False}
+        page = self._budget_only_page(
+            goal_ids_after=[self.GOAL_ID],
+            counters_after=[],
+            budget_on_fill=lambda v: state.__setitem__("dipped", True),
+        )
+        original_locator = page.locator
+        row_prefix = self._row_prefix_selector()
+        empty_rows = _FakeLocator([])
+
+        def _locator(selector):
+            if state["dipped"] and selector == row_prefix:
+                return empty_rows
+            return original_locator(selector)
+
+        page.locator = _locator
+        clicks = []
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        save._on_click = lambda: clicks.append(True)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, weekly_budget=55000)
+
+        self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertIn("target-action goal ids", str(ctx.exception))
+        self.assertEqual(clicks, [])
+
 
 class TestCrossDomainLandingUrlWarning(unittest.TestCase):
     """Issue #836 point 3 — Yandex binds a Metrika counter and its goals to
@@ -24196,7 +24313,7 @@ class TestCrossDomainLandingUrlWarning(unittest.TestCase):
     def test_combined_target_action_update_still_warns(self):
         """A mutation in the other protected section must not disable the
         landing-domain warning."""
-        fixture = TestUrlUtmSavePreservesSections()
+        fixture = TestWholeFormSavePreservesSections()
         page = fixture._page(
             goal_ids_after=[fixture.GOAL_ID],
             counters_after=[self.COUNTER],

@@ -6903,6 +6903,28 @@ def _read_confirmed_target_action_goal_ids(page: "Page") -> Optional[List[int]]:
     return None
 
 
+def _target_actions_section_present(page: "Page") -> bool:
+    """True if the "Целевые действия" section container is rendered at all.
+
+    Called only after ``_read_confirmed_target_action_goal_ids`` has already
+    waited out its full settle deadline and returned ``None``, so the
+    hydration dips that briefly unmount ``_TARGET_ACTIONS_SECTION_TESTID``
+    are over by the time this reads — a single count here distinguishes
+    "this page has no target-actions section at all" (a max-clicks
+    campaign, where there is nothing to protect — the mirror of
+    ``_metrika_counters_section_present``'s max-conversions-only block)
+    from "section rendered but its rows were unreadable".
+
+    # ponytail: one-shot read after a 20s settle; promote to a stable poll
+    # only if a hydration dip outlasting _TARGET_ACTION_SETTLE_TIMEOUT_MS
+    # is ever observed live.
+    """
+    try:
+        return page.locator(_TARGET_ACTIONS_SECTION_TESTID).count() > 0
+    except PlaywrightError:
+        return False
+
+
 def _parse_target_action_price(raw: str) -> Optional[float]:
     """Parse a target-action price input's raw string value, same
     normalization as ``_goal_price_matches`` (comma decimal separator,
@@ -7835,6 +7857,9 @@ def _verify_saved(
     # Set when either re-navigation block below fires, so later per-section
     # checks (tracking_params/audience/etc.) can tell a fresh load happened.
     _re_navigated = False
+    # The post-save target-action set, filled by the unchanged-table check
+    # below when it ran and verified intact; returned to the caller.
+    verified_target_actions: Optional[List[int]] = None
 
     if mismatches:
         # RE-NAVIGATE on a mismatch in any of ``checks``, not just re-poll
@@ -8370,6 +8395,12 @@ def _verify_saved(
                 f"{sorted(expected_unchanged)!r} are no longer intact — "
                 f"page now shows {actual_unchanged!r}"
             )
+        elif actual_unchanged is not None:
+            # Verified intact — handed back so the caller's result row can
+            # show WHICH goals survived the save (issue #872: a batch run
+            # should see the protected set, not just an implicit absence of
+            # failure).
+            verified_target_actions = actual_unchanged
 
     mismatches.extend(
         _verify_repeating_value_mismatches(
@@ -8429,6 +8460,8 @@ def _verify_saved(
             + detail
             + " Verify manually before retrying."
         )
+
+    return verified_target_actions
 
 
 def _warn_on_cross_domain_landing_url(
@@ -8831,61 +8864,78 @@ def update_master(
     # because a snapshot read after the re-render would capture the already
     # corrupted state and certify the loss as the expected baseline.
     #
+    # Issue #872: weekly-budget-only saves wiped TargetActions on 4 live
+    # campaigns (each stopped spending) — the same whole-form save
+    # resubmitted a mid-hydration target-action table. The protection
+    # therefore keys on the save itself, not on which field the call names:
+    # the ValueError guard above guarantees every call that reaches this
+    # point mutates at least one field, so EVERY update gets the same
+    # baselines, pre-save guard and post-save verification.
+    #
     # The two protections are deliberately independent: mutating target
     # actions must not disable preservation of Metrika counters, and vice
     # versa. Switching the promotion goal to max-clicks is the one exception
     # because that transition legitimately removes both sections.
-    _url_or_utm_save = landing_url is not None or tracking_params is not None
     # Only max-clicks intentionally removes these widgets. Re-selecting or
     # switching to max-conversions must keep protection enabled: if the
     # sections already exist, they still participate in the same whole-form
-    # URL/UTM save and remain vulnerable to the hydration race.
-    _preserve_metrika = _url_or_utm_save and promotion_goal != "max-clicks"
-    _preserve_target_actions = _url_or_utm_save and promotion_goal != "max-clicks"
+    # save and remain vulnerable to the hydration race.
+    _preserve_metrika = promotion_goal != "max-clicks"
+    _preserve_target_actions = promotion_goal != "max-clicks"
     metrika_counters_before: Optional[List[str]] = None
     metrika_preservation_requested = False
     target_actions_unchanged_before: Optional[List[int]] = None
     target_actions_unchanged_requested = False
     target_actions_preservation_requested = False
     target_action_goal_ids_before: Optional[List[int]] = None
-    if _url_or_utm_save:
-        section_present = _metrika_counters_section_present(page)
-        counters_at_load: Optional[List[str]] = None
-        if section_present:
-            counters_at_load = _read_confirmed_metrika_counters_or_none(page)
-            if counters_at_load is None and _preserve_metrika:
-                raise BrowserSessionError(
-                    "Could not obtain a stable pre-save snapshot of the "
-                    "'Счетчики Яндекс Метрики' section. The URL/UTM update "
-                    "was not saved because an unreadable baseline could hide "
-                    "counter loss; retry after the page has fully loaded."
-                )
+    section_present = _metrika_counters_section_present(page)
+    counters_at_load: Optional[List[str]] = None
+    if section_present:
+        counters_at_load = _read_confirmed_metrika_counters_or_none(page)
+        if counters_at_load is None and _preserve_metrika:
+            raise BrowserSessionError(
+                "Could not obtain a stable pre-save snapshot of the "
+                "'Счетчики Яндекс Метрики' section. The update was not "
+                "saved because an unreadable baseline could hide counter "
+                "loss; retry after the page has fully loaded."
+            )
+    if landing_url is not None:
         _warn_on_cross_domain_landing_url(page, landing_url, counters_at_load)
 
-        if _preserve_metrika and section_present:
-            metrika_counters_before = counters_at_load
-            metrika_preservation_requested = True
+    if _preserve_metrika and section_present:
+        metrika_counters_before = counters_at_load
+        metrika_preservation_requested = True
 
-        if _preserve_target_actions and section_present:
-            target_ids = _read_confirmed_target_action_goal_ids(page)
-            if target_ids is None:
+    if _preserve_target_actions and not (
+        add_target_actions or remove_target_action_goal_ids
+    ):
+        # An unchanged-table save has no other verification for this section
+        # (#872: that gap is what let a budget save wipe the goals), so it
+        # reads a settled baseline here: unreadable on a rendered section →
+        # abort before Save. An add/remove call is different — it MUTATES
+        # the table and verifies the requested final set after the save
+        # (#717/#750), deriving its expected set from the certified
+        # two-read snapshot taken further below (issue #756); a pre-read
+        # here would only race that certification's acquisitions.
+        target_ids = _read_confirmed_target_action_goal_ids(page)
+        if target_ids is None:
+            if _target_actions_section_present(page):
                 raise BrowserSessionError(
                     "Could not obtain a stable pre-save snapshot of the "
-                    "'Целевые действия' section. The URL/UTM update was not "
-                    "saved because an unreadable baseline could hide target-"
+                    "'Целевые действия' section. The update was not saved "
+                    "because an unreadable baseline could hide target-"
                     "action loss; retry after the page has fully loaded."
                 )
+            # A max-clicks campaign renders no target-actions section at
+            # all — nothing to protect, the update proceeds without the
+            # target-action guard (mirrors the Metrika section_present
+            # gating above).
+        else:
+            # Price-only mutations do not change row identity, so the full
+            # id set is still expected to survive unchanged.
+            target_actions_unchanged_before = target_ids
+            target_actions_unchanged_requested = True
             target_actions_preservation_requested = True
-            if add_target_actions or remove_target_action_goal_ids:
-                # The existing add/remove verifier derives its full expected
-                # final set from this baseline. Supplying the pre-UTM snapshot
-                # prevents a re-rendered partial table from lowering that bar.
-                target_action_goal_ids_before = target_ids
-            else:
-                # Price-only mutations do not change row identity, so the full
-                # id set is still expected to survive unchanged.
-                target_actions_unchanged_before = target_ids
-                target_actions_unchanged_requested = True
 
     if name is not None:
         _set_campaign_name(page, name)
@@ -9371,7 +9421,7 @@ def update_master(
     verify_texts.update({index: "" for index in clear_texts or []})
 
     try:
-        _verify_saved(
+        verified_target_actions = _verify_saved(
             page,
             campaign_id,
             weekly_budget=weekly_budget,
@@ -9423,6 +9473,12 @@ def update_master(
         ) from exc
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
+    if verified_target_actions is not None:
+        # The unchanged-table check ran and verified this exact set survived
+        # the whole-form save (issue #872) — surface it in the result row so
+        # a batch run shows the protected goals, not just an implicit
+        # absence of failure.
+        result["TargetActions"] = verified_target_actions
     if weekly_budget is not None:
         result["WeeklyBudget"] = weekly_budget
     if promotion_goal is not None:

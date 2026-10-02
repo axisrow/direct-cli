@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### Fixed
+
+**`masters update` — the whole-form save can no longer silently wipe the
+campaign's target actions or Metrika counters, whichever field the call
+mutates (#872).**
+
+The edit page has exactly one save button and the save submits the WHOLE
+form, so every update — not just a URL/UTM one — resubmits the "Целевые
+действия" table and the counters section. The #836 protection (settled
+pre-save baselines + pre-click guard + post-save verification) was gated
+on `landing_url`/`tracking_params` being present, so a
+`masters update --weekly-budget` run saved a mid-hydration, emptied
+target-action table as a success: 4 live Мастер кампаний lost their
+goals and stopped spending (0₽/day with a healthy weekly budget). The
+protection now keys on the save itself: every mutating `update_master`
+call reads the same baselines, refuses to click Save when a protected
+section no longer matches its baseline ("Refusing to save"), and
+verifies the untouched goal set after the reload — an unchanged-table
+call with an unreadable baseline on a rendered section aborts instead of
+saving blind. A max-clicks campaign (no target-actions section rendered)
+and add/remove-target-action calls keep their existing semantics. On
+success the result row now carries `TargetActions` — the verified goal
+set that survived the save — so a `--from-file` batch shows the
+protected goals per campaign instead of an implicit absence of failure.
+Cost: an unchanged-table update spends a few extra seconds stabilizing
+the section reads.
+
 ### Added
 
 **`masters status` — inspect the active browser session with no network call (#862).**
