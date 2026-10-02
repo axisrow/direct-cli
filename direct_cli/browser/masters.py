@@ -6915,6 +6915,13 @@ def _target_actions_section_present(page: "Page") -> bool:
     ``_metrika_counters_section_present``'s max-conversions-only block)
     from "section rendered but its rows were unreadable".
 
+    Fails CLOSED (review of #873): a transient ``PlaywrightError`` from the
+    count itself proves nothing about absence, and reading ``False`` here
+    would let a save proceed without the target-action guard — the exact
+    blind save this whole mechanism exists to prevent. The caller then
+    aborts with the standard "retry after the page has fully loaded"
+    message instead.
+
     # ponytail: one-shot read after a 20s settle; promote to a stable poll
     # only if a hydration dip outlasting _TARGET_ACTION_SETTLE_TIMEOUT_MS
     # is ever observed live.
@@ -6922,7 +6929,7 @@ def _target_actions_section_present(page: "Page") -> bool:
     try:
         return page.locator(_TARGET_ACTIONS_SECTION_TESTID).count() > 0
     except PlaywrightError:
-        return False
+        return True
 
 
 def _parse_target_action_price(raw: str) -> Optional[float]:
@@ -7763,12 +7770,6 @@ def _verify_saved(
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
     validation_errors: Optional[List[str]] = None,
 ) -> Optional[List[int]]:
-    """Verify every requested field re-reads as saved after the reload.
-
-    Returns the verified post-save target-action goal-id set when the
-    unchanged-table check ran (so the caller can surface it in the result
-    row, issue #872), or ``None`` when that check did not run.
-    """
     """Reload the edit page and confirm every requested field actually saved.
 
     Never trust the save-button click alone (mirrors ``_suspend_or_resume``'s
@@ -7780,6 +7781,10 @@ def _verify_saved(
     and re-reading each touched field is the only reliable signal available:
     if a field still doesn't match after a real reload, the save did not
     take effect and this raises rather than reporting false success.
+
+    Returns the verified post-save target-action goal-id set when the
+    unchanged-table check ran (so the caller can surface it in the result
+    row, issue #872), or ``None`` when that check did not run.
     """
     _audience_touched = (
         gender is not None
