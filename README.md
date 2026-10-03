@@ -56,7 +56,12 @@ direct masters copy 72349978 --launch
 `masters list` filters by status with `--status`
 (`not-archived`/`active`/`stopped`/`archived`/`all`, default `not-archived`).
 It always reads the logged-in browser session's own account — there is no
-`--login`/agency support for managed clients.
+`--login`/agency support for managed clients. Every row also carries the
+grid's «Бюджет и стратегия» cell, read from the same response with no extra
+page request: `Strategy` (the grid's raw enum — `OPTIMIZE_CLICKS` /
+`OPTIMIZE_CONVERSIONS`), `WeeklyBudget`, and, where the strategy has them,
+`AvgCpa` / `GoalId` / `PayForConversion` / `IsAutoBudget` (plus `EndDate`);
+rows without a strategy (e.g. drafts) report these as `null`.
 
 `masters add` creates a new Мастер кампаний. Besides `--headline`/`--text`
 and one of `--region`/`--region-id`, it **requires `--add-target-action`**

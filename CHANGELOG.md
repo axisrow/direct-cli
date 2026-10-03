@@ -4,6 +4,17 @@
 
 ### Added
 
+**`masters list` — strategy and weekly budget per campaign.**
+
+Every GridCampaigns row already carries the grid's «Бюджет и стратегия»
+column (live capture 2026-10-03), so `masters list` now surfaces it with no
+extra page request: `Strategy` (the grid's raw enum — `OPTIMIZE_CLICKS` /
+`OPTIMIZE_CONVERSIONS` — passed through verbatim rather than remapped),
+`WeeklyBudget` (`strategy.budget.sum` when its `period` is `WEEK`), and the
+strategy scalars `AvgCpa` / `GoalId` / `PayForConversion` / `IsAutoBudget`,
+plus `EndDate` alongside the existing `StartDate`. Rows without a strategy
+object (e.g. drafts) report all of these as `null`.
+
 **`masters status` — inspect the active browser session with no network call (#862).**
 
 Reports which of `_open_session`'s tiers `masters` commands would currently

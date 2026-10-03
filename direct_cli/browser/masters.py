@@ -2341,6 +2341,8 @@ def fetch_masters_list(
             campaign_id = int(row["id"])
         except (KeyError, TypeError, ValueError):
             continue
+        strategy = row.get("strategy") or {}
+        budget = strategy.get("budget") or {}
         masters.append(
             {
                 "CampaignId": campaign_id,
@@ -2350,6 +2352,20 @@ def fetch_masters_list(
                 ),
                 "Type": row.get("type"),
                 "StartDate": row.get("startDate"),
+                "EndDate": row.get("endDate"),
+                # The grid's "Бюджет и стратегия" column already ships with
+                # every GridCampaigns row (live capture 2026-10-03) — surface
+                # its scalars verbatim, no extra page request. strategyType
+                # (OPTIMIZE_CLICKS / OPTIMIZE_CONVERSIONS) passes through raw:
+                # an invented enum mapping would only drift from Yandex's.
+                "Strategy": strategy.get("strategyType"),
+                "WeeklyBudget": (
+                    budget.get("sum") if budget.get("period") == "WEEK" else None
+                ),
+                "AvgCpa": strategy.get("avgCpa"),
+                "GoalId": strategy.get("goalId"),
+                "PayForConversion": strategy.get("payForConversion"),
+                "IsAutoBudget": strategy.get("isAutoBudget"),
             }
         )
 
