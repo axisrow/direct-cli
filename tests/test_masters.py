@@ -3231,6 +3231,70 @@ class TestFetchMastersList(unittest.TestCase):
         self.assertNotIn(75071838, ids)
         self.assertNotIn(74773845, ids)
 
+    def _fixture_with_strategy_fields(self):
+        # Live shape (2026-10-03 grid capture): UAC rows carry a `strategy`
+        # object -- the grid's "Бюджет и стратегия" column data. Monetary
+        # values here are synthetic (committed fixtures stay sum-free).
+        fixture = _load_grid_campaigns_fixture()
+        rowset = fixture["data"]["client"]["campaigns"]["rowset"]
+        rowset[0]["strategy"] = {
+            "__typename": "GdStrategyOptimizeClicks",
+            "strategyType": "OPTIMIZE_CLICKS",
+            "isAutoBudget": True,
+            "budget": {"sum": 12345, "period": "WEEK"},
+        }
+        rowset[1]["strategy"] = {
+            "__typename": "GdStrategyOptimizeConversions",
+            "strategyType": "OPTIMIZE_CONVERSIONS",
+            "isAutoBudget": True,
+            "payForConversion": False,
+            "goalId": "42",
+            "avgCpa": 150,
+            "budget": {"sum": 99, "period": "WEEK"},
+        }
+        # rowset[2] (77501358) deliberately stays strategy-less, like a
+        # DRAFT row in a live capture.
+        return fixture
+
+    def test_strategy_and_budget_fields_are_surfaced(self):
+        # The grid response already carries each Мастер's strategy (the
+        # "Бюджет и стратегия" column), so `masters list` must surface it
+        # with no extra page request. Raw strategyType passes through
+        # verbatim -- no invented enum mapping to drift.
+        page = self._page([self._fixture_with_strategy_fields()])
+
+        result = browser_masters.fetch_masters_list(page, status="all")
+
+        by_id = {row["CampaignId"]: row for row in result}
+        clicks = by_id[72349978]
+        self.assertEqual(clicks["Strategy"], "OPTIMIZE_CLICKS")
+        self.assertEqual(clicks["WeeklyBudget"], 12345)
+        conversions = by_id[107707079]
+        self.assertEqual(conversions["Strategy"], "OPTIMIZE_CONVERSIONS")
+        self.assertEqual(conversions["WeeklyBudget"], 99)
+        self.assertEqual(conversions["AvgCpa"], 150)
+        self.assertEqual(conversions["GoalId"], "42")
+        self.assertEqual(conversions["PayForConversion"], False)
+        self.assertEqual(conversions["IsAutoBudget"], True)
+        bare = by_id[77501358]
+        self.assertIsNone(bare["Strategy"])
+        self.assertIsNone(bare["WeeklyBudget"])
+        self.assertIsNone(bare["AvgCpa"])
+
+    def test_non_weekly_budget_is_not_reported_as_weekly(self):
+        fixture = _load_grid_campaigns_fixture()
+        rowset = fixture["data"]["client"]["campaigns"]["rowset"]
+        rowset[0]["strategy"] = {
+            "strategyType": "OPTIMIZE_CLICKS",
+            "budget": {"sum": 555, "period": "MONTH"},
+        }
+        page = self._page([fixture])
+
+        result = browser_masters.fetch_masters_list(page, status="all")
+
+        clicks = next(r for r in result if r["CampaignId"] == 72349978)
+        self.assertIsNone(clicks["WeeklyBudget"])
+
     def test_stopped_masters_included_by_default_status_filter(self):
         # Regression for #639: the user's two STOPPED Мастера must be found
         # under the *default* status filter, not just an explicit one.
