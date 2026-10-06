@@ -329,7 +329,16 @@ def any_cookie_valid_now(cookies: List[Dict[str, Any]]) -> Optional[bool]:
     in the tests' ``_WALL_CLOCK_CARVE_OUTS``.
     """
     now = time.time()
-    dated = [c["expires"] for c in cookies if c.get("expires", -1) > 0]
+    # isinstance guard: this sits on the Chrome-sqlite trust boundary and is
+    # also fed Playwright-shaped dicts (whose "expires" may be None) — a
+    # non-numeric expires must count as "no expiry to judge", not TypeError.
+    dated = [
+        expiry
+        for expiry in (c.get("expires") for c in cookies)
+        if isinstance(expiry, (int, float))
+        and not isinstance(expiry, bool)
+        and expiry > 0
+    ]
     if not dated:
         return None
     return any(expiry > now for expiry in dated)

@@ -110,8 +110,9 @@ def login(profile_dir, chrome_profile, headful, no_verify, output_format, output
         # Did the live check actually PASS (issue #870): False also for
         # --no-verify runs and for the save-without-verification path the
         # render-timeout fallback takes, so scripts can tell a verified
-        # session from a merely saved one.
-        "verified": bool(source_meta.get("verified", not no_verify)),
+        # session from a merely saved one. Default False, never True: an
+        # unknown verification state must not read as verified (#692).
+        "verified": bool(source_meta.get("verified", False)),
         "mode": status["mode"],
     }
 

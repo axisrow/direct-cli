@@ -298,6 +298,23 @@ class TestMappingHelpers(unittest.TestCase):
         cookies = [{"expires": -1}, {"expires": time.time() - 10}]
         self.assertFalse(_chrome_crypto.any_cookie_valid_now(cookies))
 
+    def test_any_cookie_valid_now_edge_shapes(self):
+        """A dict missing "expires" entirely (the shape `_patch_decrypt`-style
+        fixtures and some Playwright producers emit) is not dated; a future
+        expiry among session-only cookies counts as valid."""
+        self.assertIsNone(_chrome_crypto.any_cookie_valid_now([{"name": "x"}]))
+        self.assertTrue(
+            _chrome_crypto.any_cookie_valid_now(
+                [{"expires": -1}, {"expires": time.time() + 10}]
+            )
+        )
+
+    def test_any_cookie_valid_now_null_expires_is_not_a_type_error(self):
+        """A Playwright-shaped dict may carry "expires": None — on this
+        Chrome-sqlite trust boundary that must count as "no expiry to
+        judge", not blow up inside the auth-failure handler."""
+        self.assertIsNone(_chrome_crypto.any_cookie_valid_now([{"expires": None}]))
+
     def test_row_to_cookie_uses_real_bool_types(self):
         key = _chrome_crypto.derive_key("pw", iterations=1)
         row = {

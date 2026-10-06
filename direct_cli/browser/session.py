@@ -52,7 +52,7 @@ from typing import (
 
 from . import _clock
 from .._captcha import find_captcha_marker, find_marker
-from ..output import print_warning
+from ..output import print_warning_stderr
 
 if TYPE_CHECKING:
     from playwright.sync_api import Browser, Page
@@ -668,6 +668,14 @@ def persistent_profile_is_usable(profile_dir: Optional[Path] = None) -> bool:
 _SINGLETON_LOCK_FILES = ("SingletonLock", "SingletonCookie", "SingletonSocket")
 
 
+def _singleton_lock_target(profile_dir: Path) -> Optional[str]:
+    """Raw ``hostname-PID`` symlink target of ``SingletonLock``, if readable."""
+    try:
+        return os.readlink(profile_dir / "SingletonLock")
+    except OSError:
+        return None
+
+
 def _singleton_lock_pid(profile_dir: Path) -> Optional[int]:
     """PID of the Chromium instance holding ``profile_dir``'s lock, if readable.
 
@@ -675,9 +683,8 @@ def _singleton_lock_pid(profile_dir: Path) -> Optional[int]:
     unreadable, or unparseable locks return ``None`` — the caller treats
     that as "unknown holder", never as "no lock".
     """
-    try:
-        target = os.readlink(profile_dir / "SingletonLock")
-    except OSError:
+    target = _singleton_lock_target(profile_dir)
+    if target is None:
         return None
     _, _, pid_part = target.rpartition("-")
     try:
@@ -705,15 +712,32 @@ def _clear_stale_singleton_lock(profile_dir: Path) -> bool:
     was still on disk, so the second launch died on ``SingletonLock: File
     exists (17)``. A dead owner's PID answers ``os.kill(pid, 0)`` with
     ``ProcessLookupError``; that lock is stale by definition and safe to
-    remove. Returns ``True`` when a stale lock was cleared, ``False`` when
-    the lock is live or its holder cannot be determined (caller must NOT
+    remove. Returns ``True`` when launching is safe (stale lock cleared, or
+    no lock at all — absence means the previous owner already cleaned up,
+    not that the lock is unreadable), ``False`` when the lock is live, its
+    holder cannot be determined, or it cannot be removed (caller must NOT
     delete a live lock).
     """
+    if not os.path.lexists(profile_dir / "SingletonLock"):
+        return True
+    target = _singleton_lock_target(profile_dir)
     pid = _singleton_lock_pid(profile_dir)
     if pid is None or _process_alive(pid):
         return False
-    for name in _SINGLETON_LOCK_FILES:
-        (profile_dir / name).unlink(missing_ok=True)
+    # Compare-and-delete: between the liveness probe and the unlink another
+    # Chromium may have cleared the stale lock and installed its own live
+    # one — deleting that would put two browsers on one profile. Re-read
+    # the symlink and delete only if it still names the dead owner.
+    if _singleton_lock_target(profile_dir) != target:
+        return False
+    try:
+        for name in _SINGLETON_LOCK_FILES:
+            (profile_dir / name).unlink(missing_ok=True)
+    except OSError:
+        # A lock we cannot remove (another user, permissions) must not
+        # escape as a raw OSError from inside the launch handler; False
+        # routes to the caller's "profile is locked" BrowserSessionError.
+        return False
     return True
 
 
@@ -779,9 +803,22 @@ def _launch_persistent_context(
                     "— a previous browser instance is still using it. "
                     "Wait for that process to exit (or kill it) and retry."
                 ) from exc
-            context = playwright.chromium.launch_persistent_context(
-                str(profile_dir), headless=headless, locale="ru-RU"
-            )
+            try:
+                context = playwright.chromium.launch_persistent_context(
+                    str(profile_dir), headless=headless, locale="ru-RU"
+                )
+            except PlaywrightError as retry_exc:
+                # The clear-then-retry window can lose a race: another
+                # launcher re-created a live lock between the stale-lock
+                # removal and this launch. That must come back as the same
+                # classified "profile is locked" error, not a raw
+                # PlaywrightError.
+                raise BrowserSessionError(
+                    "The browser profile became locked again right after a "
+                    "stale lock was cleared — another browser instance "
+                    "grabbed it first. Wait for that process to exit and "
+                    "retry."
+                ) from retry_exc
         try:
             yield context
         finally:
@@ -1030,7 +1067,11 @@ def capture_storage_state(
                     # reported as unverified; every `direct masters` flow
                     # re-checks auth markers on use, so a genuinely bad jar
                     # still fails loudly downstream.
-                    print_warning(
+                    # stderr, not stdout: `direct playwright login --format
+                    # json` prints its machine-readable payload on stdout,
+                    # and this warning fires exactly in the scenario where a
+                    # script most needs to parse that payload (issue #850).
+                    print_warning_stderr(
                         f"Timed out waiting for {GRID_URL} to render while "
                         "verifying the session — the session was saved "
                         "WITHOUT live verification (issue #870: a headless "
@@ -1048,13 +1089,19 @@ def capture_storage_state(
 
     try:
         storage_state, verified = _capture(headless=headless)
-    except BrowserAuthError:
+    except BrowserAuthError as auth_error:
         # Issue #870 п.2: judge the cookies by expires_utc before saying
         # anything about expiry, and give a headless run one headful retry —
         # live repro: fresh cookies verified fine headful after headless
         # "Chrome for Testing" was redirected to Passport by the bot
         # challenge.
-        freshness = _chrome_crypto.any_cookie_valid_now(cookies)
+        # Only the auth cookies are judged here: load_yandex_cookies returns
+        # every host cookie, and the jar always carries long-lived tracking
+        # cookies (yandexuid etc.) that would make ANY session look fresh.
+        auth_cookies = [
+            c for c in cookies if c.get("name") in _AUTH_SESSION_COOKIE_NAMES
+        ]
+        freshness = _chrome_crypto.any_cookie_valid_now(auth_cookies)
         if freshness is False:
             raise BrowserAuthError(
                 "Yandex served its login page instead of Direct, and the "
@@ -1066,13 +1113,23 @@ def capture_storage_state(
             ) from None
         if not headless:
             raise
-        print_warning(
+        print_warning_stderr(
             "Headless verification hit Yandex's login page although the "
             "Chrome cookies look fresh — this is usually the bot challenge "
             "headless 'Chrome for Testing' gets (issue #870), not expired "
             "cookies. Retrying once with a visible window (--headful)..."
         )
-        storage_state, verified = _capture(headless=False)
+        try:
+            storage_state, verified = _capture(headless=False)
+        except BrowserAuthError:
+            raise
+        except Exception as exc:
+            # A display-less host (CI, SSH) fails the headful launch with a
+            # raw PlaywrightError ("Missing X server"). That must not REPLACE
+            # the already-classified auth diagnosis the caller is one line
+            # away from seeing — re-raise the original with the launch
+            # failure attached as context.
+            raise auth_error from exc
 
     source_meta = {
         "profile_dir": str(source_root),

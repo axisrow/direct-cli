@@ -37,6 +37,23 @@ guard and the post-save check now compare the full `{GoalId: Price}` map
 (the baseline with any `--target-action-price` changes applied), and
 `TargetActions` in the result row is `[{"GoalId": …, "Price": …}]`.
 
+**`direct playwright login` — honest `verified` reporting (#870).**
+
+`verified` in the command's output now reflects what actually happened:
+a render timeout during verification saves the session with
+`verified: false` and exit code 0 (previously the whole command failed;
+the #692 invariant — never CLAIM a verified session without a rendered
+page — is now carried by the explicit `false`, which JSON consumers
+should check). A live check that lands on Yandex's login page judges the
+auth cookies' (`Session_id`/`sessionid2`) `expires_utc` before claiming
+they expired — long-lived tracking cookies no longer mask a dead session
+— and a headless run gets one headful retry for the bot challenge. A
+stale Chromium ProcessSingleton lock (a previous CLI browser process
+that died with its `hostname-PID` symlink still on disk) is cleared and
+the launch retried once instead of failing with a raw
+`SingletonLock: File exists` traceback; `masters login` gained
+`--allow-no-tty` for scripted runs whose window is visible anyway.
+
 ### Added
 
 **`bidmodifiers` — live-only type `RETARGETING_SEARCH_ADJUSTMENT` (#871).**
