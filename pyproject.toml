@@ -126,9 +126,9 @@ disable_error_code = [
 ]
 
 [tool.pyright]
-# Covers all three trees the repo owns (the vendored fork is excluded below);
-# a bare `pyright` locally therefore matches CI exactly.
-include = ["direct_cli", "tests", "scripts"]
+# Covers everything the repo owns (the vendored fork is excluded below); a
+# bare `pyright` locally therefore matches CI exactly.
+include = ["direct_cli", "tests", "scripts", "setup.py"]
 pythonVersion = "3.10"
 # Same scope as ruff/mypy: the vendored fork is linted upstream.
 ignore = ["direct_cli/_vendor"]
