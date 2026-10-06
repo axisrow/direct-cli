@@ -7975,6 +7975,15 @@ class TestParseTargetActionPrice(unittest.TestCase):
     def test_unparseable_value_is_none(self):
         self.assertIsNone(browser_masters._parse_target_action_price("not-a-number"))
 
+    def test_any_whitespace_grouping_parses(self):
+        # #876 review: an unparsed price reads as None, and None == None
+        # would blind the price guard — every grouping space must parse.
+        for raw in ("1 500", "1 500", "1 500", "1\xa0500,5"):
+            with self.subTest(raw=raw):
+                self.assertIn(
+                    browser_masters._parse_target_action_price(raw), (1500.0, 1500.5)
+                )
+
 
 class TestTargetActionPriceMatches(unittest.TestCase):
     """``_target_action_price_matches`` — mirrors ``_goal_price_matches``,
@@ -9717,7 +9726,7 @@ class TestUpdateMaster(unittest.TestCase):
             result,
             {
                 "CampaignId": 42,
-                "TargetActions": [{"GoalId": 159614149, "Price": 200.0}],
+                "TargetActions": [{"GoalId": 159614149, "Name": None, "Price": 200.0}],
                 "TargetActionPrices": {159614149: 200},
             },
         )
@@ -9741,7 +9750,7 @@ class TestUpdateMaster(unittest.TestCase):
             result,
             {
                 "CampaignId": 42,
-                "TargetActions": [{"GoalId": 159614149, "Price": 200.0}],
+                "TargetActions": [{"GoalId": 159614149, "Name": None, "Price": 200.0}],
                 "TargetActionPrices": {159614149: 200},
             },
         )
@@ -24371,6 +24380,26 @@ class TestWholeFormSavePreservesSections(unittest.TestCase):
             browser_masters.update_master(page, 42, weekly_budget=55000)
 
         self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertIn("target-action goals", str(ctx.exception))
+        self.assertEqual(clicks, [])
+
+    def test_price_fill_that_never_reaches_the_dom_blocks_the_click(self):
+        """A ``--target-action-price`` fill the page silently drops would
+        resubmit the OLD bid; the expected map overlays the requested
+        price, so the pre-click guard must refuse before Save (#876)."""
+        page = self._budget_only_page(goal_ids_after=[self.GOAL_ID], counters_after=[])
+        clicks = []
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        save._on_click = lambda: clicks.append(True)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, target_action_prices={self.GOAL_ID: 200}
+            )
+
+        self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertIn("target-action goals", str(ctx.exception))
+        self.assertIn("200", str(ctx.exception))
         self.assertEqual(clicks, [])
 
     def test_budget_only_save_reports_verified_goal_prices(self):
@@ -24381,7 +24410,8 @@ class TestWholeFormSavePreservesSections(unittest.TestCase):
         result = browser_masters.update_master(page, 42, weekly_budget=55000)
 
         self.assertEqual(
-            result["TargetActions"], [{"GoalId": self.GOAL_ID, "Price": 150.0}]
+            result["TargetActions"],
+            [{"GoalId": self.GOAL_ID, "Name": "Покупка", "Price": 150.0}],
         )
 
 

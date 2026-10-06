@@ -25,6 +25,7 @@ from direct_cli.cli import cli
 from direct_cli.i18n import (
     DEFAULT_LOCALE,
     _RU,
+    _doc_key,
     normalize_locale,
     resolve_locale,
     set_active_locale,
@@ -285,7 +286,7 @@ def test_localized_groups_have_complete_translations():
     missing: dict[str, list[str]] = {}
     for name in LOCALIZED_GROUPS:
         group = cli.commands[name]
-        gaps = [src for src in _help_sources(group) if src not in _RU]
+        gaps = [src for src in _help_sources(group) if _doc_key(src) not in _RU]
         if gaps:
             missing[name] = gaps
     assert not missing, "untranslated strings in localized groups: " + repr(missing)
@@ -386,3 +387,18 @@ def test_templated_translations_preserve_placeholders():
         if en_fields != ru_fields:
             mismatched[en] = (en_fields, ru_fields)
     assert not mismatched, "placeholder drift in translations: " + repr(mismatched)
+
+
+def test_doc_key_matches_indented_and_313_cleaned_docstrings():
+    """Python 3.13 strips docstring indentation at compile time; earlier
+    interpreters keep it. Both forms (and a catalog key written under either)
+    must normalize to the same key, or Russian help silently falls back to
+    English on one of them."""
+    indented = "Get limits.\n\n    ⚠ Not tested.\n    "
+    cleaned = "Get limits.\n\n⚠ Not tested.\n"
+    assert _doc_key(indented) == _doc_key(cleaned) == cleaned
+    assert _doc_key(cleaned) == cleaned
+    assert _doc_key("single line  ") == "single line  "
+    # A whitespace-only line deeper than the margin keeps the excess, as in
+    # the 3.13 compiler.
+    assert _doc_key("A\n    b\n      \n    c") == "A\nb\n  \nc"

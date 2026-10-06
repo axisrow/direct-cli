@@ -6886,11 +6886,19 @@ def _wait_for_target_actions_settled(page: "Page") -> bool:
     )
 
 
+def _target_action_price_map(
+    rows: List[Dict[str, Any]],
+) -> Dict[int, Optional[float]]:
+    """``{GoalId: Price}`` of ``_read_target_actions_or_none`` rows — the
+    identity the #876 guard and verification compare."""
+    return {row["GoalId"]: row["Price"] for row in rows}
+
+
 def _read_confirmed_target_actions(
     page: "Page",
-) -> Optional[Dict[int, Optional[float]]]:
-    """Read a stable ``{GoalId: Price}`` map of the target-action table, or
-    ``None`` if inconclusive.
+) -> Optional[List[Dict[str, Any]]]:
+    """Read the target-action rows once their ``{GoalId: Price}`` map is
+    stable (sorted by GoalId), or ``None`` if inconclusive.
 
     A stable row *count* does not prove that the same complete rows were
     present throughout hydration. After waiting out the page-level fallback,
@@ -6915,11 +6923,11 @@ def _read_confirmed_target_actions(
             previous = None
             stable_streak = 0
         else:
-            current = {row["GoalId"]: row["Price"] for row in rows}
+            current = _target_action_price_map(rows)
             if current == previous:
                 stable_streak += 1
                 if stable_streak >= _TARGET_ACTION_STABLE_STREAK:
-                    return current
+                    return sorted(rows, key=lambda row: row["GoalId"])
             else:
                 previous = current
                 stable_streak = 1
@@ -6962,7 +6970,10 @@ def _parse_target_action_price(raw: str) -> Optional[float]:
     possible thin-space grouping). Returns ``None`` for an empty/unparseable
     value rather than 0.0 — a goal row with no price set yet is a distinct
     state from a price of zero."""
-    normalized = raw.strip().replace(",", ".").replace("\xa0", "")
+    # Any Unicode whitespace may group thousands ("1 500" with a plain, no-
+    # break, thin or narrow no-break space); an unparsed price reads as None
+    # and would make the #876 guard compare None == None as "intact".
+    normalized = "".join(raw.split()).replace(",", ".")
     if not normalized:
         return None
     try:
@@ -7306,7 +7317,8 @@ def _assert_preserved_sections_before_save(
                 "Refusing to save the URL/UTM update: no readable pre-save "
                 "target-action baseline is available."
             )
-        actual = _read_confirmed_target_actions(page)
+        rows = _read_confirmed_target_actions(page)
+        actual = None if rows is None else _target_action_price_map(rows)
         if actual != target_actions_unchanged_expected:
             raise BrowserSessionError(
                 "Refusing to save the URL/UTM update because the current "
@@ -7513,11 +7525,8 @@ def _goal_price_matches(expected: float, actual: Optional[str]) -> bool:
     """
     if actual is None:
         return False
-    normalized = actual.strip().replace(",", ".").replace("\xa0", "")
-    try:
-        return float(normalized) == float(expected)
-    except ValueError:
-        return False
+    parsed = _parse_target_action_price(actual)
+    return parsed is not None and parsed == float(expected)
 
 
 def _read_campaign_name(page: "Page") -> Optional[str]:
@@ -7800,9 +7809,11 @@ def _verify_saved(
     if a field still doesn't match after a real reload, the save did not
     take effect and this raises rather than reporting false success.
 
-    Returns the verified post-save target-action goal-id set when the
-    unchanged-table check ran (so the caller can surface it in the result
-    row, issue #872), or ``None`` when that check did not run.
+    Returns the verified post-save target actions — a list of
+    ``{"GoalId", "Name", "Price"}`` rows sorted by GoalId, the same shape
+    ``masters targetactions get`` returns — when the unchanged-table check
+    ran (so the caller can surface it in the result row, issues #872/#876),
+    or ``None`` when that check did not run.
     """
     _audience_touched = (
         gender is not None
@@ -8185,7 +8196,7 @@ def _verify_saved(
             rows = _read_target_actions_or_none(p)
             if rows is None:
                 return None
-            return {row["GoalId"]: row["Price"] for row in rows}
+            return _target_action_price_map(rows)
 
         def _target_action_prices_match(
             actual: Optional[Dict[int, Optional[float]]], expected: Dict[int, float]
@@ -8417,22 +8428,22 @@ def _verify_saved(
         # unreadable baseline is rejected before Save and an unreadable
         # post-save state is a mismatch here.
         expected_unchanged = target_actions_unchanged_expected or {}
-        actual_unchanged = _read_confirmed_target_actions(page)
+        rows_after = _read_confirmed_target_actions(page)
+        actual_unchanged = (
+            None if rows_after is None else _target_action_price_map(rows_after)
+        )
         if actual_unchanged != expected_unchanged:
             mismatches.append(
                 "target actions: expected goals (id → price) "
                 f"{expected_unchanged!r} to survive the save intact — "
                 f"page now shows {actual_unchanged!r}"
             )
-        elif actual_unchanged is not None:
+        elif rows_after is not None:
             # Verified intact — handed back so the caller's result row can
             # show WHICH goals at WHICH bid survived the save (issues
             # #872/#876: a batch run should see the protected state, not
             # just an implicit absence of failure).
-            verified_target_actions = [
-                {"GoalId": goal_id, "Price": price}
-                for goal_id, price in sorted(actual_unchanged.items())
-            ]
+            verified_target_actions = rows_after
 
     mismatches.extend(
         _verify_repeating_value_mismatches(
@@ -8967,7 +8978,7 @@ def update_master(
             # id set is still expected to survive — and every price the call
             # did not set must survive too (issue #876).
             target_actions_unchanged_expected = {
-                **target_actions_at_load,
+                **_target_action_price_map(target_actions_at_load),
                 **(target_action_prices or {}),
             }
             target_actions_unchanged_requested = True
@@ -9507,10 +9518,10 @@ def update_master(
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
     if verified_target_actions is not None:
-        # The unchanged-table check ran and verified this exact set survived
-        # the whole-form save (issue #872) — surface it in the result row so
-        # a batch run shows the protected goals, not just an implicit
-        # absence of failure.
+        # The unchanged-table check ran and verified these goals AND their
+        # prices survived the whole-form save (issues #872/#876) — surface
+        # them in the result row so a batch run shows the protected goals
+        # and bids, not just an implicit absence of failure.
         result["TargetActions"] = verified_target_actions
     if weekly_budget is not None:
         result["WeeklyBudget"] = weekly_budget

@@ -55,28 +55,33 @@ def _load_translations() -> dict[str, str]:
         with open(path, encoding="utf-8") as handle:
             data = json.load(handle)
         if isinstance(data, dict):
-            table.update(data)
-    # Python 3.13+ strips docstring indentation at compile time, so a
-    # command's ``__doc__`` no longer equals the indented catalog key written
-    # from an older interpreter. Alias every key in its 3.13 form.
-    for key, value in list(table.items()):
-        cleaned = _compiler_cleandoc(key)
-        if cleaned != key:
-            table.setdefault(cleaned, _compiler_cleandoc(value))
+            table.update(
+                {_doc_key(key): _doc_key(value) for key, value in data.items()}
+            )
     return table
 
 
-def _compiler_cleandoc(text: str) -> str:
-    """Mirror CPython 3.13's compile-time docstring cleanup: lstrip the first
-    line and remove the common indentation of the rest (blank lines become
-    empty). Unlike ``inspect.cleandoc`` it keeps leading/trailing blank lines.
+def _doc_key(text: str) -> str:
+    """Catalog key normalization: drop the common indentation of every line
+    after the first, as CPython 3.13+ does to docstrings at compile time.
+
+    Applied to catalog keys at load AND to the source in :func:`t`, so a
+    command's ``__doc__`` matches its key whichever interpreter wrote the
+    catalog or runs the CLI (3.13 strips the indent, earlier ones keep it).
+    Idempotent; a single-line string is returned unchanged. Indentation is
+    counted in spaces after tab expansion, like the compiler; a line with
+    fewer spaces than the margin loses only what it has.
     """
+    if "\n" not in text:
+        return text
     lines = text.expandtabs().split("\n")
-    indents = [len(line) - len(line.lstrip()) for line in lines[1:] if line.strip()]
+    indents = [
+        len(line) - len(line.lstrip(" ")) for line in lines[1:] if line.strip(" ")
+    ]
     margin = min(indents, default=0)
     return "\n".join(
-        [lines[0].lstrip()]
-        + [line[margin:] if line.strip() else "" for line in lines[1:]]
+        [lines[0]]
+        + [line[min(margin, len(line) - len(line.lstrip(" "))) :] for line in lines[1:]]
     )
 
 
@@ -155,7 +160,7 @@ def t(source: Optional[str], locale: Optional[str] = None) -> Optional[str]:
     resolved = resolved or DEFAULT_LOCALE
     if resolved == "en":
         return source
-    return _RU.get(source, source)
+    return _RU.get(_doc_key(source), source)
 
 
 class LocalizedOption(click.Option):
