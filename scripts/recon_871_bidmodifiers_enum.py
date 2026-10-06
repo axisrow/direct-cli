@@ -41,26 +41,52 @@ def main() -> int:
         "--campaign-id",
         type=int,
         default=int(os.environ.get("YANDEX_DIRECT_TEST_CAMPAIGN_ID", 0) or 0),
-        help="Campaign whose bid modifiers to read (read-only)",
+        help="Campaign whose bid modifiers to read (read-only); omit to "
+        "read ALL campaigns' campaign-level modifiers of the type in one "
+        "call (still read-only)",
+    )
+    parser.add_argument(
+        "--ids-file",
+        help="JSON file with a campaigns get output ([{\"Id\": ...}]); reads "
+        "the type across ALL those campaigns in one call (read-only)",
     )
     args = parser.parse_args()
-    if not args.campaign_id:
-        parser.error("--campaign-id (or YANDEX_DIRECT_TEST_CAMPAIGN_ID) is required")
 
     from direct_cli.api import create_client
 
     # Shaped exactly like bidmodifiers get's own body (utils.build_common_
     # params output), with the live-only type injected past the CLI's
     # click.Choice — that gate is precisely what #871 reports.
+    campaign_ids = [args.campaign_id] if args.campaign_id else []
+    if args.ids_file:
+        with open(args.ids_file) as fh:
+            campaign_ids = [row["Id"] for row in json.load(fh) if row.get("Id")]
     body = {
         "method": "get",
         "params": {
-            "SelectionCriteria": {"CampaignIds": [args.campaign_id]},
+            # Levels lives INSIDE SelectionCriteria (WSDL lines 131-135: the
+            # criteria complexType carries AdGroupIds/Ids/Types/Levels), not
+            # at the request top level — top-level Levels gets error 8000
+            # "Omitted required parameter Levels" even when present.
+            #
+            # Second live probe (2026-10-06): a top-level
+            # "RetargetingSearchAdjustmentFieldNames" is rejected with
+            # "Unknown parameter" — the live get request has NO per-type
+            # FieldNames slot for this type (the cached WSDL agrees), so the
+            # type is selected via SelectionCriteria.Types and the response's
+            # real nested key is what this probe must surface.
+            "SelectionCriteria": {
+                **({"CampaignIds": campaign_ids} if campaign_ids else {}),
+                "Levels": ["CAMPAIGN"],
+                "Types": [TYPE],
+            },
             "FieldNames": ["Id", "CampaignId", "AdGroupId", "Type", "Level"],
-            f"{CAMEL}FieldNames": ["BidModifier"],
         },
     }
-    print(f"GET BidModifiers for campaign {args.campaign_id}, type {TYPE}")
+    scope = (
+        f"{len(campaign_ids)} campaign(s)" if campaign_ids else "ALL campaigns"
+    )
+    print(f"GET BidModifiers for {scope}, type {TYPE}")
     print("request body:", json.dumps(body, ensure_ascii=False))
 
     client = create_client()

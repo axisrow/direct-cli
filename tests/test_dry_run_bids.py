@@ -342,6 +342,70 @@ def test_bidmodifiers_add_rejects_incompatible_extra_flags():
     ) in desktop_result.output
 
 
+def test_bidmodifiers_add_retargeting_search_uses_live_plural_shape():
+    """Issue #871: the live-only RETARGETING_SEARCH_ADJUSTMENT type uses the
+    API's own nested key `RetargetingSearchAdjustments` (plural, list-wrapped)
+    — confirmed by the API's own error texts (see #890), not by the cached
+    WSDL, which does not know the type at all."""
+    body = _dry_run(
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "RETARGETING_SEARCH_ADJUSTMENT",
+        "--value",
+        "101",
+        "--retargeting-condition-id",
+        "42841593",
+    )
+    assert body["method"] == "add"
+    modifier = body["params"]["BidModifiers"][0]
+    assert "Type" not in modifier
+    assert modifier["CampaignId"] == 1
+    assert modifier["RetargetingSearchAdjustments"] == [
+        {"BidModifier": 101, "RetargetingConditionId": 42841593}
+    ]
+
+
+def test_bidmodifiers_add_retargeting_search_requires_condition_id():
+    result = _rejected(
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "RETARGETING_SEARCH_ADJUSTMENT",
+        "--value",
+        "101",
+    )
+    assert (
+        "RETARGETING_SEARCH_ADJUSTMENT requires --retargeting-condition-id"
+        in result.output
+    )
+
+
+def test_bidmodifiers_add_retargeting_search_rejects_foreign_flags():
+    result = _rejected(
+        "bidmodifiers",
+        "add",
+        "--campaign-id",
+        "1",
+        "--type",
+        "RETARGETING_SEARCH_ADJUSTMENT",
+        "--value",
+        "101",
+        "--retargeting-condition-id",
+        "7",
+        "--gender",
+        "GENDER_MALE",
+    )
+    assert (
+        "--gender is not compatible with --type RETARGETING_SEARCH_ADJUSTMENT"
+        in result.output
+    )
+
+
 def test_bidmodifiers_add_income_grade_uses_wsdl_grade_field():
     body = _dry_run(
         "bidmodifiers",

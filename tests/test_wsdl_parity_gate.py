@@ -39,7 +39,10 @@ from click.testing import CliRunner
 
 from direct_cli import wsdl_coverage
 from direct_cli.cli import cli
-from direct_cli.commands.bidmodifiers import _BIDMODIFIER_TYPE_TO_NESTED
+from direct_cli.commands.bidmodifiers import (
+    _BIDMODIFIER_TYPE_TO_NESTED,
+    _LIVE_ONLY_NESTED_KEYS,
+)
 from direct_cli.commands.strategies import (
     CUSTOM_PERIOD_BUDGET_FIELD_OPTIONS,
     CUSTOM_PERIOD_BUDGET_FLAGS,
@@ -3066,6 +3069,11 @@ OPTIONAL_FIELD_CLI_OPTIONS.update(
 )
 
 for nested_field in _BIDMODIFIER_TYPE_TO_NESTED.values():
+    if nested_field in _LIVE_ONLY_NESTED_KEYS:
+        # Live-only type (#871): the cached WSDL does not declare it, so
+        # there is no WSDL path to map a Click option onto — and the
+        # staleness check below would rightly refuse a fabricated one.
+        continue
     OPTIONAL_FIELD_CLI_OPTIONS[("bidmodifiers", "add", nested_field)] = {"--type"}
     OPTIONAL_FIELD_CLI_OPTIONS[
         ("bidmodifiers", "add", f"{nested_field}.BidModifier")

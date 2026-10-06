@@ -39,6 +39,23 @@ guard and the post-save check now compare the full `{GoalId: Price}` map
 
 ### Added
 
+**`bidmodifiers` — live-only type `RETARGETING_SEARCH_ADJUSTMENT` (#871).**
+
+Adds the search-retargeting bid modifier type the live API accepts but the
+published WSDL and docs do not declare (confirmed by direct probes,
+2026-10-07): the add payload nests under
+`RetargetingSearchAdjustments` (a list, like `RetargetingAdjustments`),
+requires `--retargeting-condition-id` together with `--value`, and `get`
+selects it via `--types` alone — the type has no per-type
+`RetargetingSearchAdjustmentFieldNames` parameter (the live API rejects it).
+
+**Known limitation (#890):** Yandex currently rejects creating this
+modifier server-side (5005 on every documented retargeting-list class,
+while older types create fine on the same campaign) — the type appears to
+be a half-enabled pilot. The CLI mirrors the confirmed signature so
+`bidmodifiers add --type RETARGETING_SEARCH_ADJUSTMENT` works the moment
+the API enables acceptance; `--dry-run` shows the exact payload.
+
 **`masters list` — strategy and weekly budget per campaign.**
 
 Every GridCampaigns row already carries the grid's «Бюджет и стратегия»
