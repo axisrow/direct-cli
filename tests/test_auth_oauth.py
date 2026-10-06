@@ -5,6 +5,7 @@ import json
 import os
 import stat
 import urllib.parse
+from email.message import Message
 from urllib.error import HTTPError, URLError
 from unittest.mock import patch
 
@@ -54,7 +55,7 @@ def fake_http_error(code=400, body=b"invalid_grant"):
         url="https://oauth.yandex.ru/token",
         code=code,
         msg="Bad Request",
-        hdrs=None,
+        hdrs=Message(),
         fp=io.BytesIO(body),
     )
 

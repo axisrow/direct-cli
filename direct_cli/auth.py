@@ -23,8 +23,8 @@ try:
     from dotenv import load_dotenv
 except ImportError:
 
-    def load_dotenv(*args: Any, **kwargs: Any) -> None:
-        return None
+    def load_dotenv(*args: Any, **kwargs: Any) -> bool:
+        return False
 
 
 YANDEX_OAUTH_AUTHORIZE_URL = "https://oauth.yandex.ru/authorize"

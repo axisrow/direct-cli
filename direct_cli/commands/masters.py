@@ -450,7 +450,11 @@ def _run_per_id(
         )
         # Keep exit 1 for a completely failed batch, while giving consumers a
         # distinct status for output that contains both successes and errors.
-        error.exit_code = 2 if len(errors) < len(ids) else 1
+        # Click's stub types exit_code as a ClassVar, but Click itself reads
+        # it per instance (ClickException.show/main), so this is intended.
+        error.exit_code = (  # pyright: ignore[reportAttributeAccessIssue]
+            2 if len(errors) < len(ids) else 1
+        )
         raise error
     return results
 

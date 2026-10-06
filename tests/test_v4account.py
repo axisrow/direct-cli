@@ -6,6 +6,7 @@ import pytest
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
+from tests._cli_tree import registered_commands
 from direct_cli.v4_contracts import get_v4_contract
 
 
@@ -404,7 +405,7 @@ def test_v4account_help_contains_no_json_input_flag():
 
 
 def test_v4account_commands_declare_v4_contracts():
-    commands = cli.commands["v4account"].commands
+    commands = registered_commands("v4account")
 
     assert commands["enable-shared-account"].v4_method == "EnableSharedAccount"
     assert commands["enable-shared-account"].v4_contract == get_v4_contract(
@@ -929,7 +930,7 @@ def test_account_management_options_are_all_in_allow_list():
         _COMMON_PARAMS,
     )
 
-    command = cli.commands["v4account"].commands["account-management"]
+    command = registered_commands("v4account")["account-management"]
     option_param_names = {
         opt.name
         for opt in command.params

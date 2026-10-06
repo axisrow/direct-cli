@@ -4,6 +4,7 @@ Direct CLI - Command-line interface for Yandex Direct API
 """
 
 import sys
+from typing import TYPE_CHECKING, Optional
 
 import click
 from click.core import ParameterSource
@@ -120,20 +121,21 @@ def _command_has_option(cmd: click.Command, option_name: str) -> bool:
 
 def _augment_no_such_option(
     exc: click.exceptions.NoSuchOption, ctx: click.Context
-) -> None:
-    """Append a cross-command hint to a NoSuchOption error.
+) -> Optional[click.exceptions.NoSuchOption]:
+    """Return a NoSuchOption error with a cross-command hint appended.
 
     For `direct <group> <cmd> --bad-flag`, finds sibling subcommands of
     `<group>` that declare `--bad-flag` and tells the user where to use
-    it instead. When no sibling matches, points at `--help`.
+    it instead. When no sibling matches, points at `--help`. Returns None
+    when Click's default error should be kept.
     """
     parent = ctx.parent
     if parent is None or parent.command is None:
-        return  # Unknown option on the root group — leave Click's default.
+        return None  # Unknown option on the root group — leave Click's default.
 
     group = parent.command
     if not isinstance(group, click.Group):
-        return
+        return None
 
     bad = exc.option_name
     siblings = sorted(
@@ -155,25 +157,36 @@ def _augment_no_such_option(
     else:
         hint = f"Run `{current_path} --help` to see available flags."
 
-    # Fold the "Did you mean..." suggestion into self.message now and clear
-    # `possibilities` so Click's NoSuchOption.format_message() does not
+    # Fold the "Did you mean..." suggestion into the message now and leave
+    # `possibilities` empty so Click's NoSuchOption.format_message() does not
     # re-append it after the Hint on print.
-    exc.message = f"{exc.format_message()}\n\n{hint}"
-    exc.possibilities = None
+    return click.exceptions.NoSuchOption(
+        bad, message=f"{exc.format_message()}\n\n{hint}", ctx=exc.ctx
+    )
 
 
-class _NoSuchOptionHintMixin:
+if TYPE_CHECKING:
+    # The mixins below are only ever combined with click.Command/Group;
+    # tell the type checker what ``super()``/``self`` resolve to.
+    _CommandBase = click.Command
+else:
+    _CommandBase = object
+
+
+class _NoSuchOptionHintMixin(_CommandBase):
     """Mixin that augments NoSuchOption errors raised by ``parse_args``."""
 
     def parse_args(self, ctx, args):
         try:
             return super().parse_args(ctx, args)
         except click.exceptions.NoSuchOption as exc:
-            _augment_no_such_option(exc, ctx)
-            raise
+            augmented = _augment_no_such_option(exc, ctx)
+            if augmented is None:
+                raise
+            raise augmented from exc
 
 
-class _LocalizedHelpMixin:
+class _LocalizedHelpMixin(_CommandBase):
     """Mixin that localizes a command/group docstring at render time.
 
     The English docstring (``self.help``) is the catalog key; the resolved-locale

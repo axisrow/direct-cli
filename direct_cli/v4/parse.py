@@ -10,7 +10,7 @@ so the rendered CLI surface stays byte-identical.
 
 from __future__ import annotations
 
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import click
 
@@ -64,12 +64,13 @@ def parse_id_value_specs(
     not_integer_msg: str,
     non_positive_msg: str,
     duplicate_msg: str,
-    malformed_msg: Optional[str] = None,
+    malformed_msg: str = "",
     allow_bare_id: bool = False,
     empty_spec_msg: Optional[str] = None,
-    value_parser: Optional[Callable[[Optional[str]], object]] = None,
+    # Receives None only for a bare ID (allow_bare_id=True).
+    value_parser: Optional[Callable[[Any], object]] = None,
     max_entries: Optional[int] = None,
-    max_entries_msg: Optional[str] = None,
+    max_entries_msg: str = "",
     max_check: str = "before",
 ) -> List[Tuple[int, object]]:
     """Validate repeated ``ID=VALUE`` specs into ``(id_int, value)`` pairs.

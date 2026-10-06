@@ -191,7 +191,7 @@ def _assert_success(result, cmd_label: str) -> None:
     )
 
 
-def _extract_first_id(output: str, key: str = "AddResults") -> int | str:
+def _extract_first_id(output: str, key: str = "AddResults") -> int:
     """Extract the first Id from an add-result JSON response."""
     data = json.loads(output)
     if isinstance(data, list):
@@ -208,11 +208,8 @@ def _extract_first_id(output: str, key: str = "AddResults") -> int | str:
         "Errors" not in first or not first["Errors"]
     ), f"API rejected add: {first.get('Errors')}"
     assert "Id" in first, f"No Id in add result: {first}"
-    raw = first["Id"]
-    try:
-        return int(raw)
-    except (ValueError, TypeError):
-        return raw
+    # Numeric Ids only; AdVideos (string Id) goes through _extract_field.
+    return int(first["Id"])
 
 
 def _extract_field(output: str, field: str = "Id", key: str = "AddResults") -> Any:
@@ -248,11 +245,11 @@ def _extract_campaigns(output: str) -> List[Dict[str, Any]]:
     return campaigns if isinstance(campaigns, list) else []
 
 
-def _find_campaign(output: str, campaign_id: int) -> Optional[Dict[str, Any]]:
+def _find_campaign(output: str, campaign_id: Optional[int]) -> Optional[Dict[str, Any]]:
     """Find a campaign by Id in a get response."""
     for campaign in _extract_campaigns(output):
         try:
-            if int(campaign.get("Id")) == campaign_id:
+            if int(campaign.get("Id", "")) == campaign_id:
                 return campaign
         except (TypeError, ValueError):
             continue
@@ -500,7 +497,7 @@ def test_v5_live_draft_advideos_add_get() -> None:
     _assert_success(r, "advideos add")
     # advideos API does not expose a delete method — uploaded videos accumulate
     # in the account and cannot be cleaned up programmatically.
-    video_id = _extract_first_id(r.output)
+    video_id = _extract_field(r.output)  # AdVideos Id is a string
     r = _invoke_live("advideos", "get", "--ids", str(video_id), "--format", "json")
     _assert_success(r, "advideos get")
 
@@ -520,7 +517,7 @@ def test_v5_live_draft_creatives_chain_advideo_to_creative() -> None:
     _assert_success(r, "advideos add")
     # advideos API does not expose a delete method — uploaded videos accumulate
     # in the account and cannot be cleaned up programmatically.
-    video_id = _extract_first_id(r.output)
+    video_id = _extract_field(r.output)  # AdVideos Id is a string
 
     r = _invoke_live("creatives", "add", "--video-id", str(video_id))
     _assert_success(r, "creatives add")

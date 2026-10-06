@@ -124,6 +124,15 @@ disable_error_code = [
     "var-annotated",
 ]
 
+[tool.pyright]
+pythonVersion = "3.10"
+# Same scope as ruff/mypy: the vendored fork is linted upstream.
+ignore = ["direct_cli/_vendor"]
+# Mirrors mypy's no_implicit_optional = false (`x: int = None` is allowed).
+strictParameterNoneValue = false
+# tests/test_reports_drift.py imports scripts/check_reports_drift.py via sys.path.
+extraPaths = ["scripts"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"

@@ -19,8 +19,8 @@ _AUDIT_PATH = REPO_ROOT / "scripts" / "audit_wire_shape.py"
 # Load the script as a module without exec'ing it from CLI. Register it
 # in sys.modules so dataclasses.dataclass can resolve cls.__module__.
 _spec = importlib.util.spec_from_file_location("audit_wire_shape", _AUDIT_PATH)
+assert _spec is not None and _spec.loader is not None
 audit = importlib.util.module_from_spec(_spec)
-assert _spec.loader is not None
 sys.modules["audit_wire_shape"] = audit
 _spec.loader.exec_module(audit)
 

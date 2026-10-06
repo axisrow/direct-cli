@@ -66,6 +66,7 @@ def _resolve(path):
     """Return the Click command for a (group, sub) or (command,) path."""
     cmd = cli.commands[path[0]]
     for name in path[1:]:
+        assert isinstance(cmd, click.Group)
         cmd = cmd.commands[name]
     return cmd
 

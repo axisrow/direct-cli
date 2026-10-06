@@ -2,7 +2,7 @@
 
 import re
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import click
 
@@ -109,7 +109,7 @@ def _events_log_param(
     if from_dt > to_dt:
         raise click.UsageError(t("--from must be earlier than or equal to --to"))
 
-    param = {
+    param: Dict[str, Any] = {
         "TimestampFrom": timestamp_from,
         "TimestampTo": timestamp_to,
         "Currency": currency,

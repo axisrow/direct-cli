@@ -8,10 +8,14 @@ from direct_cli._vendor.tapi_yandex_direct.endpoints import (
     DIRECT_DEBUG_ROOT,
     get_direct_api_root,
 )
+
+# The vendored .pyi stubs cover only the public clients; adapters are internal.
 from direct_cli._vendor.tapi_yandex_direct.tapi_yandex_direct import (
-    YandexDirectClientAdapter,
+    YandexDirectClientAdapter,  # pyright: ignore[reportAttributeAccessIssue]
 )
-from direct_cli._vendor.tapi_yandex_direct.v4.adapter import V4LiveClientAdapter
+from direct_cli._vendor.tapi_yandex_direct.v4.adapter import (
+    V4LiveClientAdapter,  # pyright: ignore[reportAttributeAccessIssue]
+)
 
 
 def test_dependency_uses_axisrow_fork():

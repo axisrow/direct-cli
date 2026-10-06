@@ -206,6 +206,7 @@ def add(ctx, sitelinks_specs, sitelinks_json, sitelinks_from_file, dry_run):
         if sitelinks_json is not None:
             raw_rows = _load_sitelinks_from_inline(sitelinks_json)
         else:
+            assert sitelinks_from_file is not None  # sources_used == 1 above
             raw_rows = _load_sitelinks_from_file(sitelinks_from_file)
 
         if not raw_rows:

@@ -37,7 +37,7 @@ def make_lifecycle_command(
     *,
     service=None,
     id_option="--id",
-    id_type=int,
+    id_type: type = int,
     criteria_key="Ids",
 ):
     """Build and register a v5 lifecycle command on *group*.

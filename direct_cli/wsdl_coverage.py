@@ -11,6 +11,9 @@ import xml.etree.ElementTree as ET  # noqa: N817 - standard stdlib alias
 from functools import lru_cache
 from io import StringIO
 from pathlib import Path
+from typing import Any
+
+import click
 
 from ._captcha import find_captcha_marker
 
@@ -323,7 +326,7 @@ def parse_wsdl_field_enums(wsdl_xml: str) -> dict[str, list[str]]:
 
 def get_operation_field_name_enums(
     wsdl_xml: str, operation_name: str
-) -> dict[str, dict[str, object]]:
+) -> dict[str, dict[str, Any]]:
     """Return request ``FieldNames`` params and their allowed enum values."""
     field_enums = parse_wsdl_field_enums(wsdl_xml)
     schema = get_operation_request_schema(wsdl_xml, operation_name)
@@ -351,6 +354,7 @@ def get_cli_methods_for_service(cli_command_name: str) -> set:
     from direct_cli.cli import cli
 
     group = cli.commands[cli_command_name]
+    assert isinstance(group, click.Group)
     methods = set()
     for subcmd_name in group.commands:
         mapped = METHOD_NAME_OVERRIDES.get(subcmd_name)

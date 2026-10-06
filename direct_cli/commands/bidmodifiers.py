@@ -2,6 +2,8 @@
 BidModifiers commands
 """
 
+from typing import Any, Dict
+
 import click
 
 from ..api import create_client
@@ -35,7 +37,7 @@ def _bidmodifiers_get_criteria(
     """SelectionCriteria for ``bidmodifiers get``: a mandatory upper-cased
     ``Levels`` list plus optional Ids/CampaignIds/AdGroupIds id lists and an
     upper-cased ``Types`` list (an empty ``--types`` CSV maps to ``[]``)."""
-    criteria = {"Levels": [lv.upper() for lv in levels]}
+    criteria: Dict[str, Any] = {"Levels": [lv.upper() for lv in levels]}
     if ids:
         criteria["Ids"] = parse_ids(ids)
     if campaign_ids:

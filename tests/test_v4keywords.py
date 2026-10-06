@@ -4,6 +4,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
+from tests._cli_tree import registered_commands
 from direct_cli.v4_contracts import get_v4_contract
 
 
@@ -105,7 +106,7 @@ def test_v4keywords_help_has_no_json_input_flag():
 
 
 def test_v4keywords_command_declares_contract():
-    commands = cli.commands["v4keywords"].commands
+    commands = registered_commands("v4keywords")
     assert commands["get-suggestion"].v4_method == "GetKeywordsSuggestion"
     assert commands["get-suggestion"].v4_contract == get_v4_contract(
         "GetKeywordsSuggestion"
