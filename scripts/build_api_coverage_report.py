@@ -8,10 +8,11 @@ import json
 import importlib
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import click
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
@@ -135,7 +136,7 @@ def _cli_command_name_for_operation(operation: str) -> str:
 def _cli_command_exists(group_name: str, command_name: str) -> bool:
     """Return whether a Click command exists."""
     group = cli.commands.get(group_name)
-    return group is not None and command_name in group.commands
+    return isinstance(group, click.Group) and command_name in group.commands
 
 
 def _operation_requires_common_fields(cli_group: str, operation: str) -> bool:
@@ -422,7 +423,7 @@ def _command_supports_option(
 ) -> bool:
     """Return whether a Click command exposes a parameter by internal name."""
     group = cli.commands.get(group_name)
-    if group is None or command_name not in group.commands:
+    if not isinstance(group, click.Group) or command_name not in group.commands:
         return False
     command = group.commands[command_name]
     return any(getattr(param, "name", None) == param_name for param in command.params)
@@ -433,7 +434,7 @@ def _command_option_is_required(
 ) -> bool:
     """Return whether a Click command option is required."""
     group = cli.commands.get(group_name)
-    if group is None or command_name not in group.commands:
+    if not isinstance(group, click.Group) or command_name not in group.commands:
         return False
     command = group.commands[command_name]
     for param in command.params:
@@ -447,10 +448,7 @@ def capture_cli_request_body(cli_group: str, operation: str = "get") -> dict:
     module = importlib.import_module(f"direct_cli.commands.{cli_group}")
     # For command packages (e.g., ads split into ads/), patch the _cli submodule
     # where create_client lives, not the package __init__.py.
-    if hasattr(module, "_cli"):
-        patch_module = module._cli
-    else:
-        patch_module = module
+    patch_module: Any = module._cli if hasattr(module, "_cli") else module
     original_create_client = patch_module.create_client
     captured = {}
     cli_command = _cli_command_name_for_operation(operation)
@@ -666,10 +664,7 @@ def _validate_runtime_deprecated_methods(deprecated_methods=None) -> list[dict]:
         for mode, argv in modes:
             # For command packages (e.g., ads split into ads/), patch the _cli
             # submodule where create_client lives, not the package __init__.py.
-            if hasattr(module, "_cli"):
-                patch_module = module._cli
-            else:
-                patch_module = module
+            patch_module: Any = module._cli if hasattr(module, "_cli") else module
             original_create_client = getattr(patch_module, "create_client", None)
             captured: dict = {}
             try:

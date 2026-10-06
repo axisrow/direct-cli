@@ -19,6 +19,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Optional
 
+import click
+
 from build_api_coverage_report import build_report
 from direct_cli.cli import cli
 from direct_cli.smoke_matrix import SMOKE_MATRIX
@@ -86,7 +88,7 @@ def emoji_for_service(cli_group: str, methods: list[dict]) -> str:
 def cli_subcommands_for_group(group_name: str) -> dict[str, str]:
     """Return {cli_subcommand_name: wsdl_method_name_or_kebab}."""
     group = cli.commands.get(group_name)
-    if group is None:
+    if not isinstance(group, click.Group):
         return {}
     out = {}
     for cmd_name in group.commands:
