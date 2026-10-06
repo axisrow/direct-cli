@@ -10229,6 +10229,87 @@ class TestUpdateMaster(unittest.TestCase):
 
         self.assertEqual(rows, {226158067: "77"})
 
+    def test_add_target_action_refuses_to_click_save_when_table_diverged(self):
+        # Issue #877 acceptance (add leg): with --add-target-action a
+        # hydration re-render that lost the table BEFORE the save must
+        # block the click — #873 had left this path with only the
+        # post-save check, i.e. after the irreversible save. Modeled by
+        # the price fill succeeding and the table then losing every row
+        # before Save.
+        rows = {159614149: "150"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=226158067
+        )
+        lost = {"done": False}
+
+        def _locator(selector):
+            if selector == f'[data-testid="{price_testid}"]' and not lost["done"]:
+                lost["done"] = True
+
+                def _fill_then_lose(value):
+                    rows.clear()  # the #836 re-render loss, pre-Save
+
+                return _FakeLocator([_FakeLocatorHandle(on_fill=_fill_then_lose)])
+            return original_locator(selector)
+
+        page.locator = _locator
+        save_clicks = []
+        save_button = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT)
+        original_click = save_button.first.click
+
+        def _count_click(*args, **kwargs):
+            save_clicks.append(True)
+            return original_click(*args, **kwargs)
+
+        save_button.first.click = _count_click
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, add_target_actions={226158067: 77})
+        self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertEqual(save_clicks, [])
+
+    def test_remove_target_action_refuses_to_click_save_when_table_diverged(self):
+        # Issue #877 acceptance (removal leg): the #756-certified baseline
+        # makes the expected id set exact, so a re-render that dropped an
+        # UNTOUCHED survivor before Save blocks the click too.
+        rows = {159614149: "150", 226158067: "77"}
+        page = self._dynamic_target_actions_page(rows)
+        original_locator = page.locator
+        close_testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=226158067
+        )
+
+        def _locator(selector):
+            if selector == f'[data-testid="{close_testid}"]':
+
+                def _pop_then_lose(goal_id=226158067):
+                    rows.pop(goal_id, None)
+                    rows.pop(159614149, None)  # untouched survivor lost too
+
+                return _FakeLocator([_FakeLocatorHandle(on_click=_pop_then_lose)])
+            return original_locator(selector)
+
+        page.locator = _locator
+        save_clicks = []
+        save_button = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT)
+        original_click = save_button.first.click
+
+        def _count_click(*args, **kwargs):
+            save_clicks.append(True)
+            return original_click(*args, **kwargs)
+
+        save_button.first.click = _count_click
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(
+                page, 42, remove_target_action_goal_ids=[226158067]
+            )
+        self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertIn("159614149", str(ctx.exception))
+        self.assertEqual(save_clicks, [])
+
     def test_raises_when_added_goal_still_absent_after_save(self):
         # The option click + price fill both "succeed" (rows gains the goal
         # during the mutation phase), but the POST-SAVE RELOAD shows it
@@ -10253,19 +10334,21 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertIn("did not save as requested", str(ctx.exception))
 
     def test_raises_when_removed_goal_still_present_after_save(self):
+        # Since #877 a close click that no-ops on the FORM is caught by the
+        # pre-click guard (Refusing to save) — to keep testing the POST-save
+        # verifier, the removal must succeed in the form and Yandex must
+        # reject it server-side: the goal reappears in the table only at
+        # the verify reload (the second goto), after the irreversible Save.
         rows = {159614149: "150"}
         page = self._dynamic_target_actions_page(rows)
-        original_locator = page.locator
+        original_goto = page.goto
 
-        def _stub_locator(selector):
-            close_testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
-                category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
-            )
-            if selector == f'[data-testid="{close_testid}"]':
-                return _FakeLocator([_FakeLocatorHandle()])  # click is a no-op
-            return original_locator(selector)
+        def _goto_and_restore_on_second_call(url, wait_until=None):
+            if len(page.navigated_to) == 1:
+                rows[159614149] = "150"
+            original_goto(url, wait_until=wait_until)
 
-        page.locator = _stub_locator
+        page.goto = _goto_and_restore_on_second_call
 
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.update_master(
@@ -10280,19 +10363,25 @@ class TestUpdateMaster(unittest.TestCase):
         elements) even though the section is visible. Without a matching
         ``None`` propagation there, that mid-scan hiccup collapses to `[]`,
         and `_add_remove_match` reads a genuinely-still-present goal as
-        removed. Models: close-button click is a no-op (goal stays in
-        `rows`), section is always visible, but the row-prefix locator's
-        own ``.count()`` raises on its first call after the verify reload,
-        succeeding on every later call."""
+        removed. Models: the close click succeeds in the form, but the
+        goal reappears at the verify reload (removal rejected server-side —
+        since #877 a form-level no-op close is the pre-click guard's job,
+        not this verifier's); section is always visible, but the
+        row-prefix locator's own ``.count()`` raises on its first call
+        after the verify reload, succeeding on every later call."""
         rows = {159614149: "150"}
         page = self._dynamic_target_actions_page(rows)
         original_locator = page.locator
+        original_goto = page.goto
         row_scan_calls = {"count": 0}
 
-        close_testid_raw = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
-            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
-        )
-        close_testid = f'[data-testid="{close_testid_raw}"]'
+        def _goto_and_restore_on_second_call(url, wait_until=None):
+            if len(page.navigated_to) == 1:
+                rows[159614149] = "150"
+            original_goto(url, wait_until=wait_until)
+
+        page.goto = _goto_and_restore_on_second_call
+
         row_prefix_selector = (
             f'[data-testid^="TargetActions.'
             f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
@@ -10321,8 +10410,6 @@ class TestUpdateMaster(unittest.TestCase):
                 return self._real.nth(i)
 
         def _stub_locator(selector):
-            if selector == close_testid:
-                return _FakeLocator([_FakeLocatorHandle()])  # click is a no-op
             if selector == row_prefix_selector:
                 return _FlakyOnceCountLocator(original_locator(selector))
             return original_locator(selector)
@@ -10471,19 +10558,26 @@ class TestUpdateMaster(unittest.TestCase):
         read the retry loop trusts, ``_add_remove_match`` would see ``{}``
         on attempt 1, treat "goal absent" as "removal confirmed", and
         return success despite the goal still being present in every read
-        from attempt 2 onward. Models: close-button click is a no-op (goal
-        stays in `rows`, mirroring a save Yandex silently rejected)."""
+        from attempt 2 onward. Models: the close click succeeds in the
+        form, but the goal reappears at the verify reload (removal
+        rejected server-side — since #877 a form-level no-op close is the
+        pre-click guard's job, not this verifier's)."""
         rows = {159614149: "150"}
         page = self._dynamic_target_actions_page(rows)
         original_locator = page.locator
+        original_goto = page.goto
         row_prefix_selector = (
             f'[data-testid^="TargetActions.'
             f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
         )
-        close_testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
-            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
-        )
         row_scan_calls = {"count": 0}
+
+        def _goto_and_restore_on_second_call(url, wait_until=None):
+            if len(page.navigated_to) == 1:
+                rows[159614149] = "150"
+            original_goto(url, wait_until=wait_until)
+
+        page.goto = _goto_and_restore_on_second_call
 
         class _IncompleteThenRealLocator:
             """Wraps the REAL row-prefix locator (reflecting `rows`, which
@@ -10509,8 +10603,6 @@ class TestUpdateMaster(unittest.TestCase):
                 return self._real.nth(i)
 
         def _stub_locator(selector):
-            if selector == f'[data-testid="{close_testid}"]':
-                return _FakeLocator([_FakeLocatorHandle()])  # click is a no-op
             if selector == row_prefix_selector:
                 return _IncompleteThenRealLocator(original_locator(selector))
             return original_locator(selector)
@@ -10953,25 +11045,21 @@ class TestUpdateMaster(unittest.TestCase):
         a snapshot — only the full expected-set comparison catches it, and
         it is precisely the shape a partial hydration read takes.
 
-        Drives the real path: the close-button click removes BOTH the
-        requested goal and an untouched one (modelling a save that dropped
-        more than asked, or a snapshot that never showed the survivor)."""
+        Drives the real path: the close-button click removes only the
+        requested goal (a form-level loss of the survivor would be the
+        pre-click guard's catch since #877), and the untouched row
+        vanishes only at the verify reload — the save itself dropped more
+        than asked."""
         rows = {159614149: "150", 159614150: "200"}
         page = self._dynamic_target_actions_page(rows)
-        original_locator = page.locator
-        close_testid = browser_masters._TARGET_ACTION_CLOSE_TESTID_TEMPLATE.format(
-            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=159614149
-        )
+        original_goto = page.goto
 
-        def _stub_locator(selector):
-            if selector == f'[data-testid="{close_testid}"]':
-                # Clicking the requested goal's close button ALSO drops the
-                # untouched row — the requested removal looks correct, but
-                # the surviving goal is gone.
-                return _FakeLocator([_FakeLocatorHandle(on_click=lambda: rows.clear())])
-            return original_locator(selector)
+        def _goto_and_drop_survivor_on_second_call(url, wait_until=None):
+            if len(page.navigated_to) == 1:
+                rows.pop(159614150, None)
+            original_goto(url, wait_until=wait_until)
 
-        page.locator = _stub_locator
+        page.goto = _goto_and_drop_survivor_on_second_call
 
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.update_master(
@@ -24642,6 +24730,31 @@ class TestWholeFormSavePreservesSections(unittest.TestCase):
             )
 
         self.assertIn("metrika_counters", str(ctx.exception))
+
+    def test_guard_messages_do_not_mention_url_utm(self):
+        # Issue #877: since #873 the pre-click guard runs on EVERY
+        # whole-form save (a pure --weekly-budget included), so the old
+        # "Refusing to save the URL/UTM update" wording misattributed the
+        # failure on unrelated updates.
+        page = FakePage()
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._assert_preserved_sections_before_save(
+                page,
+                metrika_counters_before=None,
+                metrika_preservation_requested=True,
+                add_metrika_counters=None,
+                remove_metrika_counter_indices=None,
+                target_actions_unchanged_expected=None,
+                target_actions_preservation_requested=False,
+                add_target_actions=None,
+                remove_target_action_goal_ids=None,
+                target_action_goal_ids_before=None,
+            )
+
+        message = str(ctx.exception)
+        self.assertIn("Refusing to save the update", message)
+        self.assertNotIn("URL/UTM", message)
 
     def test_metrika_update_does_not_disable_target_action_preservation(self):
         counter = "gc.ksamata.ru • 72112213\n30 целей"
