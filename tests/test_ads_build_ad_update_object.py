@@ -35,19 +35,19 @@ _CASES = [
     (
         "text_ad_title",
         ["--id", "5", "--type", "TEXT_AD", "--title", "NewT"],
-        dict(ad_id=5, ad_type="TEXT_AD", flags={"title": "NewT"}),
+        {"ad_id": 5, "ad_type": "TEXT_AD", "flags": {"title": "NewT"}},
         {"Id": 5, "TextAd": {"Title": "NewT"}},
     ),
     (
         "text_ad_clear_image",
         ["--id", "5", "--type", "TEXT_AD", "--clear-image-hash"],
-        dict(ad_id=5, ad_type="TEXT_AD", flags={"clear_image_hash": True}),
+        {"ad_id": 5, "ad_type": "TEXT_AD", "flags": {"clear_image_hash": True}},
         {"Id": 5, "TextAd": {"AdImageHash": None}},
     ),
     (
         "text_ad_callouts_add",
         ["--id", "5", "--type", "TEXT_AD", "--callouts-add", "1,2"],
-        dict(ad_id=5, ad_type="TEXT_AD", flags={"callouts_add": "1,2"}),
+        {"ad_id": 5, "ad_type": "TEXT_AD", "flags": {"callouts_add": "1,2"}},
         {
             "Id": 5,
             "TextAd": {
@@ -74,15 +74,15 @@ _CASES = [
             "--price-extension-price-currency",
             "RUB",
         ],
-        dict(
-            ad_id=5,
-            ad_type="TEXT_AD",
-            flags={
+        {
+            "ad_id": 5,
+            "ad_type": "TEXT_AD",
+            "flags": {
                 "price_extension_price": 12500000,
                 "price_extension_price_qualifier": "FROM",
                 "price_extension_price_currency": "RUB",
             },
-        ),
+        },
         {
             "Id": 5,
             "TextAd": {
@@ -97,53 +97,57 @@ _CASES = [
     (
         "dynamic_text_ad",
         ["--id", "5", "--type", "DYNAMIC_TEXT_AD", "--text", "Dyn"],
-        dict(ad_id=5, ad_type="DYNAMIC_TEXT_AD", flags={"text": "Dyn"}),
+        {"ad_id": 5, "ad_type": "DYNAMIC_TEXT_AD", "flags": {"text": "Dyn"}},
         {"Id": 5, "DynamicTextAd": {"Text": "Dyn"}},
     ),
     (
         "text_image_ad",
         ["--id", "5", "--type", "TEXT_IMAGE_AD", "--image-hash", "hhh"],
-        dict(ad_id=5, ad_type="TEXT_IMAGE_AD", flags={"image_hash": "hhh"}),
+        {"ad_id": 5, "ad_type": "TEXT_IMAGE_AD", "flags": {"image_hash": "hhh"}},
         {"Id": 5, "TextImageAd": {"AdImageHash": "hhh"}},
     ),
     (
         "mobile_app_ad_clear",
         ["--id", "5", "--type", "MOBILE_APP_AD", "--clear-image-hash"],
-        dict(ad_id=5, ad_type="MOBILE_APP_AD", flags={"clear_image_hash": True}),
+        {"ad_id": 5, "ad_type": "MOBILE_APP_AD", "flags": {"clear_image_hash": True}},
         {"Id": 5, "MobileAppAd": {"AdImageHash": None}},
     ),
     (
         "mobile_app_image_ad",
         ["--id", "5", "--type", "MOBILE_APP_IMAGE_AD", "--image-hash", "mmm"],
-        dict(ad_id=5, ad_type="MOBILE_APP_IMAGE_AD", flags={"image_hash": "mmm"}),
+        {"ad_id": 5, "ad_type": "MOBILE_APP_IMAGE_AD", "flags": {"image_hash": "mmm"}},
         {"Id": 5, "MobileAppImageAd": {"AdImageHash": "mmm"}},
     ),
     (
         "responsive_ad",
         ["--id", "5", "--type", "RESPONSIVE_AD", "--href", "https://e.example"],
-        dict(ad_id=5, ad_type="RESPONSIVE_AD", flags={"href": "https://e.example"}),
+        {
+            "ad_id": 5,
+            "ad_type": "RESPONSIVE_AD",
+            "flags": {"href": "https://e.example"},
+        },
         {"Id": 5, "ResponsiveAd": {"Href": "https://e.example"}},
     ),
     (
         "shopping_ad",
         ["--id", "5", "--type", "SHOPPING_AD", "--title-sources", "FEED"],
-        dict(ad_id=5, ad_type="SHOPPING_AD", flags={"title_sources": "FEED"}),
+        {"ad_id": 5, "ad_type": "SHOPPING_AD", "flags": {"title_sources": "FEED"}},
         {"Id": 5, "ShoppingAd": {"TitleSources": {"Items": ["FEED"]}}},
     ),
     (
         "smart_ad_builder",
         ["--id", "5", "--type", "SMART_AD_BUILDER_AD", "--logo-extension-hash", "logo"],
-        dict(
-            ad_id=5,
-            ad_type="SMART_AD_BUILDER_AD",
-            flags={"logo_extension_hash": "logo"},
-        ),
+        {
+            "ad_id": 5,
+            "ad_type": "SMART_AD_BUILDER_AD",
+            "flags": {"logo_extension_hash": "logo"},
+        },
         {"Id": 5, "SmartAdBuilderAd": {"LogoExtensionHash": "logo"}},
     ),
     (
         "ad_builder_text",
         ["--id", "5", "--type", "TEXT_AD_BUILDER_AD", "--creative-id", "777"],
-        dict(ad_id=5, ad_type="TEXT_AD_BUILDER_AD", flags={"creative_id": 777}),
+        {"ad_id": 5, "ad_type": "TEXT_AD_BUILDER_AD", "flags": {"creative_id": 777}},
         {"Id": 5, "TextAdBuilderAd": {"Creative": {"CreativeId": 777}}},
     ),
 ]
