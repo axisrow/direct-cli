@@ -56,7 +56,28 @@ def _load_translations() -> dict[str, str]:
             data = json.load(handle)
         if isinstance(data, dict):
             table.update(data)
+    # Python 3.13+ strips docstring indentation at compile time, so a
+    # command's ``__doc__`` no longer equals the indented catalog key written
+    # from an older interpreter. Alias every key in its 3.13 form.
+    for key, value in list(table.items()):
+        cleaned = _compiler_cleandoc(key)
+        if cleaned != key:
+            table.setdefault(cleaned, _compiler_cleandoc(value))
     return table
+
+
+def _compiler_cleandoc(text: str) -> str:
+    """Mirror CPython 3.13's compile-time docstring cleanup: lstrip the first
+    line and remove the common indentation of the rest (blank lines become
+    empty). Unlike ``inspect.cleandoc`` it keeps leading/trailing blank lines.
+    """
+    lines = text.expandtabs().split("\n")
+    indents = [len(line) - len(line.lstrip()) for line in lines[1:] if line.strip()]
+    margin = min(indents, default=0)
+    return "\n".join(
+        [lines[0].lstrip()]
+        + [line[margin:] if line.strip() else "" for line in lines[1:]]
+    )
 
 
 # Russian translations keyed by English source string. English is the source.

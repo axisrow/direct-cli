@@ -43,12 +43,12 @@ _CASES = [
             "--href",
             "https://example.com",
         ],
-        dict(
-            adgroup_id=12345,
-            ad_type="TEXT_AD",
-            mobile_provided=None,
-            flags={"title": "T", "text": "Some text", "href": "https://example.com"},
-        ),
+        {
+            "adgroup_id": 12345,
+            "ad_type": "TEXT_AD",
+            "mobile_provided": None,
+            "flags": {"title": "T", "text": "Some text", "href": "https://example.com"},
+        },
         {
             "AdGroupId": 12345,
             "TextAd": {
@@ -62,12 +62,12 @@ _CASES = [
     (
         "dynamic_text_ad",
         ["--adgroup-id", "12345", "--type", "DYNAMIC_TEXT_AD", "--text", "Dyn text"],
-        dict(
-            adgroup_id=12345,
-            ad_type="DYNAMIC_TEXT_AD",
-            mobile_provided=None,
-            flags={"text": "Dyn text"},
-        ),
+        {
+            "adgroup_id": 12345,
+            "ad_type": "DYNAMIC_TEXT_AD",
+            "mobile_provided": None,
+            "flags": {"text": "Dyn text"},
+        },
         {"AdGroupId": 12345, "DynamicTextAd": {"Text": "Dyn text"}},
     ),
     (
@@ -82,12 +82,12 @@ _CASES = [
             "--href",
             "https://example.com",
         ],
-        dict(
-            adgroup_id=12345,
-            ad_type="TEXT_IMAGE_AD",
-            mobile_provided=None,
-            flags={"image_hash": "hhh", "href": "https://example.com"},
-        ),
+        {
+            "adgroup_id": 12345,
+            "ad_type": "TEXT_IMAGE_AD",
+            "mobile_provided": None,
+            "flags": {"image_hash": "hhh", "href": "https://example.com"},
+        },
         {
             "AdGroupId": 12345,
             "TextImageAd": {"AdImageHash": "hhh", "Href": "https://example.com"},
@@ -107,12 +107,16 @@ _CASES = [
             "--action",
             "DOWNLOAD",
         ],
-        dict(
-            adgroup_id=12345,
-            ad_type="MOBILE_APP_AD",
-            mobile_provided=None,
-            flags={"title": "Install app", "text": "App promo", "action": "DOWNLOAD"},
-        ),
+        {
+            "adgroup_id": 12345,
+            "ad_type": "MOBILE_APP_AD",
+            "mobile_provided": None,
+            "flags": {
+                "title": "Install app",
+                "text": "App promo",
+                "action": "DOWNLOAD",
+            },
+        },
         {
             "AdGroupId": 12345,
             "MobileAppAd": {
@@ -132,12 +136,12 @@ _CASES = [
             "--image-hash",
             "mmm",
         ],
-        dict(
-            adgroup_id=12345,
-            ad_type="MOBILE_APP_IMAGE_AD",
-            mobile_provided=None,
-            flags={"image_hash": "mmm"},
-        ),
+        {
+            "adgroup_id": 12345,
+            "ad_type": "MOBILE_APP_IMAGE_AD",
+            "mobile_provided": None,
+            "flags": {"image_hash": "mmm"},
+        },
         {"AdGroupId": 12345, "MobileAppImageAd": {"AdImageHash": "mmm"}},
     ),
     (
@@ -150,12 +154,12 @@ _CASES = [
             "--logo-extension-hash",
             "logo",
         ],
-        dict(
-            adgroup_id=12345,
-            ad_type="SMART_AD_BUILDER_AD",
-            mobile_provided=None,
-            flags={"logo_extension_hash": "logo"},
-        ),
+        {
+            "adgroup_id": 12345,
+            "ad_type": "SMART_AD_BUILDER_AD",
+            "mobile_provided": None,
+            "flags": {"logo_extension_hash": "logo"},
+        },
         {"AdGroupId": 12345, "SmartAdBuilderAd": {"LogoExtensionHash": "logo"}},
     ),
     (
@@ -170,12 +174,12 @@ _CASES = [
             "--href",
             "https://example.com",
         ],
-        dict(
-            adgroup_id=12345,
-            ad_type="TEXT_AD_BUILDER_AD",
-            mobile_provided=None,
-            flags={"creative_id": 777, "href": "https://example.com"},
-        ),
+        {
+            "adgroup_id": 12345,
+            "ad_type": "TEXT_AD_BUILDER_AD",
+            "mobile_provided": None,
+            "flags": {"creative_id": 777, "href": "https://example.com"},
+        },
         {
             "AdGroupId": 12345,
             "TextAdBuilderAd": {
