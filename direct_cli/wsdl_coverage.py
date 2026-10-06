@@ -13,6 +13,8 @@ from io import StringIO
 from pathlib import Path
 from typing import Any
 
+import click
+
 from ._captcha import find_captcha_marker
 
 WSDL_BASE_URL = "https://api.direct.yandex.com/v5/{service}?wsdl"
@@ -352,6 +354,7 @@ def get_cli_methods_for_service(cli_command_name: str) -> set:
     from direct_cli.cli import cli
 
     group = cli.commands[cli_command_name]
+    assert isinstance(group, click.Group)
     methods = set()
     for subcmd_name in group.commands:
         mapped = METHOD_NAME_OVERRIDES.get(subcmd_name)

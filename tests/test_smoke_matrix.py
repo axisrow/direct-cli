@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from direct_cli.cli import cli
+from tests._cli_tree import registered_group
 from direct_cli.smoke_matrix import (
     DANGEROUS,
     SAFE,
@@ -134,7 +135,7 @@ def test_wsdl_backed_cli_commands_are_classified():
 
     for cli_group, api_service in sorted(CLI_TO_API_SERVICE.items()):
         api_methods = set(parse_wsdl_operations(fetch_wsdl(api_service)))
-        for command_name in cli.commands[cli_group].commands:
+        for command_name in registered_group(cli_group).commands:
             key = command_key(cli_group, command_name)
             assert key in classified
             assert command_category(key) in {SAFE, WRITE_SANDBOX, DANGEROUS}

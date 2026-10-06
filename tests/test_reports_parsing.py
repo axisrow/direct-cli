@@ -5,6 +5,7 @@ from click.testing import CliRunner
 from requests import PreparedRequest, Response
 
 from direct_cli.cli import cli
+
 # The vendored .pyi stub covers only the public client; the adapter is internal.
 from direct_cli._vendor.tapi_yandex_direct.tapi_yandex_direct import (
     YandexDirectClientAdapter,  # pyright: ignore[reportAttributeAccessIssue]

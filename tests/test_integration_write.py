@@ -110,9 +110,7 @@ def _extract_campaigns(output: str) -> List[Dict[str, Any]]:
     return campaigns if isinstance(campaigns, list) else []
 
 
-def _find_campaign(
-    output: str, campaign_id: Optional[int]
-) -> Optional[Dict[str, Any]]:
+def _find_campaign(output: str, campaign_id: Optional[int]) -> Optional[Dict[str, Any]]:
     """Find a campaign by Id in a get response."""
     for campaign in _extract_campaigns(output):
         try:

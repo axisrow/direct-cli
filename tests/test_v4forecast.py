@@ -4,6 +4,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
+from tests._cli_tree import registered_commands
 from direct_cli.v4_contracts import (
     PARAM_OBJECT,
     PARAM_OPTIONAL_OBJECT,
@@ -268,7 +269,7 @@ def test_v4forecast_help_contains_no_json_input_flag():
 
 
 def test_v4forecast_commands_declare_v4_contracts():
-    commands = cli.commands["v4forecast"].commands
+    commands = registered_commands("v4forecast")
 
     expected = {
         "create": "CreateNewForecast",

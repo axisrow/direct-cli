@@ -33,6 +33,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -5254,7 +5255,7 @@ OPTIONAL_FIELD_AUDIT: dict[tuple[str, str, str], dict[str, str]] = {
 
 def _click_command(group_name: str, command_name: str):
     group = cli.commands.get(group_name)
-    if group is None or not hasattr(group, "commands"):
+    if not isinstance(group, click.Group):
         return None
     return group.commands.get(command_name)
 

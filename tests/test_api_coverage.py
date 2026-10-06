@@ -40,6 +40,7 @@ from direct_cli.wsdl_coverage import (
     get_operation_field_name_enums,
     parse_wsdl_operations,
 )
+from tests._cli_tree import registered_group
 from tests.api_coverage_payloads import (
     DRY_RUN_PAYLOAD_EXCLUSIONS,
     PAYLOAD_CASES,
@@ -362,7 +363,7 @@ class TestApiCoverage:
     def test_all_canonical_dry_run_commands_have_payload_coverage_or_exclusion(self):
         actual = set()
         for group_name, group in sorted(cli.commands.items()):
-            if not hasattr(group, "commands"):
+            if not isinstance(group, click.Group):
                 continue
             for cmd_name, cmd in sorted(group.commands.items()):
                 if any(
@@ -1007,7 +1008,7 @@ class TestApiCoverage:
             )
             if selection is None:
                 continue
-            command = cli.commands[cli_name].commands["get"]
+            command = registered_group(cli_name).commands["get"]
             actual_params = {param.name for param in command.params}
             expected = expected_options.get(cli_name, {})
             for field in selection["item_fields"]:
@@ -1911,7 +1912,7 @@ class TestApiCoverage:
         report_script = _load_coverage_report_script()
         fixtures = report_script.RUNTIME_DEPRECATED_CAPTURE_FIXTURES
         for cli_group, cli_method in RUNTIME_DEPRECATED_METHODS:
-            command = cli.commands[cli_group].commands[cli_method]
+            command = registered_group(cli_group).commands[cli_method]
             required = {
                 param.name
                 for param in command.params
@@ -2652,7 +2653,7 @@ def _camel_to_kebab(name: str) -> str:
 
 def _cli_options_for_subcommand(cli_group_name: str, subcommand: str) -> set[str]:
     group = cli.commands.get(cli_group_name)
-    if group is None:
+    if not isinstance(group, click.Group):
         return set()
     sub = group.commands.get(subcommand)
     if sub is None:

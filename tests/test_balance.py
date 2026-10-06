@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from unittest.mock import patch
 
 import click
@@ -155,7 +156,7 @@ def test_balance_help_contains_no_json_input_flag():
 
 
 def test_balance_command_declares_v4_contract():
-    command = cli.commands["balance"]
+    command: Any = cli.commands["balance"]  # ad-hoc v4_* attributes
 
     assert command.v4_method == "AccountManagement"
     assert command.v4_contract == get_v4_contract("AccountManagement")

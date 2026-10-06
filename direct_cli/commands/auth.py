@@ -174,12 +174,9 @@ def login(
                 if not login:
                     login = pending_pkce.get("login")
         if not pending_pkce:
-            remembered_profile = get_oauth_profile(profile)
-            remembered_secret = None
-            remembered_client_id = None
-            if remembered_profile:
-                remembered_secret = remembered_profile.get("client_secret")
-                remembered_client_id = remembered_profile.get("client_id")
+            remembered_profile = get_oauth_profile(profile) or {}
+            remembered_secret = remembered_profile.get("client_secret")
+            remembered_client_id = remembered_profile.get("client_id")
             if (
                 isinstance(remembered_secret, str)
                 and remembered_secret
@@ -193,7 +190,7 @@ def login(
                     )
                 effective_client_id = remembered_client_id
                 effective_client_secret = remembered_secret
-                if not login and remembered_profile:
+                if not login:
                     login = remembered_profile.get("login")
             else:
                 raise click.ClickException(_start_pkce_required_message(profile))

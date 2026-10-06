@@ -8,6 +8,7 @@ from direct_cli._vendor.tapi_yandex_direct.endpoints import (
     DIRECT_DEBUG_ROOT,
     get_direct_api_root,
 )
+
 # The vendored .pyi stubs cover only the public clients; adapters are internal.
 from direct_cli._vendor.tapi_yandex_direct.tapi_yandex_direct import (
     YandexDirectClientAdapter,  # pyright: ignore[reportAttributeAccessIssue]

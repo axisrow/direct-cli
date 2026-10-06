@@ -4,6 +4,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
+from tests._cli_tree import registered_commands
 from direct_cli.v4_contracts import (
     PARAM_OBJECT,
     PARAM_OPTIONAL_OBJECT,
@@ -220,7 +221,7 @@ def test_v4wordstat_help_contains_no_json_input_flag():
 
 
 def test_v4wordstat_commands_declare_v4_contracts():
-    commands = cli.commands["v4wordstat"].commands
+    commands = registered_commands("v4wordstat")
 
     expected = {
         "create-report": "CreateNewWordstatReport",

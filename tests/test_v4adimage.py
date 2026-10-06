@@ -4,6 +4,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
+from tests._cli_tree import registered_commands
 from direct_cli.v4_contracts import get_v4_contract
 
 
@@ -170,7 +171,7 @@ def test_v4adimage_help_has_no_json_input_flag():
 
 
 def test_v4adimage_commands_declare_contract():
-    commands = cli.commands["v4adimage"].commands
+    commands = registered_commands("v4adimage")
     assert commands["get"].v4_method == "AdImageAssociation"
     assert commands["get"].v4_contract == get_v4_contract("AdImageAssociation")
     assert commands["set"].v4_method == "AdImageAssociation"

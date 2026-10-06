@@ -144,8 +144,10 @@ def v4finance():
 # --locale en / YANDEX_DIRECT_CLI_LOCALE). The V4_EPILOG tail is appended
 # verbatim so its single-sourced docs URL is not duplicated. See i18n.py.
 # Ad-hoc attributes read back via getattr() in cli.py's help renderer.
-v4finance.i18n_epilog_text = FINANCE_MASTER_TOKEN_SETUP  # pyright: ignore
-v4finance.i18n_epilog_suffix = V4_EPILOG  # pyright: ignore
+v4finance.i18n_epilog_text = (  # pyright: ignore[reportAttributeAccessIssue]
+    FINANCE_MASTER_TOKEN_SETUP
+)
+v4finance.i18n_epilog_suffix = V4_EPILOG  # pyright: ignore[reportAttributeAccessIssue]
 
 
 @v4_method_contract("GetClientsUnits")

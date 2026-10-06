@@ -5,6 +5,7 @@ import pytest
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
+from tests._cli_tree import registered_commands
 from direct_cli.v4_contracts import get_v4_contract
 
 
@@ -266,7 +267,7 @@ def test_v4events_help_contains_no_json_input_flag():
 
 
 def test_v4events_command_declares_v4_contract():
-    command = cli.commands["v4events"].commands["get-events-log"]
+    command = registered_commands("v4events")["get-events-log"]
 
     assert command.v4_method == "GetEventsLog"
     assert command.v4_contract == get_v4_contract("GetEventsLog")

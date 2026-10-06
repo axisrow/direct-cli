@@ -4,7 +4,7 @@ Direct CLI - Command-line interface for Yandex Direct API
 """
 
 import sys
-from typing import TYPE_CHECKING, Any, MutableMapping, Optional
+from typing import TYPE_CHECKING, Optional
 
 import click
 from click.core import ParameterSource
@@ -228,9 +228,6 @@ class DirectCliGroup(_LocalizedHelpMixin, _NoSuchOptionHintMixin, click.Group):
     NoSuchOption on the group itself (e.g. `direct ads --bogus get`)."""
 
     command_class = DirectCliCommand
-    # Registered entries are groups or commands; callers walking the tree
-    # (`cli.commands["ads"].commands`) need the dynamic type.
-    commands: MutableMapping[str, Any]
 
     def format_epilog(self, ctx, formatter):
         """Render a locale-aware epilog.
