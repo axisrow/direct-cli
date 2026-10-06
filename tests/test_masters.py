@@ -9717,7 +9717,7 @@ class TestUpdateMaster(unittest.TestCase):
             result,
             {
                 "CampaignId": 42,
-                "TargetActions": [159614149],
+                "TargetActions": [{"GoalId": 159614149, "Price": 200.0}],
                 "TargetActionPrices": {159614149: 200},
             },
         )
@@ -9735,12 +9735,13 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertEqual(prices_state[159614149], "200")
         self.assertEqual(len(save_clicks), 1)
         # Issue #872: the whole-form save now verifies the untouched goal
-        # set survived and reports it in the result row.
+        # set survived and reports it in the result row — with the new
+        # price overlaid on the baseline (issue #876).
         self.assertEqual(
             result,
             {
                 "CampaignId": 42,
-                "TargetActions": [159614149],
+                "TargetActions": [{"GoalId": 159614149, "Price": 200.0}],
                 "TargetActionPrices": {159614149: 200},
             },
         )
@@ -9773,11 +9774,13 @@ class TestUpdateMaster(unittest.TestCase):
 
     def test_raises_when_saved_target_action_price_does_not_match_requested(self):
         # Fills fine, but the post-save reload shows a DIFFERENT value than
-        # requested (Yandex rejected it client-side) — mirrors
-        # test_raises_when_saved_goal_price_does_not_match_requested.
-        price_state = {"value": "999"}
+        # requested (Yandex rejected it server-side) — mirrors
+        # test_raises_when_saved_goal_price_does_not_match_requested. (A
+        # fill that never reaches the DOM is now caught BEFORE the click by
+        # the #876 pre-save guard, so the divergence happens at save time.)
+        price_state = {"value": "150"}
         price_handle = _FakeLocatorHandle(
-            on_fill=lambda v: None,  # fill() is a no-op — value never changes
+            on_fill=lambda v: price_state.__setitem__("value", v),
             get_value=lambda: price_state["value"],
         )
         row_testid = browser_masters._TARGET_ACTION_ROW_TESTID_TEMPLATE.format(
@@ -9807,6 +9810,7 @@ class TestUpdateMaster(unittest.TestCase):
             },
             role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
         )
+        save_handle._on_click = lambda: price_state.__setitem__("value", "999")
 
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.update_master(
@@ -24063,7 +24067,7 @@ class TestWholeFormSavePreservesSections(unittest.TestCase):
             browser_masters.update_master(page, 42, tracking_params="utm_source=new")
 
         self.assertIn("Refusing to save", str(ctx.exception))
-        self.assertIn("target-action goal ids", str(ctx.exception))
+        self.assertIn("target-action goals", str(ctx.exception))
         self.assertEqual(clicks, [])
 
     def test_target_price_update_does_not_disable_metrika_preservation(self):
@@ -24302,8 +24306,83 @@ class TestWholeFormSavePreservesSections(unittest.TestCase):
             browser_masters.update_master(page, 42, weekly_budget=55000)
 
         self.assertIn("Refusing to save", str(ctx.exception))
-        self.assertIn("target-action goal ids", str(ctx.exception))
+        self.assertIn("target-action goals", str(ctx.exception))
         self.assertEqual(clicks, [])
+
+    def _price_selector(self, goal_id):
+        price_testid = browser_masters._TARGET_ACTION_PRICE_TESTID_TEMPLATE.format(
+            category=browser_masters._TARGET_ACTIONS_CATEGORY, goal_id=goal_id
+        )
+        return f'[data-testid="{price_testid}"]'
+
+    def _shift_price_when(self, page, flag, state):
+        """Once ``state[flag]`` is set, the goal row stays but its price
+        input reads "0" instead of the baseline "150"."""
+        original_locator = page.locator
+        price_selector = self._price_selector(self.GOAL_ID)
+        shifted = _FakeLocator([_FakeLocatorHandle(get_value=lambda: "0")])
+
+        def _locator(selector):
+            if state[flag] and selector == price_selector:
+                return shifted
+            return original_locator(selector)
+
+        page.locator = _locator
+
+    def test_budget_only_save_reports_shifted_target_action_price(self):
+        """Issue #876: the whole-form save resubmits every goal's CPA, so a
+        save that keeps the goal row but changes its price is the same
+        silent loss as dropping the row — the strategy keeps buying traffic
+        at a different bid. Must raise, not report success."""
+        page = self._budget_only_page(goal_ids_after=[self.GOAL_ID], counters_after=[])
+        state = {"saved": False}
+        self._shift_price_when(page, "saved", state)
+        save_button = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT)
+        original_click = save_button.first.click
+
+        def _click_then_shift():
+            state["saved"] = True
+            return original_click()
+
+        save_button.first.click = _click_then_shift
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, weekly_budget=55000)
+
+        self.assertIn("target actions", str(ctx.exception))
+        self.assertIn("150", str(ctx.exception))
+
+    def test_budget_only_save_aborts_before_save_when_price_shifts(self):
+        """Issue #876: a price that changes between the baseline read and
+        the click must block the click itself — after Save it is already
+        persisted."""
+        state = {"dipped": False}
+        page = self._budget_only_page(
+            goal_ids_after=[self.GOAL_ID],
+            counters_after=[],
+            budget_on_fill=lambda v: state.__setitem__("dipped", True),
+        )
+        self._shift_price_when(page, "dipped", state)
+        clicks = []
+        save = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT).first
+        save._on_click = lambda: clicks.append(True)
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.update_master(page, 42, weekly_budget=55000)
+
+        self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertEqual(clicks, [])
+
+    def test_budget_only_save_reports_verified_goal_prices(self):
+        """The result row carries the verified goals WITH their prices, so a
+        batch run shows the confirmed bid per campaign (issue #876)."""
+        page = self._budget_only_page(goal_ids_after=[self.GOAL_ID], counters_after=[])
+
+        result = browser_masters.update_master(page, 42, weekly_budget=55000)
+
+        self.assertEqual(
+            result["TargetActions"], [{"GoalId": self.GOAL_ID, "Price": 150.0}]
+        )
 
 
 class TestCrossDomainLandingUrlWarning(unittest.TestCase):
