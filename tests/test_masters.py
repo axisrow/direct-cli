@@ -1,3 +1,6 @@
+# The Page/Locator fakes implement only the Playwright surface the code calls
+# (narrower signatures) and tests monkeypatch their methods/attributes.
+# pyright: reportIncompatibleMethodOverride=false, reportAttributeAccessIssue=false
 """
 Tests for `direct masters` — the Мастер кампаний (Campaign Wizard) browser group.
 
@@ -25,6 +28,7 @@ import json
 import time
 import unittest
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, Optional
 from unittest.mock import Mock, patch
 
 import click
@@ -656,7 +660,15 @@ class _FakeGetByTextLocator:
         return self._handles[0] if self._handles else _FakeLocatorHandle(raises=True)
 
 
-class FakePage:
+if TYPE_CHECKING:
+    # Duck-typed stand-in for playwright's Page: typed as one so the code
+    # under test (annotated ``page: "Page"``) type-checks against the fake.
+    from playwright.sync_api import Page as _PageBase
+else:
+    _PageBase = object
+
+
+class FakePage(_PageBase):
     """A Page whose ``locator(selector)`` result is pre-scripted per selector."""
 
     def __init__(
@@ -1128,7 +1140,7 @@ class _FakeBrowser:
     def __init__(self):
         self.contexts_created = []
         self.closed = False
-        self.launch_kwargs = None
+        self.launch_kwargs: Any = None
 
     def new_context(self, **kwargs):
         ctx = _FakeContext()
@@ -1156,16 +1168,16 @@ class _FakePersistentContext:
 
     def __init__(self, pages=None, cookies=None):
         self.closed = False
-        self.launch_kwargs = None
+        self.launch_kwargs: Any = None
         self._pages = list(pages or [])
-        self._cookies = cookies if cookies is not None else []
+        self._cookies: Any = cookies if cookies is not None else []
         # How many tabs the code under test actually opened — the login tab
         # plus, with cookie-based polling (#858), one short-lived probe tab
         # per verification attempt and nothing else.
         self.pages_created = 0
 
     def cookies(self, urls=None):
-        jar = self._cookies
+        jar: Any = self._cookies
         if callable(jar):
             jar = jar()
         return list(jar)
@@ -1204,8 +1216,8 @@ class _FakeChromium:
     def __init__(self, browser, persistent_context=None):
         self._browser = browser
         self._persistent_context = persistent_context
-        self.launch_kwargs = None
-        self.launch_persistent_context_kwargs = None
+        self.launch_kwargs: Any = None
+        self.launch_persistent_context_kwargs: Any = None
         self.launch_persistent_context_user_data_dir = None
 
     def launch(self, **kwargs):
@@ -3947,7 +3959,7 @@ class TestFetchMasterDraft(unittest.TestCase):
         self,
         title="Мастер ИЖ-1 Сосуды и вены (холодный)",
         budget="80 000",
-        landing_url="https://lp.ksamata.ru/",
+        landing_url: Optional[str] = "https://lp.ksamata.ru/",
     ):
         locators = {
             browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator(
@@ -4764,7 +4776,7 @@ class TestSuspendResumeMaster(unittest.TestCase):
         # the true ARCHIVED status is observed, never falling straight
         # through to a doomed search for a resume button that an ARCHIVED
         # page does not have.
-        calls = {"n": 0, "unarchive_clicks": 0}
+        calls: Dict[str, Any] = {"n": 0, "unarchive_clicks": 0}
 
         def _unarchive():
             calls["unarchive_clicks"] += 1
@@ -11380,7 +11392,7 @@ class TestUpdateMaster(unittest.TestCase):
         # exhausted, instead of raising StopIteration on a second read.
         import contextlib
 
-        last_text = {"value": None}
+        last_text: Dict[str, Optional[str]] = {"value": None}
 
         def _next_trigger_text():
             with contextlib.suppress(StopIteration):
@@ -11585,6 +11597,7 @@ class TestUpdateMaster(unittest.TestCase):
         # models Yandex accepting the modal's own Save but the page-level
         # terminal save silently not persisting the change.
         original_click = save_handle._on_click
+        assert original_click is not None
 
         def _click():
             original_click()
@@ -11850,6 +11863,7 @@ class TestUpdateMaster(unittest.TestCase):
             role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
         )
         original_click = save_handle._on_click
+        assert original_click is not None
 
         def _click():
             original_click()
@@ -22524,6 +22538,7 @@ class TestImageStatusContentIdJsAgainstRealDom(unittest.TestCase):
     def _evaluate(self, html, button_selector="#status"):
         self._page.set_content(html)
         handle = self._page.query_selector(button_selector)
+        assert handle is not None
         result = handle.evaluate(browser_masters._IMAGE_STATUS_COMBINED_JS)
         return result["contentId"]
 

@@ -2,6 +2,8 @@
 Dictionaries commands
 """
 
+from typing import Any, Dict
+
 import click
 
 from ..api import client_from_ctx, create_client
@@ -68,8 +70,8 @@ def get_geo_regions(ctx, name, region_ids, exact_names, fields, output_format, o
         language=resolve_locale(ctx),
     )
 
-    params = {"FieldNames": parse_csv_strings(fields)}
-    selection_criteria = {}
+    params: Dict[str, Any] = {"FieldNames": parse_csv_strings(fields)}
+    selection_criteria: Dict[str, Any] = {}
     if name:
         selection_criteria["Name"] = name
     if region_ids:

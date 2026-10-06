@@ -177,6 +177,7 @@ class TestSessionStatus(unittest.TestCase):
     def test_age_seconds_computed_from_created_at(self):
         store.save_session({"cookies": [], "origins": []})
         envelope = store.read_session_envelope()
+        assert envelope is not None
         status = store.session_status(now=envelope["created_at"] + 42)
         self.assertEqual(status["age_seconds"], 42)
 

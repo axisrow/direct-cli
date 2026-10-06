@@ -1,3 +1,6 @@
+# The Page fakes implement only the Playwright surface the code calls
+# (narrower signatures) and expose test-only attributes.
+# pyright: reportIncompatibleMethodOverride=false, reportAttributeAccessIssue=false
 """
 Tests for `direct history` — «История изменений» (issue #837).
 
@@ -20,6 +23,7 @@ sampling on an interval.
 import json
 import unittest
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 from click.testing import CliRunner
@@ -139,7 +143,7 @@ class _FakeApiRequestContext:
         self._raw_body = raw_body
         self.calls = []  # (url, parsed_body, headers) for assertions
 
-    def post(self, url, data=None, headers=None):
+    def post(self, url, data="", headers=None):
         self.calls.append((url, json.loads(data), headers))
         idx = min(self._call_count, max(len(self._pages) - 1, 0))
         self._call_count += 1
@@ -149,7 +153,14 @@ class _FakeApiRequestContext:
         )
 
 
-class FakePage:
+if TYPE_CHECKING:
+    # Duck-typed stand-in for playwright's Page (see tests/test_masters.py).
+    from playwright.sync_api import Page as _PageBase
+else:
+    _PageBase = object
+
+
+class FakePage(_PageBase):
     def __init__(self, log_response=None, api_request=None, html="<html></html>"):
         self._log_response = log_response
         self.request = api_request or _FakeApiRequestContext()

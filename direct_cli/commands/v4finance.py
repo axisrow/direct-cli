@@ -143,8 +143,9 @@ def v4finance():
 # Localize the group epilog at render time (Russian by default, English via
 # --locale en / YANDEX_DIRECT_CLI_LOCALE). The V4_EPILOG tail is appended
 # verbatim so its single-sourced docs URL is not duplicated. See i18n.py.
-v4finance.i18n_epilog_text = FINANCE_MASTER_TOKEN_SETUP
-v4finance.i18n_epilog_suffix = V4_EPILOG
+# Ad-hoc attributes read back via getattr() in cli.py's help renderer.
+v4finance.i18n_epilog_text = FINANCE_MASTER_TOKEN_SETUP  # pyright: ignore
+v4finance.i18n_epilog_suffix = V4_EPILOG  # pyright: ignore
 
 
 @v4_method_contract("GetClientsUnits")

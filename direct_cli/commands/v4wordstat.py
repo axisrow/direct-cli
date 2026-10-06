@@ -1,6 +1,6 @@
 """Yandex Direct v4 Live Wordstat report commands."""
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import click
 
@@ -19,7 +19,7 @@ def _wordstat_report_param(phrases: str, geo_ids: Optional[str]) -> dict:
     if len(phrase_list) > 10:
         raise click.UsageError(t("--phrases accepts at most 10 phrases"))
 
-    param = {"Phrases": phrase_list}
+    param: Dict[str, Any] = {"Phrases": phrase_list}
     if geo_ids:
         try:
             parsed_geo_ids = parse_ids(geo_ids)

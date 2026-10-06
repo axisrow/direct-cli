@@ -2,6 +2,8 @@
 Strategies commands
 """
 
+from typing import Any, Dict
+
 import click
 
 from ..api import create_client
@@ -283,7 +285,7 @@ def _parse_priority_goal(spec: str) -> dict:
             )
         )
     try:
-        item = {"GoalId": int(parts[0]), "Value": int(parts[1])}
+        item: Dict[str, Any] = {"GoalId": int(parts[0]), "Value": int(parts[1])}
     except ValueError:
         raise click.UsageError(
             t("Invalid --priority-goal. GOAL_ID and VALUE must be integers")

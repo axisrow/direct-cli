@@ -327,7 +327,7 @@ def test_localized_groups_wrap_runtime_messages():
         group = cli.commands[name]
         module = inspect.getmodule(group.callback)
         path = getattr(module, "__file__", None)
-        if not path or path in seen_files:
+        if module is None or not path or path in seen_files:
             continue
         seen_files.add(path)
         tree = ast.parse(inspect.getsource(module))

@@ -290,6 +290,7 @@ class TestMappingHelpers(unittest.TestCase):
             "samesite": 1,
         }
         cookie = _chrome_crypto._row_to_playwright_cookie(row, key)
+        assert cookie is not None
         self.assertIs(cookie["secure"], True)
         self.assertIs(cookie["httpOnly"], False)
 
@@ -309,6 +310,7 @@ class TestMappingHelpers(unittest.TestCase):
             "samesite": 0,
         }
         cookie = _chrome_crypto._row_to_playwright_cookie(row, key)
+        assert cookie is not None
         self.assertEqual(cookie["sameSite"], "Lax")
 
     def test_samesite_none_kept_when_secure(self):
@@ -324,6 +326,7 @@ class TestMappingHelpers(unittest.TestCase):
             "samesite": 0,
         }
         cookie = _chrome_crypto._row_to_playwright_cookie(row, key)
+        assert cookie is not None
         self.assertEqual(cookie["sameSite"], "None")
 
 

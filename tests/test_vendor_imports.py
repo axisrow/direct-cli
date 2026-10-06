@@ -12,6 +12,7 @@ VENDOR_DIR = ROOT_DIR / "direct_cli/_vendor/tapi_yandex_direct"
 def _load_patch_module():
     """Import scripts/patch_vendor_imports.py by path (no import-time effects)."""
     spec = importlib.util.spec_from_file_location("patch_vendor_imports", PATCH_SCRIPT)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

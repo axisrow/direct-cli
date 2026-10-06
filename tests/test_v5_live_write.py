@@ -191,7 +191,7 @@ def _assert_success(result, cmd_label: str) -> None:
     )
 
 
-def _extract_first_id(output: str, key: str = "AddResults") -> int | str:
+def _extract_first_id(output: str, key: str = "AddResults") -> int:
     """Extract the first Id from an add-result JSON response."""
     data = json.loads(output)
     if isinstance(data, list):
@@ -212,7 +212,7 @@ def _extract_first_id(output: str, key: str = "AddResults") -> int | str:
     try:
         return int(raw)
     except (ValueError, TypeError):
-        return raw
+        pytest.fail(f"Non-integer Id in add result: {first}")
 
 
 def _extract_field(output: str, field: str = "Id", key: str = "AddResults") -> Any:
@@ -248,11 +248,13 @@ def _extract_campaigns(output: str) -> List[Dict[str, Any]]:
     return campaigns if isinstance(campaigns, list) else []
 
 
-def _find_campaign(output: str, campaign_id: int) -> Optional[Dict[str, Any]]:
+def _find_campaign(
+    output: str, campaign_id: Optional[int]
+) -> Optional[Dict[str, Any]]:
     """Find a campaign by Id in a get response."""
     for campaign in _extract_campaigns(output):
         try:
-            if int(campaign.get("Id")) == campaign_id:
+            if int(campaign.get("Id", "")) == campaign_id:
                 return campaign
         except (TypeError, ValueError):
             continue

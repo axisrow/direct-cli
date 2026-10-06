@@ -40,6 +40,11 @@ load_dotenv()
 _LIVE_MARKERS = ("integration", "v4_live_read", "integration_live_write")
 
 
+def _marker_matcher(marker):
+    """Expression matcher that is true only for the one *marker* name."""
+    return lambda name, /, **_kwargs: name == marker
+
+
 def pytest_xdist_auto_num_workers(config):
     """Force serial (one worker) when a live tier is explicitly selected.
 
@@ -62,7 +67,7 @@ def pytest_xdist_auto_num_workers(config):
 
         expr = Expression.compile(markexpr)
         for marker in _LIVE_MARKERS:
-            if expr.evaluate(lambda name, m=marker: name == m):
+            if expr.evaluate(_marker_matcher(marker)):
                 return 1
         return None
     except Exception:  # noqa: PIE786 - private pytest API, fall back conservatively
@@ -165,7 +170,7 @@ _REDACTED = "REDACTED"
 # when no real goal is available) in both request and response bodies, keeping
 # the recorded interaction self-consistent for body-based matching.
 _SYNTHETIC_GOAL = "12345"
-_REAL_RETARGETING_GOAL = os.environ.get("YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID")
+_REAL_RETARGETING_GOAL = os.environ.get("YANDEX_DIRECT_TEST_RETARGETING_GOAL_ID", "")
 # Pre-encode the bytes variants once: this runs on every recorded request and
 # response body, so re-encoding per call would be wasted work on the hot path.
 _GOAL_MASK_ACTIVE = bool(_REAL_RETARGETING_GOAL) and (

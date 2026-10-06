@@ -1,5 +1,7 @@
 """Money balance command backed by Yandex Direct v4 Live."""
 
+from typing import Any, Dict
+
 import click
 
 from ..api import create_v4_client
@@ -23,7 +25,7 @@ def balance(ctx, logins, output_format, output, dry_run):
     if not login_list and configured_login:
         login_list = [configured_login]
 
-    param = {
+    param: Dict[str, Any] = {
         "Action": "Get",
     }
     if login_list:

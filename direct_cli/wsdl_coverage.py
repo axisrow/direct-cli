@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET  # noqa: N817 - standard stdlib alias
 from functools import lru_cache
 from io import StringIO
 from pathlib import Path
+from typing import Any
 
 from ._captcha import find_captcha_marker
 
@@ -323,7 +324,7 @@ def parse_wsdl_field_enums(wsdl_xml: str) -> dict[str, list[str]]:
 
 def get_operation_field_name_enums(
     wsdl_xml: str, operation_name: str
-) -> dict[str, dict[str, object]]:
+) -> dict[str, dict[str, Any]]:
     """Return request ``FieldNames`` params and their allowed enum values."""
     field_enums = parse_wsdl_field_enums(wsdl_xml)
     schema = get_operation_request_schema(wsdl_xml, operation_name)

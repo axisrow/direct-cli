@@ -18,6 +18,7 @@ import sys
 import xml.etree.ElementTree as ET  # noqa: N817 - standard stdlib alias
 from pathlib import Path
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -54,6 +55,7 @@ def _load_coverage_report_script():
     spec = importlib.util.spec_from_file_location(
         "build_api_coverage_report", script_path
     )
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -2235,6 +2237,7 @@ class TestReportsCoverage:
             (p for p in reports_get.params if p.name == "report_type"), None
         )
         assert type_opt is not None, "--type option not found"
+        assert isinstance(type_opt.type, click.Choice)
         cli_choices = set(c.upper() for c in type_opt.type.choices)
         spec_types = set(spec["report_types"])
         assert cli_choices == spec_types, (
@@ -2258,6 +2261,7 @@ class TestReportsCoverage:
         spec = load_cached_reports_spec()
         opt = next((p for p in reports_get.params if p.name == "processing_mode"), None)
         assert opt is not None, "--processing-mode flag missing"
+        assert isinstance(opt.type, click.Choice)
         cli_choices = set(opt.type.choices)
         spec_modes = set(spec["processing_modes"])
         assert (

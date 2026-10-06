@@ -193,7 +193,7 @@ def login(
                     )
                 effective_client_id = remembered_client_id
                 effective_client_secret = remembered_secret
-                if not login:
+                if not login and remembered_profile:
                     login = remembered_profile.get("login")
             else:
                 raise click.ClickException(_start_pkce_required_message(profile))

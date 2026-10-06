@@ -375,7 +375,9 @@ def test_v4_call_helper_preserves_non_dict_params():
 
 
 def test_v4_adapter_sends_login_as_header_without_mutating_param():
-    from direct_cli._vendor.tapi_yandex_direct.v4.adapter import V4LiveClientAdapter
+    from direct_cli._vendor.tapi_yandex_direct.v4.adapter import (
+        V4LiveClientAdapter,  # pyright: ignore[reportAttributeAccessIssue]
+    )
 
     adapter = V4LiveClientAdapter()
     api_params = {
@@ -398,7 +400,9 @@ def test_v4_adapter_sends_login_as_header_without_mutating_param():
 
 
 def test_v4_adapter_sends_finance_credentials_as_top_level_body_fields():
-    from direct_cli._vendor.tapi_yandex_direct.v4.adapter import V4LiveClientAdapter
+    from direct_cli._vendor.tapi_yandex_direct.v4.adapter import (
+        V4LiveClientAdapter,  # pyright: ignore[reportAttributeAccessIssue]
+    )
 
     adapter = V4LiveClientAdapter()
     api_params = {
