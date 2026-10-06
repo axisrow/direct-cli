@@ -9758,7 +9758,12 @@ class TestUpdateMaster(unittest.TestCase):
         # behavior TestWholeFormSavePreservesSections models) — the error
         # must surface without a second attempt. Parametrized over all
         # three guard prefixes with the exact strings _verify_saved emits.
-        for prefix in ("target actions:", "audience_tags:", "metrika_counters:"):
+        for prefix in (
+            "target actions:",
+            "audience_tags:",
+            "metrika_counters:",
+            "sitelinks:",
+        ):
             with self.subTest(prefix=prefix):
                 exc = SaveNotVerifiedError("no")
                 exc.mismatches = [f"{prefix} expected X, page shows Y"]
@@ -10268,6 +10273,11 @@ class TestUpdateMaster(unittest.TestCase):
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.update_master(page, 42, add_target_actions={226158067: 77})
         self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertNotIn(
+            "URL/UTM",
+            str(ctx.exception),
+            "issue #877: the guard texts must stay neutral on every site",
+        )
         self.assertEqual(save_clicks, [])
 
     def test_remove_target_action_refuses_to_click_save_when_table_diverged(self):
@@ -10308,7 +10318,73 @@ class TestUpdateMaster(unittest.TestCase):
             )
         self.assertIn("Refusing to save", str(ctx.exception))
         self.assertIn("159614149", str(ctx.exception))
+        self.assertNotIn(
+            "URL/UTM",
+            str(ctx.exception),
+            "issue #877: the guard texts must stay neutral on every site",
+        )
         self.assertEqual(save_clicks, [])
+
+    def test_remove_target_action_refuses_when_a_survivors_price_shifted(self):
+        # Cycle-review PR #883 (major finding): the certified baseline
+        # carries PRICES, so a re-render that shifts an UNTOUCHED
+        # survivor's CPA between baseline and Save must block the click —
+        # the same #876 rationale the unchanged-table path already
+        # implements. Modeled by the certified two-read baseline agreeing
+        # on {A: 150, B: 77}, the close click removing B, and the guard's
+        # click-time read showing A's price shifted to 999.
+        rows = {159614149: "150", 226158067: "77"}
+        page = self._dynamic_target_actions_page(rows)
+
+        shifted = [{"GoalId": 159614149, "Price": 999.0}]
+
+        def _shifted_confirmed_read(click_time_rows=None):
+            return [dict(row) for row in shifted]
+
+        save_clicks = []
+        save_button = page.get_by_role("button", name=browser_masters._SAVE_BUTTON_TEXT)
+        original_click = save_button.first.click
+
+        def _count_click(*args, **kwargs):
+            save_clicks.append(True)
+            return original_click(*args, **kwargs)
+
+        save_button.first.click = _count_click
+
+        with patch.object(
+            browser_masters,
+            "_read_confirmed_target_actions",
+            side_effect=_shifted_confirmed_read,
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.update_master(
+                    page, 42, remove_target_action_goal_ids=[226158067]
+                )
+        self.assertIn("Refusing to save", str(ctx.exception))
+        self.assertIn("999.0", str(ctx.exception))
+        self.assertEqual(save_clicks, [])
+
+    def test_guard_refuses_when_the_table_is_unreadable_at_click_time(self):
+        # Cycle-review PR #883: the diverged tests model a READABLE []
+        # table; the guard must also fail closed when the click-time read
+        # is inconclusive (None) — for a removal AND for a pure add.
+        cases: "List[Tuple[Dict[str, Any], str]]" = [
+            ({"remove_target_action_goal_ids": [226158067]}, "target-action goals"),
+            ({"add_target_actions": {226158067: 77}}, "could not read"),
+        ]
+        for kwargs, fragment in cases:
+            with self.subTest(kwargs=kwargs):
+                rows = {159614149: "150", 226158067: "77"}
+                page = self._dynamic_target_actions_page(rows)
+                with patch.object(
+                    browser_masters,
+                    "_read_confirmed_target_actions",
+                    return_value=None,
+                ):
+                    with self.assertRaises(BrowserSessionError) as ctx:
+                        browser_masters.update_master(page, 42, **kwargs)
+                self.assertIn("Refusing to save", str(ctx.exception))
+                self.assertIn(fragment, str(ctx.exception))
 
     def test_raises_when_added_goal_still_absent_after_save(self):
         # The option click + price fill both "succeed" (rows gains the goal
@@ -24750,6 +24826,8 @@ class TestWholeFormSavePreservesSections(unittest.TestCase):
                 add_target_actions=None,
                 remove_target_action_goal_ids=None,
                 target_action_goal_ids_before=None,
+                target_action_prices_before=None,
+                target_action_prices=None,
             )
 
         message = str(ctx.exception)
