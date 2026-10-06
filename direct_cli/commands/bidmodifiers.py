@@ -58,7 +58,12 @@ get = make_get_command(
     extra_options=(
         click.option("--campaign-ids", help="Comma-separated campaign IDs"),
         click.option("--adgroup-ids", help="Comma-separated ad group IDs"),
-        click.option("--types", help="Comma-separated bid modifier types"),
+        click.option(
+            "--types",
+            help="Comma-separated bid modifier types. Also accepts the "
+            "live-only RETARGETING_SEARCH_ADJUSTMENT (#871), which has no "
+            "per-type FieldNames parameter — it is selected via Types alone.",
+        ),
         click.option(
             "--levels",
             type=click.Choice(["CAMPAIGN", "AD_GROUP"], case_sensitive=False),
@@ -190,7 +195,22 @@ _BIDMODIFIER_TYPE_TO_NESTED = {
     "SERP_LAYOUT_ADJUSTMENT": "SerpLayoutAdjustments",  # plural per WSDL
     "INCOME_GRADE_ADJUSTMENT": "IncomeGradeAdjustments",  # plural per WSDL
     "AD_GROUP_ADJUSTMENT": "AdGroupAdjustment",
+    # Live-only type (drift, #871): accepted by the live API but absent from
+    # the cached WSDL. The nested key is the API's own (error 8000 names
+    # "BidModifiers.RetargetingSearchAdjustments" verbatim); its per-type
+    # FieldNames parameter does not exist in get (live rejects it), so this
+    # type appears in add/delete and `--types`, never in the get FieldNames
+    # options. Live creation is currently rejected by the API itself
+    # (5005 on every documented retargeting-list class, #890) — Yandex has
+    # the signature but not the acceptance yet.
+    "RETARGETING_SEARCH_ADJUSTMENT": "RetargetingSearchAdjustments",
 }
+
+#: Nested keys the live API accepts but the cached WSDL does not declare
+#: (drift, #871). The parity gate skips them when mapping WSDL paths to
+#: Click options — there is no WSDL path to attach a flag to, and the
+#: audit's staleness check would rightly refuse a fabricated one (#890).
+_LIVE_ONLY_NESTED_KEYS = frozenset({"RetargetingSearchAdjustments"})
 
 # Plural fields (derived from _BIDMODIFIER_TYPE_TO_NESTED) require a list value per WSDL
 _PLURAL_NESTED_KEYS = {
@@ -210,6 +230,7 @@ _BIDMODIFIER_ALLOWED_EXTRA_FLAGS = {
     "AD_GROUP_ADJUSTMENT": set(),
     "DEMOGRAPHICS_ADJUSTMENT": {"--gender", "--age"},
     "RETARGETING_ADJUSTMENT": {"--retargeting-condition-id"},
+    "RETARGETING_SEARCH_ADJUSTMENT": {"--retargeting-condition-id"},
     "REGIONAL_ADJUSTMENT": {"--region-id"},
     "SERP_LAYOUT_ADJUSTMENT": {"--serp-layout"},
     "INCOME_GRADE_ADJUSTMENT": {"--income-grade"},
@@ -284,6 +305,11 @@ def add(
 
     For types with extra fields, use the corresponding typed flags
     (for example ``--gender`` / ``--age`` for demographics).
+
+    ``RETARGETING_SEARCH_ADJUSTMENT`` is a live-only type (#871): Yandex
+    currently rejects its creation server-side (5005 on every documented
+    retargeting-list class, #890) — the CLI mirrors the confirmed signature
+    so `add` works the moment the API enables acceptance.
     """
     if (campaign_id is None) == (adgroup_id is None):
         raise click.UsageError(
@@ -323,10 +349,13 @@ def add(
             raise click.UsageError(
                 t("DEMOGRAPHICS_ADJUSTMENT requires --gender and/or --age")
             )
-    elif modifier_type_upper == "RETARGETING_ADJUSTMENT":
+    elif modifier_type_upper in (
+        "RETARGETING_ADJUSTMENT",
+        "RETARGETING_SEARCH_ADJUSTMENT",
+    ):
         if retargeting_condition_id is None:
             raise click.UsageError(
-                t("RETARGETING_ADJUSTMENT requires --retargeting-condition-id")
+                t(f"{modifier_type_upper} requires --retargeting-condition-id")
             )
         nested["RetargetingConditionId"] = retargeting_condition_id
     elif modifier_type_upper == "REGIONAL_ADJUSTMENT":
