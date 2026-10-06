@@ -2238,7 +2238,7 @@ class TestReportsCoverage:
         )
         assert type_opt is not None, "--type option not found"
         assert isinstance(type_opt.type, click.Choice)
-        cli_choices = set(c.upper() for c in type_opt.type.choices)
+        cli_choices = {c.upper() for c in type_opt.type.choices}
         spec_types = set(spec["report_types"])
         assert cli_choices == spec_types, (
             f"CLI choices differ from spec.\n"

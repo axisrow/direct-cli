@@ -6886,20 +6886,36 @@ def _wait_for_target_actions_settled(page: "Page") -> bool:
     )
 
 
-def _read_confirmed_target_action_goal_ids(page: "Page") -> Optional[List[int]]:
-    """Read a stable target-action goal-id set, or ``None`` if inconclusive.
+def _target_action_price_map(
+    rows: List[Dict[str, Any]],
+) -> Dict[int, Optional[float]]:
+    """``{GoalId: Price}`` of ``_read_target_actions_or_none`` rows — the
+    identity the #876 guard and verification compare."""
+    return {row["GoalId"]: row["Price"] for row in rows}
+
+
+def _read_confirmed_target_actions(
+    page: "Page",
+) -> Optional[List[Dict[str, Any]]]:
+    """Read the target-action rows once their ``{GoalId: Price}`` map is
+    stable (sorted by GoalId), or ``None`` if inconclusive.
 
     A stable row *count* does not prove that the same complete rows were
     present throughout hydration. After waiting out the page-level fallback,
-    require a full streak of successful reads whose exact id sets agree. The
+    require a full streak of successful reads whose exact maps agree. The
     identity streak itself subsumes the older count-only settle loop and is
-    used both before and after URL/UTM saves, so neither a partial baseline nor
-    one transient matching post-save render can certify silent row loss.
+    used both before and after every whole-form save, so neither a partial
+    baseline nor one transient matching post-save render can certify silent
+    row loss.
+
+    Issue #876: the streak keys on the price too, not just the id. The save
+    resubmits every goal's CPA, so a shifted price is the same silent loss
+    as a dropped row — and a price input can hydrate after its row.
     """
     _wait_for_page_fallback_gone(page)
 
     deadline = _clock.now() + _TARGET_ACTION_SETTLE_TIMEOUT_MS / 1000
-    previous: Optional[Set[int]] = None
+    previous: Optional[Dict[int, Optional[float]]] = None
     stable_streak = 0
     while _clock.now() < deadline:
         rows = _read_target_actions_or_none(page)
@@ -6907,11 +6923,11 @@ def _read_confirmed_target_action_goal_ids(page: "Page") -> Optional[List[int]]:
             previous = None
             stable_streak = 0
         else:
-            current = {row["GoalId"] for row in rows}
+            current = _target_action_price_map(rows)
             if current == previous:
                 stable_streak += 1
                 if stable_streak >= _TARGET_ACTION_STABLE_STREAK:
-                    return sorted(current)
+                    return sorted(rows, key=lambda row: row["GoalId"])
             else:
                 previous = current
                 stable_streak = 1
@@ -6922,7 +6938,7 @@ def _read_confirmed_target_action_goal_ids(page: "Page") -> Optional[List[int]]:
 def _target_actions_section_present(page: "Page") -> bool:
     """True if the "Целевые действия" section container is rendered at all.
 
-    Called only after ``_read_confirmed_target_action_goal_ids`` has already
+    Called only after ``_read_confirmed_target_actions`` has already
     waited out its full settle deadline and returned ``None``, so the
     hydration dips that briefly unmount ``_TARGET_ACTIONS_SECTION_TESTID``
     are over by the time this reads — a single count here distinguishes
@@ -6954,7 +6970,10 @@ def _parse_target_action_price(raw: str) -> Optional[float]:
     possible thin-space grouping). Returns ``None`` for an empty/unparseable
     value rather than 0.0 — a goal row with no price set yet is a distinct
     state from a price of zero."""
-    normalized = raw.strip().replace(",", ".").replace("\xa0", "")
+    # Any Unicode whitespace may group thousands ("1 500" with a plain, no-
+    # break, thin or narrow no-break space); an unparsed price reads as None
+    # and would make the #876 guard compare None == None as "intact".
+    normalized = "".join(raw.split()).replace(",", ".")
     if not normalized:
         return None
     try:
@@ -7247,11 +7266,8 @@ def _assert_preserved_sections_before_save(
     metrika_preservation_requested: bool,
     add_metrika_counters: Optional[List[str]],
     remove_metrika_counter_indices: Optional[List[int]],
-    target_action_goal_ids_before: Optional[List[int]],
-    target_actions_unchanged_before: Optional[List[int]],
+    target_actions_unchanged_expected: Optional[Dict[int, Optional[float]]],
     target_actions_preservation_requested: bool,
-    add_target_actions: Optional[Dict[int, float]],
-    remove_target_action_goal_ids: Optional[List[int]],
 ) -> None:
     """Abort before Save if URL/UTM hydration changed a protected section.
 
@@ -7292,26 +7308,24 @@ def _assert_preserved_sections_before_save(
             )
 
     if target_actions_preservation_requested:
-        baseline = (
-            target_action_goal_ids_before
-            if target_action_goal_ids_before is not None
-            else target_actions_unchanged_before
-        )
-        if baseline is None:
+        # Only the unchanged-table path sets this flag today (add/remove
+        # calls re-enter this guard with #877). Compared as a whole
+        # ``{GoalId: Price}`` map — issue #876: the save resubmits every
+        # goal's CPA, so a shifted price must block the click too.
+        if target_actions_unchanged_expected is None:
             raise BrowserSessionError(
                 "Refusing to save the URL/UTM update: no readable pre-save "
                 "target-action baseline is available."
             )
-        expected_goal_ids = set(baseline)
-        expected_goal_ids -= set(remove_target_action_goal_ids or [])
-        expected_goal_ids |= set(add_target_actions or {})
-        actual_goal_ids = _read_confirmed_target_action_goal_ids(page)
-        if actual_goal_ids is None or set(actual_goal_ids) != expected_goal_ids:
+        rows = _read_confirmed_target_actions(page)
+        actual = None if rows is None else _target_action_price_map(rows)
+        if actual != target_actions_unchanged_expected:
             raise BrowserSessionError(
                 "Refusing to save the URL/UTM update because the current "
-                "target-action goal ids no longer match their protected "
-                f"pre-save state: expected {sorted(expected_goal_ids)!r}, "
-                f"page now shows {actual_goal_ids!r}. No Save button was clicked."
+                "target-action goals (id → price) no longer match their "
+                "protected pre-save state: expected "
+                f"{target_actions_unchanged_expected!r}, page now shows "
+                f"{actual!r}. No Save button was clicked."
             )
 
 
@@ -7511,11 +7525,8 @@ def _goal_price_matches(expected: float, actual: Optional[str]) -> bool:
     """
     if actual is None:
         return False
-    normalized = actual.strip().replace(",", ".").replace("\xa0", "")
-    try:
-        return float(normalized) == float(expected)
-    except ValueError:
-        return False
+    parsed = _parse_target_action_price(actual)
+    return parsed is not None and parsed == float(expected)
 
 
 def _read_campaign_name(page: "Page") -> Optional[str]:
@@ -7765,7 +7776,7 @@ def _verify_saved(
     add_target_actions: Optional[Dict[int, float]] = None,
     remove_target_action_goal_ids: Optional[List[int]] = None,
     target_action_goal_ids_before: Optional[List[int]] = None,
-    target_actions_unchanged_before: Optional[List[int]] = None,
+    target_actions_unchanged_expected: Optional[Dict[int, Optional[float]]] = None,
     target_actions_unchanged_requested: bool = False,
     gender: Optional[str] = None,
     age_from_requested: bool = False,
@@ -7785,7 +7796,7 @@ def _verify_saved(
     remove_sitelink_indices: Optional[List[int]] = None,
     clicked_button_label: str = _SAVE_BUTTON_TEXT,
     validation_errors: Optional[List[str]] = None,
-) -> Optional[List[int]]:
+) -> Optional[List[Dict[str, Any]]]:
     """Reload the edit page and confirm every requested field actually saved.
 
     Never trust the save-button click alone (mirrors ``_suspend_or_resume``'s
@@ -7798,9 +7809,11 @@ def _verify_saved(
     if a field still doesn't match after a real reload, the save did not
     take effect and this raises rather than reporting false success.
 
-    Returns the verified post-save target-action goal-id set when the
-    unchanged-table check ran (so the caller can surface it in the result
-    row, issue #872), or ``None`` when that check did not run.
+    Returns the verified post-save target actions — a list of
+    ``{"GoalId", "Name", "Price"}`` rows sorted by GoalId, the same shape
+    ``masters targetactions get`` returns — when the unchanged-table check
+    ran (so the caller can surface it in the result row, issues #872/#876),
+    or ``None`` when that check did not run.
     """
     _audience_touched = (
         gender is not None
@@ -7886,7 +7899,7 @@ def _verify_saved(
     _re_navigated = False
     # The post-save target-action set, filled by the unchanged-table check
     # below when it ran and verified intact; returned to the caller.
-    verified_target_actions: Optional[List[int]] = None
+    verified_target_actions: Optional[List[Dict[str, Any]]] = None
 
     if mismatches:
         # RE-NAVIGATE on a mismatch in any of ``checks``, not just re-poll
@@ -8183,7 +8196,7 @@ def _verify_saved(
             rows = _read_target_actions_or_none(p)
             if rows is None:
                 return None
-            return {row["GoalId"]: row["Price"] for row in rows}
+            return _target_action_price_map(rows)
 
         def _target_action_prices_match(
             actual: Optional[Dict[int, Optional[float]]], expected: Dict[int, float]
@@ -8406,28 +8419,31 @@ def _verify_saved(
                     )
 
     if target_actions_unchanged_requested:
-        # Issue #836: this URL/UTM save requested no row add/remove (a price
-        # update may still be present), yet the whole-form save resubmits the
-        # complete table. Compare the exact set from independently stabilized
-        # pre/post-save reads. An empty set is valid when the rendered section
-        # genuinely has no goals; an unreadable baseline is rejected before
-        # Save and an unreadable post-save state is a mismatch here.
-        expected_unchanged = set(target_actions_unchanged_before or [])
-        actual_unchanged = _read_confirmed_target_action_goal_ids(page)
-        actual_set = set(actual_unchanged) if actual_unchanged is not None else None
-        if actual_set != expected_unchanged:
+        # Issue #836: this save requested no row add/remove (a price update
+        # may still be present), yet the whole-form save resubmits the
+        # complete table. Compare the exact ``{GoalId: Price}`` map from
+        # independently stabilized pre/post-save reads — issue #876: a
+        # shifted CPA is as silent a loss as a dropped row. An empty map is
+        # valid when the rendered section genuinely has no goals; an
+        # unreadable baseline is rejected before Save and an unreadable
+        # post-save state is a mismatch here.
+        expected_unchanged = target_actions_unchanged_expected or {}
+        rows_after = _read_confirmed_target_actions(page)
+        actual_unchanged = (
+            None if rows_after is None else _target_action_price_map(rows_after)
+        )
+        if actual_unchanged != expected_unchanged:
             mismatches.append(
-                "target actions: this update did not request any "
-                "target-action row change, but goal ids "
-                f"{sorted(expected_unchanged)!r} are no longer intact — "
+                "target actions: expected goals (id → price) "
+                f"{expected_unchanged!r} to survive the save intact — "
                 f"page now shows {actual_unchanged!r}"
             )
-        elif actual_unchanged is not None:
+        elif rows_after is not None:
             # Verified intact — handed back so the caller's result row can
-            # show WHICH goals survived the save (issue #872: a batch run
-            # should see the protected set, not just an implicit absence of
-            # failure).
-            verified_target_actions = actual_unchanged
+            # show WHICH goals at WHICH bid survived the save (issues
+            # #872/#876: a batch run should see the protected state, not
+            # just an implicit absence of failure).
+            verified_target_actions = rows_after
 
     mismatches.extend(
         _verify_repeating_value_mismatches(
@@ -8911,7 +8927,7 @@ def update_master(
     _preserve_target_actions = promotion_goal != "max-clicks"
     metrika_counters_before: Optional[List[str]] = None
     metrika_preservation_requested = False
-    target_actions_unchanged_before: Optional[List[int]] = None
+    target_actions_unchanged_expected: Optional[Dict[int, Optional[float]]] = None
     target_actions_unchanged_requested = False
     target_actions_preservation_requested = False
     target_action_goal_ids_before: Optional[List[int]] = None
@@ -8944,8 +8960,8 @@ def update_master(
         # (#717/#750), deriving its expected set from the certified
         # two-read snapshot taken further below (issue #756); a pre-read
         # here would only race that certification's acquisitions.
-        target_ids = _read_confirmed_target_action_goal_ids(page)
-        if target_ids is None:
+        target_actions_at_load = _read_confirmed_target_actions(page)
+        if target_actions_at_load is None:
             if _target_actions_section_present(page):
                 raise BrowserSessionError(
                     "Could not obtain a stable pre-save snapshot of the "
@@ -8959,8 +8975,12 @@ def update_master(
             # gating above).
         else:
             # Price-only mutations do not change row identity, so the full
-            # id set is still expected to survive unchanged.
-            target_actions_unchanged_before = target_ids
+            # id set is still expected to survive — and every price the call
+            # did not set must survive too (issue #876).
+            target_actions_unchanged_expected = {
+                **_target_action_price_map(target_actions_at_load),
+                **(target_action_prices or {}),
+            }
             target_actions_unchanged_requested = True
             target_actions_preservation_requested = True
 
@@ -9400,13 +9420,10 @@ def update_master(
             metrika_preservation_requested=metrika_preservation_requested,
             add_metrika_counters=add_metrika_counters,
             remove_metrika_counter_indices=remove_metrika_counters,
-            target_action_goal_ids_before=target_action_goal_ids_before,
-            target_actions_unchanged_before=target_actions_unchanged_before,
+            target_actions_unchanged_expected=target_actions_unchanged_expected,
             target_actions_preservation_requested=(
                 target_actions_preservation_requested
             ),
-            add_target_actions=add_target_actions,
-            remove_target_action_goal_ids=remove_target_action_goal_ids,
         )
 
     _click_save(
@@ -9443,9 +9460,9 @@ def update_master(
     # (see ``_clear_repeating_value``'s docstring for why they're still
     # kept as distinct MUTATION operations up to this point).
     verify_headlines = dict(headlines or {})
-    verify_headlines.update({index: "" for index in clear_headlines or []})
+    verify_headlines.update(dict.fromkeys(clear_headlines or [], ""))
     verify_texts = dict(texts or {})
-    verify_texts.update({index: "" for index in clear_texts or []})
+    verify_texts.update(dict.fromkeys(clear_texts or [], ""))
 
     try:
         verified_target_actions = _verify_saved(
@@ -9469,7 +9486,7 @@ def update_master(
             add_target_actions=add_target_actions,
             remove_target_action_goal_ids=remove_target_action_goal_ids,
             target_action_goal_ids_before=target_action_goal_ids_before,
-            target_actions_unchanged_before=target_actions_unchanged_before,
+            target_actions_unchanged_expected=target_actions_unchanged_expected,
             target_actions_unchanged_requested=target_actions_unchanged_requested,
             gender=gender,
             age_from_requested=age_from_requested,
@@ -9501,10 +9518,10 @@ def update_master(
 
     result: Dict[str, Any] = {"CampaignId": campaign_id}
     if verified_target_actions is not None:
-        # The unchanged-table check ran and verified this exact set survived
-        # the whole-form save (issue #872) — surface it in the result row so
-        # a batch run shows the protected goals, not just an implicit
-        # absence of failure.
+        # The unchanged-table check ran and verified these goals AND their
+        # prices survived the whole-form save (issues #872/#876) — surface
+        # them in the result row so a batch run shows the protected goals
+        # and bids, not just an implicit absence of failure.
         result["TargetActions"] = verified_target_actions
     if weekly_budget is not None:
         result["WeeklyBudget"] = weekly_budget
@@ -9655,7 +9672,7 @@ def fetch_master_images(page: "Page", campaign_id: int) -> Dict[str, Any]:
     """
     content_ids, _is_draft = _open_images_editor(page, campaign_id)
 
-    thumb_urls: Dict[str, Optional[str]] = {cid: None for cid in content_ids}
+    thumb_urls: Dict[str, Optional[str]] = dict.fromkeys(content_ids)
     if content_ids:
         _open_images_modal(page)
         modal_ids = _read_image_content_ids(page)

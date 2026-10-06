@@ -37,23 +37,23 @@ _CASES = [
     (
         "text",
         ["--type", "TEXT_AD_GROUP"],
-        dict(
-            campaign_id=12,
-            name="G",
-            group_type="TEXT_AD_GROUP",
-            flags={"region_ids": "225"},
-        ),
+        {
+            "campaign_id": 12,
+            "name": "G",
+            "group_type": "TEXT_AD_GROUP",
+            "flags": {"region_ids": "225"},
+        },
         {"Name": "G", "CampaignId": 12, "RegionIds": [225]},
     ),
     (
         "text_feed",
         ["--type", "TEXT_AD_GROUP", "--feed-id", "7", "--feed-category-ids", "1,2"],
-        dict(
-            campaign_id=12,
-            name="G",
-            group_type="TEXT_AD_GROUP",
-            flags={"region_ids": "225", "feed_id": 7, "feed_category_ids": "1,2"},
-        ),
+        {
+            "campaign_id": 12,
+            "name": "G",
+            "group_type": "TEXT_AD_GROUP",
+            "flags": {"region_ids": "225", "feed_id": 7, "feed_category_ids": "1,2"},
+        },
         {
             "Name": "G",
             "CampaignId": 12,
@@ -67,12 +67,12 @@ _CASES = [
     (
         "dynamic_text",
         ["--type", "DYNAMIC_TEXT_AD_GROUP", "--domain-url", "https://e.example"],
-        dict(
-            campaign_id=12,
-            name="G",
-            group_type="DYNAMIC_TEXT_AD_GROUP",
-            flags={"region_ids": "225", "domain_url": "https://e.example"},
-        ),
+        {
+            "campaign_id": 12,
+            "name": "G",
+            "group_type": "DYNAMIC_TEXT_AD_GROUP",
+            "flags": {"region_ids": "225", "domain_url": "https://e.example"},
+        },
         {
             "Name": "G",
             "CampaignId": 12,
@@ -83,12 +83,12 @@ _CASES = [
     (
         "dynamic_feed",
         ["--type", "DYNAMIC_TEXT_FEED_AD_GROUP", "--feed-id", "7"],
-        dict(
-            campaign_id=12,
-            name="G",
-            group_type="DYNAMIC_TEXT_FEED_AD_GROUP",
-            flags={"region_ids": "225", "feed_id": 7},
-        ),
+        {
+            "campaign_id": 12,
+            "name": "G",
+            "group_type": "DYNAMIC_TEXT_FEED_AD_GROUP",
+            "flags": {"region_ids": "225", "feed_id": 7},
+        },
         {
             "Name": "G",
             "CampaignId": 12,
@@ -99,12 +99,12 @@ _CASES = [
     (
         "cpm_keywords",
         ["--type", "CPM_BANNER_KEYWORDS_AD_GROUP"],
-        dict(
-            campaign_id=12,
-            name="G",
-            group_type="CPM_BANNER_KEYWORDS_AD_GROUP",
-            flags={"region_ids": "225"},
-        ),
+        {
+            "campaign_id": 12,
+            "name": "G",
+            "group_type": "CPM_BANNER_KEYWORDS_AD_GROUP",
+            "flags": {"region_ids": "225"},
+        },
         {
             "Name": "G",
             "CampaignId": 12,
@@ -115,12 +115,12 @@ _CASES = [
     (
         "smart",
         ["--type", "SMART_AD_GROUP", "--feed-id", "7"],
-        dict(
-            campaign_id=12,
-            name="G",
-            group_type="SMART_AD_GROUP",
-            flags={"region_ids": "225", "feed_id": 7},
-        ),
+        {
+            "campaign_id": 12,
+            "name": "G",
+            "group_type": "SMART_AD_GROUP",
+            "flags": {"region_ids": "225", "feed_id": 7},
+        },
         {
             "Name": "G",
             "CampaignId": 12,
@@ -131,12 +131,12 @@ _CASES = [
     (
         "unified",
         ["--type", "UNIFIED_AD_GROUP", "--offer-retargeting", "YES"],
-        dict(
-            campaign_id=12,
-            name="G",
-            group_type="UNIFIED_AD_GROUP",
-            flags={"region_ids": "225", "offer_retargeting": "YES"},
-        ),
+        {
+            "campaign_id": 12,
+            "name": "G",
+            "group_type": "UNIFIED_AD_GROUP",
+            "flags": {"region_ids": "225", "offer_retargeting": "YES"},
+        },
         {
             "Name": "G",
             "CampaignId": 12,
@@ -158,18 +158,18 @@ _CASES = [
             "--target-operating-system-version",
             "12",
         ],
-        dict(
-            campaign_id=12,
-            name="G",
-            group_type="MOBILE_APP_AD_GROUP",
-            flags={
+        {
+            "campaign_id": 12,
+            "name": "G",
+            "group_type": "MOBILE_APP_AD_GROUP",
+            "flags": {
                 "region_ids": "225",
                 "store_url": "https://s.example",
                 "target_device_types": "DEVICE_TYPE_MOBILE",
                 "target_carrier": "WI_FI_ONLY",
                 "target_operating_system_version": "12",
             },
-        ),
+        },
         {
             "Name": "G",
             "CampaignId": 12,
@@ -185,12 +185,12 @@ _CASES = [
     (
         "negative_keywords",
         ["--type", "TEXT_AD_GROUP", "--negative-keywords", "a,b"],
-        dict(
-            campaign_id=12,
-            name="G",
-            group_type="TEXT_AD_GROUP",
-            flags={"region_ids": "225", "negative_keywords": "a,b"},
-        ),
+        {
+            "campaign_id": 12,
+            "name": "G",
+            "group_type": "TEXT_AD_GROUP",
+            "flags": {"region_ids": "225", "negative_keywords": "a,b"},
+        },
         {
             "Name": "G",
             "CampaignId": 12,

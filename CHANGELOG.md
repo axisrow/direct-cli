@@ -29,6 +29,14 @@ protected goals per campaign instead of an implicit absence of failure.
 Cost: an unchanged-table update spends a few extra seconds stabilizing
 the section reads.
 
+The protection also checks each goal's **price (CPA)**, not just which
+goals are present (#876). The save resubmits every goal's bid, so a price
+that shifts or resets while the goal stays would let the strategy keep
+spending at a different bid with no visible symptom. Both the pre-click
+guard and the post-save check now compare the full `{GoalId: Price}` map
+(the baseline with any `--target-action-price` changes applied), and
+`TargetActions` in the result row is `[{"GoalId": …, "Price": …}]`.
+
 ### Added
 
 **`masters list` — strategy and weekly budget per campaign.**
