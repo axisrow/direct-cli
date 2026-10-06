@@ -24,6 +24,7 @@
             <xsd:simpleType name="StrategyMaximumClicksFieldEnum">
                 <xsd:restriction base="xsd:string">
                     <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="WeeklyBudgetRollover"/>
                     <xsd:enumeration value="CustomPeriodBudget"/>
                     <xsd:enumeration value="BudgetType"/>
                     <xsd:enumeration value="BidCeiling"/>
@@ -32,6 +33,7 @@
             <xsd:simpleType name="StrategyMaximumConversionRateFieldEnum">
                 <xsd:restriction base="xsd:string">
                     <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="WeeklyBudgetRollover"/>
                     <xsd:enumeration value="CustomPeriodBudget"/>
                     <xsd:enumeration value="BudgetType"/>
                     <xsd:enumeration value="BidCeiling"/>
@@ -42,6 +44,7 @@
                 <xsd:restriction base="xsd:string">
                     <xsd:enumeration value="AverageCpc"/>
                     <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="WeeklyBudgetRollover"/>
                     <xsd:enumeration value="CustomPeriodBudget"/>
                     <xsd:enumeration value="BudgetType"/>
                 </xsd:restriction>
@@ -51,6 +54,7 @@
                     <xsd:enumeration value="AverageCpa"/>
                     <xsd:enumeration value="GoalId"/>
                     <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="WeeklyBudgetRollover"/>
                     <xsd:enumeration value="CustomPeriodBudget"/>
                     <xsd:enumeration value="BudgetType"/>
                     <xsd:enumeration value="BidCeiling"/>
@@ -60,6 +64,7 @@
             <xsd:simpleType name="StrategyMaxProfitFieldEnum">
                 <xsd:restriction base="xsd:string">
                     <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="WeeklyBudgetRollover"/>
                     <xsd:enumeration value="CustomPeriodBudget"/>
                     <xsd:enumeration value="BudgetType"/>
                     <xsd:enumeration value="ExplorationBudget"/>
@@ -137,6 +142,7 @@
                     <xsd:enumeration value="Crr"/>
                     <xsd:enumeration value="GoalId"/>
                     <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="WeeklyBudgetRollover"/>
                     <xsd:enumeration value="CustomPeriodBudget"/>
                     <xsd:enumeration value="BudgetType"/>
                     <xsd:enumeration value="ExplorationBudget"/>
@@ -154,6 +160,7 @@
             <xsd:simpleType name="StrategyAverageCpaMultipleGoalsFieldEnum">
                 <xsd:restriction base="xsd:string">
                     <xsd:enumeration value="WeeklySpendLimit"/>
+                    <xsd:enumeration value="WeeklyBudgetRollover"/>
                     <xsd:enumeration value="CustomPeriodBudget"/>
                     <xsd:enumeration value="BudgetType"/>
                     <xsd:enumeration value="ExplorationBudget"/>
@@ -541,6 +548,7 @@
                 <xsd:complexContent>
                     <xsd:extension base="ns:StrategyMaximumClicksBase">
                         <xsd:sequence>
+                            <xsd:element name="WeeklyBudgetRollover" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
                             <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
                         </xsd:sequence>
                     </xsd:extension>
@@ -550,6 +558,7 @@
                 <xsd:complexContent>
                     <xsd:extension base="ns:StrategyMaximumConversionRateBase">
                         <xsd:sequence>
+                            <xsd:element name="WeeklyBudgetRollover" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
                             <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
                         </xsd:sequence>
                     </xsd:extension>
@@ -559,6 +568,7 @@
                 <xsd:complexContent>
                     <xsd:extension base="ns:StrategyAverageCpcBase">
                         <xsd:sequence>
+                            <xsd:element name="WeeklyBudgetRollover" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
                             <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
                         </xsd:sequence>
                     </xsd:extension>
@@ -568,6 +578,7 @@
                 <xsd:complexContent>
                     <xsd:extension base="ns:StrategyAverageCpaBase">
                         <xsd:sequence>
+                            <xsd:element name="WeeklyBudgetRollover" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
                             <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
                         </xsd:sequence>
                     </xsd:extension>
@@ -577,6 +588,7 @@
                 <xsd:complexContent>
                     <xsd:extension base="ns:StrategyMaxProfitBase">
                         <xsd:sequence>
+                            <xsd:element name="WeeklyBudgetRollover" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
                             <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
                         </xsd:sequence>
                     </xsd:extension>
@@ -649,6 +661,7 @@
                 <xsd:complexContent>
                     <xsd:extension base="ns:StrategyAverageCrrBase">
                         <xsd:sequence>
+                            <xsd:element name="WeeklyBudgetRollover" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
                             <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
                         </xsd:sequence>
                     </xsd:extension>
@@ -667,6 +680,7 @@
                 <xsd:complexContent>
                     <xsd:extension base="ns:StrategyAverageCpaMultipleGoalsBase">
                         <xsd:sequence>
+                            <xsd:element name="WeeklyBudgetRollover" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
                             <xsd:element name="BudgetType" type="ns:BudgetTypeEnum" minOccurs="0" maxOccurs="1"/>
                         </xsd:sequence>
                     </xsd:extension>

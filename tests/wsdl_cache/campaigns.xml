@@ -147,6 +147,7 @@
                     <xsd:enumeration value="PackageBiddingStrategy"/>
                     <xsd:enumeration value="CanBeUsedAsPackageBiddingStrategySource"/>
                     <xsd:enumeration value="NegativeKeywordSharedSetIds"/>
+                    <xsd:enumeration value="WeeklyBudgetRollover"/>
                 </xsd:restriction>
             </xsd:simpleType>
             <xsd:simpleType name="TextCampaignSearchStrategyPlacementTypesFieldEnum">
@@ -167,6 +168,7 @@
                     <xsd:enumeration value="PackageBiddingStrategy"/>
                     <xsd:enumeration value="CanBeUsedAsPackageBiddingStrategySource"/>
                     <xsd:enumeration value="NegativeKeywordSharedSetIds"/>
+                    <xsd:enumeration value="WeeklyBudgetRollover"/>
                 </xsd:restriction>
             </xsd:simpleType>
             <xsd:simpleType name="UnifiedCampaignSearchStrategyPlacementTypesFieldEnum">
@@ -195,6 +197,7 @@
                     <xsd:enumeration value="PackageBiddingStrategy"/>
                     <xsd:enumeration value="CanBeUsedAsPackageBiddingStrategySource"/>
                     <xsd:enumeration value="NegativeKeywordSharedSetIds"/>
+                    <xsd:enumeration value="WeeklyBudgetRollover"/>
                 </xsd:restriction>
             </xsd:simpleType>
             <xsd:simpleType name="DynamicTextCampaignFieldEnum">
@@ -2376,6 +2379,7 @@
                             <xsd:element name="PriorityGoals" type="ns:PriorityGoalsArray" minOccurs="0" maxOccurs="1" nillable="true"/>
                             <xsd:element name="PackageBiddingStrategy" type="ns:TextCampaignPackageBiddingStrategyGet" minOccurs="0" maxOccurs="1" nillable="true"/>
                             <xsd:element name="CanBeUsedAsPackageBiddingStrategySource" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="WeeklyBudgetRollover" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
                         </xsd:sequence>
                     </xsd:extension>
                 </xsd:complexContent>
@@ -2390,6 +2394,7 @@
                             <xsd:element name="PriorityGoals" type="ns:PriorityGoalsArray" minOccurs="0" maxOccurs="1" nillable="true"/>
                             <xsd:element name="PackageBiddingStrategy" type="ns:UnifiedCampaignPackageBiddingStrategyGet" minOccurs="0" maxOccurs="1" nillable="true"/>
                             <xsd:element name="CanBeUsedAsPackageBiddingStrategySource" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
+                            <xsd:element name="WeeklyBudgetRollover" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
                         </xsd:sequence>
                     </xsd:extension>
                 </xsd:complexContent>
@@ -2401,6 +2406,7 @@
                     <xsd:element name="PackageBiddingStrategy" type="ns:MobileAppCampaignPackageBiddingStrategyGet" minOccurs="0" maxOccurs="1" nillable="true"/>
                     <xsd:element name="CanBeUsedAsPackageBiddingStrategySource" type="general:YesNoEnum" minOccurs="0" maxOccurs="1"/>
                     <xsd:element name="NegativeKeywordSharedSetIds" type="general:ArrayOfLong" minOccurs="0" maxOccurs="1" nillable="true"/>
+                    <xsd:element name="WeeklyBudgetRollover" type="xsd:long" minOccurs="0" maxOccurs="1" nillable="true"/>
                 </xsd:sequence>
             </xsd:complexType>
             <xsd:complexType name="DynamicTextCampaignGetItem">

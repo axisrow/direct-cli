@@ -91,6 +91,10 @@
                     <xsd:enumeration value="IMG_3880_1000"/>
                     <xsd:enumeration value="IMG_2064_1088"/>
 		    <xsd:enumeration value="IMG_892_636"/>
+                    <xsd:enumeration value="IMG_3840_2160"/>
+                    <xsd:enumeration value="IMG_7680_4320"/>
+                    <xsd:enumeration value="IMG_11520_6480"/>
+                    <xsd:enumeration value="IMG_15360_8640"/>
                     <xsd:enumeration value="NONE"/>
                 </xsd:restriction>
             </xsd:simpleType>
