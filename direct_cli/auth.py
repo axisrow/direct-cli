@@ -19,13 +19,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-try:
-    from dotenv import load_dotenv
-except ImportError:
-
-    def load_dotenv(*args: Any, **kwargs: Any) -> bool:
-        return False
-
+from dotenv import load_dotenv
 
 YANDEX_OAUTH_AUTHORIZE_URL = "https://oauth.yandex.ru/authorize"
 YANDEX_OAUTH_TOKEN_URL = "https://oauth.yandex.ru/token"
@@ -112,9 +106,8 @@ def bw_read(item: str, field: str = "password") -> str:
 
 def load_env_file(env_path: Optional[str] = None) -> None:
     """Load environment variables from an explicit or current-directory .env."""
-    if load_dotenv:
-        dotenv_path = Path(env_path) if env_path else Path.cwd() / ".env"
-        load_dotenv(dotenv_path)
+    dotenv_path = Path(env_path) if env_path else Path.cwd() / ".env"
+    load_dotenv(dotenv_path)
 
 
 def _format_dotenv_value(value: str) -> str:

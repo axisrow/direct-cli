@@ -60,9 +60,8 @@ def load_live_runner_module():
 
 def split_command(command: str) -> tuple[str, str]:
     """Split a smoke-matrix command into CLI group and subcommand."""
-    if "." not in command:
-        return command, ""
-    return command.split(".", 1)
+    group, _, subcommand = command.partition(".")
+    return group, subcommand
 
 
 def row_for_command(command: str, handler: Callable[..., object] | None) -> AuditRow:

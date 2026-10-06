@@ -38,6 +38,9 @@ jobs:
       - name: Type check
         run: mypy .
 
+      - name: Pyright
+        run: pyright
+
       - name: Run offline tests
         # Offline default comes from pyproject addopts (skips the live-network
         # markers). integration_write stays in — it replays VCR cassettes offline.

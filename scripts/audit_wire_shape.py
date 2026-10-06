@@ -740,7 +740,7 @@ def emit_markdown(findings: list[Finding], path: Path, header_lines: list[str]) 
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--v4", action="store_true", help="audit v4 Live methods")
     parser.add_argument("--v5", action="store_true", help="audit v5 WSDL services")
     parser.add_argument("--reports", action="store_true", help="audit Reports surface")
