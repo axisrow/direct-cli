@@ -9610,6 +9610,14 @@ class TestUpdateMaster(unittest.TestCase):
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.update_master(page, 42, goal_price=500)
         self.assertIn("did not save as requested", str(ctx.exception))
+        # The auto-retry gate keys on exc.mismatches — the REAL raise site
+        # must annotate it (a hand-built exception in other tests proves
+        # nothing about this wiring; cycle-review PR #882).
+        self.assertTrue(ctx.exception.mismatches)
+        self.assertTrue(
+            ctx.exception.mismatches[0].startswith("goal_price:"),
+            f"unexpected first mismatch: {ctx.exception.mismatches[0]!r}",
+        )
 
     def test_retries_once_when_the_first_save_does_not_apply(self):
         # Issue #869 (live, 9/9 single updates): the first save click after
@@ -9655,16 +9663,22 @@ class TestUpdateMaster(unittest.TestCase):
         # The auto-retry (issues #869/#870) re-applies the whole update, so
         # it must fire ONLY when every requested mutation is a value-SET:
         # positional/append mutations (images, videos, tags, counters,
-        # sitelinks, target-action add/remove) would address DIFFERENT rows
-        # on a second run, and --launch is a no-rollback publish that is
-        # never re-clicked (cycle-review PR #711's reasoning).
+        # sitelinks, target-action add/remove, headline/text slot CLEARS)
+        # would address DIFFERENT rows on a second run, and --launch is a
+        # no-rollback publish that is never re-clicked (cycle-review PR
+        # #711's reasoning).
         cases: "List[Tuple[Dict[str, Any], bool]]" = [
             ({}, True),
             ({"goal_price": 500}, True),
             ({"target_action_prices": {159614149: 300}}, True),
             ({"launch": True}, False),
             ({"images": {0: "/tmp/a.png"}}, False),
+            ({"images": {}}, False),
             ({"add_video": "/tmp/v.mp4"}, False),
+            # Falsy-but-not-None still counts as requested (cycle-review
+            # PR #882: a truthiness "simplification" must not sneak in).
+            ({"add_video": ""}, False),
+            ({"add_video_url": ""}, False),
             ({"add_video_url": "https://a.test/1.mp4"}, False),
             ({"remove_videos": ["https://a.test/1.mp4"]}, False),
             ({"add_audience_tags": ["tag"]}, False),
@@ -9675,12 +9689,20 @@ class TestUpdateMaster(unittest.TestCase):
             ({"remove_sitelinks": [0]}, False),
             ({"add_target_actions": {159614149: 300}}, False),
             ({"remove_target_action_goal_ids": [159614149]}, False),
+            # Index-addressed slot clears are excluded like the rest.
+            ({"clear_headlines": [0]}, False),
+            ({"clear_texts": [0]}, False),
+            ({"goal_price": 500, "clear_texts": [0]}, False),
         ]
         for kwargs, retryable in cases:
             with self.subTest(kwargs=kwargs):
-                once = Mock(
-                    side_effect=[SaveNotVerifiedError("no"), {"CampaignId": 42}]
-                )
+                # The first failure is annotated like the REAL raise site
+                # would (scalar mismatch, no guard prefix) — the retry gate
+                # is fail-closed on unannotated errors (that case has its
+                # own test below).
+                first = SaveNotVerifiedError("no")
+                first.mismatches = ["goal_price: expected '500', page shows '300'"]
+                once = Mock(side_effect=[first, {"CampaignId": 42}])
                 with patch.object(browser_masters, "_update_master_once", once):
                     if retryable:
                         result = browser_masters.update_master(FakePage(), 42, **kwargs)
@@ -9691,19 +9713,101 @@ class TestUpdateMaster(unittest.TestCase):
                             browser_masters.update_master(FakePage(), 42, **kwargs)
                         self.assertEqual(once.call_count, 1)
 
+    def test_retry_allowlist_never_grows_positional_mutations(self):
+        # The retry gate is an ALLOWLIST (_RETRYABLE_VALUE_SET_PARAMS): this
+        # pins its contents so a future parameter cannot silently become
+        # retryable and no positional/append mutation can be added to it by
+        # accident (cycle-review PR #882).
+        banned = {
+            "images",
+            "add_video",
+            "add_video_url",
+            "remove_videos",
+            "add_audience_tags",
+            "remove_audience_tags",
+            "add_metrika_counters",
+            "remove_metrika_counters",
+            "add_sitelinks",
+            "remove_sitelinks",
+            "add_target_actions",
+            "remove_target_action_goal_ids",
+            "clear_headlines",
+            "clear_texts",
+            "launch",
+            "age_from",
+            "age_to",
+        }
+        self.assertEqual(banned & browser_masters._RETRYABLE_VALUE_SET_PARAMS, set())
+        self.assertIn("goal_price", browser_masters._RETRYABLE_VALUE_SET_PARAMS)
+
     def test_section_guard_mismatch_is_not_retried(self):
         # A section-preservation guard mismatch (#873/#876) means the save
         # may have silently DROPPED a section; retrying would re-baseline
         # from the already-mutated page and accept the loss (the real page
         # behavior TestWholeFormSavePreservesSections models) — the error
-        # must surface without a second attempt.
-        exc = SaveNotVerifiedError("no")
-        exc.mismatches = ["target actions: expected goals (id → price)"]
-        once = Mock(side_effect=exc)
+        # must surface without a second attempt. Parametrized over all
+        # three guard prefixes with the exact strings _verify_saved emits.
+        for prefix in ("target actions:", "audience_tags:", "metrika_counters:"):
+            with self.subTest(prefix=prefix):
+                exc = SaveNotVerifiedError("no")
+                exc.mismatches = [f"{prefix} expected X, page shows Y"]
+                once = Mock(side_effect=exc)
+                with patch.object(browser_masters, "_update_master_once", once):
+                    with self.assertRaises(SaveNotVerifiedError):
+                        browser_masters.update_master(FakePage(), 42, goal_price=500)
+                self.assertEqual(once.call_count, 1)
+
+    def test_unannotated_error_is_never_retried(self):
+        # Fail-closed: only the real raise site annotates .mismatches, so an
+        # error without them (class default, or a future raise site that
+        # forgot) must never enter the auto-retry (cycle-review PR #882).
+        once = Mock(side_effect=SaveNotVerifiedError("no annotations"))
         with patch.object(browser_masters, "_update_master_once", once):
             with self.assertRaises(SaveNotVerifiedError):
                 browser_masters.update_master(FakePage(), 42, goal_price=500)
         self.assertEqual(once.call_count, 1)
+
+    def test_plain_session_errors_are_never_retried(self):
+        # The negative case for the except clause: a failure that is NOT a
+        # SaveNotVerifiedError (markup error, session error mid-mutation)
+        # must surface on the first attempt (cycle-review PR #882).
+        once = Mock(side_effect=BrowserSessionError("boom"))
+        with patch.object(browser_masters, "_update_master_once", once):
+            with self.assertRaises(BrowserSessionError):
+                browser_masters.update_master(FakePage(), 42, goal_price=500)
+        self.assertEqual(once.call_count, 1)
+
+    def test_retry_notice_goes_to_stderr_exactly_once(self):
+        # The re-run must be observable WITHOUT corrupting the
+        # machine-readable stdout batch payload (issue #850's
+        # print_warning_stderr standard; cycle-review PR #882).
+        first = SaveNotVerifiedError("no")
+        first.mismatches = ["goal_price: expected '500', page shows '300'"]
+        once = Mock(side_effect=[first, {"CampaignId": 42}])
+        with (
+            patch.object(browser_masters, "_update_master_once", once),
+            patch.object(browser_masters, "print_warning_stderr") as warning,
+        ):
+            browser_masters.update_master(FakePage(), 42, goal_price=500)
+        self.assertEqual(warning.call_count, 1)
+        self.assertIn("re-running", str(warning.call_args.args[0]))
+
+    def test_second_failure_says_the_auto_retry_already_ran(self):
+        # In batch output an operator cannot otherwise tell "fresh failure"
+        # from "retried once and still wrong" (cycle-review PR #882).
+        first = SaveNotVerifiedError("first")
+        first.mismatches = ["goal_price: expected '500', page shows '300'"]
+        second = SaveNotVerifiedError("second")
+        second.mismatches = first.mismatches
+        once = Mock(side_effect=[first, second])
+        with (
+            patch.object(browser_masters, "_update_master_once", once),
+            patch.object(browser_masters, "print_warning_stderr"),
+        ):
+            with self.assertRaises(SaveNotVerifiedError) as ctx:
+                browser_masters.update_master(FakePage(), 42, goal_price=500)
+        self.assertIn("already run once", str(ctx.exception))
+        self.assertEqual(ctx.exception.mismatches, first.mismatches)
 
     def test_verify_saved_survives_delayed_weekly_budget_hydration(self):
         # Issue #706: _wait_for_edit_form's poll only waits for the FIRST
@@ -23986,6 +24090,11 @@ class TestWholeFormSavePreservesSections(unittest.TestCase):
             browser_masters.update_master(page, 42, landing_url="https://a.ru/new-page")
 
         self.assertIn("metrika_counters", str(ctx.exception))
+        # Real raise-site wiring: the guard mismatch must reach exc.mismatches
+        # with the exact prefix the no-auto-retry gate matches on (this is
+        # what turns "guard fired" into "fail loudly, never re-baseline").
+        self.assertTrue(ctx.exception.mismatches)
+        self.assertTrue(ctx.exception.mismatches[0].startswith("metrika_counters:"))
 
     def test_campaign_without_target_actions_is_not_blocked(self):
         """A rendered, readable empty table is a legitimate no-goals state

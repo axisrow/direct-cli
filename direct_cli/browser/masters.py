@@ -353,7 +353,7 @@ from typing import (
 
 from . import _clock
 from .._captcha import find_captcha_marker, find_marker
-from ..output import print_warning
+from ..output import print_warning, print_warning_stderr
 from .session import (
     _LOGIN_PAGE_MARKERS,
     BrowserAuthError,
@@ -8570,7 +8570,7 @@ _SECTION_GUARD_MISMATCH_PREFIXES = (
 )
 
 
-def _section_guard_mismatch(mismatches: List[str]) -> bool:
+def _section_guard_mismatch(mismatches: Sequence[str]) -> bool:
     """Did any verification mismatch come from a section-preservation guard?
 
     Such a mismatch is never auto-retried: unlike "the requested scalar
@@ -8580,6 +8580,32 @@ def _section_guard_mismatch(mismatches: List[str]) -> bool:
     state instead of catching the loss.
     """
     return any(m.startswith(_SECTION_GUARD_MISMATCH_PREFIXES) for m in mismatches)
+
+
+#: Value-SET parameters of ``update_master`` whose re-application is
+#: idempotent — the ONLY mutations the auto-retry may re-run. Deliberately
+#: an allowlist: a future ``_update_master_once`` parameter defaults to NOT
+#: retryable (a positional/append mutation would address different rows on
+#: a second run). age_from/age_to count through their *_requested flags.
+#: headline/text slot CLEARS are index-addressed and excluded like the rest.
+_RETRYABLE_VALUE_SET_PARAMS = frozenset(
+    {
+        "weekly_budget",
+        "promotion_goal",
+        "goal_price",
+        "target_action_prices",
+        "directs_helps",
+        "name",
+        "landing_url",
+        "tracking_params",
+        "headlines",
+        "texts",
+        "gender",
+        "age_from_requested",
+        "age_to_requested",
+        "devices",
+    }
+)
 
 
 def update_master(
@@ -8632,14 +8658,16 @@ def update_master(
 
     The retry is limited to updates whose every mutation is a value-SET
     (budget, prices, name, URLs, headline/text slots, gender/age/devices…)
-    — re-applying the same value to the same field is idempotent, and a
-    whole-form save either applies everything or nothing, so a re-run can
-    only converge. Positional/append mutations are excluded — ``images``
+    — re-applying the same value to the same field converges on the same
+    result. It is an ALLOWLIST (_RETRYABLE_VALUE_SET_PARAMS), not a
+    denylist: a future ``_update_master_once`` parameter defaults to NOT
+    retryable. Positional/append mutations are excluded — ``images``
     (``_set_image`` composes remove+add and is explicitly NOT idempotent),
-    video add/remove, audience-tag/metrika-counter/sitelink and
-    target-action add/remove (each indexes into the live list, so a second
-    run would address DIFFERENT rows) — and so is ``--launch`` (a
-    no-rollback publish is never re-clicked; same reasoning that made
+    video add/remove, headline/text slot CLEARS (index-addressed like the
+    rest), audience-tag/metrika-counter/sitelink and target-action
+    add/remove (each indexes into the live list, so a second run would
+    address DIFFERENT rows) — and so is ``--launch`` (a no-rollback
+    publish is never re-clicked; same reasoning that made
     ``_click_draft_terminal_button`` drop its time-based retry, cycle-
     review PR #711). Those updates run exactly one attempt and surface the
     verification error as before.
@@ -8647,27 +8675,53 @@ def update_master(
     A failed verification is also NOT retried when a section-preservation
     guard produced the mismatch (``_section_guard_mismatch``) — there the
     save may have silently dropped a section, and a second attempt would
-    re-baseline from the mutated page and accept the loss.
+    re-baseline from the mutated page and accept the loss. The gate is
+    fail-closed: an error without mismatch lines is never retried.
 
     See ``_update_master_once`` for the per-parameter documentation and
     the save-verification contract itself.
     """
 
-    retry_safe = not (
-        launch
-        or images
-        or add_video is not None
-        or add_video_url is not None
-        or remove_videos
-        or add_audience_tags
-        or remove_audience_tags
-        or add_metrika_counters
-        or remove_metrika_counters
-        or add_sitelinks
-        or remove_sitelinks
-        or add_target_actions
-        or remove_target_action_goal_ids
-    )
+    # EVERY parameter goes into this map; the allowlist decides which of
+    # the requested ones permit a re-run. A future _update_master_once
+    # parameter MUST be added here — and unless it is also added to
+    # _RETRYABLE_VALUE_SET_PARAMS, it defaults to NOT retryable.
+    requested_mutations: Dict[str, Any] = {
+        "weekly_budget": weekly_budget,
+        "promotion_goal": promotion_goal,
+        "goal_price": goal_price,
+        "target_action_prices": target_action_prices,
+        "directs_helps": directs_helps,
+        "name": name,
+        "landing_url": landing_url,
+        "tracking_params": tracking_params,
+        "headlines": headlines,
+        "texts": texts,
+        "gender": gender,
+        "age_from_requested": age_from_requested,
+        "age_to_requested": age_to_requested,
+        "devices": devices,
+        "clear_headlines": clear_headlines,
+        "clear_texts": clear_texts,
+        "images": images,
+        "add_video": add_video,
+        "add_video_url": add_video_url,
+        "remove_videos": remove_videos,
+        "add_audience_tags": add_audience_tags,
+        "remove_audience_tags": remove_audience_tags,
+        "add_metrika_counters": add_metrika_counters,
+        "remove_metrika_counters": remove_metrika_counters,
+        "add_sitelinks": add_sitelinks,
+        "remove_sitelinks": remove_sitelinks,
+        "add_target_actions": add_target_actions,
+        "remove_target_action_goal_ids": remove_target_action_goal_ids,
+    }
+    requested = {
+        key
+        for key, value in requested_mutations.items()
+        if value is not None and value is not False
+    }
+    retry_safe = not launch and requested <= _RETRYABLE_VALUE_SET_PARAMS
 
     def _attempt() -> Dict[str, Any]:
         return _update_master_once(
@@ -8711,15 +8765,28 @@ def update_master(
     try:
         return _attempt()
     except SaveNotVerifiedError as exc:
-        if _section_guard_mismatch(exc.mismatches):
+        # Fail-closed: an error without mismatch lines (only the real
+        # raise site annotates them) is never auto-retried.
+        if not exc.mismatches or _section_guard_mismatch(exc.mismatches):
             raise
-        print_warning(
+        # stderr, not stdout (issue #850's standard): the batch path
+        # streams machine-readable JSON on stdout.
+        print_warning_stderr(
             f"Campaign {campaign_id}: the save did not verify — the re-read "
             "shows the old value. Known Yandex behavior where the first "
             "save click after editing a field applies nothing (issues "
             "#869/#870); re-running the identical update once."
         )
-        return _attempt()
+        try:
+            return _attempt()
+        except SaveNotVerifiedError as second:
+            # Tell a batch reader "still wrong after the auto-retry" apart
+            # from "fresh failure, not yet retried" (cycle-review, PR #882).
+            retried = SaveNotVerifiedError(
+                f"{second} The automatic retry has already run once."
+            )
+            retried.mismatches = second.mismatches
+            raise retried from second
 
 
 def _update_master_once(

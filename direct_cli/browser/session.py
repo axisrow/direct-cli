@@ -45,7 +45,6 @@ from typing import (
     Any,
     Dict,
     Generator,
-    List,
     Optional,
     Sequence,
     Tuple,
@@ -143,10 +142,16 @@ class SaveNotVerifiedError(BrowserSessionError):
     did not stick" (safe to re-run) apart from "a section-preservation
     guard fired" (the save may have silently dropped a section — a re-run
     would re-baseline from the already-mutated page and accept the loss).
-    Set at the raise site; the default keeps other raise sites honest.
+    The default is the IMMUTABLE empty tuple and the retry gate treats an
+    unannotated error as NOT retryable (fail-closed): only the real raise
+    site — which always has lines to attach — may opt an error into the
+    auto-retry.
     """
 
-    mismatches: List[str] = []
+    mismatches: Sequence[str] = ()
+    # `List[str]` would share one mutable list across every unannotated
+    # instance; the tuple default cannot be poisoned by an errant
+    # `exc.mismatches.append(...)` on a raise site that forgot to assign.
 
 
 class BrowserNetworkError(BrowserSessionError):
