@@ -52,6 +52,7 @@ from typing import (
 
 from . import _clock
 from .._captcha import find_captcha_marker, find_marker
+from ..output import print_warning
 
 if TYPE_CHECKING:
     from playwright.sync_api import Browser, Page
@@ -661,6 +662,61 @@ def persistent_profile_is_usable(profile_dir: Optional[Path] = None) -> bool:
     return (resolved / "Default" / "Cookies").exists()
 
 
+#: Chromium's ProcessSingleton lock trio inside a profile directory. All
+#: three are symlinks (or files, on some platforms) named with the owner's
+#: hostname-PID; ``SingletonLock`` is the one carrying the PID.
+_SINGLETON_LOCK_FILES = ("SingletonLock", "SingletonCookie", "SingletonSocket")
+
+
+def _singleton_lock_pid(profile_dir: Path) -> Optional[int]:
+    """PID of the Chromium instance holding ``profile_dir``'s lock, if readable.
+
+    Chromium's ``SingletonLock`` is a ``hostname-PID`` symlink. Absent,
+    unreadable, or unparseable locks return ``None`` — the caller treats
+    that as "unknown holder", never as "no lock".
+    """
+    try:
+        target = os.readlink(profile_dir / "SingletonLock")
+    except OSError:
+        return None
+    _, _, pid_part = target.rpartition("-")
+    try:
+        return int(pid_part)
+    except ValueError:
+        return None
+
+
+def _process_alive(pid: int) -> bool:
+    """Signal-0 liveness probe; inconclusive answers count as alive."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True  # probe unsupported / owned by another user — assume alive
+    return True
+
+
+def _clear_stale_singleton_lock(profile_dir: Path) -> bool:
+    """Remove Chromium's lock trio if the owning process is already dead.
+
+    Issue #870 п.4: the live repro was two CLI browser operations back to
+    back — the first process had exited, but its ``SingletonLock`` symlink
+    was still on disk, so the second launch died on ``SingletonLock: File
+    exists (17)``. A dead owner's PID answers ``os.kill(pid, 0)`` with
+    ``ProcessLookupError``; that lock is stale by definition and safe to
+    remove. Returns ``True`` when a stale lock was cleared, ``False`` when
+    the lock is live or its holder cannot be determined (caller must NOT
+    delete a live lock).
+    """
+    pid = _singleton_lock_pid(profile_dir)
+    if pid is None or _process_alive(pid):
+        return False
+    for name in _SINGLETON_LOCK_FILES:
+        (profile_dir / name).unlink(missing_ok=True)
+    return True
+
+
 @contextlib.contextmanager
 def _launch_persistent_context(
     sync_playwright, profile_dir: Path, *, headless: bool
@@ -702,9 +758,30 @@ def _launch_persistent_context(
 
     os.chmod(profile_dir, 0o700)
     with sync_playwright() as playwright:
-        context = playwright.chromium.launch_persistent_context(
-            str(profile_dir), headless=headless, locale="ru-RU"
-        )
+        try:
+            context = playwright.chromium.launch_persistent_context(
+                str(profile_dir), headless=headless, locale="ru-RU"
+            )
+        except PlaywrightError as exc:
+            # Issue #870 п.4: two CLI browser operations back-to-back race
+            # the profile's ProcessSingleton — the previous instance may
+            # have already exited while its hostname-PID lock symlink is
+            # still on disk. Clear a DEAD owner's lock and retry once; a
+            # LIVE holder gets a message naming it instead of a raw
+            # Playwright traceback.
+            if "ProcessSingleton" not in str(exc) and "SingletonLock" not in str(exc):
+                raise
+            if not _clear_stale_singleton_lock(profile_dir):
+                holder = _singleton_lock_pid(profile_dir)
+                raise BrowserSessionError(
+                    "The browser profile is locked by another process "
+                    f"(PID {holder if holder is not None else 'unknown'}) "
+                    "— a previous browser instance is still using it. "
+                    "Wait for that process to exit (or kill it) and retry."
+                ) from exc
+            context = playwright.chromium.launch_persistent_context(
+                str(profile_dir), headless=headless, locale="ru-RU"
+            )
         try:
             yield context
         finally:
@@ -905,46 +982,102 @@ def capture_storage_state(
 
     cookies = _chrome_crypto.load_yandex_cookies(source_root, chrome_profile)
 
-    with _launch_context(sync_playwright, headless=headless) as (_browser, context):
-        context.add_cookies(cookies)
-        if verify:
-            # Deferred import: direct_cli/browser/masters.py's GRID_URL is the
-            # single canonical source for this URL (CLAUDE.md "No URL
-            # literals outside the registry") — importing it here (rather
-            # than at module load) avoids a session.py <-> masters.py import
-            # cycle, since masters.py itself imports from session.py.
-            from .masters import GRID_URL
+    def _capture(*, headless: bool) -> Tuple[Dict[str, Any], bool]:
+        """Launch one context, inject the cookies, optionally verify.
 
-            page = context.new_page()
-            # Same retry-and-classify treatment as the login flow's
-            # navigations (issue #857): a network-layer abort here used to
-            # escape `direct playwright login` as a raw Playwright traceback,
-            # reading like a session problem when the connection was the
-            # culprit.
-            _goto_with_network_retry(page, GRID_URL)
-            # Either marker is a valid landing spot: a bad/expired cookie
-            # jar redirects the grid URL to Passport instead of rendering
-            # the grid, and `assert_authenticated` below is what turns that
-            # into the specific `BrowserAuthError` (see `_wait_for_marker`'s
-            # docstring for why a single marker would be wrong here).
-            if not _wait_for_marker(page, _DIRECT_OR_PASSPORT_PAGE_MARKERS):
-                # Fail closed: an unrendered page can contain neither the
-                # login-page nor captcha markers the checks below scan for,
-                # which would otherwise let it pass as if it were a
-                # verified, authenticated grid (issue #692 cycle-review).
-                raise BrowserAuthError(
-                    f"Timed out waiting for {GRID_URL} to render while "
-                    "verifying the session. Retry `direct playwright login`. "
-                    f"{_stale_marker_hint()}"
-                )
-            html = page.content()
-            assert_not_captcha(html)
-            assert_authenticated(html)
-        storage_state = context.storage_state()
+        Returns ``(storage_state, verified)`` — ``verified`` is False both
+        for ``verify=False`` runs and for the issue #870 render-timeout path
+        below (cookies saved, live check inconclusive).
+        """
+        with _launch_context(sync_playwright, headless=headless) as (
+            _browser,
+            context,
+        ):
+            context.add_cookies(cookies)
+            verified = False
+            if verify:
+                # Deferred import: direct_cli/browser/masters.py's GRID_URL is the
+                # single canonical source for this URL (CLAUDE.md "No URL
+                # literals outside the registry") — importing it here (rather
+                # than at module load) avoids a session.py <-> masters.py import
+                # cycle, since masters.py itself imports from session.py.
+                from .masters import GRID_URL
+
+                page = context.new_page()
+                # Same retry-and-classify treatment as the login flow's
+                # navigations (issue #857): a network-layer abort here used to
+                # escape `direct playwright login` as a raw Playwright traceback,
+                # reading like a session problem when the connection was the
+                # culprit.
+                _goto_with_network_retry(page, GRID_URL)
+                # Either marker is a valid landing spot: a bad/expired cookie
+                # jar redirects the grid URL to Passport instead of rendering
+                # the grid, and `assert_authenticated` below is what turns that
+                # into the specific `BrowserAuthError` (see `_wait_for_marker`'s
+                # docstring for why a single marker would be wrong here).
+                # Double timeout: issue #870's live repro had a session that
+                # WAS fine fail the 30s render wait in a visible window.
+                if not _wait_for_marker(
+                    page,
+                    _DIRECT_OR_PASSPORT_PAGE_MARKERS,
+                    timeout_ms=_PAGE_MARKER_TIMEOUT_MS * 2,
+                ):
+                    # Issue #870 п.3: a render timeout is NOT proof of bad
+                    # cookies — the live repro saved a working session the
+                    # CLI reported as failed. Unlike the #692 fail-closed
+                    # rationale (never CLAIM a verified session without a
+                    # rendered page), the cookies are still saved and
+                    # reported as unverified; every `direct masters` flow
+                    # re-checks auth markers on use, so a genuinely bad jar
+                    # still fails loudly downstream.
+                    print_warning(
+                        f"Timed out waiting for {GRID_URL} to render while "
+                        "verifying the session — the session was saved "
+                        "WITHOUT live verification (issue #870: a headless "
+                        "render timeout does not mean the cookies are bad). "
+                        "Run `direct playwright doctor` to inspect the "
+                        "chain; `direct masters` re-verifies on use. "
+                        f"{_stale_marker_hint()}"
+                    )
+                else:
+                    html = page.content()
+                    assert_not_captcha(html)
+                    assert_authenticated(html)
+                    verified = True
+            return context.storage_state(), verified
+
+    try:
+        storage_state, verified = _capture(headless=headless)
+    except BrowserAuthError:
+        # Issue #870 п.2: judge the cookies by expires_utc before saying
+        # anything about expiry, and give a headless run one headful retry —
+        # live repro: fresh cookies verified fine headful after headless
+        # "Chrome for Testing" was redirected to Passport by the bot
+        # challenge.
+        freshness = _chrome_crypto.any_cookie_valid_now(cookies)
+        if freshness is False:
+            raise BrowserAuthError(
+                "Yandex served its login page instead of Direct, and the "
+                "Chrome cookie database says the session cookies HAVE "
+                "expired (expires_utc in the past). Open "
+                "https://direct.yandex.ru in Chrome, log in, then run "
+                "`direct playwright login` again. `direct playwright "
+                "doctor` shows the full chain."
+            ) from None
+        if not headless:
+            raise
+        print_warning(
+            "Headless verification hit Yandex's login page although the "
+            "Chrome cookies look fresh — this is usually the bot challenge "
+            "headless 'Chrome for Testing' gets (issue #870), not expired "
+            "cookies. Retrying once with a visible window (--headful)..."
+        )
+        storage_state, verified = _capture(headless=False)
 
     source_meta = {
         "profile_dir": str(source_root),
         "chrome_profile": chrome_profile,
+        "verified": verified,
     }
     return storage_state, source_meta
 
@@ -1023,8 +1156,12 @@ def assert_authenticated(html: str) -> None:
     """
     if find_marker(html, _LOGIN_PAGE_MARKERS) is not None:
         raise BrowserAuthError(
-            "Yandex served its login page instead of Direct. Your Chrome "
-            "session cookies are expired or belong to a different "
-            "account. Open https://direct.yandex.ru in Chrome, log in, "
-            "then retry."
+            "Yandex served its login page instead of Direct. The session "
+            "cookies may be expired, may belong to a different account, "
+            "or a headless browser may have been redirected by Yandex's "
+            "bot challenge (issue #870 — this reads as a login page even "
+            "when the cookies are fresh). Run `direct playwright doctor` "
+            "to inspect the chain; if the cookies are fresh, retry "
+            "`direct playwright login --headful`. Otherwise open "
+            "https://direct.yandex.ru in Chrome, log in, then retry."
         )

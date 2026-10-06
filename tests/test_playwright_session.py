@@ -15,7 +15,10 @@ tests/test_chrome_crypto.py.
 
 import json
 import stat
+import tempfile
 import unittest
+from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -301,6 +304,136 @@ class TestDiagnosticsNeverLeakSecrets(unittest.TestCase):
             diagnostics.run_diagnostics()
 
         self.assertEqual(len(calls), 1)
+
+
+class TestSingletonLockRecovery(unittest.TestCase):
+    """Issue #870 п.4: two CLI browser operations back to back race the
+    profile's ProcessSingleton. A DEAD owner's lock trio is cleared and the
+    launch retried once; a LIVE holder is reported by PID and its lock is
+    never deleted."""
+
+    def _make_profile(self, tmp_path):
+        from direct_cli.browser import session as session_module
+
+        profile = tmp_path / "profile"
+        profile.mkdir(parents=True)
+        (profile / session_module.PROFILE_MARKER_NAME).touch()
+        return profile
+
+    def _raising_then_ok_chromium(self, profile, lock_target="host.example-4242"):
+        """First launch plants the racing lock (the "previous" process's
+        leftover) and dies on ProcessSingleton; the second succeeds."""
+        from direct_cli.browser import session as session_module
+
+        calls = []
+
+        class _Chromium:
+            def launch_persistent_context(self, user_data_dir, **kwargs):
+                calls.append(user_data_dir)
+                if len(calls) == 1:
+                    lock = Path(user_data_dir) / "SingletonLock"
+                    lock.symlink_to(lock_target)
+                    # PlaywrightError itself, not a plain Exception: the
+                    # recovery path catches exactly that class (a real
+                    # playwright install must classify this the same way).
+                    raise session_module.PlaywrightError(
+                        "BrowserType.launch_persistent_context: Failed to "
+                        "create a ProcessSingleton for your profile "
+                        "directory ... SingletonLock: File exists (17)"
+                    )
+                return Mock()
+
+        return _Chromium(), calls
+
+    def _fake_playwright(self, chromium_obj):
+        class _Playwright:
+            chromium: Any
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                return False
+
+        playwright = _Playwright()
+        playwright.chromium = chromium_obj
+        return playwright
+
+    def test_dead_owner_lock_is_cleared_and_launch_retried(self):
+        import os
+
+        from direct_cli.browser import session as session_module
+
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = self._make_profile(Path(tmp))
+            chromium, calls = self._raising_then_ok_chromium(profile)
+            playwright = self._fake_playwright(chromium)
+
+            with patch.object(session_module, "_process_alive", return_value=False):
+                with session_module._launch_persistent_context(
+                    lambda: playwright, profile, headless=True
+                ) as context:
+                    self.assertIsNotNone(context)
+
+            # Inside the tmp dir's lifetime: an assertion after cleanup
+            # would pass vacuously (the whole tree is already gone).
+            self.assertEqual(
+                len(calls),
+                2,
+                "the launch must be retried once after clearing the stale lock",
+            )
+            self.assertFalse(
+                os.path.lexists(profile / "SingletonLock"),
+                "stale lock must be removed",
+            )
+
+    def test_live_holder_is_reported_and_its_lock_kept(self):
+        import os
+
+        from direct_cli.browser import session as session_module
+
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = self._make_profile(Path(tmp))
+            # The racing predecessor's lock is planted by the fake's FIRST
+            # launch attempt (see _raising_then_ok_chromium).
+            lock = profile / "SingletonLock"
+            chromium, calls = self._raising_then_ok_chromium(profile)
+            playwright = self._fake_playwright(chromium)
+
+            with patch.object(session_module, "_process_alive", return_value=True):
+                with self.assertRaises(session_module.BrowserSessionError) as ctx:
+                    with session_module._launch_persistent_context(
+                        lambda: playwright, profile, headless=True
+                    ):
+                        pass
+
+            # Inside the tmp dir's lifetime (see the dead-owner test).
+            self.assertIn("4242", str(ctx.exception))
+            self.assertIn("locked by another process", str(ctx.exception))
+            self.assertEqual(
+                len(calls),
+                1,
+                "a live holder's lock must never be deleted for a retry",
+            )
+            # lexists, not exists: the lock is a symlink to a path that
+            # does not exist in the test filesystem, and exists() follows
+            # links.
+            self.assertTrue(os.path.lexists(lock), "a live lock must survive the error")
+
+    def test_singleton_lock_pid_parses_hostname_pid_symlinks(self):
+        from direct_cli.browser import session as session_module
+
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = self._make_profile(Path(tmp))
+            self.assertIsNone(
+                session_module._singleton_lock_pid(profile),
+                "no lock at all must read as an unknown holder, not PID 0",
+            )
+            (profile / "SingletonLock").symlink_to("myhost-123456")
+            self.assertEqual(session_module._singleton_lock_pid(profile), 123456)
+            (profile / "SingletonLock").unlink()
+            (profile / "SingletonLock").symlink_to("garbage-without-pid")
+            self.assertIsNone(session_module._singleton_lock_pid(profile))
 
 
 if __name__ == "__main__":

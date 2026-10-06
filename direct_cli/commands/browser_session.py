@@ -107,7 +107,11 @@ def login(profile_dir, chrome_profile, headful, no_verify, output_format, output
         "saved": str(saved_path),
         "cookies": len(cookies),
         "domains": domains,
-        "verified": not no_verify,
+        # Did the live check actually PASS (issue #870): False also for
+        # --no-verify runs and for the save-without-verification path the
+        # render-timeout fallback takes, so scripts can tell a verified
+        # session from a merely saved one.
+        "verified": bool(source_meta.get("verified", not no_verify)),
         "mode": status["mode"],
     }
 
