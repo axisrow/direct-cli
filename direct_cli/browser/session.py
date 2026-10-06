@@ -40,7 +40,16 @@ import contextlib
 import os
 import platform
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Generator, Optional, Sequence, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 from . import _clock
 from .._captcha import find_captcha_marker, find_marker
@@ -116,6 +125,28 @@ class BrowserAuthError(BrowserSessionError):
     no longer valid (expired, or belongs to a different account) — see
     ``assert_authenticated``.
     """
+
+
+class SaveNotVerifiedError(BrowserSessionError):
+    """Raised when a whole-form save's post-save re-read shows old values.
+
+    Distinct from a plain :class:`BrowserSessionError` so ``update_master``
+    can auto-retry exactly this failure once (issues #869/#870: Yandex's
+    first save click after editing a field can close the form WITHOUT
+    applying the change — the re-read then shows the pre-save state, and a
+    second identical run saves fine). Callers that must not retry check for
+    this class specifically; everyone else keeps catching
+    :class:`BrowserSessionError` unchanged.
+
+    ``mismatches`` carries the per-field verification lines the message was
+    built from, so the retry decision can tell "the requested scalar value
+    did not stick" (safe to re-run) apart from "a section-preservation
+    guard fired" (the save may have silently dropped a section — a re-run
+    would re-baseline from the already-mutated page and accept the loss).
+    Set at the raise site; the default keeps other raise sites honest.
+    """
+
+    mismatches: List[str] = []
 
 
 class BrowserNetworkError(BrowserSessionError):

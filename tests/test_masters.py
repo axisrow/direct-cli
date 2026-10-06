@@ -28,7 +28,7 @@ import json
 import time
 import unittest
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from unittest.mock import Mock, patch
 
 import click
@@ -42,6 +42,7 @@ from direct_cli.browser.session import (
     BrowserAuthError,
     BrowserCaptchaError,
     BrowserSessionError,
+    SaveNotVerifiedError,
 )
 from direct_cli.cli import cli
 
@@ -9214,8 +9215,29 @@ class TestUpdateMasterDraftSupport(unittest.TestCase):
         # The mismatch error text must reflect the button THIS run actually
         # clicked, not a hard-coded "Сохранить кампанию" that was never on
         # the page.
-        slot = _FakeContentEditableHandle(text="Старый заголовок")
-        slot.type = lambda value, delay=None: None  # write silently rejected
+        original_headline = "Старый заголовок"
+        last_type_nav = {"value": 0}
+
+        class _RejectedOnSaveSlot(_FakeContentEditableHandle):
+            # Since #869 the update auto-retries once, so "Yandex rejects
+            # the save" is modeled PER ATTEMPT: the slot accepts typing
+            # (the write path never errors), but a reload after a type
+            # shows the ORIGINAL text again — on every attempt.
+            def type(self, value, delay=None):  # noqa: A003 - mirrors Locator.type
+                last_type_nav["value"] = len(page.navigated_to)
+                super().type(value)
+
+            def inner_text(self, timeout=None):
+                if len(page.navigated_to) > last_type_nav["value"]:
+                    return original_headline
+                return super().inner_text(timeout)
+
+            def text_content(self):
+                if len(page.navigated_to) > last_type_nav["value"]:
+                    return original_headline
+                return super().text_content()
+
+        slot = _RejectedOnSaveSlot(text=original_headline)
         selector = (
             f"[data-testid="
             f'"{browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)}"]'
@@ -9588,6 +9610,100 @@ class TestUpdateMaster(unittest.TestCase):
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.update_master(page, 42, goal_price=500)
         self.assertIn("did not save as requested", str(ctx.exception))
+
+    def test_retries_once_when_the_first_save_does_not_apply(self):
+        # Issue #869 (live, 9/9 single updates): the first save click after
+        # editing a field can close the form WITHOUT applying the change —
+        # the post-save re-read shows the old value and the attempt fails
+        # verification — while an identical second run saves fine. The
+        # auto-retry must re-apply the mutations and click Save exactly
+        # twice, then return the second run's verified result.
+        fill_calls = []
+        price_state = {"value": "300"}
+
+        def _fill(value):
+            fill_calls.append(value)
+            if len(fill_calls) > 1:
+                price_state["value"] = value
+
+        price_handle = _FakeLocatorHandle(
+            on_fill=_fill, get_value=lambda: price_state["value"]
+        )
+        save_clicks = []
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: save_clicks.append(True)
+        )
+        edit_form_ready_selector = (
+            f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
+        )
+        page = FakePage(
+            locators={
+                browser_masters._GOAL_PRICE_INPUT_TESTID: _FakeLocator([price_handle]),
+                edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
+            },
+            role_elements=[("button", browser_masters._SAVE_BUTTON_TEXT, save_handle)],
+        )
+
+        result = browser_masters.update_master(page, 42, goal_price=500)
+
+        self.assertEqual(price_state["value"], "500")
+        self.assertEqual(result, {"CampaignId": 42, "GoalPrice": 500})
+        self.assertEqual(len(fill_calls), 2)
+        self.assertEqual(len(save_clicks), 2)
+
+    def test_retry_applies_only_to_idempotent_value_set_updates(self):
+        # The auto-retry (issues #869/#870) re-applies the whole update, so
+        # it must fire ONLY when every requested mutation is a value-SET:
+        # positional/append mutations (images, videos, tags, counters,
+        # sitelinks, target-action add/remove) would address DIFFERENT rows
+        # on a second run, and --launch is a no-rollback publish that is
+        # never re-clicked (cycle-review PR #711's reasoning).
+        cases: "List[Tuple[Dict[str, Any], bool]]" = [
+            ({}, True),
+            ({"goal_price": 500}, True),
+            ({"target_action_prices": {159614149: 300}}, True),
+            ({"launch": True}, False),
+            ({"images": {0: "/tmp/a.png"}}, False),
+            ({"add_video": "/tmp/v.mp4"}, False),
+            ({"add_video_url": "https://a.test/1.mp4"}, False),
+            ({"remove_videos": ["https://a.test/1.mp4"]}, False),
+            ({"add_audience_tags": ["tag"]}, False),
+            ({"remove_audience_tags": [0]}, False),
+            ({"add_metrika_counters": ["c • d • 1"]}, False),
+            ({"remove_metrika_counters": [0]}, False),
+            ({"add_sitelinks": [{"Title": "t", "Href": "h"}]}, False),
+            ({"remove_sitelinks": [0]}, False),
+            ({"add_target_actions": {159614149: 300}}, False),
+            ({"remove_target_action_goal_ids": [159614149]}, False),
+        ]
+        for kwargs, retryable in cases:
+            with self.subTest(kwargs=kwargs):
+                once = Mock(
+                    side_effect=[SaveNotVerifiedError("no"), {"CampaignId": 42}]
+                )
+                with patch.object(browser_masters, "_update_master_once", once):
+                    if retryable:
+                        result = browser_masters.update_master(FakePage(), 42, **kwargs)
+                        self.assertEqual(result, {"CampaignId": 42})
+                        self.assertEqual(once.call_count, 2)
+                    else:
+                        with self.assertRaises(SaveNotVerifiedError):
+                            browser_masters.update_master(FakePage(), 42, **kwargs)
+                        self.assertEqual(once.call_count, 1)
+
+    def test_section_guard_mismatch_is_not_retried(self):
+        # A section-preservation guard mismatch (#873/#876) means the save
+        # may have silently DROPPED a section; retrying would re-baseline
+        # from the already-mutated page and accept the loss (the real page
+        # behavior TestWholeFormSavePreservesSections models) — the error
+        # must surface without a second attempt.
+        exc = SaveNotVerifiedError("no")
+        exc.mismatches = ["target actions: expected goals (id → price)"]
+        once = Mock(side_effect=exc)
+        with patch.object(browser_masters, "_update_master_once", once):
+            with self.assertRaises(SaveNotVerifiedError):
+                browser_masters.update_master(FakePage(), 42, goal_price=500)
+        self.assertEqual(once.call_count, 1)
 
     def test_verify_saved_survives_delayed_weekly_budget_hydration(self):
         # Issue #706: _wait_for_edit_form's poll only waits for the FIRST
@@ -11163,14 +11279,31 @@ class TestUpdateMaster(unittest.TestCase):
         # comment).
         original_value = "https://lp.example.ru/old"
 
+        # Since #869 the update auto-retries once, so the revert must be
+        # PER-ATTEMPT: the post-save reload shows the ORIGINAL value, but a
+        # fresh form accepts editing again (clear click / typing reset the
+        # revert) — that is exactly why the second production run saves.
+        last_edit_nav = {"value": 0}
+
         class _RevertsOnReloadHandle(_FakeContentEditableHandle):
             def text_content(self):
-                if len(page.navigated_to) > 1:
+                if len(page.navigated_to) > last_edit_nav["value"]:
                     return original_value
                 return super().text_content()
 
+            def press(self, key):
+                last_edit_nav["value"] = len(page.navigated_to)
+                return super().press(key)
+
+            def type(self, value, delay=None):  # noqa: A003 - mirrors Locator.type
+                last_edit_nav["value"] = len(page.navigated_to)
+                return super().type(value)
+
+        def _note_edit():
+            last_edit_nav["value"] = len(page.navigated_to)
+
         url_handle = _RevertsOnReloadHandle(text=original_value)
-        clear_handle = _FakeLocatorHandle()
+        clear_handle = _FakeLocatorHandle(on_click=_note_edit)
         edit_form_ready_selector = (
             f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
         )
@@ -11358,7 +11491,11 @@ class TestUpdateMaster(unittest.TestCase):
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.update_master(page, 42, weekly_budget=95000)
 
-        self.assertEqual(len(save_clicks), 1)  # save WAS clicked
+        # save WAS clicked — twice since #869: the auto-retry re-runs a
+        # value-set update once, and Yandex "rejects" it here on both
+        # attempts (the fake never persists the fill), so the second
+        # attempt's verification error is what surfaces.
+        self.assertEqual(len(save_clicks), 2)
         self.assertIn("did not save as requested", str(ctx.exception))
 
     def test_raises_when_saved_directs_helps_does_not_match_requested(self):
@@ -11393,28 +11530,28 @@ class TestUpdateMaster(unittest.TestCase):
         # goal still selected -- _verify_saved must still catch this. The
         # trigger's inner_text() is modeled as two lines (static label +
         # selection), matching the live-confirmed shape.
-        trigger_texts = iter(
-            [
-                "Цель продвижения\nМаксимум переходов",
-                "Цель продвижения\nМаксимум целевых действий",
-            ]
-        )
-        # _read_until_matches (issue #706) retries the reader until it
-        # settles or times out — the fake models a real page's stable value
-        # by repeating the LAST scripted line once the iterator is
-        # exhausted, instead of raising StopIteration on a second read.
-        import contextlib
+        #
+        # Since #869 the update auto-retries once, so the rejection must be
+        # modeled PER ATTEMPT: the option click selects the requested goal
+        # (the setter's post-click check passes), the save click reverts
+        # the selection to the old goal (verify's re-read mismatches) — on
+        # every attempt, so the second attempt's error is what surfaces.
+        goal_labels = browser_masters.PROMOTION_GOAL_CHOICES
+        selected_new = {"value": False}
 
-        last_text: Dict[str, Optional[str]] = {"value": None}
-
-        def _next_trigger_text():
-            with contextlib.suppress(StopIteration):
-                last_text["value"] = next(trigger_texts)
-            return last_text["value"]
+        def _trigger_text():
+            label = (
+                goal_labels["max-clicks"]
+                if selected_new["value"]
+                else goal_labels["max-conversions"]
+            )
+            return f"Цель продвижения\n{label}"
 
         trigger = _FakeLocatorHandle(text="Цель продвижения")
-        trigger.inner_text = _next_trigger_text
-        save_handle = _FakeTextLocatorHandle(visible=True)
+        trigger.inner_text = _trigger_text
+        save_handle = _FakeTextLocatorHandle(
+            visible=True, on_click=lambda: selected_new.update(value=False)
+        )
         edit_form_ready_selector = (
             f'[data-testid="{browser_masters._EDIT_FORM_READY_TESTID}"]'
         )
@@ -11426,7 +11563,14 @@ class TestUpdateMaster(unittest.TestCase):
             locators={
                 browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger]),
                 edit_form_ready_selector: _FakeLocator([_FakeLocatorHandle()]),
-                option_selector: _FakeLocator([_FakeLocatorHandle(visible=True)]),
+                option_selector: _FakeLocator(
+                    [
+                        _FakeLocatorHandle(
+                            visible=True,
+                            on_click=lambda: selected_new.update(value=True),
+                        )
+                    ]
+                ),
             },
             role_elements=[
                 ("button", browser_masters._SAVE_BUTTON_TEXT, save_handle),
@@ -11494,10 +11638,28 @@ class TestUpdateMaster(unittest.TestCase):
         save_handle = _FakeTextLocatorHandle(
             visible=True, on_click=lambda: save_clicks.append(True)
         )
-        slot = _FakeContentEditableHandle(text=headlines_state[0])
-        # Detach the write from the shared state entirely, unlike the
-        # normal helper wiring, to simulate Yandex silently rejecting it.
-        slot.type = lambda value, delay=None: None
+        # "Yandex silently rejects the save" is modeled PER ATTEMPT since
+        # #869 (the update auto-retries once): the slot accepts typing, but
+        # a reload after a type shows the OLD value again — on every
+        # attempt, so the second attempt's verification error surfaces.
+        last_type_nav = {"value": 0}
+
+        class _RejectedOnSaveSlot(_FakeContentEditableHandle):
+            def type(self, value, delay=None):  # noqa: A003 - mirrors Locator.type
+                last_type_nav["value"] = len(page.navigated_to)
+                super().type(value)
+
+            def inner_text(self, timeout=None):
+                if len(page.navigated_to) > last_type_nav["value"]:
+                    return headlines_state[0]
+                return super().inner_text(timeout)
+
+            def text_content(self):
+                if len(page.navigated_to) > last_type_nav["value"]:
+                    return headlines_state[0]
+                return super().text_content()
+
+        slot = _RejectedOnSaveSlot(text=headlines_state[0])
         selector = (
             f"[data-testid="
             f'"{browser_masters._HEADLINES_TESTID_TEMPLATE.format(index=0)}"]'
@@ -11510,7 +11672,10 @@ class TestUpdateMaster(unittest.TestCase):
         with self.assertRaises(BrowserSessionError) as ctx:
             browser_masters.update_master(page, 42, headlines={0: "Новый заголовок"})
 
-        self.assertEqual(len(save_clicks), 1)  # save WAS clicked
+        # save WAS clicked — twice since #869: the auto-retry re-runs the
+        # slot write, the fake keeps rejecting it, and the second attempt's
+        # verification error is what surfaces.
+        self.assertEqual(len(save_clicks), 2)
         self.assertIn("did not save as requested", str(ctx.exception))
 
     def test_does_not_click_save_when_headline_slot_is_empty(self):
