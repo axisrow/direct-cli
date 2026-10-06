@@ -9809,6 +9809,23 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertIn("already run once", str(ctx.exception))
         self.assertEqual(ctx.exception.mismatches, first.mismatches)
 
+    def test_retry_attempt_other_error_keeps_first_failure_context(self):
+        # A non-verify failure from the SECOND attempt (pre-click guard,
+        # markup error) must not surface alone — the operator needs to know
+        # the first save had already failed verification (cycle-review PR
+        # #883).
+        first = SaveNotVerifiedError("first")
+        first.mismatches = ["goal_price: expected '500', page shows '300'"]
+        once = Mock(side_effect=[first, BrowserSessionError("markup changed under us")])
+        with (
+            patch.object(browser_masters, "_update_master_once", once),
+            patch.object(browser_masters, "print_warning_stderr"),
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.update_master(FakePage(), 42, goal_price=500)
+        self.assertIn("markup changed under us", str(ctx.exception))
+        self.assertIn("first attempt's save had already failed", str(ctx.exception))
+
     def test_verify_saved_survives_delayed_weekly_budget_hydration(self):
         # Issue #706: _wait_for_edit_form's poll only waits for the FIRST
         # HEADLINE slot (_EDIT_FORM_READY_TESTID) to appear — a different,

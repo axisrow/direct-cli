@@ -8785,8 +8785,24 @@ def update_master(
             retried = SaveNotVerifiedError(
                 f"{second} The automatic retry has already run once."
             )
-            retried.mismatches = second.mismatches
+            # Copy, not alias: the raise site assigns a fresh list and the
+            # class default is deliberately immutable (cycle-review PR
+            # #883, shared-mutable-state finding).
+            retried.mismatches = list(second.mismatches)
             raise retried from second
+        except BrowserSessionError as other:
+            # A non-verify failure from the SECOND attempt (pre-click guard,
+            # markup error) would otherwise surface alone, discarding the
+            # context that the first attempt's save already failed to
+            # verify (cycle-review PR #883). BrowserAuthError deliberately
+            # stays masked as a plain error here: after the first Save
+            # click the whole-op _with_session retry must NOT fire (see
+            # _update_master_once's own post-click guard).
+            raise BrowserSessionError(
+                f"{other} (the first attempt's save had already failed "
+                "verification; this error came from the automatic retry "
+                "attempt.)"
+            ) from other
 
 
 def _update_master_once(
