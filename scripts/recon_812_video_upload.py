@@ -145,6 +145,14 @@ def stage_recon(page, campaign_id: int) -> None:
         "file input present (modal closed):",
         page.locator(_VIDEOS_MODAL_FILE_INPUT_SELECTOR).count(),
     )
+    # Full testid dump of the OPEN modal: the "Выбранные видео" cards carry
+    # the remove controls, and their testids were never captured live.
+    _open_modal(page)
+    nodes = page.locator('[data-testid^="VideoSuggestionsEditor."]')
+    print(f"modal testids ({nodes.count()}):")
+    for i in range(nodes.count()):
+        print(" ", nodes.nth(i).get_attribute("data-testid"))
+    page.keyboard.press("Escape")
 
 
 def stage_upload(page, campaign_id: int, file_path: str) -> None:
@@ -271,8 +279,14 @@ def stage_remove(page, campaign_id: int, url: str) -> None:
     _goto_edit(page, campaign_id)
     print("before:", _read_video_urls(page))
     _open_modal(page)
-    # The close-button testid is keyed by the video URL itself.
-    close_testid = _VIDEOS_CLOSE_BUTTON_TESTID_TEMPLATE.format(video_url=url)
+    # Live finding 2026-10-07: the modal's "Выбранные видео" cards remove
+    # via SelectedCreativesGrid.SelectedCreative.CloseButton.{url}; the
+    # CampaignContents.CloseButton.{url} variant is the PAGE's own section
+    # behind the overlay, and its clicks are intercepted by the modal.
+    close_testid = (
+        "VideoSuggestionsEditor.SelectedCreativesGrid.SelectedCreative."
+        f"CloseButton.{url}"
+    )
     print(f"clicking close button {close_testid}")
     page.locator(f'[data-testid="{close_testid}"]').first.click()
     page.locator(_VIDEOS_MODAL_SAVE_SELECTOR).first.click()
