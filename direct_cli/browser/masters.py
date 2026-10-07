@@ -990,6 +990,20 @@ _VIDEOS_OPEN_MODAL_SELECTOR = '[data-testid="VideoSuggestionsEditor.Open"]'
 _VIDEOS_CLOSE_BUTTON_TESTID_TEMPLATE = (
     "VideoSuggestionsEditor.CampaignContents.CloseButton.{video_url}"
 )
+# The modal's "Выбранные видео" grid (confirmed live 2026-10-07, campaign
+# 715126944, DRAFT): each selected video renders
+# ``SelectedCreativesGrid.SelectedCreative.<url>`` plus nested
+# ``.Content/.VideoElement/.PlayButton`` and a sibling
+# ``SelectedCreative.CloseButton.<url>``. This grid is the live source of
+# truth INSIDE the modal: the same day's recon found that on a DRAFT
+# campaign the page-level CampaignContents cards never render at all
+# (0 at t+25s with the modal never opened, while the campaign had a video),
+# so every "what does this campaign currently have" read on a DRAFT must go
+# through this grid (see ``_read_videos_with_modal_fallback``).
+_VIDEOS_MODAL_GRID_TESTID_PREFIX = (
+    "VideoSuggestionsEditor.SelectedCreativesGrid.SelectedCreative."
+)
+_VIDEOS_MODAL_CANCEL_SELECTOR = '[data-testid="VideoSuggestionsEditor.Cancel"]'
 # UI copy next to the section reads "Максимум 2 видео" — an upper bound
 # stated in the page's own text, NOT live-verified by actually attempting a
 # 3rd upload. Mirrors ``_HEADLINES_SLOT_COUNT``/``_TEXTS_SLOT_COUNT`` in
@@ -1032,7 +1046,10 @@ _VIDEOS_MODAL_SAVE_SELECTOR = '[data-testid="VideoSuggestionsEditor.Save"]'
 # session — see the module's Этап D docstring for why).
 _VIDEO_UPLOAD_SUFFIXES = frozenset({".mp4", ".webm", ".mov", ".flv", ".avi"})
 _VIDEO_MODAL_OPEN_TIMEOUT_MS = 10_000
-_VIDEO_UPLOAD_TIMEOUT_MS = 60_000
+# Live 2026-10-07 (#812): a 16MB upload's modal Save stayed disabled for
+# minutes of server-side transcoding before enabling — 60s produced a false
+# "did not settle" on a healthy upload.
+_VIDEO_UPLOAD_TIMEOUT_MS = 300_000
 #
 # CONFIRMED LIVE 2026-08-26 (issue #812, campaign 713234191, SUSPENDED
 # throwaway — the modal's "Ваши кампании" tab was opened, one previously-
@@ -9353,7 +9370,7 @@ def update_master(
     if add_video is not None or add_video_url is not None or remove_videos:
         _wait_for_videos_editor(page)
     videos_before_urls = (
-        _read_videos(page)
+        _read_videos_with_modal_fallback(page)
         if (add_video is not None or add_video_url is not None or remove_videos)
         else []
     )
@@ -11941,6 +11958,48 @@ def _read_videos(page: "Page") -> List[str]:
     ]
 
 
+def _read_modal_selected_urls(page: "Page") -> List[str]:
+    """Read the video manager modal's "Выбранные видео" grid as URLs.
+
+    Confirmed live 2026-10-07 (campaign 715126944, DRAFT): each selected
+    video renders ``SelectedCreativesGrid.SelectedCreative.<url>`` plus
+    nested ``.Content/.VideoElement/.PlayButton`` and a sibling
+    ``SelectedCreative.CloseButton.<url>`` — only the bare ``<url>``
+    entries count (same skip-the-nested-suffixes rule as ``_read_videos``,
+    but the nested names live at the START of the testid suffix here).
+    """
+    suffixes = _read_testid_suffixes(page, _VIDEOS_MODAL_GRID_TESTID_PREFIX)
+    return [
+        suffix
+        for suffix in suffixes
+        if not suffix.startswith(
+            ("Content.", "VideoElement.", "PlayButton.", "CloseButton.")
+        )
+    ]
+
+
+def _read_videos_with_modal_fallback(page: "Page") -> List[str]:
+    """Read the campaign's current video set, resolving ambiguity via modal.
+
+    Live finding 2026-10-07 (campaign 715126944, DRAFT): the page-level
+    ``CampaignContents`` cards NEVER render on a DRAFT campaign's edit page
+    (0 at t+25s with the modal never opened, while the campaign had a
+    video) — the set is only visible in the modal's grid. An empty
+    page-level read is therefore ambiguous, and this reader resolves it by
+    opening the modal, reading ``_read_modal_selected_urls``, and closing
+    it with Cancel (confirmed live 2026-08-07 to close with no mutation).
+    """
+    page_urls = _read_videos(page)
+    if page_urls:
+        return page_urls
+    _open_videos_modal(page)
+    try:
+        return _read_modal_selected_urls(page)
+    finally:
+        with contextlib.suppress(PlaywrightError):
+            page.locator(_VIDEOS_MODAL_CANCEL_SELECTOR).first.click()
+
+
 def _open_videos_modal(page: "Page") -> None:
     """Click the video section's "Open" button and wait for the video
     manager modal to render.
@@ -12035,7 +12094,7 @@ def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
     has been observed live.
     """
     _wait_for_videos_editor(page)
-    before_urls = _read_videos(page)
+    before_urls = _read_videos_with_modal_fallback(page)
 
     if len(before_urls) >= _VIDEOS_SLOT_COUNT:
         raise BrowserSessionError(
@@ -12061,6 +12120,8 @@ def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
         )
     )
 
+    modal_before = _read_modal_selected_urls(page)
+
     try:
         page.locator(_VIDEOS_MODAL_FILE_INPUT_SELECTOR).first.set_input_files(path)
     except PlaywrightError as exc:
@@ -12070,19 +12131,32 @@ def _add_video(page: "Page", path: str, *, prior_removals: int = 0) -> None:
             f"--headful to inspect the page. {no_change_note}"
         ) from exc
 
-    if not _poll_until(
-        page,
-        lambda: len(_read_videos(page)) > len(before_urls),
-        _VIDEO_UPLOAD_TIMEOUT_MS,
-    ):
+    # LIVE-VERIFIED 2026-10-07 (campaign 715126944, DRAFT, issue #812): the
+    # upload lands as a NEW card in the modal's SelectedCreativesGrid — NOT
+    # in the page-level list (on a DRAFT that list never renders), and the
+    # modal Save stays disabled=true for the whole server-side transcode
+    # (minutes for a 16MB file) while aria-disabled is NOT set. Ready =
+    # a card whose URL was not in the grid before this upload AND an
+    # enabled Save. (The page's "Выбрать файлы" file-chooser path was also
+    # exercised live and reaches the same grid; the hidden-input path is
+    # what this module already drives, so it stays.)
+    def _landed() -> bool:
+        new_cards = [
+            url for url in _read_modal_selected_urls(page) if url not in modal_before
+        ]
+        if not new_cards:
+            return False
+        return not page.locator(_VIDEOS_MODAL_SAVE_SELECTOR).first.is_disabled()
+
+    if not _poll_until(page, _landed, _VIDEO_UPLOAD_TIMEOUT_MS):
         raise BrowserSessionError(
-            f"Uploaded {path!r} inside the video manager modal, but no new "
-            f"video appeared within {_VIDEO_UPLOAD_TIMEOUT_MS / 1000:.0f}s "
-            "in the page-level video list this command polls — Yandex's "
-            "asynchronous processing may have failed or be unusually "
-            "slow, or (NOT LIVE-VERIFIED) the uploaded video may only be "
-            "staged inside the modal and never promoted to that list "
-            "until Save, in which case this poll can never succeed. "
+            f"Uploaded {path!r} inside the video manager modal, but within "
+            f"{_VIDEO_UPLOAD_TIMEOUT_MS / 1000:.0f}s no new card appeared in "
+            "the modal's 'Выбранные видео' grid with an enabled Save — "
+            "Yandex's transcode may have failed, or the modal may be "
+            "showing 'Выбрано больше 2 видео' from a prior "
+            "partially-committed run (check the campaign's video set "
+            "manually). "
             f"{no_change_note}"
         )
 
@@ -12164,7 +12238,7 @@ def _add_video_from_library(
     misreport an unchanged set as a save failure).
     """
     _wait_for_videos_editor(page)
-    before_urls = _read_videos(page)
+    before_urls = _read_videos_with_modal_fallback(page)
 
     if video_url in before_urls:
         return False
@@ -12252,53 +12326,77 @@ def _add_video_from_library(
 
 
 def _remove_video(page: "Page", video_url: str) -> None:
-    """Remove one video by its URL, directly on the edit page — NO modal.
+    """Remove one video by its URL, via the video manager modal.
 
-    Confirmed live 2026-08-06 (recon dump, campaign 713277109): the close
-    button (``VideoSuggestionsEditor.CampaignContents.CloseButton.
-    <video_url>``) is present OUTSIDE the modal, on the edit page itself,
-    unlike images where removal only happens inside
-    ``ImageSuggestionsEditorModal``. This is the one part of the video
-    surface simpler than images as a direct consequence of that recon
-    finding.
-
-    NOT LIVE-VERIFIED: the click itself, and whether it actually removes
-    the video (as opposed to, say, opening a confirmation dialog first, or
-    doing nothing until some other action commits it) — the recon only
-    enumerated testids present in the DOM, it never clicked anything video-
-    related. This function assumes a direct click removes the video
-    immediately, mirroring the confirmed-live click-and-poll shape used
-    throughout this module (e.g. ``_clear_repeating_value``), but that
-    assumption itself is unverified for this specific button.
+    LIVE-VERIFIED 2026-10-07 (campaign 715126944, DRAFT, issue #812): the
+    removal happens INSIDE the modal — the card's
+    ``SelectedCreativesGrid.SelectedCreative.CloseButton.<video_url>``
+    click unselects it, the modal's Save commits the choice, and the
+    removal survives a page reload. The page-level
+    ``CampaignContents.CloseButton.<video_url>`` variant (recon 2026-08-06)
+    sits BEHIND the modal's overlay while the modal is open — clicks on it
+    are intercepted (live: "subtree intercepts pointer events") — and on a
+    DRAFT campaign that section never renders at all (see
+    ``_read_videos_with_modal_fallback``). This replaces the earlier
+    click-the-page-button assumption (NOT LIVE-VERIFIED then) wholesale.
     """
+    _wait_for_videos_editor(page)
+    before_urls = _read_videos_with_modal_fallback(page)
+    if video_url not in before_urls:
+        raise BrowserSessionError(
+            f"Video {video_url!r} is not in the campaign's current video "
+            f"set ({', '.join(before_urls) if before_urls else 'empty'}) — "
+            "nothing to remove. Check `masters targetactions get`-style "
+            "reads or the campaign's video section for the actual URLs."
+        )
+
+    _open_videos_modal(page)
+
     close_selector = (
-        f'[data-testid="'
-        f"{_VIDEOS_CLOSE_BUTTON_TESTID_TEMPLATE.format(video_url=video_url)}"
-        f'"]'
+        f'[data-testid="{_VIDEOS_MODAL_GRID_TESTID_PREFIX}CloseButton.{video_url}"]'
     )
     try:
         page.locator(close_selector).first.click()
     except PlaywrightError as exc:
         raise BrowserSessionError(
-            f"Could not find/click the close button for video {video_url!r} "
-            "— it may already have been removed, or Yandex may have "
-            "changed the page's markup. Re-run with --headful to inspect "
-            "the page."
+            f"Could not find/click the modal's remove button for video "
+            f"{video_url!r} — it may already have been deselected, or "
+            "Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page."
+        ) from exc
+
+    if not _poll_until(
+        page,
+        lambda: video_url not in _read_modal_selected_urls(page),
+        _VIDEO_MODAL_OPEN_TIMEOUT_MS,
+    ):
+        raise BrowserSessionError(
+            f"Clicked the modal's remove button for video {video_url!r}, "
+            f"but the card is still in the modal's grid after "
+            f"{_VIDEO_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s. The modal was "
+            "NOT saved — the campaign's video set is unchanged."
+        )
+
+    try:
+        page.locator(_VIDEOS_MODAL_SAVE_SELECTOR).first.click()
+    except PlaywrightError as exc:
+        raise BrowserSessionError(
+            "Could not find/click the video manager modal's Save button — "
+            "Yandex may have changed the page's markup. Re-run with "
+            "--headful to inspect the page."
         ) from exc
 
     if _poll_until(
         page,
-        lambda: video_url not in _read_videos(page),
+        lambda: page.locator(_VIDEOS_MODAL_SELECTOR).first.count() == 0,
         _VIDEO_MODAL_OPEN_TIMEOUT_MS,
     ):
         return
 
     raise BrowserSessionError(
-        f"Clicked the close button for video {video_url!r}, but it is "
-        f"still shown on the page after "
-        f"{_VIDEO_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s. Yandex may have "
-        "rejected the removal, or this command's assumption that the "
-        "click removes it immediately (NOT LIVE-VERIFIED) may be wrong."
+        "Clicked the video manager modal's Save button but it did not "
+        f"close within {_VIDEO_MODAL_OPEN_TIMEOUT_MS / 1000:.0f}s — the "
+        "commit may not have completed. Verify manually before retrying."
     )
 
 
@@ -12325,7 +12423,7 @@ def _verify_video_mismatches(
         return []
 
     _wait_for_videos_editor(page)
-    actual_urls = _read_videos(page)
+    actual_urls = _read_videos_with_modal_fallback(page)
 
     mismatches = []
     still_present = [url for url in removed_urls if url in actual_urls]
