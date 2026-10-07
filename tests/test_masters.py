@@ -13155,6 +13155,31 @@ class TestMastersUpdateCommand(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("unsupported extension", result.output.lower())
 
+    def test_rejects_a_quicktime_file_wearing_the_mp4_extension(self):
+        """Live finding 2026-10-07 (#812): a QuickTime (.mov) payload saved
+        as `.mp4` sails past the suffix check, the browser uploads it with
+        MIME video/mp4 (browsers derive the MIME from the extension), and
+        Yandex's uploader silently never accepts it — the modal Save stayed
+        disabled for 10+ minutes with no error shown. Fail fast here
+        instead: sniff the ISO BMFF `ftyp` major brand and reject the
+        mismatch with a rename hint."""
+        import tempfile
+
+        import click
+
+        from direct_cli.commands.masters import _validate_video_path
+
+        with tempfile.NamedTemporaryFile(suffix=".mp4") as f:
+            f.write(b"\x00\x00\x00\x18ftypqt  \x20\x20\x00\x00")
+            f.flush()
+            with self.assertRaises(click.UsageError) as ctx:
+                _validate_video_path(f.name)
+
+        message = str(ctx.exception)
+        self.assertIn("QuickTime", message)
+        self.assertIn(".mov", message)
+        self.assertIn(".mp4", message)
+
     def test_video_format_errors_do_not_open_a_browser_session(self):
         with patch("direct_cli.commands.masters._with_session") as mock_with_session:
             result = self.runner.invoke(

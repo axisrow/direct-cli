@@ -82,6 +82,13 @@ include = ["direct_cli*"]
 direct_cli = ["translations/*.json"]
 
 [tool.black]
+
+[tool.mutmut]
+# Whole-file mutation of the largest module is slow (25k lines); scope
+# further runs with `mutmut run <mutant-name-filter>` once the baseline is
+# collected. See /fix run 2026-10-07: baseline not collected yet.
+paths_to_mutate = ["direct_cli/commands/masters.py"]
+tests_dir = "tests/"
 line-length = 88
 target-version = ['py310']
 include = '\.pyi?$'

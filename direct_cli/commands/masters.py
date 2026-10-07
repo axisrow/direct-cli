@@ -2088,6 +2088,32 @@ def _validate_video_path(raw_path: str) -> None:
             "comment), so a genuinely valid video file may still be "
             "rejected here."
         )
+    _reject_container_extension_mismatch(path)
+
+
+def _reject_container_extension_mismatch(path: "Path") -> None:
+    """Reject a QuickTime file wearing a non-.mov extension (live finding
+    #812, 2026-10-07): browsers derive the upload MIME from the EXTENSION,
+    so `x.mp4` holding a QuickTime payload is sent as video/mp4 — and
+    Yandex's uploader silently never accepts it (the modal Save stayed
+    disabled for 10+ minutes, no error). Sniff the ISO BMFF `ftyp` major
+    brand (bytes 4-12) and fail fast with a rename hint instead; a file
+    shorter than the box header is left alone for the API to judge."""
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(12)
+    except OSError:
+        return
+    if len(head) < 12 or head[4:8] != b"ftyp":
+        return
+    if head[8:12].startswith(b"qt") and path.suffix.lower() not in (".mov", ".qt"):
+        raise click.UsageError(
+            f"--add-video path {str(path)!r} is a QuickTime "
+            "container (ftyp brand 'qt') wearing the "
+            f"{path.suffix!r} extension. Browsers upload it with the "
+            f"{path.suffix!r} MIME type and Yandex's uploader silently "
+            "rejects that — rename the file to .mov and retry."
+        )
 
 
 def _reject_add_video_and_add_video_url_together(add_video, add_video_url):
