@@ -7003,10 +7003,14 @@ def _parse_target_action_price(raw: str) -> Optional[float]:
         return None
 
 
-def _target_action_price_matches(expected: float, actual: Optional[float]) -> bool:
+def _target_action_price_matches(
+    expected: Optional[float], actual: Optional[float]
+) -> bool:
     """Compare a requested ``--target-action-price`` against the page's
-    re-read value, mirroring ``_goal_price_matches``."""
-    return actual is not None and actual == expected
+    re-read value, mirroring ``_goal_price_matches``. ``None`` on either
+    side compares literally (a baseline row with no price only matches a
+    page row with no price)."""
+    return actual == expected
 
 
 def _format_goal_price(goal_price: float) -> str:
@@ -7289,8 +7293,13 @@ def _assert_preserved_sections_before_save(
     remove_metrika_counter_indices: Optional[List[int]],
     target_actions_unchanged_expected: Optional[Dict[int, Optional[float]]],
     target_actions_preservation_requested: bool,
+    add_target_actions: Optional[Dict[int, float]],
+    remove_target_action_goal_ids: Optional[List[int]],
+    target_action_goal_ids_before: Optional[List[int]],
+    target_action_prices_before: Optional[Dict[int, Optional[float]]],
+    target_action_prices: Optional[Dict[int, float]],
 ) -> None:
-    """Abort before Save if URL/UTM hydration changed a protected section.
+    """Abort before Save if a re-render changed a protected section.
 
     Post-save verification is still required for server-side persistence,
     but it is too late to prevent issue #836's whole-form data loss. This
@@ -7300,7 +7309,7 @@ def _assert_preserved_sections_before_save(
     if metrika_preservation_requested:
         if metrika_counters_before is None:
             raise BrowserSessionError(
-                "Refusing to save the URL/UTM update: no readable pre-save "
+                "Refusing to save the update: no readable pre-save "
                 "Metrika-counter baseline is available."
             )
         expected_counters = Counter(
@@ -7322,27 +7331,115 @@ def _assert_preserved_sections_before_save(
         if actual_counter_ids != expected_counters:
             shown = sorted(actual_counters) if actual_counters is not None else None
             raise BrowserSessionError(
-                "Refusing to save the URL/UTM update because the current "
+                "Refusing to save the update because the current "
                 "Metrika counters no longer match their protected pre-save "
                 f"state: expected ids {sorted(expected_counters.elements())!r}, "
                 f"page now shows {shown!r}. No Save button was clicked."
             )
 
     if target_actions_preservation_requested:
-        # Only the unchanged-table path sets this flag today (add/remove
-        # calls re-enter this guard with #877). Compared as a whole
-        # ``{GoalId: Price}`` map — issue #876: the save resubmits every
-        # goal's CPA, so a shifted price must block the click too.
+        if add_target_actions or remove_target_action_goal_ids:
+            # Issue #877: the add/remove path keeps the pre-click guard
+            # too. Its baseline is the #756 certified two-read snapshot
+            # taken before the mutations — deliberately the SAME read, so
+            # no extra pre-read here competes with that certification (the
+            # click-time settled read costs seconds worst-case; no cheaper
+            # implementation preserves the guard semantics).
+            #
+            # A certified removal compares the FULL {GoalId: Price} state
+            # (cycle-review PR #883): #876's "a shifted price must block
+            # the click" applies to kept rows here too — the certified
+            # baseline carries prices, so dropping them would let a
+            # re-render-shifted CPA pass into the irreversible save. A
+            # pure add has no equivalent baseline to certify survivors
+            # against (same limitation as its post-save verifier), so its
+            # check stays positive-going: every added goal must be present
+            # at click time.
+            dipped_baseline = (
+                remove_target_action_goal_ids and target_action_goal_ids_before is None
+            )
+            if dipped_baseline and not add_target_actions:
+                # Dipped/uncertified baseline: #756 deliberately lets the
+                # save proceed on the weaker streak-only verification (its
+                # degradation is print_warning'd, not a failure), so the
+                # removal's exact pre-click check is impossible without a
+                # baseline — refusing here would turn that documented
+                # degradation into a hard failure. The post-save verifier
+                # still runs.
+                return
+
+            rows = _read_confirmed_target_actions(page)
+            actual_goal_ids = None if rows is None else {row["GoalId"] for row in rows}
+
+            if remove_target_action_goal_ids and not dipped_baseline:
+                expected_goal_ids = (
+                    set(target_action_goal_ids_before or [])
+                    - set(remove_target_action_goal_ids or [])
+                ) | set(add_target_actions or {})
+                # Expected {GoalId: Price} state: the certified baseline's
+                # prices, minus the removals, overlaid with every price
+                # this call itself sets (kept-row reprice + adds).
+                expected_prices: Dict[int, Optional[float]] = {
+                    **(target_action_prices_before or {}),
+                    **(target_action_prices or {}),
+                    **(add_target_actions or {}),
+                }
+                for goal_id in remove_target_action_goal_ids or []:
+                    expected_prices.pop(goal_id, None)
+                actual_prices = None if rows is None else _target_action_price_map(rows)
+                guard_ok = (
+                    actual_goal_ids is not None
+                    and actual_goal_ids == expected_goal_ids
+                    and actual_prices is not None
+                    and set(actual_prices) == set(expected_prices)
+                    and all(
+                        _target_action_price_matches(price, actual_prices.get(goal_id))
+                        for goal_id, price in expected_prices.items()
+                    )
+                )
+                if not guard_ok:
+                    raise BrowserSessionError(
+                        "Refusing to save the update because the current "
+                        "target-action goals (id → price) no longer match "
+                        "their protected pre-save state: expected "
+                        f"{expected_prices!r}, page now shows "
+                        f"{actual_prices!r}. No Save button was clicked."
+                    )
+
+            if add_target_actions:
+                if rows is None:
+                    raise BrowserSessionError(
+                        "Refusing to save the update: could not read the "
+                        "'Целевые действия' table before the save — unable "
+                        "to confirm the added goals are present. No Save "
+                        "button was clicked."
+                    )
+                page_goal_ids = {row["GoalId"] for row in rows}
+                added_missing = set(add_target_actions or {}) - page_goal_ids
+                if added_missing:
+                    raise BrowserSessionError(
+                        "Refusing to save the update because the added "
+                        "target-action goals "
+                        f"{sorted(added_missing)!r} are no longer present "
+                        "in the 'Целевые действия' table before the save: "
+                        f"page now shows {sorted(page_goal_ids)!r}. "
+                        "No Save button was clicked."
+                    )
+            return
+
+        # Unchanged-table path: compared as a whole ``{GoalId: Price}`` map
+        # — issue #876: the save resubmits every goal's CPA, so a shifted
+        # price must block the click too.
         if target_actions_unchanged_expected is None:
             raise BrowserSessionError(
-                "Refusing to save the URL/UTM update: no readable pre-save "
+                "Refusing to save the update: no readable pre-save "
                 "target-action baseline is available."
             )
         rows = _read_confirmed_target_actions(page)
         actual = None if rows is None else _target_action_price_map(rows)
         if actual != target_actions_unchanged_expected:
             raise BrowserSessionError(
-                "Refusing to save the URL/UTM update because the current "
+                "Refusing to save the update because the current "
                 "target-action goals (id → price) no longer match their "
                 "protected pre-save state: expected "
                 f"{target_actions_unchanged_expected!r}, page now shows "
@@ -8587,6 +8684,12 @@ _SECTION_GUARD_MISMATCH_PREFIXES = (
     "target actions:",
     "audience_tags:",
     "metrika_counters:",
+    # Not reachable from the retry gate today: the sitelinks baseline is
+    # only read when sitelinks add/remove was requested, and those kwargs
+    # are retry-excluded. Listed anyway so a future always-on preservation
+    # check fails closed instead of being silently re-baselined
+    # (cycle-review PR #883; see also issue #888).
+    "sitelinks:",
 )
 
 
@@ -9204,6 +9307,10 @@ def _update_master_once(
     target_actions_unchanged_requested = False
     target_actions_preservation_requested = False
     target_action_goal_ids_before: Optional[List[int]] = None
+    # Certified WITH the ids (same two-read snapshot): the pre-click guard
+    # compares the full {GoalId: Price} state on a certified removal
+    # (cycle-review PR #883).
+    target_action_prices_before: Optional[Dict[int, Optional[float]]] = None
     section_present = _metrika_counters_section_present(page)
     counters_at_load: Optional[List[str]] = None
     if section_present:
@@ -9222,17 +9329,24 @@ def _update_master_once(
         metrika_counters_before = counters_at_load
         metrika_preservation_requested = True
 
-    if _preserve_target_actions and not (
+    if _preserve_target_actions and (
         add_target_actions or remove_target_action_goal_ids
     ):
+        # Issue #877: the add/remove path keeps the pre-click guard too
+        # (#873 had restricted the flag to unchanged-table saves, leaving
+        # add/remove with only the post-save check — too late to prevent
+        # the irreversible save). Flag only: the guard's baseline is the
+        # #756 certified two-read snapshot taken further below, so no
+        # extra pre-read here that would race that certification's
+        # acquisitions.
+        target_actions_preservation_requested = True
+    elif _preserve_target_actions:
         # An unchanged-table save has no other verification for this section
         # (#872: that gap is what let a budget save wipe the goals), so it
         # reads a settled baseline here: unreadable on a rendered section →
-        # abort before Save. An add/remove call is different — it MUTATES
-        # the table and verifies the requested final set after the save
-        # (#717/#750), deriving its expected set from the certified
-        # two-read snapshot taken further below (issue #756); a pre-read
-        # here would only race that certification's acquisitions.
+        # abort before Save. Add/remove calls take the branch above — they
+        # MUTATE the table and re-check the certified baseline in the
+        # guard itself (issue #877).
         target_actions_at_load = _read_confirmed_target_actions(page)
         if target_actions_at_load is None:
             if _target_actions_section_present(page):
@@ -9361,6 +9475,14 @@ def _update_master_once(
                     _ids_confirm = {row["GoalId"] for row in _rows_confirm}
                     if _ids_confirm == set(_ids_before):
                         target_action_goal_ids_before = _ids_before
+                        # Prices ride along with the certified snapshot so
+                        # the pre-click guard can compare the FULL
+                        # {GoalId: Price} state, not just ids (cycle-review
+                        # PR #883 — a re-render-shifted CPA must block the
+                        # click, per #876's own rationale).
+                        target_action_prices_before = _target_action_price_map(
+                            _rows_before
+                        )
     # Metrika counters are applied BEFORE target actions, not after (issue
     # #844). The "Добавить" popup only lists goals belonging to a counter
     # that is ALREADY linked, so running the counter block later — as this
@@ -9697,6 +9819,11 @@ def _update_master_once(
             target_actions_preservation_requested=(
                 target_actions_preservation_requested
             ),
+            add_target_actions=add_target_actions,
+            remove_target_action_goal_ids=remove_target_action_goal_ids,
+            target_action_goal_ids_before=target_action_goal_ids_before,
+            target_action_prices_before=target_action_prices_before,
+            target_action_prices=target_action_prices,
         )
 
     _click_save(
