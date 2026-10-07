@@ -14,6 +14,7 @@ import hashlib
 import sqlite3
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -276,6 +277,43 @@ class TestMappingHelpers(unittest.TestCase):
         self.assertEqual(_chrome_crypto.samesite_to_playwright(1), "Lax")
         self.assertEqual(_chrome_crypto.samesite_to_playwright(2), "Strict")
         self.assertEqual(_chrome_crypto.samesite_to_playwright(99), "Lax")
+
+    def test_any_cookie_valid_now_true_for_a_future_expiry(self):
+        # Issue #870 п.2: the auth-failure path must judge cookies by
+        # expires_utc before claiming they "are expired" — this is that
+        # judge.
+        cookies = [{"expires": time.time() + 3600}]
+        self.assertTrue(_chrome_crypto.any_cookie_valid_now(cookies))
+
+    def test_any_cookie_valid_now_false_when_all_dated_expired(self):
+        cookies = [{"expires": time.time() - 3600}]
+        self.assertFalse(_chrome_crypto.any_cookie_valid_now(cookies))
+
+    def test_any_cookie_valid_now_none_for_a_session_only_jar(self):
+        # -1 = session cookie: nothing dated, nothing to judge.
+        self.assertIsNone(_chrome_crypto.any_cookie_valid_now([{"expires": -1}]))
+        self.assertIsNone(_chrome_crypto.any_cookie_valid_now([]))
+
+    def test_any_cookie_valid_now_expired_among_session_cookies_is_false(self):
+        cookies = [{"expires": -1}, {"expires": time.time() - 10}]
+        self.assertFalse(_chrome_crypto.any_cookie_valid_now(cookies))
+
+    def test_any_cookie_valid_now_edge_shapes(self):
+        """A dict missing "expires" entirely (the shape `_patch_decrypt`-style
+        fixtures and some Playwright producers emit) is not dated; a future
+        expiry among session-only cookies counts as valid."""
+        self.assertIsNone(_chrome_crypto.any_cookie_valid_now([{"name": "x"}]))
+        self.assertTrue(
+            _chrome_crypto.any_cookie_valid_now(
+                [{"expires": -1}, {"expires": time.time() + 10}]
+            )
+        )
+
+    def test_any_cookie_valid_now_null_expires_is_not_a_type_error(self):
+        """A Playwright-shaped dict may carry "expires": None — on this
+        Chrome-sqlite trust boundary that must count as "no expiry to
+        judge", not blow up inside the auth-failure handler."""
+        self.assertIsNone(_chrome_crypto.any_cookie_valid_now([{"expires": None}]))
 
     def test_row_to_cookie_uses_real_bool_types(self):
         key = _chrome_crypto.derive_key("pw", iterations=1)

@@ -481,7 +481,12 @@ def _stdin_is_interactive() -> bool:
     show_default=True,
     help="Seconds to wait for manual login to complete",
 )
-def login(profile_dir, timeout_seconds):
+@click.option(
+    "--allow-no-tty",
+    is_flag=True,
+    help="Open the login window even without an interactive terminal",
+)
+def login(profile_dir, timeout_seconds, allow_no_tty):
     """Log in once via a visible browser window, saved for future `masters` calls
 
     Opens Yandex Passport in a persistent Chromium profile owned by the CLI
@@ -492,16 +497,20 @@ def login(profile_dir, timeout_seconds):
     automatically (see the module docstring's tier 1.5).
 
     Requires a terminal: if run from CI or a script it fails immediately
-    rather than blocking on a browser window nobody can see.
+    rather than blocking on a browser window nobody can see (--allow-no-tty
+    overrides this, issue #870: e.g. the window IS visible on the user's
+    desktop even when the command itself runs from a script).
     """
     # The command's whole purpose is to wait for a human. Without a TTY there
-    # is nobody to log in, so blocking for the full --timeout on an invisible
-    # window is never useful (issue #635, Риски -> Интерактивность).
-    if not _stdin_is_interactive():
+    # is usually nobody to log in, so blocking for the full --timeout on an
+    # invisible window is never useful by default (issue #635, Риски ->
+    # Интерактивность) — but #870's live case (the window IS on the user's
+    # screen, only stdin is redirected) gets an explicit override.
+    if not _stdin_is_interactive() and not allow_no_tty:
         raise click.ClickException(
             "`direct masters login` needs an interactive terminal — it opens a "
             "browser window and waits for you to log in by hand. Run it from a "
-            "terminal, not from CI or a script."
+            "terminal, not from CI or a script (override: --allow-no-tty)."
         )
 
     try:

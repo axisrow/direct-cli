@@ -34,6 +34,7 @@ import shutil
 import sqlite3
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -307,6 +308,40 @@ def chrome_epoch_to_unix(expires_utc: int) -> float:
     if unix_seconds <= 0:
         return -1.0
     return unix_seconds
+
+
+def any_cookie_valid_now(cookies: List[Dict[str, Any]]) -> Optional[bool]:
+    """Are any of these cookies still dated in the future?
+
+    Issue #870: ``playwright login``'s auth failure must not claim the
+    cookies "are expired" without consulting ``expires_utc`` — this is that
+    consultation. Takes Playwright-shaped cookie dicts (``expires`` in Unix
+    seconds, ``-1`` = session cookie, no expiry to judge).
+
+    Returns ``True`` if at least one dated cookie expires after now,
+    ``False`` if every dated cookie has already expired (an honest
+    "expired"), ``None`` when nothing carries an expiry at all (inconclusive
+    — session-only jars say nothing either way).
+
+    The wall clock here is calendar-time semantics, not a poll deadline —
+    this module has no poll loops for a no-op ``wait_for_timeout`` to
+    strand (issue #767), which is why ``time`` is carved out for this file
+    in the tests' ``_WALL_CLOCK_CARVE_OUTS``.
+    """
+    now = time.time()
+    # isinstance guard: this sits on the Chrome-sqlite trust boundary and is
+    # also fed Playwright-shaped dicts (whose "expires" may be None) — a
+    # non-numeric expires must count as "no expiry to judge", not TypeError.
+    dated = [
+        expiry
+        for expiry in (c.get("expires") for c in cookies)
+        if isinstance(expiry, (int, float))
+        and not isinstance(expiry, bool)
+        and expiry > 0
+    ]
+    if not dated:
+        return None
+    return any(expiry > now for expiry in dated)
 
 
 def samesite_to_playwright(value: int) -> str:

@@ -2268,6 +2268,306 @@ class TestCaptureStorageState(unittest.TestCase):
             "verify navigation was not retried up to the attempt budget",
         )
 
+    def test_fresh_cookies_get_one_headful_retry_after_auth_failure(self):
+        """Issue #870 п.2: headless "Chrome for Testing" can be redirected
+        to Passport by the bot challenge even though the cookies are fresh
+        (the live repro verified fine headful immediately after) — the
+        capture must retry once with a visible window before reporting
+        failure."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        passport_page = _passport_page()
+        direct_page = _direct_page()
+        launch_headless_flags = []
+
+        class _TwoPhaseChromium:
+            """launch(headless=True) serves the bot-challenged page
+            (Passport markers); launch(headless=False) the real session
+            (Direct markers) — the #870 live repro sequence."""
+
+            def launch(self, **kwargs):
+                launch_headless_flags.append(kwargs.get("headless"))
+                page = direct_page if kwargs.get("headless") is False else passport_page
+                context = _FakeVerifyContext(page, storage_state={"cookies": []})
+                browser = _FakeBrowser()
+                browser.new_context = lambda **kw: context
+                return browser
+
+        with (
+            patch(
+                "playwright.sync_api.sync_playwright",
+                return_value=_FakePlaywright(_TwoPhaseChromium()),
+            ),
+            self._patch_decrypt(),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+        ):
+            storage_state, source_meta = session_module.capture_storage_state()
+
+        self.assertEqual(launch_headless_flags, [True, False])
+        self.assertTrue(source_meta["verified"])
+        self.assertEqual(storage_state, {"cookies": []})
+
+    def test_expired_cookies_report_expiry_without_a_headful_retry(self):
+        """Issue #870 п.2: when expires_utc says the cookies HAVE expired,
+        the error says so honestly — no headful retry is spent on a jar
+        that is genuinely dead."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        launch_calls = []
+
+        class _CountingChromium:
+            def launch(self, **kwargs):
+                launch_calls.append(kwargs)
+                browser = _FakeBrowser()
+                browser.new_context = lambda **kw: _FakeVerifyContext(
+                    _passport_page(), storage_state={"cookies": []}
+                )
+                return browser
+
+        expired = [
+            {
+                "name": "Session_id",
+                "value": "x",
+                "domain": ".yandex.ru",
+                "expires": time.time() - 100,
+            }
+        ]
+
+        with (
+            patch(
+                "playwright.sync_api.sync_playwright",
+                return_value=_FakePlaywright(_CountingChromium()),
+            ),
+            patch(
+                "direct_cli.browser._chrome_crypto.load_yandex_cookies",
+                return_value=expired,
+            ),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+        ):
+            with self.assertRaises(session_module.BrowserAuthError) as ctx:
+                session_module.capture_storage_state()
+
+        self.assertIn("HAVE expired", str(ctx.exception))
+        self.assertEqual(
+            len(launch_calls),
+            1,
+            "a genuinely expired jar must not spend a headful retry",
+        )
+
+    def test_freshness_judges_only_the_auth_cookies(self):
+        """The freshness verdict must read the AUTH cookies (Session_id/
+        sessionid2), not the whole decrypted jar: every Yandex session
+        carries long-lived tracking cookies (yandexuid etc.), so judging
+        the whole jar (a) hides a genuinely expired session behind a fresh
+        tracker and (b) the reverse — an expired tracker must not stop a
+        headful retry for a fresh session."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        launch_calls = []
+
+        class _CountingChromium:
+            def launch(self, **kwargs):
+                launch_calls.append(kwargs)
+                browser = _FakeBrowser()
+                browser.new_context = lambda **kw: _FakeVerifyContext(
+                    _passport_page(), storage_state={"cookies": []}
+                )
+                return browser
+
+        mixed_expired_auth = [
+            {
+                "name": "yandexuid",
+                "value": "t",
+                "domain": ".yandex.ru",
+                "expires": time.time() + 100_000,
+            },
+            {
+                "name": "Session_id",
+                "value": "x",
+                "domain": ".yandex.ru",
+                "expires": time.time() - 100,
+            },
+        ]
+
+        with (
+            patch(
+                "playwright.sync_api.sync_playwright",
+                return_value=_FakePlaywright(_CountingChromium()),
+            ),
+            patch(
+                "direct_cli.browser._chrome_crypto.load_yandex_cookies",
+                return_value=mixed_expired_auth,
+            ),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+        ):
+            with self.assertRaises(session_module.BrowserAuthError) as ctx:
+                session_module.capture_storage_state()
+
+        self.assertIn(
+            "HAVE expired",
+            str(ctx.exception),
+            "a fresh tracking cookie must not mask an expired auth cookie",
+        )
+        self.assertEqual(
+            len(launch_calls),
+            1,
+            "no headful retry when the AUTH cookies have expired",
+        )
+
+        launch_calls.clear()
+        mixed_fresh_auth = [
+            {
+                "name": "yandexuid",
+                "value": "t",
+                "domain": ".yandex.ru",
+                "expires": time.time() - 100,
+            },
+            {
+                "name": "Session_id",
+                "value": "x",
+                "domain": ".yandex.ru",
+                "expires": time.time() + 100_000,
+            },
+        ]
+
+        class _TwoPhaseChromium:
+            def launch(self, **kwargs):
+                launch_calls.append(kwargs)
+                page = (
+                    _direct_page()
+                    if kwargs.get("headless") is False
+                    else _passport_page()
+                )
+                browser = _FakeBrowser()
+                browser.new_context = lambda **kw: _FakeVerifyContext(
+                    page, storage_state={"cookies": []}
+                )
+                return browser
+
+        with (
+            patch(
+                "playwright.sync_api.sync_playwright",
+                return_value=_FakePlaywright(_TwoPhaseChromium()),
+            ),
+            patch(
+                "direct_cli.browser._chrome_crypto.load_yandex_cookies",
+                return_value=mixed_fresh_auth,
+            ),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+        ):
+            _storage_state, source_meta = session_module.capture_storage_state()
+
+        self.assertTrue(
+            source_meta["verified"],
+            "an expired tracking cookie must not block a fresh session's "
+            "headful retry",
+        )
+        self.assertEqual([call.get("headless") for call in launch_calls], [True, False])
+
+    def test_headful_run_hitting_passport_raises_without_a_second_window(self):
+        """The headful-retry branch must be one-way: a run that is ALREADY
+        headful re-raises the auth error immediately instead of launching a
+        second visible window."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        launch_calls = []
+
+        class _CountingChromium:
+            def launch(self, **kwargs):
+                launch_calls.append(kwargs)
+                browser = _FakeBrowser()
+                browser.new_context = lambda **kw: _FakeVerifyContext(
+                    _passport_page(), storage_state={"cookies": []}
+                )
+                return browser
+
+        with (
+            patch(
+                "playwright.sync_api.sync_playwright",
+                return_value=_FakePlaywright(_CountingChromium()),
+            ),
+            self._patch_decrypt(),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+        ):
+            with self.assertRaises(session_module.BrowserAuthError):
+                session_module.capture_storage_state(headless=False)
+
+        self.assertEqual(
+            len(launch_calls),
+            1,
+            "a headful run must not launch a second window on auth failure",
+        )
+
+    def test_render_timeout_passes_the_doubled_marker_timeout(self):
+        """The #870 п.3 fix doubles the verify render wait (30s -> 60s); pin
+        the actual timeout argument so dropping it silently cannot pass."""
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as session_module
+
+        blank_page = FakePage(locators={}, html="<html></html>")
+        fake_browser = _FakeBrowser()
+        fake_context = _FakeVerifyContext(blank_page, storage_state={"cookies": []})
+        fake_browser.new_context = lambda **kwargs: fake_context
+        fake_chromium = _FakeChromium(fake_browser)
+        fake_playwright = _FakePlaywright(fake_chromium)
+        real_wait = session_module._wait_for_marker
+
+        with (
+            patch("playwright.sync_api.sync_playwright", return_value=fake_playwright),
+            self._patch_decrypt(),
+            patch.object(
+                session_module,
+                "default_chrome_profile_dir",
+                return_value=Path("/fake/chrome/profile"),
+            ),
+            patch.object(Path, "exists", return_value=True),
+            patch.object(session_module, "_PAGE_MARKER_TIMEOUT_MS", 10),
+            patch.object(
+                session_module, "_wait_for_marker", side_effect=real_wait
+            ) as spy,
+        ):
+            # Read under the patch: after the with-block the constant is
+            # back to its production 30s and the comparison would compare
+            # 20 against 60000.
+            expected_timeout = 2 * session_module._PAGE_MARKER_TIMEOUT_MS
+            session_module.capture_storage_state()
+
+        spy.assert_called_once()
+        self.assertEqual(
+            spy.call_args.kwargs["timeout_ms"],
+            expected_timeout,
+            "the verify render wait must be the doubled marker timeout",
+        )
+
     def test_verify_raises_auth_error_when_grid_redirects_to_passport(self):
         """A bad/expired cookie jar redirects the grid URL to Passport
         instead of rendering the grid — `_wait_for_marker` must accept
@@ -2375,16 +2675,16 @@ class TestCaptureStorageState(unittest.TestCase):
 
         self.assertEqual(storage_state, {"cookies": []})
 
-    def test_verify_fails_closed_when_grid_marker_never_appears(self):
-        """Issue #692 cycle-review: `_wait_for_marker`'s `False` return must
-        not be discarded here either — a blank/unrendered grid response
-        matches neither `_LOGIN_PAGE_MARKERS` nor a captcha marker, so
-        trusting `page.content()` regardless would let
-        ``capture_storage_state(verify=True)`` return unverified cookies as
-        if the session had been confirmed."""
+    def test_render_timeout_saves_the_session_unverified(self):
+        """Issue #870 п.3: a marker timeout is NOT proof of bad cookies —
+        the live repro had a session that WAS fine reported as a failed
+        login because the grid never finished rendering. The cookies are
+        still saved, reported as unverified (the #692 invariant survives
+        differently: a timed-out capture must never CLAIM `verified`),
+        and every `direct masters` flow re-checks auth markers on use, so
+        a genuinely bad jar still fails loudly downstream."""
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
-        from direct_cli.browser.session import BrowserAuthError
 
         blank_page = FakePage(locators={}, html="<html></html>")
         fake_browser = _FakeBrowser()
@@ -2404,18 +2704,13 @@ class TestCaptureStorageState(unittest.TestCase):
             patch.object(Path, "exists", return_value=True),
             patch.object(session_module, "_PAGE_MARKER_TIMEOUT_MS", 10),
         ):
-            with self.assertRaises(BrowserAuthError) as ctx:
-                session_module.capture_storage_state()
+            storage_state, source_meta = session_module.capture_storage_state()
 
-        message = str(ctx.exception)
-        self.assertIn("Timed out", message)
-        self.assertIn(
-            "direct playwright login",
-            message,
-            "cycle-review round 2: the retry instruction present before the "
-            "#859 diagnostic-hint refactor must not be dropped — a genuinely "
-            "expired/slow session (the common, non-marker-rot case) still "
-            "needs an actionable retry command, not just the report-a-bug hint",
+        self.assertEqual(storage_state, {"cookies": []})
+        self.assertFalse(
+            source_meta["verified"],
+            "a timed-out capture must never be reported as verified "
+            "(issue #692 cycle-review invariant, reshaped by #870)",
         )
 
     def test_verify_timeout_message_hints_at_a_stale_dom_marker(self):
@@ -2425,14 +2720,14 @@ class TestCaptureStorageState(unittest.TestCase):
         `_wait_for_marker` polls for (`_DIRECT_PAGE_MARKERS`) no longer
         exist, even though the page renders fine (this is exactly what
         happened to `[data-testid="Sidebar"]`, see #859). Yandex can rename
-        any of these markers again at any time, so the timeout message must
-        name this hypothesis explicitly — rather than reading like a plain
-        session/network failure — so a user whose session is actually valid
-        (page opens fine in their own Chrome) knows to report a stale
-        selector instead of just retrying forever."""
+        any of these markers again at any time, so the unverified-save
+        warning (issue #870 п.3) must still name this hypothesis explicitly
+        — rather than reading like a plain session/network failure — so a
+        user whose session is actually valid (page opens fine in their own
+        Chrome) knows to report a stale selector instead of just retrying
+        forever."""
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
-        from direct_cli.browser.session import BrowserAuthError
 
         blank_page = FakePage(locators={}, html="<html></html>")
         fake_browser = _FakeBrowser()
@@ -2451,11 +2746,12 @@ class TestCaptureStorageState(unittest.TestCase):
             ),
             patch.object(Path, "exists", return_value=True),
             patch.object(session_module, "_PAGE_MARKER_TIMEOUT_MS", 10),
+            patch.object(session_module, "print_warning_stderr") as warning,
         ):
-            with self.assertRaises(BrowserAuthError) as ctx:
-                session_module.capture_storage_state()
+            session_module.capture_storage_state()
 
-        message = str(ctx.exception)
+        message = " ".join(str(call.args[0]) for call in warning.call_args_list)
+        self.assertIn("WITHOUT live verification", message)
         self.assertIn("outdated", message.lower())
         self.assertIn("github", message.lower())
 
@@ -2944,7 +3240,14 @@ _REAL_CLOCK_MODULES = frozenset({"time", "datetime"})
 # …` busy-spins exactly like `monotonic` did — measured at 61.89s on this file
 # with the guard still reporting clean. No module that owns a poll loop
 # appears here, so that spelling stays banned everywhere it could do harm.
-_WALL_CLOCK_CARVE_OUTS = {"store.py": frozenset({"time", "time_ns"})}
+# store.py stamps calendar time into the session envelope; _chrome_crypto.py
+# judges cookie expiry against the calendar (issue #870) — neither runs poll
+# loops, so a wall clock there cannot strand an offline `wait_for_timeout`
+# tick the way a poll deadline would (issue #767).
+_WALL_CLOCK_CARVE_OUTS = {
+    "store.py": frozenset({"time", "time_ns"}),
+    "_chrome_crypto.py": frozenset({"time"}),
+}
 
 
 def _raw_clock_calls(source, allowed=frozenset()):
@@ -14255,6 +14558,23 @@ class TestMastersLoginCommand(unittest.TestCase):
         login_fn.assert_not_called()
         self.assertNotEqual(result.exit_code, 0, result.output)
         self.assertIn("interactive", result.output.lower())
+        # The refusal must name its own override, not just refuse (#870 п.5).
+        self.assertIn("--allow-no-tty", result.output)
+
+    def test_login_allow_no_tty_overrides_the_gate(self):
+        """Issue #870 п.5: the window can be visible on the user's desktop
+        even when stdin is redirected (the live workaround was
+        `script -q /dev/null direct masters login`) — the explicit flag
+        opens the window without a TTY."""
+        with patch("direct_cli.browser.session.login_persistent_session") as login_fn:
+            with patch(
+                "direct_cli.commands.masters._stdin_is_interactive",
+                return_value=False,
+            ):
+                result = self.runner.invoke(cli, ["masters", "login", "--allow-no-tty"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        login_fn.assert_called_once()
 
     def test_login_has_no_output_format_options(self):
         # login is interactive/side-effecting, not a data-fetching command --
