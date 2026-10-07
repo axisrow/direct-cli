@@ -278,6 +278,20 @@ def test_clients_update_erir_contract_price_rejects_non_finite_amount():
         )
 
 
+def test_clients_update_erir_contragent_kpp_rejects_non_9_digit_values():
+    """Live 2026-10-07 (#889): the API rejects ANY Contragent.Kpp update
+    (5005) regardless of value, so the CLI's only sane guard is format:
+    КПП is exactly 9 digits."""
+    for bad in ("7701000001", "770100001a", "7701000011"):
+        result = _rejected(
+            "clients",
+            "update",
+            "--erir-contragent-kpp",
+            bad,
+        )
+        assert "--erir-contragent-kpp must be exactly 9 digits" in result.output, bad
+
+
 def test_clients_update_erir_contragent_payload():
     body = _dry_run(
         "clients",
