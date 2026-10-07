@@ -15768,22 +15768,6 @@ class _FakeVideosPage(FakePage):
                             )
                         ]
                     )
-        for url in self.urls:
-            close_testid = browser_masters._VIDEOS_CLOSE_BUTTON_TESTID_TEMPLATE.format(
-                video_url=url
-            )
-            close_selector = f'[data-testid="{close_testid}"]'
-            if selector == close_selector:
-                bound_url = url
-                return _FakeLocator(
-                    [
-                        _FakeLocatorHandle(
-                            on_click=lambda bound_url=bound_url: self.urls.remove(
-                                bound_url
-                            )
-                        )
-                    ]
-                )
         return super().locator(selector)
 
     def _content_testid(self, url):
@@ -15850,6 +15834,13 @@ class TestReadVideosWithModalFallback(unittest.TestCase):
             ["https://a.test/1.mp4"],
         )
         self.assertFalse(page.modal_open, "the modal must be closed by Cancel")
+        self.assertEqual(
+            page.save_clicks,
+            [],
+            "a read-only fallback must close via Cancel, never via Save — "
+            "a Save here would commit the modal's staged state on every "
+            "preflight read",
+        )
 
 
 class TestAddVideoModalPolling(unittest.TestCase):
@@ -16166,6 +16157,58 @@ class TestRemoveVideo(unittest.TestCase):
                 browser_masters._remove_video(page, "https://a.test/1.mp4")
 
         self.assertIn("still in the modal's grid", str(ctx.exception).lower())
+
+    def test_wraps_a_raw_close_click_failure(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4"])
+        original_locator = page.locator
+
+        def _locator(selector):
+            close_testid = (
+                f"{browser_masters._VIDEOS_MODAL_GRID_TESTID_PREFIX}"
+                "CloseButton.https://a.test/1.mp4"
+            )
+            if selector == f'[data-testid="{close_testid}"]':
+                return _FakeLocator([_FakeLocatorHandle(raises=True)])
+            return original_locator(selector)
+
+        page.locator = _locator
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._remove_video(page, "https://a.test/1.mp4")
+
+        self.assertIn("could not find/click", str(ctx.exception).lower())
+
+    def test_wraps_a_raw_modal_save_failure(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4"])
+        original_locator = page.locator
+
+        def _locator(selector):
+            if selector == browser_masters._VIDEOS_MODAL_SAVE_SELECTOR:
+                return _FakeLocator([_FakeLocatorHandle(raises=True)])
+            return original_locator(selector)
+
+        page.locator = _locator
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters._remove_video(page, "https://a.test/1.mp4")
+
+        self.assertIn("save button", str(ctx.exception).lower())
+
+    def test_raises_when_the_modal_never_closes(self):
+        page = _FakeVideosPage(["https://a.test/1.mp4"])
+        original_locator = page.locator
+
+        def _locator(selector):
+            # A modal that never closes: the "is it gone yet" probe always
+            # still sees it.
+            if selector == browser_masters._VIDEOS_MODAL_SELECTOR:
+                return _FakeLocator([_FakeLocatorHandle()])
+            return original_locator(selector)
+
+        page.locator = _locator
+        with patch.object(browser_masters, "_VIDEO_MODAL_OPEN_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._remove_video(page, "https://a.test/1.mp4")
+
+        self.assertIn("did not close", str(ctx.exception).lower())
 
 
 class TestVerifyVideoMismatches(unittest.TestCase):

@@ -82,13 +82,6 @@ include = ["direct_cli*"]
 direct_cli = ["translations/*.json"]
 
 [tool.black]
-
-[tool.mutmut]
-# Whole-file mutation of the largest module is slow (25k lines); scope
-# further runs with `mutmut run <mutant-name-filter>` once the baseline is
-# collected. See /fix run 2026-10-07: baseline not collected yet.
-paths_to_mutate = ["direct_cli/commands/masters.py"]
-tests_dir = "tests/"
 line-length = 88
 target-version = ['py310']
 include = '\.pyi?$'
@@ -188,3 +181,12 @@ markers = [
     "sandbox_limitation(reason, category): test skipped due to known Yandex Direct sandbox API limitation (not a CLI bug). category is optional: 'disabled' = supported in live but disabled/broken in sandbox (codes 8800/1000/5004); 'unsupported' = resource type architecturally missing from sandbox (code 3500)",
     "api_coverage: marks tests verifying CLI coverage against Yandex API WSDL (cached, no network required)",
 ]
+
+[tool.mutmut]
+# Whole-file mutation of the largest module is slow (25k lines); scope
+# further runs with `mutmut run <mutant-name-filter>` once the baseline is
+# collected. See /fix run 2026-10-07: baseline not collected yet.
+# mutmut 3.7: source_paths (not the deprecated paths_to_mutate); tests_dir
+# must be a LIST (configuration.py concatenates it onto a list).
+source_paths = ["direct_cli/commands/masters.py"]
+tests_dir = ["tests/"]

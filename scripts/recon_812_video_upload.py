@@ -42,7 +42,6 @@ import time
 from typing import List, Optional
 
 from direct_cli.browser.masters import (
-    _VIDEOS_CLOSE_BUTTON_TESTID_TEMPLATE,
     _VIDEOS_CONTENT_TESTID_PREFIX,
     _VIDEOS_EDITOR_SELECTOR,
     _VIDEOS_MODAL_FILE_INPUT_SELECTOR,
@@ -67,19 +66,41 @@ def _goto_edit(page, campaign_id: int) -> None:
 
 
 def _read_video_urls(page) -> Optional[List[str]]:
-    """Best-effort read of the video section's current URL list (recon only —
-    the CLI's own reader is deliberately not reused: this must show what the
-    PAGE says, not what the CLI's parsing does)."""
+    """Best-effort read of the video section's current URL list (recon only).
+
+    Live finding 2026-10-07 (#887 review): on a DRAFT campaign the
+    page-level CampaignContents cards NEVER render, so an empty page-level
+    read is resolved through the modal's SelectedCreativesGrid (open → read
+    the card testids → Cancel, committing nothing)."""
     try:
         container = page.locator(_VIDEOS_EDITOR_SELECTOR)
         if container.count() == 0:
             return None
-        handles = page.locator(
+        grid_prefix = (
+            "VideoSuggestionsEditor.SelectedCreativesGrid.SelectedCreative."
+        )
+        page_handles = page.locator(
             f'[data-testid^="{_VIDEOS_CONTENT_TESTID_PREFIX}"]'
         )
-        urls: List[str] = []
-        for i in range(handles.count()):
-            urls.append(handles.nth(i).inner_text().strip())
+        if page_handles.count() == 0:
+            page.locator(_VIDEOS_OPEN_MODAL_SELECTOR).first.click()
+            page.wait_for_selector(_VIDEOS_MODAL_SAVE_SELECTOR, timeout=15_000)
+            handles = page.locator(f'[data-testid^="{grid_prefix}"]')
+            urls: List[str] = []
+            for i in range(handles.count()):
+                testid = handles.nth(i).get_attribute("data-testid") or ""
+                suffix = testid[len(grid_prefix) :]
+                if suffix.startswith(
+                    ("Content.", "VideoElement.", "PlayButton.", "CloseButton.", "Spinner.")
+                ):
+                    continue
+                urls.append(suffix)
+            page.locator('[data-testid="VideoSuggestionsEditor.Cancel"]').first.click()
+            page.wait_for_timeout(2_000)
+            return urls
+        urls = []
+        for i in range(page_handles.count()):
+            urls.append(page_handles.nth(i).inner_text().strip())
         return urls
     except Exception as exc:  # noqa: PIE786, BLE001 - recon prints, never raises
         print(f"video read failed: {exc}")
@@ -140,7 +161,11 @@ def stage_recon(page, campaign_id: int) -> None:
         "open-modal button present:",
         page.locator(_VIDEOS_OPEN_MODAL_SELECTOR).count(),
     )
-    print("close-button testid template:", _VIDEOS_CLOSE_BUTTON_TESTID_TEMPLATE)
+    print("close-button testid template: (removed — removal lives in the modal)")
+    print(
+        "modal grid card testid prefix: "
+        "VideoSuggestionsEditor.SelectedCreativesGrid.SelectedCreative."
+    )
     print(
         "file input present (modal closed):",
         page.locator(_VIDEOS_MODAL_FILE_INPUT_SELECTOR).count(),
@@ -163,30 +188,34 @@ def stage_upload(page, campaign_id: int, file_path: str) -> None:
     started = time.monotonic()
     file_input.set_input_files(file_path)
     print(f"set_input_files returned after {time.monotonic() - started:.1f}s")
-    # The upload is asynchronous — poll the modal for up to 3 minutes and
-    # print every state change the operator can anchor timings on.
+    # The upload is asynchronous — poll the modal for up to 10 minutes and
+    # print every state change the operator can anchor timings on. Poll the
+    # REAL gate: is_disabled() (live 2026-10-07: aria-disabled is NOT set
+    # during the whole transcode — polling it declares settled immediately,
+    # #887 review).
     last = None
-    deadline = time.monotonic() + 180
+    deadline = time.monotonic() + 600
     while time.monotonic() < deadline:
-        snapshot = page.locator(_VIDEOS_MODAL_SAVE_SELECTOR).first.get_attribute(
-            "aria-disabled"
-        )
+        disabled = page.locator(_VIDEOS_MODAL_SAVE_SELECTOR).first.is_disabled()
         nodes = page.locator(
             '[data-testid^="VideoSuggestionsEditor.Modal"]'
         ).count()
-        state = (snapshot, nodes)
+        state = (disabled, nodes)
         if state != last:
             elapsed = time.monotonic() - started
-            print(f"t+{elapsed:6.1f}s Save[aria-disabled]={snapshot} nodes={nodes}")
+            print(f"t+{elapsed:6.1f}s Save[disabled]={disabled} nodes={nodes}")
             last = state
-        if snapshot in (None, "false"):
-            print("Save became clickable — upload settled")
+        if not disabled:
+            print("Save became enabled — upload settled")
             break
         page.wait_for_timeout(2_000)
     else:
-        print("upload did NOT settle within 180s — capture a screenshot here")
-    print("modal contents (recon read):", _read_video_urls(page))
-    print("NOT saved — run --stage commit to persist, or close the tab to abort")
+        print("upload did NOT settle within 600s — capture a screenshot here")
+    print("modal grid (recon read):", _read_video_urls(page))
+    print(
+        "NOT saved, and this page's selection does NOT survive a reload — "
+        "run --stage commit --file <same file> to upload AND persist"
+    )
 
 
 def _settle_upload(page, started: float) -> None:
@@ -250,14 +279,17 @@ def stage_commit(page, campaign_id: int, file_path: str) -> None:
     print(f"set_input_files returned after {time.monotonic() - started:.1f}s")
     page.wait_for_timeout(15_000)
     if page.locator(_VIDEOS_MODAL_SAVE_SELECTOR).first.is_disabled():
-        # Live finding 2026-10-07: setting files directly on the hidden
-        # input does NOT start the upload — the UploadZone keeps showing
-        # "Перетащите сюда файлы" and Save stays disabled for 10+ minutes.
-        # Go through the real user path instead: click the visible
-        # "Выбрать файлы" button and hand the file to the native chooser.
+        # Save disabled 15s after set_input_files is NOT proof the upload
+        # failed — a healthy 16MB transcode keeps it disabled for minutes
+        # (#887 review: the earlier "hidden input is a no-op" reading was
+        # wrong; all three staged uploads landed). This second hand-off via
+        # the visible "Выбрать файлы" button is a same-session retry in
+        # case the first attempt was genuinely swallowed — both paths reach
+        # the same grid. NOTE it can double-hand the file past the 2-video
+        # cap; that is the recon's tradeoff, not the CLI's behaviour.
         print(
-            "direct input set did not start the upload — retrying via the "
-            "visible 'Выбрать файлы' button"
+            "Save still disabled 15s after set_input_files — handing the "
+            "file to the visible 'Выбрать файлы' chooser as a retry"
         )
         with page.expect_file_chooser() as fc_info:
             page.get_by_text("Выбрать файлы").first.click()

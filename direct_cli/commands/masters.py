@@ -3100,12 +3100,12 @@ def update(
     MIME types) is now CONFIRMED LIVE (2026-08-07, #788 follow-up) — see
     ``direct_cli/browser/masters.py``'s module comment above
     ``_VIDEOS_MODAL_SELECTOR`` for the corrections this made to PR #806's
-    original guesses. **Still NOT LIVE-VERIFIED**: an actual file upload
-    was never attempted (no rollback on this account), so the upload
-    poll → Save sequence, and whether ``--remove-video``'s click commits
-    immediately or needs the page's own Save, remain unconfirmed — see
-    ``direct_cli/browser/masters.py``'s module comments above
-    ``_VIDEOS_SLOT_COUNT`` for the exact confirmed-vs-assumed breakdown.
+    original guesses. The full live cycle — a real file upload through the
+    modal, its Save/commit semantics, and ``--remove-video``'s persistence
+    across a page reload — was LIVE-VERIFIED on 2026-10-07 (issue #812, a
+    disposable DRAFT campaign): see ``direct_cli/browser/masters.py``'s
+    module comments above ``_VIDEOS_SLOT_COUNT`` and
+    ``_read_videos_with_modal_fallback`` for the confirmed behaviour.
 
     ``--clear-headline``/``--clear-text`` (issue #786) DELETE an existing
     headline/ad-text variant by its 1-based slot number, the counterpart
