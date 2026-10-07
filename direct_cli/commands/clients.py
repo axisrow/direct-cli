@@ -2,6 +2,8 @@
 Clients commands
 """
 
+import re
+
 import click
 
 from ..api import create_client
@@ -160,7 +162,17 @@ get = make_get_command(
     help="ErirAttributes.Contract.Price.IncludingVat",
 )
 @click.option("--erir-contragent-name", help="ErirAttributes.Contragent.Name")
-@click.option("--erir-contragent-kpp", help="ErirAttributes.Contragent.Kpp")
+@click.option(
+    "--erir-contragent-kpp",
+    help=(
+        "ErirAttributes.Contragent.Kpp (9 digits). KNOWN BROKEN, live "
+        "2026-10-07: the API rejects ANY update carrying this field "
+        "(5005 'Field set incorrectly: Contragent.Kpp = ...', 9- and "
+        "10-digit values alike) while clients.get echoes the field back "
+        "harmlessly. Left in place untested further — finishing it is "
+        "up to whoever needs it (see #889)."
+    ),
+)
 @click.option("--erir-contragent-phone", help="ErirAttributes.Contragent.Phone")
 @click.option(
     "--erir-contragent-epay-number",
@@ -230,6 +242,13 @@ def update(
         price_amount = parse_positive_decimal_amount(
             erir_contract_price_amount,
             "--erir-contract-price-amount",
+        )
+    if erir_contragent_kpp is not None and not re.fullmatch(
+        r"\d{9}", erir_contragent_kpp
+    ):
+        raise click.UsageError(
+            t("--erir-contragent-kpp must be exactly 9 digits (КПП format NNPPXXXCC)")
+            + f", got {erir_contragent_kpp!r}"
         )
     client_data = build_client_update_item(
         client_info,
