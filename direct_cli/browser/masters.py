@@ -353,12 +353,13 @@ from typing import (
 
 from . import _clock
 from .._captcha import find_captcha_marker, find_marker
-from ..output import print_warning
+from ..output import print_warning, print_warning_stderr
 from .session import (
     _LOGIN_PAGE_MARKERS,
     BrowserAuthError,
     BrowserCaptchaError,
     BrowserSessionError,
+    SaveNotVerifiedError,
     assert_authenticated,
     assert_not_captcha,
 )
@@ -8514,7 +8515,7 @@ def _verify_saved(
                 "validation) or the save did not complete."
             )
         )
-        raise BrowserSessionError(
+        error = SaveNotVerifiedError(
             f"Clicked '{clicked_button_label}' for campaign {campaign_id}, "
             "but re-reading the edit page after reload shows it did not "
             "save as requested: "
@@ -8523,6 +8524,8 @@ def _verify_saved(
             + detail
             + " Verify manually before retrying."
         )
+        error.mismatches = list(mismatches)
+        raise error
 
     return verified_target_actions
 
@@ -8574,6 +8577,57 @@ def _warn_on_cross_domain_landing_url(
     )
 
 
+#: Mismatch prefixes produced by the section-preservation guards (target
+#: actions #873/#876, Metrika #836, audience tags #752). When one of these
+#: fired, the save may have silently DROPPED a section — a retry would
+#: re-read the section's baseline from the already-mutated page and
+#: silently accept the loss (exactly what TestWholeFormSavePreservesSections
+#: models), so those updates fail loudly instead of re-running.
+_SECTION_GUARD_MISMATCH_PREFIXES = (
+    "target actions:",
+    "audience_tags:",
+    "metrika_counters:",
+)
+
+
+def _section_guard_mismatch(mismatches: Sequence[str]) -> bool:
+    """Did any verification mismatch come from a section-preservation guard?
+
+    Such a mismatch is never auto-retried: unlike "the requested scalar
+    kept its old value" (the #869 no-op — a re-run converges), a guard
+    firing means the page's section state may already have changed under
+    us, and a second attempt's baseline read would certify the mutated
+    state instead of catching the loss.
+    """
+    return any(m.startswith(_SECTION_GUARD_MISMATCH_PREFIXES) for m in mismatches)
+
+
+#: Value-SET parameters of ``update_master`` whose re-application is
+#: idempotent — the ONLY mutations the auto-retry may re-run. Deliberately
+#: an allowlist: a future ``_update_master_once`` parameter defaults to NOT
+#: retryable (a positional/append mutation would address different rows on
+#: a second run). age_from/age_to count through their *_requested flags.
+#: headline/text slot CLEARS are index-addressed and excluded like the rest.
+_RETRYABLE_VALUE_SET_PARAMS = frozenset(
+    {
+        "weekly_budget",
+        "promotion_goal",
+        "goal_price",
+        "target_action_prices",
+        "directs_helps",
+        "name",
+        "landing_url",
+        "tracking_params",
+        "headlines",
+        "texts",
+        "gender",
+        "age_from_requested",
+        "age_to_requested",
+        "devices",
+    }
+)
+
+
 def update_master(
     page: "Page",
     campaign_id: int,
@@ -8610,7 +8664,206 @@ def update_master(
     remove_sitelinks: Optional[List[int]] = None,
     launch: bool = False,
 ) -> Dict[str, Any]:
-    """Update one or more Этап A/B/D fields (plus the campaign name) and save.
+    """Update fields on a Мастер кампаний edit page, save, and verify.
+
+    Issues #869/#870 (live: 9/9 then a prior 8/8 batch): the FIRST
+    ``_click_save`` after editing a field can close the form WITHOUT
+    applying the change — the post-save re-read then shows the old value
+    and the attempt fails verification, while an identical second run
+    saves fine. An operator cannot tell this systematic no-op from a real
+    rejection, and a blind retry wrapper around the CLI would also re-run
+    genuine failures, so the retry lives here: on a failed save
+    verification this re-runs the exact same update ONCE, with a
+    ``print_warning`` making the re-run observable.
+
+    The retry is limited to updates whose every mutation is a value-SET
+    (budget, prices, name, URLs, headline/text slots, gender/age/devices…)
+    — re-applying the same value to the same field converges on the same
+    result. It is an ALLOWLIST (_RETRYABLE_VALUE_SET_PARAMS), not a
+    denylist: a future ``_update_master_once`` parameter defaults to NOT
+    retryable. Positional/append mutations are excluded — ``images``
+    (``_set_image`` composes remove+add and is explicitly NOT idempotent),
+    video add/remove, headline/text slot CLEARS (index-addressed like the
+    rest), audience-tag/metrika-counter/sitelink and target-action
+    add/remove (each indexes into the live list, so a second run would
+    address DIFFERENT rows) — and so is ``--launch`` (a no-rollback
+    publish is never re-clicked; same reasoning that made
+    ``_click_draft_terminal_button`` drop its time-based retry, cycle-
+    review PR #711). Those updates run exactly one attempt and surface the
+    verification error as before.
+
+    A failed verification is also NOT retried when a section-preservation
+    guard produced the mismatch (``_section_guard_mismatch``) — there the
+    save may have silently dropped a section, and a second attempt would
+    re-baseline from the mutated page and accept the loss. The gate is
+    fail-closed: an error without mismatch lines is never retried.
+
+    See ``_update_master_once`` for the per-parameter documentation and
+    the save-verification contract itself.
+    """
+
+    # EVERY parameter goes into this map; the allowlist decides which of
+    # the requested ones permit a re-run. A future _update_master_once
+    # parameter MUST be added here — and unless it is also added to
+    # _RETRYABLE_VALUE_SET_PARAMS, it defaults to NOT retryable.
+    requested_mutations: Dict[str, Any] = {
+        "weekly_budget": weekly_budget,
+        "promotion_goal": promotion_goal,
+        "goal_price": goal_price,
+        "target_action_prices": target_action_prices,
+        "directs_helps": directs_helps,
+        "name": name,
+        "landing_url": landing_url,
+        "tracking_params": tracking_params,
+        "headlines": headlines,
+        "texts": texts,
+        "gender": gender,
+        "age_from_requested": age_from_requested,
+        "age_to_requested": age_to_requested,
+        "devices": devices,
+        "clear_headlines": clear_headlines,
+        "clear_texts": clear_texts,
+        "images": images,
+        "add_video": add_video,
+        "add_video_url": add_video_url,
+        "remove_videos": remove_videos,
+        "add_audience_tags": add_audience_tags,
+        "remove_audience_tags": remove_audience_tags,
+        "add_metrika_counters": add_metrika_counters,
+        "remove_metrika_counters": remove_metrika_counters,
+        "add_sitelinks": add_sitelinks,
+        "remove_sitelinks": remove_sitelinks,
+        "add_target_actions": add_target_actions,
+        "remove_target_action_goal_ids": remove_target_action_goal_ids,
+    }
+    requested = {
+        key
+        for key, value in requested_mutations.items()
+        if value is not None and value is not False
+    }
+    retry_safe = not launch and requested <= _RETRYABLE_VALUE_SET_PARAMS
+
+    def _attempt() -> Dict[str, Any]:
+        return _update_master_once(
+            page,
+            campaign_id,
+            weekly_budget=weekly_budget,
+            promotion_goal=promotion_goal,
+            goal_price=goal_price,
+            target_action_prices=target_action_prices,
+            add_target_actions=add_target_actions,
+            remove_target_action_goal_ids=remove_target_action_goal_ids,
+            directs_helps=directs_helps,
+            name=name,
+            landing_url=landing_url,
+            tracking_params=tracking_params,
+            headlines=headlines,
+            texts=texts,
+            clear_headlines=clear_headlines,
+            clear_texts=clear_texts,
+            images=images,
+            add_video=add_video,
+            add_video_url=add_video_url,
+            remove_videos=remove_videos,
+            gender=gender,
+            age_from=age_from,
+            age_from_requested=age_from_requested,
+            age_to=age_to,
+            age_to_requested=age_to_requested,
+            devices=devices,
+            add_audience_tags=add_audience_tags,
+            remove_audience_tags=remove_audience_tags,
+            add_metrika_counters=add_metrika_counters,
+            remove_metrika_counters=remove_metrika_counters,
+            add_sitelinks=add_sitelinks,
+            remove_sitelinks=remove_sitelinks,
+            launch=launch,
+        )
+
+    if not retry_safe:
+        return _attempt()
+    try:
+        return _attempt()
+    except SaveNotVerifiedError as exc:
+        # Fail-closed: an error without mismatch lines (only the real
+        # raise site annotates them) is never auto-retried.
+        if not exc.mismatches or _section_guard_mismatch(exc.mismatches):
+            raise
+        # stderr, not stdout (issue #850's standard): the batch path
+        # streams machine-readable JSON on stdout.
+        print_warning_stderr(
+            f"Campaign {campaign_id}: the save did not verify — the re-read "
+            "shows the old value. Known Yandex behavior where the first "
+            "save click after editing a field applies nothing (issues "
+            "#869/#870); re-running the identical update once."
+        )
+        try:
+            return _attempt()
+        except SaveNotVerifiedError as second:
+            # Tell a batch reader "still wrong after the auto-retry" apart
+            # from "fresh failure, not yet retried" (cycle-review, PR #882).
+            retried = SaveNotVerifiedError(
+                f"{second} The automatic retry has already run once."
+            )
+            # Copy, not alias: the raise site assigns a fresh list and the
+            # class default is deliberately immutable (cycle-review PR
+            # #883, shared-mutable-state finding).
+            retried.mismatches = list(second.mismatches)
+            raise retried from second
+        except BrowserSessionError as other:
+            # A non-verify failure from the SECOND attempt (pre-click guard,
+            # markup error) would otherwise surface alone, discarding the
+            # context that the first attempt's save already failed to
+            # verify (cycle-review PR #883). BrowserAuthError deliberately
+            # stays masked as a plain error here: after the first Save
+            # click the whole-op _with_session retry must NOT fire (see
+            # _update_master_once's own post-click guard).
+            raise BrowserSessionError(
+                f"{other} (the first attempt's save had already failed "
+                "verification; this error came from the automatic retry "
+                "attempt.)"
+            ) from other
+
+
+def _update_master_once(
+    page: "Page",
+    campaign_id: int,
+    *,
+    weekly_budget: Optional[int] = None,
+    promotion_goal: Optional[str] = None,
+    goal_price: Optional[float] = None,
+    target_action_prices: Optional[Dict[int, float]] = None,
+    add_target_actions: Optional[Dict[int, float]] = None,
+    remove_target_action_goal_ids: Optional[List[int]] = None,
+    directs_helps: Optional[bool] = None,
+    name: Optional[str] = None,
+    landing_url: Optional[str] = None,
+    tracking_params: Optional[str] = None,
+    headlines: Optional[Dict[int, str]] = None,
+    texts: Optional[Dict[int, str]] = None,
+    clear_headlines: Optional[List[int]] = None,
+    clear_texts: Optional[List[int]] = None,
+    images: Optional[Dict[int, str]] = None,
+    add_video: Optional[str] = None,
+    add_video_url: Optional[str] = None,
+    remove_videos: Optional[List[str]] = None,
+    gender: Optional[str] = None,
+    age_from: Optional[int] = None,
+    age_from_requested: bool = False,
+    age_to: Optional[int] = None,
+    age_to_requested: bool = False,
+    devices: Optional[Set[str]] = None,
+    add_audience_tags: Optional[List[str]] = None,
+    remove_audience_tags: Optional[List[int]] = None,
+    add_metrika_counters: Optional[List[str]] = None,
+    remove_metrika_counters: Optional[List[int]] = None,
+    add_sitelinks: Optional[List[Dict[str, str]]] = None,
+    remove_sitelinks: Optional[List[int]] = None,
+    launch: bool = False,
+) -> Dict[str, Any]:
+    """Run ONE update-and-save attempt for ``update_master``, no retry.
+
+    Update one or more Этап A/B/D fields (plus the campaign name) and save.
 
     Only fields passed as non-``None`` are touched — see module docstring for
     why this is safe despite the page having a single whole-form save (fields
