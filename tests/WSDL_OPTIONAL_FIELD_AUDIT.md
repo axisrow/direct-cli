@@ -12,7 +12,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | Status | Count |
 |---|---:|
 | `not_applicable` | 26 |
-| `supported` | 3235 |
+| `supported` | 3236 |
 
 ## Confirmed Follow-Ups
 
@@ -2782,6 +2782,7 @@ be classified as `supported`, `missing_followup`, or `not_applicable`.
 | `clients.update` | `clients.update` | `ErirAttributes` | `ErirAttributesUpdate` | 0 | 1 | `supported` | --erir-contract-action-type, --erir-contract-date, --erir-contract-is-agency-payment, --erir-contract-number, --erir-contract-price-amount, --erir-contract-price-including-vat, --erir-contract-subject-type, --erir-contract-type, --erir-contragent-epay-number, --erir-contragent-kpp, --erir-contragent-name, --erir-contragent-oksm-number, --erir-contragent-phone, --erir-contragent-reg-number, --erir-contragent-tin, --erir-contragent-tin-type, --erir-organization-epay-number, --erir-organization-kpp, --erir-organization-name, --erir-organization-oksm-number, --erir-organization-okved-code, --erir-organization-reg-number |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization` | `OrgInfo` | 0 | 1 | `supported` | --erir-organization-epay-number, --erir-organization-kpp, --erir-organization-name, --erir-organization-oksm-number, --erir-organization-okved-code, --erir-organization-reg-number |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.Name` | `string` | 0 | 1 | `supported` | --erir-organization-name |
+| `clients.update` | `clients.update` | `ErirAttributes.Organization.Kpp` | `string` | 0 | 1 | `supported` | --erir-organization-kpp |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.EpayNumber` | `string` | 0 | 1 | `supported` | --erir-organization-epay-number |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.RegNumber` | `string` | 0 | 1 | `supported` | --erir-organization-reg-number |
 | `clients.update` | `clients.update` | `ErirAttributes.Organization.OksmNumber` | `string` | 0 | 1 | `supported` | --erir-organization-oksm-number |

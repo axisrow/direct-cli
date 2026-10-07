@@ -1956,6 +1956,9 @@ OPTIONAL_FIELD_CLI_OPTIONS: dict[tuple[str, str, str], set[str]] = {
     ("clients", "update", "ErirAttributes.Organization.Name"): {
         "--erir-organization-name"
     },
+    ("clients", "update", "ErirAttributes.Organization.Kpp"): {
+        "--erir-organization-kpp"
+    },
     ("clients", "update", "ErirAttributes.Organization.EpayNumber"): {
         "--erir-organization-epay-number"
     },

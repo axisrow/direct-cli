@@ -113,6 +113,7 @@
     <xsd:simpleType name="OrgInfoFieldEnum">
         <xsd:restriction base="xsd:string">
             <xsd:enumeration value="Name"/>
+            <xsd:enumeration value="Kpp"/>
             <xsd:enumeration value="EpayNumber"/>
             <xsd:enumeration value="RegNumber"/>
             <xsd:enumeration value="OksmNumber"/>
@@ -166,6 +167,7 @@
     <xsd:complexType name="OrgInfo">
         <xsd:sequence>
             <xsd:element name="Name" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
+            <xsd:element name="Kpp" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
             <xsd:element name="EpayNumber" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
             <xsd:element name="RegNumber" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
             <xsd:element name="OksmNumber" type="xsd:string" minOccurs="0" maxOccurs="1" nillable="true"/>
