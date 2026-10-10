@@ -8201,7 +8201,8 @@ def _verify_saved(
         )
         if not _tag_state_matches(actual_tags, None):
             mismatches.append(
-                f"audience_tags: expected {sorted(expected_tags.elements())!r}, "
+                f"{_AUDIENCE_TAGS_GUARD_LABEL} expected "
+                f"{sorted(expected_tags.elements())!r}, "
                 f"page now shows {sorted(actual_tags)!r}"
             )
 
@@ -8223,8 +8224,9 @@ def _verify_saved(
         # identity a caller cares about.
         if metrika_counters_before is None:
             mismatches.append(
-                "metrika_counters: the preservation check was requested, "
-                "but no readable pre-save baseline is available"
+                f"{_METRIKA_COUNTERS_GUARD_LABEL} the preservation check "
+                "was requested, but no readable pre-save baseline is "
+                "available"
             )
         else:
             expected_counters = Counter(
@@ -8250,7 +8252,7 @@ def _verify_saved(
             if not _counter_state_matches(actual_counters, None):
                 shown = sorted(actual_counters) if actual_counters is not None else None
                 mismatches.append(
-                    "metrika_counters: expected counter ids "
+                    f"{_METRIKA_COUNTERS_GUARD_LABEL} expected counter ids "
                     f"{sorted(expected_counters.elements())!r}, page now shows "
                     f"{shown!r}"
                 )
@@ -8288,7 +8290,7 @@ def _verify_saved(
         )
         if not _sitelink_state_matches(actual_sitelinks, None):
             mismatches.append(
-                "sitelinks: expected "
+                f"{_SITELINKS_GUARD_LABEL} expected "
                 f"{sorted(expected_sitelinks.elements())!r}, page now shows "
                 f"{sorted(_sitelink_key(s) for s in actual_sitelinks)!r}"
             )
@@ -8371,9 +8373,10 @@ def _verify_saved(
         # single ``_verify_saved`` failure path as every other mismatch.
         if not _wait_for_target_actions_ready(page):
             mismatches.append(
-                "target actions: the 'Целевые действия' table's row count "
-                f"never settled within {_TARGET_ACTION_SETTLE_TIMEOUT_MS / 1000:.0f}s "
-                "after saving — unable to confirm add/remove took effect"
+                f"{_TARGET_ACTIONS_GUARD_LABEL} the 'Целевые действия' "
+                f"table's row count never settled within "
+                f"{_TARGET_ACTION_SETTLE_TIMEOUT_MS / 1000:.0f}s after "
+                "saving — unable to confirm add/remove took effect"
             )
         else:
 
@@ -8450,8 +8453,8 @@ def _verify_saved(
             # is None`` there is the expected, undegraded case.
             if remove_target_action_goal_ids and target_action_goal_ids_before is None:
                 print_warning(
-                    "target actions: could not certify a pre-mutation "
-                    "baseline for this removal (the table never settled, "
+                    f"{_TARGET_ACTIONS_GUARD_LABEL} could not certify a "
+                    "pre-mutation baseline for this removal (the table never settled, "
                     "or two independent settled reads disagreed) — "
                     "verification degraded to the weaker per-goal check "
                     "instead of the full expected-set comparison"
@@ -8500,9 +8503,9 @@ def _verify_saved(
                 # `{}`, which would make every requested removal look like
                 # it succeeded.
                 mismatches.append(
-                    "target actions: could not read the 'Целевые действия' "
-                    "table after saving (section never became visible) — "
-                    "unable to confirm add/remove took effect"
+                    f"{_TARGET_ACTIONS_GUARD_LABEL} could not read the "
+                    "'Целевые действия' table after saving (section never "
+                    "became visible) — unable to confirm add/remove took effect"
                 )
             else:
                 for goal_id, expected_price in (add_target_actions or {}).items():
@@ -8529,9 +8532,9 @@ def _verify_saved(
                     and set(actual_after_add_remove) != expected_goal_ids
                 ):
                     mismatches.append(
-                        "target actions: expected the 'Целевые действия' "
-                        f"table to contain goals {sorted(expected_goal_ids)} "
-                        "after saving, page now shows "
+                        f"{_TARGET_ACTIONS_GUARD_LABEL} expected the "
+                        f"'Целевые действия' table to contain goals "
+                        f"{sorted(expected_goal_ids)} after saving, page now shows "
                         f"{sorted(actual_after_add_remove)} — the table may "
                         "still be hydrating, or the save did not take effect"
                     )
@@ -8552,9 +8555,9 @@ def _verify_saved(
         )
         if actual_unchanged != expected_unchanged:
             mismatches.append(
-                "target actions: expected goals (id → price) "
-                f"{expected_unchanged!r} to survive the save intact — "
-                f"page now shows {actual_unchanged!r}"
+                f"{_TARGET_ACTIONS_GUARD_LABEL} expected goals "
+                f"(id → price) {expected_unchanged!r} to survive the save "
+                f"intact — page now shows {actual_unchanged!r}"
             )
         elif rows_after is not None:
             # Verified intact — handed back so the caller's result row can
@@ -8674,6 +8677,18 @@ def _warn_on_cross_domain_landing_url(
     )
 
 
+#: The label each section-preservation guard starts its mismatch lines with
+#: (issue #888). Both the guards' own ``mismatches.append``/``print_warning``
+#: calls in ``_verify_saved`` and the retry gate below derive from these, so
+#: a rewording cannot desynchronize the two: a guard label drifting off the
+#: prefix tuple would silently downgrade the no-retry failure mode into
+#: "retry, re-baseline, accept the loss". Tests assert the source has no
+#: literals starting with a label other than these constants themselves.
+_TARGET_ACTIONS_GUARD_LABEL = "target actions:"
+_AUDIENCE_TAGS_GUARD_LABEL = "audience_tags:"
+_METRIKA_COUNTERS_GUARD_LABEL = "metrika_counters:"
+_SITELINKS_GUARD_LABEL = "sitelinks:"
+
 #: Mismatch prefixes produced by the section-preservation guards (target
 #: actions #873/#876, Metrika #836, audience tags #752). When one of these
 #: fired, the save may have silently DROPPED a section — a retry would
@@ -8681,15 +8696,15 @@ def _warn_on_cross_domain_landing_url(
 #: silently accept the loss (exactly what TestWholeFormSavePreservesSections
 #: models), so those updates fail loudly instead of re-running.
 _SECTION_GUARD_MISMATCH_PREFIXES = (
-    "target actions:",
-    "audience_tags:",
-    "metrika_counters:",
+    _TARGET_ACTIONS_GUARD_LABEL,
+    _AUDIENCE_TAGS_GUARD_LABEL,
+    _METRIKA_COUNTERS_GUARD_LABEL,
     # Not reachable from the retry gate today: the sitelinks baseline is
     # only read when sitelinks add/remove was requested, and those kwargs
     # are retry-excluded. Listed anyway so a future always-on preservation
     # check fails closed instead of being silently re-baselined
     # (cycle-review PR #883; see also issue #888).
-    "sitelinks:",
+    _SITELINKS_GUARD_LABEL,
 )
 
 

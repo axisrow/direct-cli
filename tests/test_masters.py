@@ -12685,6 +12685,73 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertIn("42", str(ctx.exception))
 
 
+class TestSectionGuardLabelContract(unittest.TestCase):
+    """Issue #888: the retry gate and the guard labels share one source.
+
+    ``_verify_saved``'s section-preservation guards emit mismatch lines
+    prefixed with a ``_*_GUARD_LABEL`` constant, and
+    ``_section_guard_mismatch`` routes a mismatch to the no-retry failure
+    mode by matching those same prefixes. Before this contract the prefixes
+    were bare literals duplicated a few hundred lines away from the
+    f-strings that had to match them byte for byte, so any rewording (say
+    ``"audience tags:"`` with a space, or a new guard authoring its own
+    spelling) would silently switch a guard firing from a loud hard
+    failure into "retry, re-baseline, accept the loss". Modeled on
+    ``TestBrowserPackageClock``: the source is parsed rather than grepped,
+    so prose in comments and docstrings is structurally out of scope.
+    """
+
+    def _hardcoded_guard_labels(self, source):
+        """Yield ``(lineno, literal)`` for string literals starting with a
+        guard label without being exactly one. The four ``_*_GUARD_LABEL``
+        definitions each ARE a label and are the only sanctioned spelling;
+        anything longer hardcodes the prefix a second time and can drift
+        off the tuple."""
+        tree = ast.parse(source)
+        labels = browser_masters._SECTION_GUARD_MISMATCH_PREFIXES
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+                continue
+            if any(node.value == label for label in labels):
+                continue
+            for label in labels:
+                if node.value.startswith(label):
+                    yield node.lineno, node.value
+
+    def test_no_hardcoded_guard_label_literals(self):
+        source = Path(browser_masters.__file__).read_text()
+        offenders = [
+            f"{lineno}: {value!r}"
+            for lineno, value in self._hardcoded_guard_labels(source)
+        ]
+        self.assertEqual(
+            offenders,
+            [],
+            "These literals re-spell a section-guard label instead of "
+            "interpolating the shared ``_*_GUARD_LABEL`` constant, so the "
+            "no-retry gate no longer matches the mismatch the guard emits "
+            "and a dropped section degrades into a silent retry (issue "
+            "#888):\n" + "\n".join(offenders),
+        )
+
+    # The detector needs its own coverage (same reasoning as
+    # TestBrowserPackageClock's): without it a "simplification" of
+    # ``_hardcoded_guard_labels`` that matched nothing would keep the
+    # package test green while the contract evaporated.
+
+    def test_the_detector_itself_flags_a_hardcoded_label(self):
+        source = (
+            "def f():\n"
+            "    mismatches.append(_TARGET_ACTIONS_GUARD_LABEL + ' oops')\n"
+            "    mismatches.append('target actions: silent drift')\n"
+            "    mismatches.append('goal_price: expected 5')\n"
+        )
+        self.assertEqual(
+            [lineno for lineno, _ in self._hardcoded_guard_labels(source)],
+            [3],
+        )
+
+
 class TestMastersUpdateCommand(unittest.TestCase):
     """CLI wiring for `masters update` (issue #631, Этап A)."""
 
