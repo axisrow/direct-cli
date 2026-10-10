@@ -1016,6 +1016,15 @@ direct dictionaries get-retargeting-goals --ids 19000000660,19000001592
 > more than one goal `Type` (e.g. `HOST` and `APPLICATION`) for similar names
 > — pick the entry with the `Type` your use case needs.
 
+> `retargeting get` returns each list's `Scope` (a default field):
+> `FOR_TARGETS_ONLY` / `FOR_TARGETS_AND_ADJUSTMENTS` /
+> `FOR_ADJUSTMENTS_ONLY`. There is no `--scope` flag: the WSDL declares
+> `Scope` only on `RetargetingListGetItem`, so the API assigns it
+> server-side. Verified live (#890): `retargetinglists get` returns
+> every documented scope class present in the account — an empty
+> adjustment-class section means the account has no such lists, not
+> server-side filtering.
+
 ```bash
 # Bids and modifiers
 direct bids get --campaign-ids 123 --fields CampaignId,AdGroupId,KeywordId,Bid
@@ -1027,6 +1036,10 @@ direct keywordbids set-auto --keyword-id 321 --target-traffic-volume 100 --incre
 direct bidmodifiers get --campaign-ids 123 --fields Id,CampaignId,AdGroupId,Level,Type
 direct bidmodifiers add --campaign-id 123 --type DEMOGRAPHICS_ADJUSTMENT --value 150 --gender GENDER_MALE --age AGE_25_34 --dry-run
 direct bidmodifiers add --campaign-id 123 --type MOBILE_ADJUSTMENT --value 120 --operating-system-type IOS --dry-run
+# RETARGETING_SEARCH_ADJUSTMENT is a live-only type (#871): the payload is
+# mirrored, but Yandex currently rejects its creation with 5005 on every
+# documented retargeting-list class (#890) — works once acceptance is enabled.
+direct bidmodifiers add --campaign-id 123 --type RETARGETING_SEARCH_ADJUSTMENT --retargeting-condition-id 12345 --value 120 --dry-run
 direct bidmodifiers set --id 99 --value 130 --dry-run
 
 # Canonical multiword groups
