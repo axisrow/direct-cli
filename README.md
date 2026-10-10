@@ -1020,7 +1020,7 @@ direct dictionaries get-retargeting-goals --ids 19000000660,19000001592
 > `FOR_TARGETS_ONLY` / `FOR_TARGETS_AND_ADJUSTMENTS` /
 > `FOR_ADJUSTMENTS_ONLY`. There is no `--scope` flag: the WSDL declares
 > `Scope` only on `RetargetingListGetItem`, so the API assigns it
-> server-side. Verified live (#890): `retargetinglists get` returns
+> server-side. Verified live (#890): `retargeting get` returns
 > every documented scope class present in the account — an empty
 > adjustment-class section means the account has no such lists, not
 > server-side filtering.
