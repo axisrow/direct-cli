@@ -284,6 +284,12 @@ def build_ad_elements(
 
         def _element(element_type, text, shared=shared, **extra):
             verdict = extra.pop("_verdict", None)
+            if verdict is not None and not isinstance(verdict, str):
+                # Live scan 2026-10-22: a verdict can arrive as a structured
+                # object (e.g. {"disclaimer": {"title": "", "description":
+                # ""}}) — stringify so every warnings[].reason stays a plain
+                # string for downstream slicing.
+                verdict = json.dumps(verdict, ensure_ascii=False)
             element = {**shared, "element_type": element_type, "text": text}
             element.update(extra)
             if verdict:

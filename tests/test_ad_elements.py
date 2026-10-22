@@ -151,6 +151,50 @@ class TestBuildAdElements(unittest.TestCase):
             "MODERATION_FLAGS_MED_SERVICES", elements[0]["warnings"][0]["reason"]
         )
 
+    def test_structured_image_verdict_is_stringified(self):
+        """Live scan 2026-10-22: moderationVerdict can be an object
+        ({"disclaimer": {...}}) — warnings[].reason must stay a plain
+        string, not leak the dict into the output."""
+        ads_payload = {
+            "ads": [
+                {
+                    "id": "1",
+                    "titles": ["t"],
+                    "bodies": [],
+                    "moderation_flags": [],
+                    "aggregated_status": {"status": "RUN", "reasons": []},
+                }
+            ]
+        }
+        disclaimers_payload = {
+            "data": {
+                "client": {
+                    "ads": {
+                        "rowset": [
+                            {
+                                "id": "1",
+                                "adaptiveTextImages": [
+                                    {
+                                        "name": "pic",
+                                        "moderationVerdict": {
+                                            "disclaimer": {
+                                                "title": "",
+                                                "description": "",
+                                            }
+                                        },
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        elements = ad_elements.build_ad_elements(ads_payload, disclaimers_payload)
+        image = next(e for e in elements if e["element_type"] == "image")
+        self.assertIsInstance(image["warnings"][0]["reason"], str)
+        self.assertIn("disclaimer", image["warnings"][0]["reason"])
+
     def test_structurally_changed_disclaimers_payload_degrades_to_flags(self):
         elements = ad_elements.build_ad_elements(
             _FIXTURE["ads_list"], {"data": {"unexpected": True}}
