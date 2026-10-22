@@ -1,0 +1,1254 @@
+{
+ "_comment": "Live shapes of the banners grid's three data calls (issue #892 recon 2026-10-22, account ksamatadirect, campaign 71149490, group 5775404731), trimmed to three ads: the target ad (warned, 7 titles), a second warned ad, and a clean one. adElements output and tests both key off these shapes.",
+ "ads_list": {
+  "ads": [
+   {
+    "id": "1923626368383074682",
+    "ad_group_id": "5775404731",
+    "campaign_id": "71149490",
+    "type": "ADAPTIVE_TEXT",
+    "moderation_flags": [
+     "MODERATION_FLAGS_MED_SERVICES"
+    ],
+    "aggregated_status": {
+     "status": "RUN_WARN",
+     "reasons": [
+      "AD_REQUIRES_DOCUMENTS_FOR_MODERATION"
+     ],
+     "stale": false,
+     "details_available": true
+    },
+    "titles": [
+     "Как вернуть подвижность спины после 60ти? Курс",
+     "Почему ноет спина после 50? Дело не в возрасте!",
+     "Как убрать дискомфорт в спине за 5 дней? Курс",
+     "Дискомфорт в спине? Найдите причину",
+     "5 мифов о дискомфорте в спине, которые вредят!",
+     "Дискомфорт в спине? Бесплатный 5-дневный онлайн-курс",
+     "Секрет здоровья спины после 60 лет"
+    ],
+    "bodies": [
+     "Скованность в спине и хруст? Гибкость позвоночника. Бесплатный курс."
+    ],
+    "title_extension": "",
+    "href": "https://lp.ksamata.ru/rd_yan",
+    "display_href": "",
+    "sitelink_set_id": "0",
+    "permalink_id": "0",
+    "callout_ids": [],
+    "generation_scope": [],
+    "age_label": "AGE_LABEL_AGE_16",
+    "baby_food_label": "BABY_FOOD_LABEL_UNSPECIFIED",
+    "feed_id": "0",
+    "feed_filter_conditions": [],
+    "campaign": {
+     "id": "71149490",
+     "display_name": "f23_РД Холодный (Поиск и РСЯ) -50% 14.07 август 2025 прибыльная",
+     "product_type": "PRODUCT_UNIFIED",
+     "period": {
+      "first_day": "2026-09-30"
+     },
+     "time_zone": "Europe/Moscow",
+     "store_href": "",
+     "mobile_app_customer_targeting": "MOBILE_APP_CUSTOMER_TARGETING_UNSPECIFIED",
+     "status": "ACTIVE",
+     "business_id": "23166100131",
+     "href": "https://lp.ksamata.ru",
+     "measurers": [],
+     "vendor_id": "0"
+    },
+    "ad_group": {
+     "id": "5775404731",
+     "type": "UNIFIED",
+     "display_name": "Радость Движения (холодный) тестиюль2026 radical (2)"
+    },
+    "creatives": [],
+    "product_traits": {
+     "alternative_texts_available": false,
+     "show_age_restriction": true,
+     "show_formats": true,
+     "show_additions": true,
+     "has_images": false,
+     "aimable": true,
+     "impression_url_required": false,
+     "allowed_actions": {
+      "edit": true,
+      "edit_age_restriction": true,
+      "edit_button": true,
+      "edit_href_params": true,
+      "find_and_replace": true,
+      "edit_feed_source": false,
+      "start": false,
+      "stop": true,
+      "archive": false,
+      "unarchive": false,
+      "aim": true,
+      "edit_image": true,
+      "edit_creative": false,
+      "edit_video": true,
+      "delete": false,
+      "edit_phone": false
+     }
+    }
+   },
+   {
+    "id": "1923626277116170752",
+    "ad_group_id": "5775404731",
+    "campaign_id": "71149490",
+    "type": "ADAPTIVE_TEXT",
+    "moderation_flags": [
+     "MODERATION_FLAGS_MED_SERVICES"
+    ],
+    "aggregated_status": {
+     "status": "RUN_WARN",
+     "reasons": [
+      "AD_REQUIRES_DOCUMENTS_FOR_MODERATION"
+     ],
+     "stale": false,
+     "details_available": true
+    },
+    "titles": [
+     "Как вернуть подвижность суставов после 60ти? Курс",
+     "Почему ноют суставы после 50? Дело не в возрасте!",
+     "Как убрать дискомфорт в суставах за 5 дней? Курс",
+     "Дискомфорт в суставах? Найдите причину",
+     "5 мифов о дискомфорте в суставах, которые вредят!",
+     "Дискомфорт в суставах? Бесплатный 5-дневный онлайн-курс",
+     "Секрет здоровья суставов после 60 лет"
+    ],
+    "bodies": [
+     "Проверенный комплекс для суставов. Дома, без уколов и операций."
+    ],
+    "title_extension": "",
+    "href": "https://lp.ksamata.ru/rd_yan",
+    "display_href": "",
+    "sitelink_set_id": "0",
+    "permalink_id": "0",
+    "callout_ids": [],
+    "generation_scope": [],
+    "age_label": "AGE_LABEL_AGE_16",
+    "baby_food_label": "BABY_FOOD_LABEL_UNSPECIFIED",
+    "feed_id": "0",
+    "feed_filter_conditions": [],
+    "campaign": {
+     "id": "71149490",
+     "display_name": "f23_РД Холодный (Поиск и РСЯ) -50% 14.07 август 2025 прибыльная",
+     "product_type": "PRODUCT_UNIFIED",
+     "period": {
+      "first_day": "2026-09-30"
+     },
+     "time_zone": "Europe/Moscow",
+     "store_href": "",
+     "mobile_app_customer_targeting": "MOBILE_APP_CUSTOMER_TARGETING_UNSPECIFIED",
+     "status": "ACTIVE",
+     "business_id": "23166100131",
+     "href": "https://lp.ksamata.ru",
+     "measurers": [],
+     "vendor_id": "0"
+    },
+    "ad_group": {
+     "id": "5775404731",
+     "type": "UNIFIED",
+     "display_name": "Радость Движения (холодный) тестиюль2026 radical (2)"
+    },
+    "creatives": [],
+    "product_traits": {
+     "alternative_texts_available": false,
+     "show_age_restriction": true,
+     "show_formats": true,
+     "show_additions": true,
+     "has_images": false,
+     "aimable": true,
+     "impression_url_required": false,
+     "allowed_actions": {
+      "edit": true,
+      "edit_age_restriction": true,
+      "edit_button": true,
+      "edit_href_params": true,
+      "find_and_replace": true,
+      "edit_feed_source": false,
+      "start": false,
+      "stop": true,
+      "archive": false,
+      "unarchive": false,
+      "aim": true,
+      "edit_image": true,
+      "edit_creative": false,
+      "edit_video": true,
+      "delete": false,
+      "edit_phone": false
+     }
+    }
+   },
+   {
+    "id": "1916262659838535640",
+    "ad_group_id": "5775404731",
+    "campaign_id": "71149490",
+    "type": "ADAPTIVE_TEXT",
+    "moderation_flags": [],
+    "aggregated_status": {
+     "status": "RUN_OK",
+     "reasons": [],
+     "stale": false,
+     "details_available": false
+    },
+    "titles": [
+     "После сидения трудно разогнуться? Курс 0₽"
+    ],
+    "bodies": [
+     "Гимнастика для поясницы и спины. 15 минут дома, без таблеток."
+    ],
+    "title_extension": "",
+    "href": "https://lp.ksamata.ru/rd_yan",
+    "display_href": "",
+    "sitelink_set_id": "0",
+    "permalink_id": "0",
+    "callout_ids": [],
+    "generation_scope": [],
+    "age_label": "AGE_LABEL_AGE_16",
+    "baby_food_label": "BABY_FOOD_LABEL_UNSPECIFIED",
+    "feed_id": "0",
+    "feed_filter_conditions": [],
+    "campaign": {
+     "id": "71149490",
+     "display_name": "f23_РД Холодный (Поиск и РСЯ) -50% 14.07 август 2025 прибыльная",
+     "product_type": "PRODUCT_UNIFIED",
+     "period": {
+      "first_day": "2026-09-30"
+     },
+     "time_zone": "Europe/Moscow",
+     "store_href": "",
+     "mobile_app_customer_targeting": "MOBILE_APP_CUSTOMER_TARGETING_UNSPECIFIED",
+     "status": "ACTIVE",
+     "business_id": "23166100131",
+     "href": "https://lp.ksamata.ru",
+     "measurers": [],
+     "vendor_id": "0"
+    },
+    "images": {
+     "items": [
+      {
+       "display_name": "тестиюль2026 ad_14",
+       "width": 1254,
+       "height": 1254,
+       "original_width": 1254,
+       "original_height": 1254,
+       "formats": [
+        {
+         "format": "x1200",
+         "width": 1200,
+         "height": 1200,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/x1200",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 43,
+           "width": 1199,
+           "height": 376,
+           "ratio": "16:5"
+          },
+          {
+           "x": 17,
+           "y": 0,
+           "width": 1093,
+           "height": 616,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 1199,
+           "height": 1199,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 10,
+           "width": 1199,
+           "height": 416,
+           "ratio": "26:9"
+          },
+          {
+           "x": 99,
+           "y": 0,
+           "width": 899,
+           "height": 1199,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 1199,
+           "height": 899,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "x150",
+         "width": 150,
+         "height": 150,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/x150",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 5,
+           "width": 150,
+           "height": 47,
+           "ratio": "16:5"
+          },
+          {
+           "x": 2,
+           "y": 0,
+           "width": 137,
+           "height": 77,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 150,
+           "height": 150,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 1,
+           "width": 150,
+           "height": 52,
+           "ratio": "26:9"
+          },
+          {
+           "x": 12,
+           "y": 0,
+           "width": 112,
+           "height": 150,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 150,
+           "height": 112,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "x180",
+         "width": 180,
+         "height": 180,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/x180",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 6,
+           "width": 180,
+           "height": 56,
+           "ratio": "16:5"
+          },
+          {
+           "x": 3,
+           "y": 0,
+           "width": 164,
+           "height": 92,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 180,
+           "height": 180,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 1,
+           "width": 180,
+           "height": 62,
+           "ratio": "26:9"
+          },
+          {
+           "x": 15,
+           "y": 0,
+           "width": 135,
+           "height": 180,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 180,
+           "height": 135,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "x300",
+         "width": 300,
+         "height": 300,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/x300",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 11,
+           "width": 300,
+           "height": 94,
+           "ratio": "16:5"
+          },
+          {
+           "x": 4,
+           "y": 0,
+           "width": 273,
+           "height": 154,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 300,
+           "height": 300,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 2,
+           "width": 300,
+           "height": 104,
+           "ratio": "26:9"
+          },
+          {
+           "x": 25,
+           "y": 0,
+           "width": 225,
+           "height": 300,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 300,
+           "height": 225,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "x450",
+         "width": 450,
+         "height": 450,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/x450",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 16,
+           "width": 450,
+           "height": 141,
+           "ratio": "16:5"
+          },
+          {
+           "x": 6,
+           "y": 0,
+           "width": 410,
+           "height": 231,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 450,
+           "height": 450,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 4,
+           "width": 450,
+           "height": 156,
+           "ratio": "26:9"
+          },
+          {
+           "x": 37,
+           "y": 0,
+           "width": 337,
+           "height": 450,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 450,
+           "height": 337,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "x600",
+         "width": 600,
+         "height": 600,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/x600",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 22,
+           "width": 600,
+           "height": 188,
+           "ratio": "16:5"
+          },
+          {
+           "x": 9,
+           "y": 0,
+           "width": 546,
+           "height": 308,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 600,
+           "height": 600,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 5,
+           "width": 600,
+           "height": 208,
+           "ratio": "26:9"
+          },
+          {
+           "x": 49,
+           "y": 0,
+           "width": 449,
+           "height": 600,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 600,
+           "height": 449,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "x80",
+         "width": 80,
+         "height": 80,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/x80",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 3,
+           "width": 80,
+           "height": 25,
+           "ratio": "16:5"
+          },
+          {
+           "x": 1,
+           "y": 0,
+           "width": 73,
+           "height": 41,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 80,
+           "height": 80,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 1,
+           "width": 80,
+           "height": 28,
+           "ratio": "26:9"
+          },
+          {
+           "x": 7,
+           "y": 0,
+           "width": 60,
+           "height": 80,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 80,
+           "height": 60,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "x90",
+         "width": 90,
+         "height": 90,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/x90",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 3,
+           "width": 90,
+           "height": 28,
+           "ratio": "16:5"
+          },
+          {
+           "x": 1,
+           "y": 0,
+           "width": 82,
+           "height": 46,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 90,
+           "height": 90,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 1,
+           "width": 90,
+           "height": 31,
+           "ratio": "26:9"
+          },
+          {
+           "x": 7,
+           "y": 0,
+           "width": 67,
+           "height": 90,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 90,
+           "height": 67,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "x900",
+         "width": 900,
+         "height": 900,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/x900",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 32,
+           "width": 899,
+           "height": 282,
+           "ratio": "16:5"
+          },
+          {
+           "x": 13,
+           "y": 0,
+           "width": 820,
+           "height": 462,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 899,
+           "height": 899,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 7,
+           "width": 899,
+           "height": 312,
+           "ratio": "26:9"
+          },
+          {
+           "x": 74,
+           "y": 0,
+           "width": 674,
+           "height": 899,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 899,
+           "height": 674,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "y150",
+         "width": 150,
+         "height": 150,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/y150",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 5,
+           "width": 150,
+           "height": 47,
+           "ratio": "16:5"
+          },
+          {
+           "x": 2,
+           "y": 0,
+           "width": 137,
+           "height": 77,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 150,
+           "height": 150,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 1,
+           "width": 150,
+           "height": 52,
+           "ratio": "26:9"
+          },
+          {
+           "x": 12,
+           "y": 0,
+           "width": 112,
+           "height": 150,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 150,
+           "height": 112,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "y180",
+         "width": 180,
+         "height": 180,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/y180",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 6,
+           "width": 180,
+           "height": 56,
+           "ratio": "16:5"
+          },
+          {
+           "x": 3,
+           "y": 0,
+           "width": 164,
+           "height": 92,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 180,
+           "height": 180,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 1,
+           "width": 180,
+           "height": 62,
+           "ratio": "26:9"
+          },
+          {
+           "x": 15,
+           "y": 0,
+           "width": 135,
+           "height": 180,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 180,
+           "height": 135,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "y300",
+         "width": 300,
+         "height": 300,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/y300",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 11,
+           "width": 300,
+           "height": 94,
+           "ratio": "16:5"
+          },
+          {
+           "x": 4,
+           "y": 0,
+           "width": 273,
+           "height": 154,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 300,
+           "height": 300,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 2,
+           "width": 300,
+           "height": 104,
+           "ratio": "26:9"
+          },
+          {
+           "x": 25,
+           "y": 0,
+           "width": 225,
+           "height": 300,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 300,
+           "height": 225,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "y450",
+         "width": 450,
+         "height": 450,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/y450",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 16,
+           "width": 450,
+           "height": 141,
+           "ratio": "16:5"
+          },
+          {
+           "x": 6,
+           "y": 0,
+           "width": 410,
+           "height": 231,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 450,
+           "height": 450,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 4,
+           "width": 450,
+           "height": 156,
+           "ratio": "26:9"
+          },
+          {
+           "x": 37,
+           "y": 0,
+           "width": 337,
+           "height": 450,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 450,
+           "height": 337,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "y600",
+         "width": 600,
+         "height": 600,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/y600",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 22,
+           "width": 600,
+           "height": 188,
+           "ratio": "16:5"
+          },
+          {
+           "x": 9,
+           "y": 0,
+           "width": 546,
+           "height": 308,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 600,
+           "height": 600,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 5,
+           "width": 600,
+           "height": 208,
+           "ratio": "26:9"
+          },
+          {
+           "x": 49,
+           "y": 0,
+           "width": 449,
+           "height": 600,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 600,
+           "height": 449,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "y90",
+         "width": 90,
+         "height": 90,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/y90",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 3,
+           "width": 90,
+           "height": 28,
+           "ratio": "16:5"
+          },
+          {
+           "x": 1,
+           "y": 0,
+           "width": 82,
+           "height": 46,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 90,
+           "height": 90,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 1,
+           "width": 90,
+           "height": 31,
+           "ratio": "26:9"
+          },
+          {
+           "x": 7,
+           "y": 0,
+           "width": 67,
+           "height": 90,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 90,
+           "height": 67,
+           "ratio": "4:3"
+          }
+         ]
+        },
+        {
+         "format": "y900",
+         "width": 900,
+         "height": 900,
+         "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/y900",
+         "smart_centers": [
+          {
+           "x": 0,
+           "y": 32,
+           "width": 899,
+           "height": 282,
+           "ratio": "16:5"
+          },
+          {
+           "x": 13,
+           "y": 0,
+           "width": 820,
+           "height": 462,
+           "ratio": "16:9"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 899,
+           "height": 899,
+           "ratio": "1:1"
+          },
+          {
+           "x": 0,
+           "y": 7,
+           "width": 899,
+           "height": 312,
+           "ratio": "26:9"
+          },
+          {
+           "x": 74,
+           "y": 0,
+           "width": 674,
+           "height": 899,
+           "ratio": "3:4"
+          },
+          {
+           "x": 0,
+           "y": 0,
+           "width": 899,
+           "height": 674,
+           "ratio": "4:3"
+          }
+         ]
+        }
+       ],
+       "hash": "Zjg9RH4zpght2sW-dmBLMQ",
+       "url": "https://avatars.mds.yandex.net/get-direct/5230931/Zjg9RH4zpght2sW-dmBLMQ/orig"
+      }
+     ]
+    },
+    "ad_group": {
+     "id": "5775404731",
+     "type": "UNIFIED",
+     "display_name": "Радость Движения (холодный) тестиюль2026 radical (2)"
+    },
+    "creatives": [],
+    "product_traits": {
+     "alternative_texts_available": false,
+     "show_age_restriction": true,
+     "show_formats": true,
+     "show_additions": true,
+     "has_images": false,
+     "aimable": true,
+     "impression_url_required": false,
+     "allowed_actions": {
+      "edit": true,
+      "edit_age_restriction": true,
+      "edit_button": true,
+      "edit_href_params": true,
+      "find_and_replace": true,
+      "edit_feed_source": false,
+      "start": false,
+      "stop": true,
+      "archive": false,
+      "unarchive": false,
+      "aim": true,
+      "edit_image": true,
+      "edit_creative": false,
+      "edit_video": true,
+      "delete": false,
+      "edit_phone": false
+     }
+    }
+   }
+  ],
+  "next_page_token": "",
+  "warnings": []
+ },
+ "ad_disclaimers": {
+  "data": {
+   "reqId": "7035921188362974648",
+   "client": {
+    "ads": {
+     "rowset": [
+      {
+       "id": "1916262659838535640",
+       "disclaimer": "",
+       "disclaimerCategories": null,
+       "titleAssets": null,
+       "bodyAssets": null,
+       "adaptiveTextImages": [
+        {
+         "name": "тестиюль2026 ad_14",
+         "moderationVerdict": null
+        }
+       ],
+       "adaptiveTextVideos": null
+      },
+      {
+       "id": "1923626277116170752",
+       "disclaimer": "Есть противопоказания. Посоветуйтесь с врачом.",
+       "disclaimerCategories": "Ваши объявления относятся к категории «Медицина и фармацевтика», поэтому к ним автоматически добавлено предупреждение. \nЕсли у вас возникли вопросы по предупреждению, свяжитесь с нами.",
+       "titleAssets": null,
+       "bodyAssets": null,
+       "adaptiveTextImages": null,
+       "adaptiveTextVideos": null
+      },
+      {
+       "id": "1923626368383074682",
+       "disclaimer": "Есть противопоказания. Посоветуйтесь с врачом.",
+       "disclaimerCategories": "Ваши объявления относятся к категории «Медицина и фармацевтика», поэтому к ним автоматически добавлено предупреждение. \nЕсли у вас возникли вопросы по предупреждению, свяжитесь с нами.",
+       "titleAssets": null,
+       "bodyAssets": null,
+       "adaptiveTextImages": null,
+       "adaptiveTextVideos": null
+      }
+     ]
+    }
+   },
+   "telemetryTraceId": "68b02c3a416d87cd28dc77046e09dc9c"
+  },
+  "errors": [],
+  "success": true
+ },
+ "ads_batch_get": {
+  "ads": [
+   {
+    "id": "1916262659838535640",
+    "stats": {
+     "shows": "1546",
+     "clicks": "11",
+     "cost_tax_free": {
+      "amount_micros": "87749700"
+     },
+     "cost_with_tax": {
+      "amount_micros": "107054600"
+     },
+     "avg_ctr": 0.0071151358344113845,
+     "avg_bounce_rate": 0.5384615384615384,
+     "avg_cpc": {
+      "amount_micros": "7980000"
+     },
+     "goal_reached_session_count": "0",
+     "revenue": {
+      "amount_micros": "0"
+     },
+     "conversion_rate": 0.0,
+     "avg_show_position": 3.4831932773109244,
+     "avg_click_position": 2.7777777777777777,
+     "avg_depth": 1.0,
+     "ots": "0",
+     "ots_cpt": {
+      "amount_micros": "0"
+     },
+     "session_count_without_mobile_apps": "13",
+     "first_page_shows": "1190",
+     "first_page_clicks": "9",
+     "goal_stats": [],
+     "period": {
+      "first_day": "2026-09-22",
+      "last_day": "2026-10-22"
+     }
+    }
+   },
+   {
+    "id": "1923626277116170752",
+    "stats": {
+     "shows": "17171",
+     "clicks": "210",
+     "cost_tax_free": {
+      "amount_micros": "1915994700"
+     },
+     "cost_with_tax": {
+      "amount_micros": "2337514700"
+     },
+     "avg_ctr": 0.01222992254382389,
+     "avg_bounce_rate": 0.35978835978835977,
+     "avg_cpc": {
+      "amount_micros": "9120000"
+     },
+     "goal_reached_session_count": "7",
+     "revenue": {
+      "amount_micros": "600000000"
+     },
+     "avg_cpa": {
+      "amount_micros": "273710000"
+     },
+     "conversion_rate": 0.03333333333333333,
+     "avg_crr": 3.1933245,
+     "roi": -0.6868467329267665,
+     "avg_show_position": 2.3766674467587174,
+     "avg_click_position": 1.555023923444976,
+     "avg_depth": 1.0423280423280423,
+     "ots": "0",
+     "ots_cpt": {
+      "amount_micros": "0"
+     },
+     "session_count_without_mobile_apps": "189",
+     "first_page_shows": "17092",
+     "first_page_clicks": "209",
+     "goal_stats": [],
+     "period": {
+      "first_day": "2026-09-22",
+      "last_day": "2026-10-22"
+     }
+    }
+   },
+   {
+    "id": "1923626368383074682",
+    "stats": {
+     "shows": "6450",
+     "clicks": "21",
+     "cost_tax_free": {
+      "amount_micros": "173912900"
+     },
+     "cost_with_tax": {
+      "amount_micros": "212173800"
+     },
+     "avg_ctr": 0.0032558139534883722,
+     "avg_bounce_rate": 0.4666666666666667,
+     "avg_cpc": {
+      "amount_micros": "8280000"
+     },
+     "goal_reached_session_count": "1",
+     "revenue": {
+      "amount_micros": "0"
+     },
+     "avg_cpa": {
+      "amount_micros": "173910000"
+     },
+     "conversion_rate": 0.047619047619047616,
+     "avg_show_position": 3.0900296458105787,
+     "avg_click_position": 1.2857142857142858,
+     "avg_depth": 1.0,
+     "ots": "0",
+     "ots_cpt": {
+      "amount_micros": "0"
+     },
+     "session_count_without_mobile_apps": "15",
+     "first_page_shows": "6409",
+     "first_page_clicks": "21",
+     "goal_stats": [],
+     "period": {
+      "first_day": "2026-09-22",
+      "last_day": "2026-10-22"
+     }
+    }
+   }
+  ],
+  "warnings": []
+ }
+}

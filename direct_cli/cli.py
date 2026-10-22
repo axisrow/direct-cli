@@ -65,6 +65,7 @@ from .commands.v4keywords import v4keywords
 from .commands.v4adimage import v4adimage
 from .commands.masters import masters
 from .commands.history import history
+from .commands.ad_elements import ad_elements
 from .commands.browser_session import playwright_group
 
 # Load .env file
@@ -79,9 +80,10 @@ load_env_file()
 # docstring -- issue #639 found that passing a login as `?ulogin=` there
 # actually broke access with HTTP 401). `history` is browser-backed the same
 # way (issue #837): «История изменений» has no API surface, and its data call
-# authorizes off the browser session, not off a token. None of the four read
-# ctx.obj["token"] or ctx.obj["login"].
-_NO_CREDENTIALS_GROUPS = ("auth", "playwright", "masters", "history")
+# authorizes off the browser session, not off a token. So is `adrestrictions`
+# (issue #892): the banners grid's own data calls authorize off the browser
+# session too. None of these read ctx.obj["token"] or ctx.obj["login"].
+_NO_CREDENTIALS_GROUPS = ("auth", "playwright", "masters", "history", "adrestrictions")
 
 
 CLI_EPILOG = """\b
@@ -503,6 +505,7 @@ for command in (
     auth,
     masters,
     history,
+    ad_elements,
     playwright_group,
 ):
     _register_command(command)
