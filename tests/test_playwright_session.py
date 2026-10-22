@@ -746,7 +746,12 @@ class TestCaptureStorageStateHeadfulRetryMessage(unittest.TestCase):
             patch("direct_cli.browser.session.print_warning_stderr"),
         ):
             with self.assertRaises(browser_session.BrowserAuthError) as cm:
-                browser_session.capture_storage_state()
+                # A real existing directory: _resolve_profile_dir runs before
+                # any of the patches above and requires the profile dir to
+                # exist (the CI runner has no default Chrome profile).
+                browser_session.capture_storage_state(
+                    profile_dir=Path(tempfile.gettempdir())
+                )
 
         message = str(cm.exception)
         self.assertIn("invalidated server-side", message)
