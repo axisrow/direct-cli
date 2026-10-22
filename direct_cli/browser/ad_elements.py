@@ -251,6 +251,36 @@ def _ad_warnings(
     return [{"reason": reason, "raw_tooltip": raw_tooltip}]
 
 
+def _leaf_values(node: Any):
+    """Yield every scalar leaf of a nested dict/list structure."""
+    if isinstance(node, dict):
+        for value in node.values():
+            yield from _leaf_values(value)
+    elif isinstance(node, (list, tuple)):
+        for value in node:
+            yield from _leaf_values(value)
+    else:
+        yield node
+
+
+def _verdict_to_reason(verdict: Any) -> Optional[str]:
+    """Normalize a per-asset ``moderationVerdict`` to a reason string.
+
+    A structured verdict counts as a warning only when it carries non-empty
+    content somewhere: the live МК sweep (2026-10-22) served
+    ``{"disclaimer": {"title": "", "description": ""}}`` on perfectly clean
+    image assets, and stringifying that wholesale would manufacture a
+    warning out of nothing. Strings pass through (empty string = none).
+    """
+    if verdict is None:
+        return None
+    if isinstance(verdict, str):
+        return verdict or None
+    if not any(leaf for leaf in _leaf_values(verdict) if isinstance(leaf, str)):
+        return None
+    return json.dumps(verdict, ensure_ascii=False)
+
+
 def build_ad_elements(
     ads_payload: Dict[str, Any],
     disclaimers_payload: Dict[str, Any],
@@ -284,12 +314,7 @@ def build_ad_elements(
 
         def _element(element_type, text, shared=shared, **extra):
             verdict = extra.pop("_verdict", None)
-            if verdict is not None and not isinstance(verdict, str):
-                # Live scan 2026-10-22: a verdict can arrive as a structured
-                # object (e.g. {"disclaimer": {"title": "", "description":
-                # ""}}) — stringify so every warnings[].reason stays a plain
-                # string for downstream slicing.
-                verdict = json.dumps(verdict, ensure_ascii=False)
+            verdict = _verdict_to_reason(verdict)
             element = {**shared, "element_type": element_type, "text": text}
             element.update(extra)
             if verdict:
