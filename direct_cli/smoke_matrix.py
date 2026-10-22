@@ -27,6 +27,11 @@ SMOKE_MATRIX = {
         "ads.get",
         "advideos.get",
         "agencyclients.get",
+        # Read-only: navigates the banners grid and reads its own data calls
+        # (ads:list / AdDisclaimers / ads:batchGet — see fetch_ad_elements's
+        # docstring); no page it touches has a Save control, so this is safe
+        # to exercise like any other *.get (issue #892).
+        "adrestrictions",
         "audiencetargets.get",
         "auth.list",
         "auth.status",
