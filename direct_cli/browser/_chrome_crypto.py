@@ -416,13 +416,32 @@ def _copy_cookie_db(source: Path, dest_dir: Path) -> Path:
     Never opens or writes the live file directly: a running Chrome holds a
     lock on it, and any sqlite journal we created there would land inside the
     user's real profile directory.
+
+    A :class:`PermissionError` here is macOS TCC, not a bug: reading another
+    app's cookie database requires Full Disk Access for the app hosting this
+    process (live-confirmed 2026-10-22 while diagnosing issue #892 — the
+    same machine saw one terminal read the file and another get EPERM).
+    Raise :class:`ChromeCookieError` with the actual fix instead of letting
+    the raw OSError escape as a traceback.
     """
     dest = dest_dir / source.name
-    shutil.copy2(source, dest)
-    for suffix in ("-wal", "-shm"):
-        sidecar = source.with_name(source.name + suffix)
-        if sidecar.exists():
-            shutil.copy2(sidecar, dest_dir / sidecar.name)
+    try:
+        shutil.copy2(source, dest)
+        for suffix in ("-wal", "-shm"):
+            sidecar = source.with_name(source.name + suffix)
+            if sidecar.exists():
+                shutil.copy2(sidecar, dest_dir / sidecar.name)
+    except PermissionError as exc:
+        raise ChromeCookieError(
+            f"macOS denied access to Chrome's cookie database ({exc}). "
+            "Grant Full Disk Access to the app that hosts this shell "
+            "(System Settings → Privacy & Security → Full Disk Access → "
+            "add Terminal/iTerm/the app running the CLI), then retry. "
+            "Alternatively, run `direct playwright login` once from a "
+            "terminal that can read Chrome — afterwards every shell on "
+            "this machine reuses the saved session without any Chrome "
+            "access at all."
+        ) from exc
     return dest
 
 
