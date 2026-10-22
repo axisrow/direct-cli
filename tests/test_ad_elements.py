@@ -14,6 +14,7 @@ canned responses, mirroring how the module consumes the real page.
 import json
 import unittest
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import patch
 
 from direct_cli.browser import ad_elements
@@ -234,7 +235,9 @@ def _canned_responses():
 class TestFetchAdElements(unittest.TestCase):
     def test_builds_url_from_campaign_and_groups_and_parses(self):
         page = _FakePage(_canned_responses())
-        result = ad_elements.fetch_ad_elements(page, 71149490, group_ids=[5775404731])
+        result = ad_elements.fetch_ad_elements(
+            cast(Any, page), 71149490, group_ids=[5775404731]
+        )
         self.assertEqual(
             page.goto_calls,
             [
@@ -259,13 +262,13 @@ class TestFetchAdElements(unittest.TestCase):
         )
         with patch.object(ad_elements._clock, "now", side_effect=[0.0] + [100.0] * 200):
             with self.assertRaises(BrowserSessionError) as cm:
-                ad_elements.fetch_ad_elements(page, 42)
+                ad_elements.fetch_ad_elements(cast(Any, page), 42)
         self.assertIn("missing: ads, disclaimers", str(cm.exception))
 
     def test_login_page_redirect_raises_browser_auth_error(self):
         page = _FakePage([], html="<html>passport.yandex.ru/auth list</html>")
         with self.assertRaises(BrowserAuthError):
-            ad_elements.fetch_ad_elements(page, 42)
+            ad_elements.fetch_ad_elements(cast(Any, page), 42)
 
 
 if __name__ == "__main__":
