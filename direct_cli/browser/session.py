@@ -1121,8 +1121,26 @@ def capture_storage_state(
         )
         try:
             storage_state, verified = _capture(headless=False)
-        except BrowserAuthError:
-            raise
+        except BrowserAuthError as retry_error:
+            # Live diagnosis 2026-10-22 (issue #892 session recon): this
+            # combination — Chrome cookie DB says the cookies are NOT
+            # expired, yet Yandex serves the login page even headful — was
+            # NOT a bot challenge. The session had been invalidated
+            # server-side (Yandex rotates Direct sessions long before the
+            # cookie's expires_utc), and re-logging into direct.yandex.ru
+            # in the real Chrome fixed it. Lead with that fix; keep #870 as
+            # the rarer alternative instead of the headline cause.
+            raise BrowserAuthError(
+                "Yandex served its login page even in a visible window, "
+                "while the Chrome cookie database does not show these "
+                "session cookies as expired. That combination usually means "
+                "the session was invalidated server-side: open "
+                "https://direct.yandex.ru in your regular Chrome, make sure "
+                "the campaigns grid opens while you are logged in, then "
+                "re-run `direct playwright login`. (The headless bot "
+                "challenge of issue #870 is a rarer cause.) "
+                f"Original error: {retry_error}"
+            ) from retry_error
         except Exception as exc:
             # A display-less host (CI, SSH) fails the headful launch with a
             # raw PlaywrightError ("Missing X server"). That must not REPLACE

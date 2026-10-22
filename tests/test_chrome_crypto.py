@@ -488,6 +488,25 @@ class TestLoadYandexCookies(unittest.TestCase):
         self.assertIn("Cookies", message)
         self.assertIn("Network/Cookies", message)
 
+    def test_tcc_permission_error_becomes_actionable_message(self):
+        """macOS TCC (no Full Disk Access for the hosting app) surfaces as a
+        raw PermissionError traceback today — it must become a
+        ChromeCookieError carrying the actual fix (live case 2026-10-22,
+        issue #892 session recon: the same machine had one terminal that
+        could read Chrome's Cookies and one that got EPERM)."""
+        _make_cookie_db(self.profile / "Cookies", [])
+        with patch(
+            "direct_cli.browser._chrome_crypto.shutil.copy2",
+            side_effect=PermissionError(1, "Operation not permitted"),
+        ):
+            with self.assertRaises(ChromeCookieError) as cm:
+                _chrome_crypto.load_yandex_cookies(
+                    self.tmp_path, "Default", key=self.key
+                )
+        message = str(cm.exception)
+        self.assertIn("Full Disk Access", message)
+        self.assertIn("playwright login", message)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,6 +13,7 @@ installed -- mirroring the convention in tests/test_masters.py and
 tests/test_chrome_crypto.py.
 """
 
+import contextlib
 import json
 import stat
 import tempfile
@@ -700,6 +701,62 @@ class TestPlaywrightLoginCommand(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("verified=no", result.output)
+
+
+class TestCaptureStorageStateHeadfulRetryMessage(unittest.TestCase):
+    """Fresh cookies + a login page even headful must read as server-side
+    invalidation, not as the #870 bot challenge (live case 2026-10-22: the
+    real Chrome session had been rotated server-side long before its cookie
+    expires_utc; re-login in Chrome was the fix, headful retries never
+    helped)."""
+
+    def test_fresh_cookies_rejected_headful_read_as_server_side_invalidation(self):
+        pytest.importorskip("playwright")
+        from direct_cli.browser import session as browser_session
+
+        fresh_cookies = [
+            {
+                "name": "Session_id",
+                "value": "irrelevant",
+                "expires": 2**31,
+                "domain": ".yandex.ru",
+            }
+        ]
+
+        @contextlib.contextmanager
+        def _fake_launch_context(_sync_playwright, *, headless, storage_state=None):
+            context = Mock()
+            context.new_page.return_value = Mock()
+            yield Mock(), context
+
+        with (
+            patch.object(
+                browser_session, "_import_sync_playwright", return_value=object()
+            ),
+            patch(
+                "direct_cli.browser._chrome_crypto.load_yandex_cookies",
+                return_value=fresh_cookies,
+            ),
+            patch.object(browser_session, "_launch_context", _fake_launch_context),
+            patch.object(
+                browser_session,
+                "_goto_with_network_retry",
+                side_effect=browser_session.BrowserAuthError("login page served"),
+            ),
+            patch("direct_cli.browser.session.print_warning_stderr"),
+        ):
+            with self.assertRaises(browser_session.BrowserAuthError) as cm:
+                # A real existing directory: _resolve_profile_dir runs before
+                # any of the patches above and requires the profile dir to
+                # exist (the CI runner has no default Chrome profile).
+                browser_session.capture_storage_state(
+                    profile_dir=Path(tempfile.gettempdir())
+                )
+
+        message = str(cm.exception)
+        self.assertIn("invalidated server-side", message)
+        self.assertIn("#870", message)
+        self.assertIn("direct playwright login", message)
 
 
 if __name__ == "__main__":

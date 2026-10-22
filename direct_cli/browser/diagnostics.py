@@ -177,14 +177,14 @@ def _check_yandex_cookies_decrypt(
             resolved, chrome_profile, hosts=YANDEX_COOKIE_HOSTS, key=key
         )
     except ChromeCookieError as exc:
+        # The exception text is self-contained (each raise site carries its
+        # own fix: the TCC/Full-Disk-Access instruction, or the Chrome
+        # re-login advice), so no generic hint on top — the previous fixed
+        # "log in to Chrome" hint was wrong advice for the TCC case.
         return Check(
             "yandex_cookies_decrypt",
             False,
             str(exc),
-            hint=(
-                "Open https://direct.yandex.ru in Chrome and log in, then "
-                "run: direct playwright login"
-            ),
         )
     domains = sorted({c["domain"] for c in cookies if c.get("domain")})
     return Check(
@@ -235,7 +235,9 @@ def _check_saved_session_fresh(session_path: Optional[Path]) -> Check:
             "saved session has expired",
             hint="Run: direct playwright login",
         )
-    return Check("saved_session_fresh", True, "not expired")
+    return Check("saved_session_fresh", True, "not expired (cookie expiry "
+                 "only — server-side validity is not checked; run a read "
+                 "command, e.g. `direct masters list`, to confirm)")
 
 
 def run_diagnostics(
