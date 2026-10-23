@@ -1345,7 +1345,10 @@ class TestAuthOAuth:
     def test_default_oauth_client_id_matches_plugin_app(self):
         assert DEFAULT_OAUTH_CLIENT_ID == "dcf15d9625f6471d94d6d054d52017ba"
 
-    @patch("direct_cli.cli.get_credentials", return_value=("active-token", None))
+    @patch(
+        "direct_cli.cli.get_credentials_with_source",
+        return_value=("active-token", None, "active-profile"),
+    )
     def test_active_profile_triggers_early_cli_resolution(
         self, mock_get_credentials, isolated_auth_store, monkeypatch
     ):

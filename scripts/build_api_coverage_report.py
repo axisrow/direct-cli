@@ -6,11 +6,18 @@ from __future__ import annotations
 import inspect
 import json
 import importlib
+import os
 import sys
 from pathlib import Path
 from typing import Any, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# Offline coverage audit: CLI invocations here must not be gated by the
+# inherited-credential checks (#904) — the script asserts its own UsageError
+# contracts (e.g. runtime-deprecated replacement hints) and runs with the
+# developer's real auth store visible, so the gate would shadow them.
+os.environ.setdefault("YANDEX_DIRECT_INHERIT_GLOBAL", "1")
 
 import click
 from click.testing import CliRunner

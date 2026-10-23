@@ -425,6 +425,23 @@ base `YANDEX_DIRECT_LOGIN`; this prevents mixing accounts. `direct auth status`
 without `--profile` reports the effective credential source; with `--profile` it
 reports that profile.
 
+**Inherited credentials are never silent (#904).** When credentials come from
+the active profile fallback (priority 4) — e.g. a brand-new folder with no
+`.env` — `direct auth status` reports `source=global-profile-inherited`, and
+commands make the inheritance visible before touching the API:
+
+- Interactive session: the CLI asks `Found global profile '<name>'
+  (login=<login>); use these inherited credentials?` first; a refusal exits
+  with binding hints. The answer is not persisted — expect the question on
+  every run.
+- Non-interactive session (scripts, sub-processes): read-only commands print
+  a stderr warning; mutating commands fail with `UsageError` before a
+  request is built.
+- `--dry-run` stays silent (no API call), and `--sandbox` does not bypass
+  the gate — the sandbox authenticates under the same profile login.
+- Set `YANDEX_DIRECT_INHERIT_GLOBAL=1` to restore the pre-0.6 silent
+  inheritance for unattended workflows.
+
 > **Tests follow the safe credential order.** Live-API test suites (e.g. `tests/test_v4_live_contracts.py`) read `YANDEX_DIRECT_TOKEN` / `YANDEX_DIRECT_LOGIN` from the environment first, only then fall back to the active `direct auth` profile, and skip the test if neither is set. This prevents a developer machine with an active profile from silently hitting production on a plain `pytest` invocation. See `CLAUDE.md` for the contract.
 
 Install with `pip install direct-cli`, then run commands with `direct`.

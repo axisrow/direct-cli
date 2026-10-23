@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "direct-cli"
-version = "0.5.3"
+version = "0.6.0"
 description = "Command-line interface for Yandex Direct API"
 readme = "README.md"
 license = {text = "MIT"}
@@ -47,7 +47,7 @@ dev = [
     "flake8>=4.0",
     "mypy>=1.8",
     "pyright>=1.1.400",
-    "ruff>=0.1,<0.16",
+    "ruff>=0.16,<0.17",
     "requests>=2.0",
     "beautifulsoup4>=4.12",
     "lxml>=4.9",
@@ -102,6 +102,12 @@ exclude = '''
 
 [tool.ruff]
 exclude = ["direct_cli/_vendor"]
+
+[tool.ruff.lint]
+# Pin ruff>=0.16: its defaults enabled whole new rule families (UP, SIM,
+# BLE, I) that the pre-0.16 default never checked. Select the old default
+# set explicitly so lint behavior is pinned, not version-dependent.
+select = ["E4", "E7", "E9", "F"]
 
 [tool.mypy]
 python_version = "3.10"
