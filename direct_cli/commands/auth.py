@@ -268,6 +268,10 @@ def status(ctx, profile, output_format):
     load_env_file()
     root_obj = ctx.find_root().obj or ctx.obj or {}
     selected = profile or root_obj.get("profile")
+    # True when the profile was reached via the global active-profile
+    # fallback (no explicit --profile, root --token, or base env token):
+    # the credentials are inherited, not bound to this folder (#904).
+    inherited_profile = False
     if not selected:
         root_token = root_obj.get("token")
         if root_token:
@@ -291,6 +295,7 @@ def status(ctx, profile, output_format):
             )
             return
         selected = get_active_profile()
+        inherited_profile = True
     if not selected:
         op_token_ref = root_obj.get("op_token_ref") or os.getenv(
             "YANDEX_DIRECT_OP_TOKEN_REF"
@@ -358,18 +363,20 @@ def status(ctx, profile, output_format):
     env_token, env_login = get_env_profile(selected)
 
     if oauth_profile:
-        source = oauth_profile.get("source") or "oauth"
-        if source == "oauth":
+        stored_source = oauth_profile.get("source") or "oauth"
+        if stored_source == "oauth":
             try:
                 validate_oauth_profile(selected, oauth_profile)
             except ValueError as exc:
                 raise click.ClickException(str(exc)) from exc
         login_value = oauth_profile.get("login")
+        source = "global-profile-inherited" if inherited_profile else stored_source
         if not login_value and env_login:
             login_value = env_login
-            source = "oauth+env"
+            if not inherited_profile:
+                source = "oauth+env"
     elif env_token:
-        source = "env"
+        source = "global-profile-inherited" if inherited_profile else "env"
         login_value = env_login
     else:
         raise click.ClickException(f"Profile '{selected}' is not configured.")

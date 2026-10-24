@@ -815,6 +815,33 @@ def get_credentials(
     profile: Optional[str] = None,
     allow_login_resolve: bool = True,
 ) -> Tuple[str, Optional[str]]:
+    """Resolve (token, login); see :func:`get_credentials_with_source` for
+    the priority contract."""
+    final_token, final_login, _ = get_credentials_with_source(
+        token=token,
+        login=login,
+        env_path=env_path,
+        op_token_ref=op_token_ref,
+        op_login_ref=op_login_ref,
+        bw_token_ref=bw_token_ref,
+        bw_login_ref=bw_login_ref,
+        profile=profile,
+        allow_login_resolve=allow_login_resolve,
+    )
+    return final_token, final_login
+
+
+def get_credentials_with_source(
+    token: Optional[str] = None,
+    login: Optional[str] = None,
+    env_path: Optional[str] = None,
+    op_token_ref: Optional[str] = None,
+    op_login_ref: Optional[str] = None,
+    bw_token_ref: Optional[str] = None,
+    bw_login_ref: Optional[str] = None,
+    profile: Optional[str] = None,
+    allow_login_resolve: bool = True,
+) -> Tuple[str, Optional[str], str]:
     """
     Get credentials with priority:
     1. Direct arguments (--token, --login)
@@ -834,7 +861,9 @@ def get_credentials(
         bw_login_ref: Bitwarden item name/ID for login
 
     Returns:
-        Tuple of (token, login)
+        Tuple of (token, login, source) where source is one of
+        "args", "explicit-profile", "env", "active-profile", "op", "bw" —
+        the winning rung of the priority ladder (issue #904).
 
     Raises:
         ValueError: If token is not provided
@@ -847,12 +876,14 @@ def get_credentials(
     final_login = login
     selected_profile = profile
     profile_credentials_selected = False
+    source = "args"
 
     if selected_profile and not final_token:
         final_token, final_login = _resolve_profile_or_raise(
             selected_profile, final_login, allow_login_resolve
         )
         profile_credentials_selected = True
+        source = "explicit-profile"
 
     if not final_token:
         env_token = os.getenv("YANDEX_DIRECT_TOKEN")
@@ -860,6 +891,7 @@ def get_credentials(
             final_token = env_token
             if not final_login:
                 final_login = os.getenv("YANDEX_DIRECT_LOGIN")
+            source = "env"
 
     if not final_token and not selected_profile:
         active_profile = get_active_profile()
@@ -868,16 +900,21 @@ def get_credentials(
                 active_profile, final_login, allow_login_resolve
             )
             profile_credentials_selected = True
+            source = "active-profile"
 
     if not final_token:
         ref = op_token_ref or os.getenv("YANDEX_DIRECT_OP_TOKEN_REF")
         if ref:
             final_token = op_read(ref)
+            if final_token:
+                source = "op"
 
     if not final_token:
         ref = bw_token_ref or os.getenv("YANDEX_DIRECT_BW_TOKEN_REF")
         if ref:
             final_token = bw_read(ref, "password")
+            if final_token:
+                source = "bw"
 
     if not final_login and not profile_credentials_selected:
         ref = op_login_ref or os.getenv("YANDEX_DIRECT_OP_LOGIN_REF")
@@ -898,4 +935,4 @@ def get_credentials(
             "with --bw-token-ref."
         )
 
-    return final_token, final_login
+    return final_token, final_login, source

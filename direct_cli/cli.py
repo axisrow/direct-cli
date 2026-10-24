@@ -3,6 +3,7 @@
 Direct CLI - Command-line interface for Yandex Direct API
 """
 
+import os
 import sys
 from typing import TYPE_CHECKING, Optional
 
@@ -10,7 +11,7 @@ import click
 from click.core import ParameterSource
 
 from . import __version__
-from .auth import get_active_profile, get_credentials, load_env_file
+from .auth import get_active_profile, get_credentials_with_source, load_env_file
 from .i18n import (
     LOCALE_ENV_VAR,
     LocalizedOption,
@@ -18,6 +19,8 @@ from .i18n import (
     set_active_locale,
     t,
 )
+from .output import print_warning_stderr
+from .smoke_matrix import DANGEROUS, WRITE_SANDBOX, command_category
 from .utils import get_docs_url
 
 from .commands.campaigns import campaigns
@@ -118,6 +121,101 @@ def _command_has_option(cmd: click.Command, option_name: str) -> bool:
         isinstance(param, click.Option)
         and (option_name in param.opts or option_name in param.secondary_opts)
         for param in cmd.params
+    )
+
+
+_MUTATING_CATEGORIES = (WRITE_SANDBOX, DANGEROUS)
+
+INHERIT_GLOBAL_ENV = "YANDEX_DIRECT_INHERIT_GLOBAL"
+
+
+def _inherit_globally_enabled() -> bool:
+    """Opt-in (issue #904 variant 3): restore the pre-#904 silent inheritance."""
+    return (os.getenv(INHERIT_GLOBAL_ENV) or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _interactive_streams() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _check_inherited_credentials(ctx: click.Context) -> None:
+    """Gate commands running on inherited global-profile credentials (#904).
+
+    In a folder with no explicit binding (cwd ``.env``, ``--profile``, base
+    env), credentials silently come from the global active profile
+    (``~/.direct-cli/auth.json``, issue #489) — mutations would hit whichever
+    account logged in last. This check runs once per leaf command, after
+    parsing (params are final) and before any command body, so mutations are
+    refused before a request is even built:
+
+    * interactive session: ask whether to use the inherited profile; a
+      refusal exits with binding hints. Nothing is persisted — the question
+      is asked on every run.
+    * non-interactive session (scripts, sub-processes): mutating commands
+      fail closed; read-only commands run with a stderr warning.
+    * ``--dry-run`` never touches the API and stays silent in both modes.
+    * ``YANDEX_DIRECT_INHERIT_GLOBAL=1`` restores the old silent inheritance
+      for unattended workflows that know what they are doing.
+    * ``--sandbox`` does not bypass any of this: the sandbox authenticates
+      under the same profile login, so a wrong inherited account is the same
+      mistake there.
+    """
+    if _inherit_globally_enabled():
+        return
+    obj = ctx.obj or {}
+    if obj.get("credential_source") != "active-profile":
+        return
+    if ctx.params.get("dry_run"):
+        return
+    profile_name = obj.get("credential_profile") or "(unknown)"
+    login_value = obj.get("login") or "not set"
+
+    if _interactive_streams():
+        confirmed = click.confirm(
+            t(
+                "Found global profile '{name}' (login={login}); "
+                "use these inherited credentials?"
+            ).format(name=profile_name, login=login_value),
+            default=False,
+        )
+        if confirmed:
+            return
+        raise click.UsageError(
+            t(
+                "No credentials bound to this folder. Run `direct auth login` "
+                "or create a .env file with YANDEX_DIRECT_TOKEN to bind "
+                "credentials."
+            )
+        )
+
+    command_key = ctx.command_path.removeprefix("direct ").replace(" ", ".")
+    try:
+        mutating = command_category(command_key) in _MUTATING_CATEGORIES
+    except KeyError:
+        # The matrix is test-enforced complete over every leaf command; an
+        # unclassified key is treated as read-only (warn, don't fail closed).
+        mutating = False
+    if mutating:
+        raise click.UsageError(
+            t(
+                "Refusing to run mutating command `{command}` with credentials "
+                "inherited from global profile '{name}' (login={login}) in a "
+                "non-interactive session. Bind the folder via --profile or a "
+                ".env file (YANDEX_DIRECT_TOKEN), or set "
+                f"{INHERIT_GLOBAL_ENV}=1 to allow inheritance."
+            ).format(command=command_key, name=profile_name, login=login_value)
+        )
+    print_warning_stderr(
+        t(
+            "Credentials inherited from global profile '{name}' "
+            "(login={login}); bind this folder via .env or --profile, or set "
+            f"{INHERIT_GLOBAL_ENV}=1 to allow inheritance."
+        ).format(name=profile_name, login=login_value)
     )
 
 
@@ -223,6 +321,14 @@ class _LocalizedHelpMixin(_CommandBase):
 
 class DirectCliCommand(_LocalizedHelpMixin, _NoSuchOptionHintMixin, click.Command):
     """Click Command that localizes help and augments NoSuchOption errors."""
+
+    def invoke(self, ctx):
+        # Every leaf command funnels through here, after parsing (params are
+        # final) and before any command body runs — the one tree-wide point
+        # where inherited-credential gating can check the full command path
+        # (#904).
+        _check_inherited_credentials(ctx)
+        return super().invoke(ctx)
 
 
 class DirectCliGroup(_LocalizedHelpMixin, _NoSuchOptionHintMixin, click.Group):
@@ -420,7 +526,11 @@ def cli(
     help_or_version = any(arg in ("--help", "-h", "--version") for arg in sys.argv[1:])
     if has_refs:
         try:
-            resolved_token, resolved_login = get_credentials(
+            (
+                resolved_token,
+                resolved_login,
+                credential_source,
+            ) = get_credentials_with_source(
                 token=explicit_token,
                 login=explicit_login,
                 profile=profile,
@@ -430,8 +540,16 @@ def cli(
                 bw_login_ref=explicit_bw_login_ref,
                 allow_login_resolve=not help_or_version,
             )
+            if credential_source == "explicit-profile":
+                credential_profile = profile
+            elif credential_source == "active-profile":
+                credential_profile = active_profile
+            else:
+                credential_profile = None
             ctx.obj["token"] = resolved_token
             ctx.obj["login"] = resolved_login
+            ctx.obj["credential_source"] = credential_source
+            ctx.obj["credential_profile"] = credential_profile
         except RuntimeError as e:
             raise click.ClickException(str(e))
         except ValueError as e:

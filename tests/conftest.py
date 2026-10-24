@@ -95,6 +95,27 @@ def _block_login_resolve_network(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_global_auth_store(request, monkeypatch, tmp_path):
+    """Point ``AUTH_STORE_PATH`` at a per-test file for offline tests.
+
+    The developer's real ``~/.direct-cli/auth.json`` (active profile) must not
+    leak into offline tests: credential resolution there silently inherits the
+    last logged-in account (issue #489), and the #904 inherited-credential
+    gate would otherwise make whole test groups depend on the machine's login
+    state — the exact nondeterminism the suite's credential rules forbid.
+    Live tiers are carved out: ``_resolve_test_credentials`` falls back to the
+    active profile on purpose (env vars win first), so their store stays real.
+    Tests that need a populated store still override per-test (e.g.
+    ``test_auth_oauth.py::isolated_auth_store``); monkeypatch applies the
+    later assignment, so fixture ordering keeps working.
+    """
+    for marker in _LIVE_MARKERS:
+        if request.node.get_closest_marker(marker):
+            return
+    monkeypatch.setattr("direct_cli.auth.AUTH_STORE_PATH", tmp_path / "auth.json")
+
+
+@pytest.fixture(autouse=True)
 def _default_cli_locale_en(monkeypatch):
     """Default the CLI UI locale to English across the suite.
 
