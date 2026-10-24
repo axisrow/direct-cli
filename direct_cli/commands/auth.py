@@ -17,6 +17,7 @@ from ..auth import (
     exchange_oauth_code,
     get_active_profile,
     get_env_profile,
+    get_credentials_with_source,
     get_oauth_profile,
     get_pending_pkce,
     inherit_globally_enabled,
@@ -252,6 +253,23 @@ def use(profile):
         )
     set_active_profile(profile)
     print_success(t("Active profile is '{profile}'.").format(profile=profile))
+
+
+@auth.command()
+@click.option("--profile", required=True, help="Profile name to bind this folder to")
+def write(profile):
+    """Bind this folder to a profile by writing the cwd .env file."""
+    try:
+        token, login_value = get_credentials_with_source(
+            profile=profile,
+            allow_login_resolve=False,
+        )[:2]
+    except (RuntimeError, ValueError) as error:
+        raise click.ClickException(str(error)) from error
+    save_env_credentials(token=token, login=login_value)
+    print_success(
+        t("Bound credentials to .env (profile {profile}).").format(profile=profile)
+    )
 
 
 @auth.command()

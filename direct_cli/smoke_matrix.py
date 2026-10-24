@@ -220,6 +220,10 @@ SMOKE_MATRIX = {
         "agencyclients.update",
         "auth.login",
         "auth.use",
+        # auth.write rewrites the cwd .env credential binding -- a local
+        # credential-store mutation like auth.login/auth.use, not a read;
+        # an automated run in an arbitrary folder would silently rebind it.
+        "auth.write",
         # Browser-driven mutations against Мастер кампаний (issues #630,
         # #633). Мастер кампаний has no API surface at all, so there is no
         # --sandbox equivalent to isolate these from a real Yandex

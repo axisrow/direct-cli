@@ -5,25 +5,20 @@ Direct CLI - Command-line interface for Yandex Direct API
 
 import os
 import sys
-import time
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional
 
 import click
 from click.core import ParameterSource
 
 from . import __version__
 from .auth import (
-    DEFAULT_OAUTH_CLIENT_ID,
     INHERIT_GLOBAL_ENV,
-    exchange_oauth_code,
     get_active_profile,
     get_credentials_with_source,
     inherit_globally_enabled,
     list_profiles,
     load_env_file,
-    resolve_account_login,
     save_env_credentials,
-    save_oauth_profile,
 )
 from .i18n import (
     LOCALE_ENV_VAR,
@@ -32,7 +27,6 @@ from .i18n import (
     set_active_locale,
     t,
 )
-from .output import print_info
 from .utils import get_docs_url
 
 from .commands.campaigns import campaigns
@@ -143,94 +137,41 @@ def _interactive_streams() -> bool:
 def _bind_hints() -> str:
     """Shared hint text for refusals in folders with no bound credentials."""
     return t(
-        "No credentials bound to this folder. Run `direct auth login`, bind "
-        "this folder via a .env file (YANDEX_DIRECT_TOKEN), pass --profile, "
-        f"or set {INHERIT_GLOBAL_ENV}=1 to use the global active profile."
+        "No credentials bound to this folder. Run `direct auth write --profile "
+        "<name>` to bind one, `direct auth login` to authorize a new profile, "
+        "bind via a .env file (YANDEX_DIRECT_TOKEN), pass --profile, or set "
+        f"{INHERIT_GLOBAL_ENV}=1 to use the global active profile."
     )
-
-
-def _authorize_new_profile(profile_name: str) -> Tuple[str, Optional[str]]:
-    """Run the interactive OAuth flow and store it as *profile_name*.
-
-    Mirrors `direct auth login`'s interactive path (authorize URL + code
-    prompt + exchange) without its non-interactive branches — this helper is
-    only ever called from the TTY bind menu.
-    """
-    from .commands.auth import _build_interactive_authorize_url
-
-    auth_url, code_verifier = _build_interactive_authorize_url(
-        client_id=DEFAULT_OAUTH_CLIENT_ID,
-        client_secret=None,
-    )
-    print_info(t("Open this URL and grant access:"))
-    click.echo(auth_url)
-    auth_code = click.prompt(t("Enter OAuth code"), type=str).strip()
-    token_response = exchange_oauth_code(
-        code=auth_code,
-        client_id=DEFAULT_OAUTH_CLIENT_ID,
-        code_verifier=code_verifier,
-    )
-    access_token = token_response["access_token"]
-    login_value = resolve_account_login(access_token)
-    save_oauth_profile(
-        profile=profile_name,
-        token=access_token,
-        login=login_value,
-        refresh_token=token_response.get("refresh_token"),
-        expires_at=time.time() + token_response["expires_in"],
-        client_id=DEFAULT_OAUTH_CLIENT_ID,
-    )
-    return access_token, login_value
 
 
 def _bind_folder_interactively(ctx: click.Context) -> None:
-    """Bind this folder to credentials chosen by the user (#904).
+    """Bind this folder to an existing profile chosen by the user (#904).
 
-    Offers the existing profiles, or a fresh interactive OAuth login, and
-    persists the choice to the cwd `.env` so the question never comes back
-    for this folder. A cancellation exits with binding hints.
+    Offers the existing profiles and persists the choice to the cwd `.env`
+    so the question never comes back for this folder. A cancellation exits
+    with binding hints. New profiles are authorized via `direct auth login`.
     """
     profiles = list_profiles()
-    if profiles:
-        click.echo(t("No credentials bound to this folder. Available profiles:"))
-        for index, item in enumerate(profiles, start=1):
-            login_display = item.get("login") or "(not set)"
-            active_mark = " [active]" if item.get("active") else ""
-            click.echo(
-                t("  {index}) {profile} (login={login}){mark}").format(
-                    index=index,
-                    profile=item["profile"],
-                    login=login_display,
-                    mark=active_mark,
-                )
-            )
-        choice_hint = t(
-            "Select a profile number to bind this folder to it via .env, "
-            "'login' to authorize a new profile, or 'cancel':"
-        )
-    else:
+    if not profiles:
+        raise click.UsageError(_bind_hints())
+    click.echo(t("No credentials bound to this folder. Bind a profile?"))
+    for index, item in enumerate(profiles, start=1):
+        login_mark = f" (login={item['login']})" if item.get("login") else ""
+        active_mark = " [active]" if item.get("active") else ""
         click.echo(
-            t(
-                "No credentials bound to this folder and no profiles are "
-                "configured yet."
+            t("  {index}) {profile}{login_mark}{mark}").format(
+                index=index,
+                profile=item["profile"],
+                login_mark=login_mark,
+                mark=active_mark,
             )
         )
-        choice_hint = t("Type 'login' to authorize a new profile, or 'cancel':")
-
+    choice_hint = t("Select a profile number or 'cancel'")
     while True:
         choice = click.prompt(choice_hint, type=str).strip().lower()
         if choice in ("c", "cancel"):
             raise click.UsageError(_bind_hints())
-        if choice in ("l", "login"):
-            profile_name = click.prompt(
-                t("New profile name"), default="default", type=str
-            ).strip()
-            try:
-                token, login_value = _authorize_new_profile(profile_name)
-            except RuntimeError as error:
-                raise click.ClickException(str(error)) from error
-            break
-        if profiles and choice.isdigit() and 1 <= int(choice) <= len(profiles):
+        if choice.isdigit() and 1 <= int(choice) <= len(profiles):
             profile_name = profiles[int(choice) - 1]["profile"]
             try:
                 token, login_value = get_credentials_with_source(
@@ -240,19 +181,12 @@ def _bind_folder_interactively(ctx: click.Context) -> None:
             except (RuntimeError, ValueError) as error:
                 raise click.ClickException(str(error)) from error
             break
-        click.echo(t("Enter a profile number, 'login', or 'cancel'."))
+        click.echo(t("Enter a profile number or 'cancel'."))
 
-    if not click.confirm(
-        t(
-            "Save these credentials to the .env file in the current folder? "
-            f"(or set {INHERIT_GLOBAL_ENV}=1 globally instead)"
-        ),
-        default=True,
-    ):
-        raise click.UsageError(_bind_hints())
     save_env_credentials(token=token, login=login_value)
     load_env_file()
-    click.echo(t("Bound credentials to .env."))
+    bound_message = t("Bound credentials to .env (profile {profile}).")
+    click.echo(bound_message.format(profile=profile_name))
 
 
 def _ensure_credentials_bound(ctx: click.Context) -> None:
@@ -260,8 +194,8 @@ def _ensure_credentials_bound(ctx: click.Context) -> None:
 
     A folder with no explicit binding (cwd `.env`, `--profile`, base env) has
     no credentials of its own — the global active profile is no longer
-    inherited silently. Interactive sessions get a bind menu (pick a profile
-    or authorize a new one, saved to the cwd `.env`); non-interactive
+    inherited silently. Interactive sessions get a bind menu (pick a profile,
+    saved to the cwd `.env`); non-interactive
     sessions fail closed with binding hints. `--dry-run` never touches the
     API and needs no credentials, so it stays silent. Opt back into the old
     inheritance with `YANDEX_DIRECT_INHERIT_GLOBAL=1`.

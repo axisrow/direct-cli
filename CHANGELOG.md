@@ -15,13 +15,16 @@ indistinguishable `source=oauth`. Now an unbound folder has no credentials:
 
 - **Non-interactive sessions** (scripts, sub-processes — including the
   Yandex Direct MCP plugin): every API command fails with `UsageError` and
-  binding hints until the folder is bound.
+  binding hints until the folder is bound. New: `direct auth write --profile
+  <name>` binds a folder without any prompts — it writes the profile's
+  credentials to the cwd `.env` (merge, `0600`, the token is never printed);
+  `--profile` is required, nothing is bound implicitly.
 - **Interactive sessions**: the CLI offers to bind the folder on the spot —
-  pick one of the existing profiles or authorize a new one (the `direct
-  auth login` flow); the choice is saved to the cwd `.env`, so the question
-  never repeats for that folder. Cancelling exits with binding hints.
-  `--dry-run` never touches the API and needs no credentials, so it stays
-  silent.
+  one prompt listing the existing profiles; the choice is saved to the cwd
+  `.env`, so the question never repeats for that folder. To authorize a new
+  profile first, run `direct auth login`. Cancelling exits with binding
+  hints. `--dry-run` never touches the API and needs no credentials, so it
+  stays silent.
 - **`direct auth status`** in an unbound folder reports
   `source=null`/`has_token=false` plus a note about the global profile
   (`global_profile`/`global_login` in JSON) — the global profile exists, but
