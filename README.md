@@ -430,17 +430,21 @@ from the active profile fallback (priority 4) — e.g. a brand-new folder with
 no `.env` — the CLI no longer inherits them silently:
 
 - Non-interactive sessions (scripts, sub-processes): API commands fail with
-  `UsageError` and binding hints until the folder is bound.
-- Interactive sessions: the CLI offers to bind the folder on the spot — pick
-  an existing profile or authorize a new one; the choice is saved to the cwd
-  `.env` and never asked again for that folder.
+  `UsageError` and binding hints until the folder is bound. Bind a folder
+  without prompts via `direct auth write --profile <name>` — it writes the
+  profile's credentials to the cwd `.env` (merge, `0600`, token never
+  printed); `--profile` is required, nothing is bound implicitly.
+- Interactive sessions: the CLI offers to bind the folder on the spot — one
+  prompt listing the existing profiles; the choice is saved to the cwd `.env`
+  and never asked again for that folder. To authorize a new profile first,
+  run `direct auth login`.
 - `direct auth status` in an unbound folder reports
   `source=null`/`has_token=false` and notes the global profile
   (`global_profile`/`global_login` in JSON) without presenting it as this
   folder's credentials.
 - `--dry-run` needs no credentials and stays silent; `--sandbox` does not
   bypass the gate — the sandbox authenticates under the same profile login.
-- Set `YANDEX_DIRECT_INHERIT_GLOBAL=1` to restore the pre-0.6 silent
+- Set `YANDEX_DIRECT_INHERIT_GLOBAL=1` to restore the former silent
   inheritance for unattended workflows (auth status then labels it
   `source=global-profile-inherited`).
 

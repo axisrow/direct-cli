@@ -855,6 +855,7 @@ def get_credentials_with_source(
     bw_login_ref: Optional[str] = None,
     profile: Optional[str] = None,
     allow_login_resolve: bool = True,
+    allow_active_profile: bool = True,
 ) -> Tuple[str, Optional[str], str]:
     """
     Get credentials with priority:
@@ -873,6 +874,13 @@ def get_credentials_with_source(
         op_login_ref: 1Password secret reference for login
         bw_token_ref: Bitwarden item name/ID for token
         bw_login_ref: Bitwarden item name/ID for login
+        allow_login_resolve: Allow the one-time #480 email->Client-Login
+            migration for profile-sourced credentials
+        allow_active_profile: Allow rung 4 (silent inheritance of the global
+            active profile). The root CLI callback passes the #904 opt-in
+            here — without it a folder with partial refs (e.g. an exported
+            YANDEX_DIRECT_LOGIN only) would otherwise silently inherit the
+            active profile's token and bypass the bind gate.
 
     Returns:
         Tuple of (token, login, source) where source is one of
@@ -907,7 +915,7 @@ def get_credentials_with_source(
                 final_login = os.getenv("YANDEX_DIRECT_LOGIN")
             source = "env"
 
-    if not final_token and not selected_profile:
+    if not final_token and not selected_profile and allow_active_profile:
         active_profile = get_active_profile()
         if active_profile:
             final_token, final_login = _resolve_profile_or_raise(
