@@ -4,51 +4,49 @@
 
 ### BREAKING CHANGES
 
-**Running on inherited global-profile credentials is no longer silent
-(#904).**
+**A folder with no bound credentials has no credentials — the global active
+profile is no longer inherited silently (#904).**
 
 Since #489 a folder with no explicit credential binding (no cwd `.env`, no
 `--profile`, no base env) silently resolved credentials from the global
 active profile in `~/.direct-cli/auth.json` — every new project started
 billing the last logged-in account, and `direct auth status` reported an
-indistinguishable `source=oauth`. #904 makes that state explicit and, for
-mutations, fail-closed:
+indistinguishable `source=oauth`. Now an unbound folder has no credentials:
 
-- `direct auth status` now reports `source=global-profile-inherited` (in
-  both the text and the JSON output, alongside the profile name and login)
-  when credentials come from the global active profile rather than an
-  explicit binding. JSON consumers that matched `source == "oauth"` for this
-  state must match the new value.
-- In an interactive session, a command about to run on inherited credentials
-  first asks `Found global profile '<name>' (login=<login>); use these
-  inherited credentials?` — default is no, and a refusal exits with binding
-  hints (`direct auth login`, or a `.env` with `YANDEX_DIRECT_TOKEN`). The
-  answer is not persisted; the question is asked on every run.
-- In a non-interactive session (scripts, sub-processes — including the
-  Yandex Direct MCP plugin), read-only commands run with a stderr warning;
-  mutating commands (the `WRITE_SANDBOX`/`DANGEROUS` categories of
-  `direct_cli/smoke_matrix.py`) fail with `UsageError` before the request is
-  built.
-- `--dry-run` never touches the API and stays silent in both modes.
-- `--sandbox` does not bypass the gate: the sandbox authenticates under the
-  same profile login, so a wrong inherited account is the same mistake
-  there.
-- Opt back into the old silent inheritance for unattended workflows with
-  `YANDEX_DIRECT_INHERIT_GLOBAL=1`.
+- **Non-interactive sessions** (scripts, sub-processes — including the
+  Yandex Direct MCP plugin): every API command fails with `UsageError` and
+  binding hints until the folder is bound.
+- **Interactive sessions**: the CLI offers to bind the folder on the spot —
+  pick one of the existing profiles or authorize a new one (the `direct
+  auth login` flow); the choice is saved to the cwd `.env`, so the question
+  never repeats for that folder. Cancelling exits with binding hints.
+  `--dry-run` never touches the API and needs no credentials, so it stays
+  silent.
+- **`direct auth status`** in an unbound folder reports
+  `source=null`/`has_token=false` plus a note about the global profile
+  (`global_profile`/`global_login` in JSON) — the global profile exists, but
+  it is not presented as this folder's credentials.
+- **Opt-in**: `YANDEX_DIRECT_INHERIT_GLOBAL=1` restores the #489 behavior —
+  the global active profile is inherited silently again, and `auth status`
+  labels it `source=global-profile-inherited`.
 
-The credential priority ladder itself is unchanged (#489): explicit flags >
-cwd `.env`/base env > active profile > 1Password/Bitwarden. Migration: bind
-the folders you trust via a `.env` file (see `direct auth write`) or
-`--profile`, or set `YANDEX_DIRECT_INHERIT_GLOBAL=1` where inheritance is
-intended.
+Explicit bindings are unchanged and still win: `--token`, `--profile`,
+base env, cwd `.env`. `--sandbox` does not bypass the gate — the sandbox
+authenticates under the same profile login, so a wrong inherited account is
+the same mistake there.
+
+Migration: bind the folders you use via a `.env` file (`direct auth write`,
+or answer the bind menu once per folder), pass `--profile`, or set
+`YANDEX_DIRECT_INHERIT_GLOBAL=1` where inheritance is intended.
 
 Offline tests are insulated from the same nondeterminism: the suite now
 points `AUTH_STORE_PATH` at a per-test file by default (autouse fixture;
-live tiers keep the real store so their profile fallback still works), so
-offline tests no longer change behavior with the developer's active
-`direct auth` profile. The `ruff` dev pin moves to `>=0.16,<0.17` with the
-pre-0.16 default rule set pinned explicitly in `[tool.ruff.lint] select`, so
-lint behavior no longer drifts with the ruff version.
+live tiers keep the real store so their profile fallback still works) and
+runs under the inheritance opt-in, so offline tests no longer change
+behavior with the developer's active `direct auth` profile. The `ruff` dev
+pin moves to `>=0.16,<0.17` with the pre-0.16 default rule set pinned
+explicitly in `[tool.ruff.lint] select`, so lint behavior no longer drifts
+with the ruff version.
 
 ## 0.5.3 — 2026-10-07
 

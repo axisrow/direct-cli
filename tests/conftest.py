@@ -116,6 +116,22 @@ def _isolate_global_auth_store(request, monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _opt_in_global_profile_inheritance(monkeypatch):
+    """Run offline tests under the #904 inheritance opt-in.
+
+    The credential-binding gate (#904) refuses unbound-folder commands before
+    their bodies run, which would shadow exactly what most offline tests
+    assert: validation UsageErrors, local reference output, mocked API calls.
+    Offline tests therefore run with ``YANDEX_DIRECT_INHERIT_GLOBAL=1`` set —
+    the gate is inert and commands behave as before. Combined with the
+    per-test auth-store isolation above this stays deterministic. The gate's
+    own contract tests clear this env (``tests/test_credential_provenance.py``)
+    to exercise the production default.
+    """
+    monkeypatch.setenv("YANDEX_DIRECT_INHERIT_GLOBAL", "1")
+
+
+@pytest.fixture(autouse=True)
 def _default_cli_locale_en(monkeypatch):
     """Default the CLI UI locale to English across the suite.
 

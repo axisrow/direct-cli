@@ -10,6 +10,7 @@ import click
 
 from ..auth import (
     DEFAULT_OAUTH_CLIENT_ID,
+    INHERIT_GLOBAL_ENV,
     bw_read,
     build_oauth_authorize_url,
     build_pkce_pair,
@@ -18,6 +19,7 @@ from ..auth import (
     get_env_profile,
     get_oauth_profile,
     get_pending_pkce,
+    inherit_globally_enabled,
     load_env_file,
     list_profiles,
     op_read,
@@ -269,8 +271,8 @@ def status(ctx, profile, output_format):
     root_obj = ctx.find_root().obj or ctx.obj or {}
     selected = profile or root_obj.get("profile")
     # True when the profile was reached via the global active-profile
-    # fallback (no explicit --profile, root --token, or base env token):
-    # the credentials are inherited, not bound to this folder (#904).
+    # fallback — only possible under the #904 opt-in env; then the
+    # credentials are inherited, not bound to this folder.
     inherited_profile = False
     if not selected:
         root_token = root_obj.get("token")
@@ -294,7 +296,13 @@ def status(ctx, profile, output_format):
                 output_format=output_format,
             )
             return
-        selected = get_active_profile()
+        active = get_active_profile()
+        if active and not inherit_globally_enabled():
+            # #904: the global active profile is not a credential source
+            # without the opt-in — report no binding plus a note.
+            _print_unbound_status(active, output_format)
+            return
+        selected = active
         inherited_profile = True
     if not selected:
         op_token_ref = root_obj.get("op_token_ref") or os.getenv(
@@ -391,6 +399,42 @@ def status(ctx, profile, output_format):
         login_value=login_value,
         expires_at=expires_at,
         output_format=output_format,
+    )
+
+
+def _print_unbound_status(global_profile: str, output_format: str) -> None:
+    """Report a folder with no bound credentials (#904).
+
+    The global active profile exists but is not a credential source without
+    the opt-in — surface it as a note, never as usable credentials.
+    """
+    global_login = (get_oauth_profile(global_profile) or {}).get("login")
+    if output_format == "json":
+        click.echo(
+            json.dumps(
+                {
+                    "profile": None,
+                    "source": None,
+                    "has_token": False,
+                    "login": None,
+                    "global_profile": global_profile,
+                    "global_login": global_login,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return
+    print_info(t("No credentials bound to this folder."))
+    click.echo(
+        t(
+            "Global profile '{name}' (login={login}) exists but is not bound " "here."
+        ).format(name=global_profile, login=global_login or "(not set)")
+    )
+    print_info(
+        t(
+            "Bind this folder via a .env file (YANDEX_DIRECT_TOKEN) or "
+            "--profile, or set {env}=1 to use the global profile."
+        ).format(env=INHERIT_GLOBAL_ENV)
     )
 
 

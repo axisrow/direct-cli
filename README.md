@@ -425,22 +425,24 @@ base `YANDEX_DIRECT_LOGIN`; this prevents mixing accounts. `direct auth status`
 without `--profile` reports the effective credential source; with `--profile` it
 reports that profile.
 
-**Inherited credentials are never silent (#904).** When credentials come from
-the active profile fallback (priority 4) — e.g. a brand-new folder with no
-`.env` — `direct auth status` reports `source=global-profile-inherited`, and
-commands make the inheritance visible before touching the API:
+**An unbound folder has no credentials (#904).** When credentials would come
+from the active profile fallback (priority 4) — e.g. a brand-new folder with
+no `.env` — the CLI no longer inherits them silently:
 
-- Interactive session: the CLI asks `Found global profile '<name>'
-  (login=<login>); use these inherited credentials?` first; a refusal exits
-  with binding hints. The answer is not persisted — expect the question on
-  every run.
-- Non-interactive session (scripts, sub-processes): read-only commands print
-  a stderr warning; mutating commands fail with `UsageError` before a
-  request is built.
-- `--dry-run` stays silent (no API call), and `--sandbox` does not bypass
-  the gate — the sandbox authenticates under the same profile login.
+- Non-interactive sessions (scripts, sub-processes): API commands fail with
+  `UsageError` and binding hints until the folder is bound.
+- Interactive sessions: the CLI offers to bind the folder on the spot — pick
+  an existing profile or authorize a new one; the choice is saved to the cwd
+  `.env` and never asked again for that folder.
+- `direct auth status` in an unbound folder reports
+  `source=null`/`has_token=false` and notes the global profile
+  (`global_profile`/`global_login` in JSON) without presenting it as this
+  folder's credentials.
+- `--dry-run` needs no credentials and stays silent; `--sandbox` does not
+  bypass the gate — the sandbox authenticates under the same profile login.
 - Set `YANDEX_DIRECT_INHERIT_GLOBAL=1` to restore the pre-0.6 silent
-  inheritance for unattended workflows.
+  inheritance for unattended workflows (auth status then labels it
+  `source=global-profile-inherited`).
 
 > **Tests follow the safe credential order.** Live-API test suites (e.g. `tests/test_v4_live_contracts.py`) read `YANDEX_DIRECT_TOKEN` / `YANDEX_DIRECT_LOGIN` from the environment first, only then fall back to the active `direct auth` profile, and skip the test if neither is set. This prevents a developer machine with an active profile from silently hitting production on a plain `pytest` invocation. See `CLAUDE.md` for the contract.
 
