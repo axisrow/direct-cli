@@ -48,6 +48,10 @@ fi
 if [ -z "${YANDEX_DIRECT_TOKEN:-}" ]; then
   if direct auth status >/dev/null 2>&1; then
     AUTH_SOURCE="profile"
+    # #904: an unbound folder has no credentials by default. This script is
+    # exactly the "use the global active profile" workflow, so opt in and let
+    # every SAFE command below inherit it.
+    export YANDEX_DIRECT_INHERIT_GLOBAL=1
   else
     echo -e "${RED}ERROR:${RESET} No credentials found."
     echo "       Use 'direct auth login', put .env, or export YANDEX_DIRECT_TOKEN."
