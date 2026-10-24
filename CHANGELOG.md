@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.0 — 2026-10-24
+## 0.5.4 — 2026-10-24
 
 ### BREAKING CHANGES
 
