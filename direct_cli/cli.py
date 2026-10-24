@@ -5,13 +5,26 @@ Direct CLI - Command-line interface for Yandex Direct API
 
 import os
 import sys
-from typing import TYPE_CHECKING, Optional
+import time
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import click
 from click.core import ParameterSource
 
 from . import __version__
-from .auth import get_active_profile, get_credentials_with_source, load_env_file
+from .auth import (
+    DEFAULT_OAUTH_CLIENT_ID,
+    INHERIT_GLOBAL_ENV,
+    exchange_oauth_code,
+    get_active_profile,
+    get_credentials_with_source,
+    inherit_globally_enabled,
+    list_profiles,
+    load_env_file,
+    resolve_account_login,
+    save_env_credentials,
+    save_oauth_profile,
+)
 from .i18n import (
     LOCALE_ENV_VAR,
     LocalizedOption,
@@ -19,8 +32,7 @@ from .i18n import (
     set_active_locale,
     t,
 )
-from .output import print_warning_stderr
-from .smoke_matrix import DANGEROUS, WRITE_SANDBOX, command_category
+from .output import print_info
 from .utils import get_docs_url
 
 from .commands.campaigns import campaigns
@@ -124,99 +136,153 @@ def _command_has_option(cmd: click.Command, option_name: str) -> bool:
     )
 
 
-_MUTATING_CATEGORIES = (WRITE_SANDBOX, DANGEROUS)
-
-INHERIT_GLOBAL_ENV = "YANDEX_DIRECT_INHERIT_GLOBAL"
-
-
-def _inherit_globally_enabled() -> bool:
-    """Opt-in (issue #904 variant 3): restore the pre-#904 silent inheritance."""
-    return (os.getenv(INHERIT_GLOBAL_ENV) or "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-
-
 def _interactive_streams() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
-def _check_inherited_credentials(ctx: click.Context) -> None:
-    """Gate commands running on inherited global-profile credentials (#904).
+def _bind_hints() -> str:
+    """Shared hint text for refusals in folders with no bound credentials."""
+    return t(
+        "No credentials bound to this folder. Run `direct auth login`, bind "
+        "this folder via a .env file (YANDEX_DIRECT_TOKEN), pass --profile, "
+        f"or set {INHERIT_GLOBAL_ENV}=1 to use the global active profile."
+    )
 
-    In a folder with no explicit binding (cwd ``.env``, ``--profile``, base
-    env), credentials silently come from the global active profile
-    (``~/.direct-cli/auth.json``, issue #489) — mutations would hit whichever
-    account logged in last. This check runs once per leaf command, after
-    parsing (params are final) and before any command body, so mutations are
-    refused before a request is even built:
 
-    * interactive session: ask whether to use the inherited profile; a
-      refusal exits with binding hints. Nothing is persisted — the question
-      is asked on every run.
-    * non-interactive session (scripts, sub-processes): mutating commands
-      fail closed; read-only commands run with a stderr warning.
-    * ``--dry-run`` never touches the API and stays silent in both modes.
-    * ``YANDEX_DIRECT_INHERIT_GLOBAL=1`` restores the old silent inheritance
-      for unattended workflows that know what they are doing.
-    * ``--sandbox`` does not bypass any of this: the sandbox authenticates
-      under the same profile login, so a wrong inherited account is the same
-      mistake there.
+def _authorize_new_profile(profile_name: str) -> Tuple[str, Optional[str]]:
+    """Run the interactive OAuth flow and store it as *profile_name*.
+
+    Mirrors `direct auth login`'s interactive path (authorize URL + code
+    prompt + exchange) without its non-interactive branches — this helper is
+    only ever called from the TTY bind menu.
     """
-    if _inherit_globally_enabled():
-        return
-    obj = ctx.obj or {}
-    if obj.get("credential_source") != "active-profile":
+    from .commands.auth import _build_interactive_authorize_url
+
+    auth_url, code_verifier = _build_interactive_authorize_url(
+        client_id=DEFAULT_OAUTH_CLIENT_ID,
+        client_secret=None,
+    )
+    print_info(t("Open this URL and grant access:"))
+    click.echo(auth_url)
+    auth_code = click.prompt(t("Enter OAuth code"), type=str).strip()
+    token_response = exchange_oauth_code(
+        code=auth_code,
+        client_id=DEFAULT_OAUTH_CLIENT_ID,
+        code_verifier=code_verifier,
+    )
+    access_token = token_response["access_token"]
+    login_value = resolve_account_login(access_token)
+    save_oauth_profile(
+        profile=profile_name,
+        token=access_token,
+        login=login_value,
+        refresh_token=token_response.get("refresh_token"),
+        expires_at=time.time() + token_response["expires_in"],
+        client_id=DEFAULT_OAUTH_CLIENT_ID,
+    )
+    return access_token, login_value
+
+
+def _bind_folder_interactively(ctx: click.Context) -> None:
+    """Bind this folder to credentials chosen by the user (#904).
+
+    Offers the existing profiles, or a fresh interactive OAuth login, and
+    persists the choice to the cwd `.env` so the question never comes back
+    for this folder. A cancellation exits with binding hints.
+    """
+    profiles = list_profiles()
+    if profiles:
+        click.echo(t("No credentials bound to this folder. Available profiles:"))
+        for index, item in enumerate(profiles, start=1):
+            login_display = item.get("login") or "(not set)"
+            active_mark = " [active]" if item.get("active") else ""
+            click.echo(
+                t("  {index}) {profile} (login={login}){mark}").format(
+                    index=index,
+                    profile=item["profile"],
+                    login=login_display,
+                    mark=active_mark,
+                )
+            )
+        choice_hint = t(
+            "Select a profile number to bind this folder to it via .env, "
+            "'login' to authorize a new profile, or 'cancel':"
+        )
+    else:
+        click.echo(
+            t(
+                "No credentials bound to this folder and no profiles are "
+                "configured yet."
+            )
+        )
+        choice_hint = t("Type 'login' to authorize a new profile, or 'cancel':")
+
+    while True:
+        choice = click.prompt(choice_hint, type=str).strip().lower()
+        if choice in ("c", "cancel"):
+            raise click.UsageError(_bind_hints())
+        if choice in ("l", "login"):
+            profile_name = click.prompt(
+                t("New profile name"), default="default", type=str
+            ).strip()
+            try:
+                token, login_value = _authorize_new_profile(profile_name)
+            except RuntimeError as error:
+                raise click.ClickException(str(error)) from error
+            break
+        if profiles and choice.isdigit() and 1 <= int(choice) <= len(profiles):
+            profile_name = profiles[int(choice) - 1]["profile"]
+            try:
+                token, login_value = get_credentials_with_source(
+                    profile=profile_name,
+                    allow_login_resolve=False,
+                )[:2]
+            except (RuntimeError, ValueError) as error:
+                raise click.ClickException(str(error)) from error
+            break
+        click.echo(t("Enter a profile number, 'login', or 'cancel'."))
+
+    if not click.confirm(
+        t(
+            "Save these credentials to the .env file in the current folder? "
+            f"(or set {INHERIT_GLOBAL_ENV}=1 globally instead)"
+        ),
+        default=True,
+    ):
+        raise click.UsageError(_bind_hints())
+    save_env_credentials(token=token, login=login_value)
+    load_env_file()
+    click.echo(t("Bound credentials to .env."))
+
+
+def _ensure_credentials_bound(ctx: click.Context) -> None:
+    """Refuse to run with no bound credentials unless the user binds now (#904).
+
+    A folder with no explicit binding (cwd `.env`, `--profile`, base env) has
+    no credentials of its own — the global active profile is no longer
+    inherited silently. Interactive sessions get a bind menu (pick a profile
+    or authorize a new one, saved to the cwd `.env`); non-interactive
+    sessions fail closed with binding hints. `--dry-run` never touches the
+    API and needs no credentials, so it stays silent. Opt back into the old
+    inheritance with `YANDEX_DIRECT_INHERIT_GLOBAL=1`.
+    """
+    if inherit_globally_enabled():
         return
     if ctx.params.get("dry_run"):
         return
-    profile_name = obj.get("credential_profile") or "(unknown)"
-    login_value = obj.get("login") or "not set"
-
-    if _interactive_streams():
-        confirmed = click.confirm(
-            t(
-                "Found global profile '{name}' (login={login}); "
-                "use these inherited credentials?"
-            ).format(name=profile_name, login=login_value),
-            default=False,
-        )
-        if confirmed:
-            return
-        raise click.UsageError(
-            t(
-                "No credentials bound to this folder. Run `direct auth login` "
-                "or create a .env file with YANDEX_DIRECT_TOKEN to bind "
-                "credentials."
-            )
-        )
-
-    command_key = ctx.command_path.removeprefix("direct ").replace(" ", ".")
-    try:
-        mutating = command_category(command_key) in _MUTATING_CATEGORIES
-    except KeyError:
-        # The matrix is test-enforced complete over every leaf command; an
-        # unclassified key is treated as read-only (warn, don't fail closed).
-        mutating = False
-    if mutating:
-        raise click.UsageError(
-            t(
-                "Refusing to run mutating command `{command}` with credentials "
-                "inherited from global profile '{name}' (login={login}) in a "
-                "non-interactive session. Bind the folder via --profile or a "
-                ".env file (YANDEX_DIRECT_TOKEN), or set "
-                f"{INHERIT_GLOBAL_ENV}=1 to allow inheritance."
-            ).format(command=command_key, name=profile_name, login=login_value)
-        )
-    print_warning_stderr(
-        t(
-            "Credentials inherited from global profile '{name}' "
-            "(login={login}); bind this folder via .env or --profile, or set "
-            f"{INHERIT_GLOBAL_ENV}=1 to allow inheritance."
-        ).format(name=profile_name, login=login_value)
+    obj = ctx.obj or {}
+    if obj.get("credential_gate") is False or obj.get("token"):
+        return
+    if not _interactive_streams():
+        raise click.UsageError(_bind_hints())
+    _bind_folder_interactively(ctx)
+    token, login_value, credential_source = get_credentials_with_source(
+        allow_login_resolve=False
     )
+    obj["token"] = token
+    obj["login"] = login_value
+    obj["credential_source"] = credential_source
+    obj["credential_profile"] = None
 
 
 def _augment_no_such_option(
@@ -325,9 +391,8 @@ class DirectCliCommand(_LocalizedHelpMixin, _NoSuchOptionHintMixin, click.Comman
     def invoke(self, ctx):
         # Every leaf command funnels through here, after parsing (params are
         # final) and before any command body runs — the one tree-wide point
-        # where inherited-credential gating can check the full command path
-        # (#904).
-        _check_inherited_credentials(ctx)
+        # for the credential-binding gate (#904).
+        _ensure_credentials_bound(ctx)
         return super().invoke(ctx)
 
 
@@ -473,7 +538,13 @@ def cli(
     # its own context (see _LocalizedHelpMixin.format_help_text).
     set_active_locale(resolve_locale(ctx))
     active_profile = None
-    if ctx.invoked_subcommand not in _NO_CREDENTIALS_GROUPS:
+    if (
+        ctx.invoked_subcommand not in _NO_CREDENTIALS_GROUPS
+        and inherit_globally_enabled()
+    ):
+        # The global active profile is a credential source only under the
+        # #904 opt-in; otherwise a folder with no explicit binding has no
+        # credentials at all (the bind gate runs per leaf command).
         active_profile = get_active_profile()
 
     explicit_token = _command_line_option_value(ctx, "token", token)
@@ -498,6 +569,9 @@ def cli(
         ctx, "bw_login_ref", bw_login_ref
     )
     if ctx.invoked_subcommand in _NO_CREDENTIALS_GROUPS:
+        # These groups manage or consume their own non-API credentials; the
+        # leaf bind gate must not fire for them (#904).
+        ctx.obj["credential_gate"] = False
         ctx.obj["token"] = explicit_token
         ctx.obj["login"] = explicit_login
         ctx.obj["op_token_ref"] = op_token_ref
@@ -507,6 +581,12 @@ def cli(
         return
 
     # Resolve credentials early so all subcommands get the final values
+    # The cwd .env may not be loaded yet: the import-time load ran in the
+    # process' original directory. Load it before the has_refs check —
+    # otherwise a folder whose only binding is a cwd .env would look
+    # credential-less (#904 removed the active profile that used to force
+    # the resolve path).
+    load_env_file()
     has_refs = (
         token
         or login
@@ -516,6 +596,7 @@ def cli(
         or op_login_ref
         or bw_token_ref
         or bw_login_ref
+        or os.getenv("YANDEX_DIRECT_TOKEN")
     )
     # When the user is only asking for help/version, no command will run, so
     # skip the best-effort network client-login resolution (#480 migration).

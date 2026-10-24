@@ -110,6 +110,20 @@ def load_env_file(env_path: Optional[str] = None) -> None:
     load_dotenv(dotenv_path)
 
 
+INHERIT_GLOBAL_ENV = "YANDEX_DIRECT_INHERIT_GLOBAL"
+
+
+def inherit_globally_enabled() -> bool:
+    """Opt-in (issue #904): restore the pre-#904 silent inheritance of the
+    global active profile in folders with no explicit credential binding."""
+    return (os.getenv(INHERIT_GLOBAL_ENV) or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def _format_dotenv_value(value: str) -> str:
     """Return a dotenv-safe scalar for Direct credential values."""
     if "\n" in value or "\r" in value:
