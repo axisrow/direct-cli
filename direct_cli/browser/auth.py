@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from playwright.sync_api import Page
 
 
-LOGIN_HINT = "Run: direct auth login --method browser"
+LOGIN_HINT = "Run: direct auth login --method browser --interactive"
 
 
 def session_status(profile_dir: Optional[Path] = None) -> Dict[str, Any]:
@@ -48,7 +48,10 @@ def open_session(
         opener = session.open_saved_session(headless=headless)
     else:
         raise session.BrowserSessionMissingError(
-            t("No saved browser session. Run: direct auth login --method browser")
+            t(
+                "No saved browser session. Run: direct auth login "
+                "--method browser --interactive"
+            )
         )
     try:
         with opener as page:

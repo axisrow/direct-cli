@@ -275,6 +275,7 @@ def _stdin_is_interactive() -> bool:
 
 
 @masters.command(hidden=True)
+@click.option("--headful", is_flag=True, help="Show the browser window explicitly")
 @click.option("--profile-dir", help="CLI-owned persistent browser profile directory")
 @click.option(
     "--timeout",
@@ -287,24 +288,32 @@ def _stdin_is_interactive() -> bool:
 @click.option(
     "--allow-no-tty",
     is_flag=True,
-    help="Open the login window even without an interactive terminal",
+    help="Allow explicitly requested browser UI without a terminal",
 )
-def login(profile_dir: Optional[str], timeout_seconds: int, allow_no_tty: bool) -> None:
-    """Browser login; use direct auth login --method browser."""
+def login(
+    profile_dir: Optional[str],
+    timeout_seconds: int,
+    allow_no_tty: bool,
+    headful: bool,
+) -> None:
+    """Browser login; use direct auth login --method browser --interactive."""
     from .auth import browser_login, legacy_auth_warning
 
-    legacy_auth_warning("direct auth login --method browser")
-    browser_login(profile_dir, timeout_seconds, allow_no_tty)
+    legacy_auth_warning("direct auth login --method browser --interactive")
+    browser_login(profile_dir, timeout_seconds, allow_no_tty, headful=headful)
 
 
 @masters.command(hidden=True)
 @click.option("--profile-dir", help="CLI-owned persistent browser profile directory")
 def logout(profile_dir: Optional[str]) -> None:
-    """Remove the persistent browser profile; use direct auth logout --method browser."""
+    """Remove the persistent browser profile.
+
+    Use ``direct auth logout --method browser``.
+    """
     from .auth import browser_logout_persistent, legacy_auth_warning
 
     legacy_auth_warning("direct auth logout --method browser")
-    browser_logout_persistent(profile_dir or str(_configured_persistent_profile_dir()))
+    browser_logout_persistent(profile_dir)
 
 
 @masters.command(name="status", hidden=True)
@@ -317,9 +326,7 @@ def status(
     from .auth import browser_status, legacy_auth_warning
 
     legacy_auth_warning("direct auth status --method browser")
-    browser_status(
-        profile_dir or str(_configured_persistent_profile_dir()), output_format, output
-    )
+    browser_status(profile_dir, output_format, output)
 
 
 _STATUS_CHOICES = ("not-archived", "active", "stopped", "archived", "all")

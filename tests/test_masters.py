@@ -2268,12 +2268,8 @@ class TestCaptureStorageState(unittest.TestCase):
             "verify navigation was not retried up to the attempt budget",
         )
 
-    def test_fresh_cookies_get_one_headful_retry_after_auth_failure(self):
-        """Issue #870 п.2: headless "Chrome for Testing" can be redirected
-        to Passport by the bot challenge even though the cookies are fresh
-        (the live repro verified fine headful immediately after) — the
-        capture must retry once with a visible window before reporting
-        failure."""
+    def test_fresh_cookies_do_not_enable_headful_retry_implicitly(self):
+        """A terminal or valid-looking cookies never authorize a visible retry."""
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
 
@@ -2307,11 +2303,11 @@ class TestCaptureStorageState(unittest.TestCase):
             ),
             patch.object(Path, "exists", return_value=True),
         ):
-            storage_state, source_meta = session_module.capture_storage_state()
+            with self.assertRaises(session_module.BrowserAuthError) as error:
+                session_module.capture_storage_state()
 
-        self.assertEqual(launch_headless_flags, [True, False])
-        self.assertTrue(source_meta["verified"])
-        self.assertEqual(storage_state, {"cookies": []})
+        self.assertEqual(launch_headless_flags, [True])
+        self.assertIn("--headful", str(error.exception))
 
     def test_expired_cookies_report_expiry_without_a_headful_retry(self):
         """Issue #870 п.2: when expires_utc says the cookies HAVE expired,
@@ -2478,14 +2474,12 @@ class TestCaptureStorageState(unittest.TestCase):
             ),
             patch.object(Path, "exists", return_value=True),
         ):
-            _storage_state, source_meta = session_module.capture_storage_state()
+            with self.assertRaises(session_module.BrowserAuthError) as error:
+                session_module.capture_storage_state()
 
-        self.assertTrue(
-            source_meta["verified"],
-            "an expired tracking cookie must not block a fresh session's "
-            "headful retry",
-        )
-        self.assertEqual([call.get("headless") for call in launch_calls], [True, False])
+        self.assertIn("--headful", str(error.exception))
+        self.assertNotIn("HAVE expired", str(error.exception))
+        self.assertEqual([call.get("headless") for call in launch_calls], [True])
 
     def test_headful_run_hitting_passport_raises_without_a_second_window(self):
         """The headful-retry branch must be one-way: a run that is ALREADY
@@ -14514,7 +14508,7 @@ class TestMastersLoginCommand(unittest.TestCase):
                 "direct_cli.commands.auth._stdin_is_interactive",
                 return_value=False,
             ):
-                result = self.runner.invoke(cli, ["masters", "login"])
+                result = self.runner.invoke(cli, ["masters", "login", "--headful"])
 
         login_fn.assert_not_called()
         self.assertNotEqual(result.exit_code, 0, result.output)
@@ -14532,7 +14526,9 @@ class TestMastersLoginCommand(unittest.TestCase):
                 "direct_cli.commands.auth._stdin_is_interactive",
                 return_value=False,
             ):
-                result = self.runner.invoke(cli, ["masters", "login", "--allow-no-tty"])
+                result = self.runner.invoke(
+                    cli, ["masters", "login", "--headful", "--allow-no-tty"]
+                )
 
         self.assertEqual(result.exit_code, 0, result.output)
         login_fn.assert_called_once()
@@ -14545,7 +14541,7 @@ class TestMastersLoginCommand(unittest.TestCase):
 
     def test_login_calls_login_persistent_session(self):
         with patch("direct_cli.browser.session.login_persistent_session") as mock_login:
-            result = self.runner.invoke(cli, ["masters", "login"])
+            result = self.runner.invoke(cli, ["masters", "login", "--headful"])
 
         self.assertEqual(result.exit_code, 0, result.output)
         mock_login.assert_called_once()
@@ -14560,6 +14556,7 @@ class TestMastersLoginCommand(unittest.TestCase):
                 [
                     "masters",
                     "login",
+                    "--headful",
                     "--profile-dir",
                     "/custom/profile",
                     "--timeout",
@@ -14579,7 +14576,7 @@ class TestMastersLoginCommand(unittest.TestCase):
             "direct_cli.browser.session.login_persistent_session",
             side_effect=BrowserAuthError("timed out"),
         ):
-            result = self.runner.invoke(cli, ["masters", "login"])
+            result = self.runner.invoke(cli, ["masters", "login", "--headful"])
 
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("timed out", result.output)
@@ -14588,7 +14585,7 @@ class TestMastersLoginCommand(unittest.TestCase):
         with patch.dict(
             "sys.modules", {"playwright": None, "playwright.sync_api": None}
         ):
-            result = self.runner.invoke(cli, ["masters", "login"])
+            result = self.runner.invoke(cli, ["masters", "login", "--headful"])
 
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("playwright", result.output.lower())

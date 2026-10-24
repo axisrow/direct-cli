@@ -826,7 +826,7 @@ def _launch_persistent_context(
 def login_persistent_session(
     *,
     profile_dir: Optional[Path] = None,
-    headless: bool = False,
+    headless: bool = True,
     timeout_ms: int = _LOGIN_WAIT_TIMEOUT_MS,
 ) -> None:
     """Open the CLI's own persistent Chromium profile for a one-time manual login.
@@ -851,10 +851,8 @@ def login_persistent_session(
     while a browser window that dies mid-wait fails fast with a clean
     :class:`BrowserSessionError`.
 
-    Deliberately defaults ``headless=False``: a headless window cannot be
-    logged into by a human, so ``direct masters login`` always shows the
-    window regardless of ``--headful`` unless the caller overrides it
-    (e.g. for tests).
+    Defaults to headless. CLI callers must explicitly request browser UI
+    before passing ``headless=False`` for a manual login.
     """
     sync_playwright = _import_sync_playwright()
     resolved_dir = _resolve_persistent_profile_dir(profile_dir)
@@ -1089,10 +1087,8 @@ def capture_storage_state(
         storage_state, verified = _capture(headless=headless)
     except BrowserAuthError as auth_error:
         # Issue #870 п.2: judge the cookies by expires_utc before saying
-        # anything about expiry, and give a headless run one headful retry —
-        # live repro: fresh cookies verified fine headful after headless
-        # "Chrome for Testing" was redirected to Passport by the bot
-        # challenge.
+        # anything about expiry. A failed headless verification never upgrades
+        # itself to a visible browser; the caller must opt in explicitly.
         # Only the auth cookies are judged here: load_yandex_cookies returns
         # every host cookie, and the jar always carries long-lived tracking
         # cookies (yandexuid etc.) that would make ANY session look fresh.
@@ -1111,41 +1107,14 @@ def capture_storage_state(
             ) from None
         if not headless:
             raise
-        print_warning_stderr(
-            "Headless verification hit Yandex's login page although the "
-            "Chrome cookies look fresh — this is usually the bot challenge "
-            "headless 'Chrome for Testing' gets (issue #870), not expired "
-            "cookies. Retrying once with a visible window (--headful)..."
-        )
-        try:
-            storage_state, verified = _capture(headless=False)
-        except BrowserAuthError as retry_error:
-            # Live diagnosis 2026-10-22 (issue #892 session recon): this
-            # combination — Chrome cookie DB says the cookies are NOT
-            # expired, yet Yandex serves the login page even headful — was
-            # NOT a bot challenge. The session had been invalidated
-            # server-side (Yandex rotates Direct sessions long before the
-            # cookie's expires_utc), and re-logging into direct.yandex.ru
-            # in the real Chrome fixed it. Lead with that fix; keep #870 as
-            # the rarer alternative instead of the headline cause.
-            raise BrowserAuthError(
-                "Yandex served its login page even in a visible window, "
-                "while the Chrome cookie database does not show these "
-                "session cookies as expired. That combination usually means "
-                "the session was invalidated server-side: open "
-                "https://direct.yandex.ru in your regular Chrome, make sure "
-                "the campaigns grid opens while you are logged in, then "
-                "re-run `direct playwright login`. (The headless bot "
-                "challenge of issue #870 is a rarer cause.) "
-                f"Original error: {retry_error}"
-            ) from retry_error
-        except Exception as exc:
-            # A display-less host (CI, SSH) fails the headful launch with a
-            # raw PlaywrightError ("Missing X server"). That must not REPLACE
-            # the already-classified auth diagnosis the caller is one line
-            # away from seeing — re-raise the original with the launch
-            # failure attached as context.
-            raise auth_error from exc
+        raise BrowserAuthError(
+            "Headless verification hit Yandex's login page although the Chrome "
+            "cookies do not show an expired session. The session may have been "
+            "invalidated server-side or rejected by a bot challenge. "
+            "No visible browser was opened. Retry explicitly with "
+            "`direct auth login --method browser --source chrome --headful`, "
+            "or use `direct auth login --method browser --interactive`."
+        ) from auth_error
 
     source_meta = {
         "profile_dir": str(source_root),

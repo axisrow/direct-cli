@@ -752,8 +752,8 @@ class TestCaptureStorageStateHeadfulRetryMessage(unittest.TestCase):
 
         message = str(cm.exception)
         self.assertIn("invalidated server-side", message)
-        self.assertIn("#870", message)
-        self.assertIn("direct playwright login", message)
+        self.assertIn("--headful", message)
+        self.assertIn("direct auth login", message)
 
 
 if __name__ == "__main__":

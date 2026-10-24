@@ -18,7 +18,7 @@ pip install direct-cli
 веб-интерфейсе, и его нельзя путать с `UNIFIED_CAMPAIGN` (это отдельный тип
 кампании в v5 API, уже поддержанный через `campaigns add/get --type
 unified_campaign`). Браузерные команды используют сохранённую сессию,
-независимую от API-токена. Выполните `direct auth login --method browser`:
+независимую от API-токена. Выполните `direct auth login --method browser --interactive`:
 откроется отдельное окно Chromium, принадлежащее CLI. Этот способ работает
 на macOS/Linux/Windows и не читает Chrome или Keychain.
 Требуется опциональный extra `browser`:
@@ -26,7 +26,7 @@ unified_campaign`). Браузерные команды используют с�
 ```bash
 pip install "direct-cli[browser]"
 playwright install chromium
-direct auth login --method browser
+direct auth login --method browser --interactive
 direct masters list
 direct masters list --status archived
 direct masters get 72349978
@@ -224,7 +224,7 @@ API (та же цепочка приоритетов, что и у любой д
 копия сохраняется как черновик (`--draft`); передайте `--launch`, чтобы
 запустить её сразу в продакшене. Тот же отказ от `--sandbox`, что и у `add`.
 
-**Браузерная авторизация:** `direct auth login --method browser` открывает
+**Браузерная авторизация:** `direct auth login --method browser --interactive` открывает
 собственный Chromium-профиль CLI (`~/.direct-cli/chrome-profile/`) и ждёт
 ручного входа до `--timeout` секунд (по умолчанию 300). Нужен терминал;
 явное исключение — `--allow-no-tty`.
@@ -249,7 +249,13 @@ Chrome в `~/.direct-cli/playwright/session.json` с правами `0600`. То
 
 ### Авторизация
 
-`direct auth login` в терминале предлагает **API** или **Браузер**. Для API
+Авторизация по умолчанию работает **headless, без интерактива**, в том числе
+в обычном терминале. `direct auth login` выводит URL авторизации API и не
+открывает браузер, не показывает меню и не задаёт вопросов. Код передаётся
+отдельным вызовом через `--code` или `--code -`; привязать сохранённый
+профиль к папке можно через `direct auth write --profile NAME`.
+
+Только `direct auth login --interactive` предлагает **API** или **Браузер**. Для API
 можно выбрать сохранённый профиль номером или войти в новый аккаунт.
 Выбор сразу записывается в `.env` текущей папки. Имя нового профиля берётся
 из логина аккаунта; при совпадении добавляется числовой суффикс.
@@ -258,8 +264,9 @@ API-токены и браузерная сессия остаются неза�
 
 ```bash
 direct auth login
+direct auth login --interactive
 direct auth login --method api
-direct auth login --method browser
+direct auth login --method browser --interactive
 direct auth login --method browser --source chrome
 direct auth status --method all
 direct auth doctor
@@ -267,7 +274,11 @@ direct auth logout --method api --profile agency1
 direct auth logout --method browser
 ```
 
-Только явный вход запускает диалог. Обычные команды без авторизации
+Диалоги требуют `--interactive`. Видимое окно браузера требует
+`--interactive` или `--headful`; `--allow-no-tty` только снимает проверку
+терминала и сам по себе окно не открывает. Ручной браузерный вход без
+явного флага UI завершается ошибкой. Импорт Chrome по умолчанию headless;
+ошибка проверки не включает видимое окно автоматически. Обычные команды без авторизации
 завершаются понятной ошибкой даже в терминале. `direct` без аргументов
 показывает справку. Выход из API удаляет указанный локальный профиль
 и API-данные из `.env` текущей папки; остальные настройки сохраняются.
@@ -326,9 +337,9 @@ direct --profile agency1 campaigns get
 - Если первый non-interactive шаг включает `--client-secret`, secret запоминается для последующего completion step.
 - Если profile уже хранит confidential OAuth client, `direct auth login --code CODE --profile NAME` использует сохраненные `client_id` и `client_secret`.
 - `direct auth login --oauth-token TOKEN` импортирует access token вручную и не включает auto-refresh.
-- Меню входа и явный интерактивный `--method api` сразу сохраняют привязку
-  в `.env` текущей папки. Старые API-вызовы без `--method` сохраняют вопрос
-  о записи; автоматизация через PKCE/stdin не получает новых диалогов.
+- Вход с `--interactive` сразу сохраняет выбранный API-профиль в `.env`
+  текущей папки. Headless-вход не спрашивает о записи; для явной привязки
+  используйте `direct auth write --profile NAME`.
 
 Порядок выбора credentials:
 

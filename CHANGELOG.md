@@ -4,6 +4,12 @@
 
 ### Unified authorization
 
+- Authorization is headless and non-interactive by default, including in a
+  terminal. Login dialogs require `--interactive`; manual browser login also
+  accepts explicit `--headful`. TTY detection never selects an interactive mode.
+- Chrome import no longer retries failed headless verification with a visible
+  browser. Legacy browser login paths also require an explicit UI flag.
+
 - Canonical API/browser login, status, logout and browser diagnostics now live
   under `direct auth`. Existing explicit login paths and JSON remain supported
   through deprecated adapters; credentials and browser storage are not migrated.
@@ -33,7 +39,7 @@ indistinguishable `source=oauth`. Now an unbound folder has no credentials:
   credentials to the cwd `.env` (merge, `0600`, the token is never printed);
   `--profile` is required, nothing is bound implicitly.
 - **Terminal sessions** also fail without opening a login dialog. Explicit
-  `direct auth login` offers API or browser authorization. The API menu
+  `direct auth login --interactive` offers API or browser authorization. The API menu
   binds a saved or newly authorized profile to the cwd `.env` immediately;
   a newly named profile does not change the global active profile.
   `--dry-run` still needs no credentials and stays silent.

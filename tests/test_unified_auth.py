@@ -36,9 +36,6 @@ def auth_env(monkeypatch, tmp_path):
 
 @pytest.fixture
 def interactive(monkeypatch):
-    monkeypatch.setattr(
-        "direct_cli.commands.auth._should_prompt_save_env", lambda: True
-    )
     monkeypatch.setattr("direct_cli.commands.auth._stdin_is_interactive", lambda: True)
     browser = Mock()
     monkeypatch.setattr("direct_cli.commands.auth.webbrowser.open", browser)
@@ -49,6 +46,74 @@ def save_profile(name="account", token="stored-token", active=False):
     save_oauth_profile(name, token, login=name, source="manual", make_active=active)
 
 
+@pytest.mark.parametrize("terminal", [False, True])
+@pytest.mark.parametrize(
+    "api_flags", [[], ["--method", "api"], ["--profile", "account"]]
+)
+def test_login_defaults_to_headless_even_in_a_terminal(
+    auth_env, monkeypatch, terminal, api_flags
+):
+    monkeypatch.setattr(
+        "direct_cli.commands.auth._stdin_is_interactive", lambda: terminal
+    )
+    prompt, confirm, browser = Mock(), Mock(), Mock()
+    monkeypatch.setattr("click.prompt", prompt)
+    monkeypatch.setattr("click.confirm", confirm)
+    monkeypatch.setattr("direct_cli.commands.auth.webbrowser.open", browser)
+    result = CliRunner().invoke(cli, ["auth", "login", *api_flags])
+    assert result.exit_code == 0, result.output
+    assert "oauth.yandex.ru/authorize" in result.stdout
+    assert "1) API" not in result.stdout
+    assert not (auth_env / ".env").exists()
+    prompt.assert_not_called()
+    confirm.assert_not_called()
+    browser.assert_not_called()
+
+
+@pytest.mark.parametrize("terminal", [False, True])
+def test_manual_browser_login_cannot_open_ui_by_default(
+    auth_env, monkeypatch, terminal
+):
+    monkeypatch.setattr(
+        "direct_cli.commands.auth._stdin_is_interactive", lambda: terminal
+    )
+    browser = Mock()
+    monkeypatch.setattr(session, "login_persistent_session", browser)
+    result = CliRunner().invoke(cli, ["auth", "login", "--method", "browser"])
+    assert result.exit_code == 2, result.output
+    assert "--interactive or --headful" in result.output
+    browser.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--interactive", "--format", "json"],
+        ["--interactive", "--code", "-"],
+        ["--interactive", "--start-pkce"],
+    ],
+)
+def test_interactive_and_headless_inputs_cannot_be_mixed(
+    auth_env, interactive, monkeypatch, arguments
+):
+    prompt = Mock()
+    monkeypatch.setattr("click.prompt", prompt)
+    result = CliRunner().invoke(cli, ["auth", "login", *arguments])
+    assert result.exit_code == 2, result.output
+    prompt.assert_not_called()
+    interactive.assert_not_called()
+
+
+def test_interactive_requires_a_terminal(auth_env, monkeypatch):
+    monkeypatch.setattr("direct_cli.commands.auth._stdin_is_interactive", lambda: False)
+    prompt = Mock()
+    monkeypatch.setattr("click.prompt", prompt)
+    result = CliRunner().invoke(cli, ["auth", "login", "--interactive"])
+    assert result.exit_code == 2
+    assert "requires an interactive terminal" in result.output
+    prompt.assert_not_called()
+
+
 def test_api_menu_reuses_profile_and_binds_without_confirmation(
     auth_env, interactive, monkeypatch
 ):
@@ -56,7 +121,7 @@ def test_api_menu_reuses_profile_and_binds_without_confirmation(
     (auth_env / ".env").write_text("OTHER=keep\n")
     confirm = Mock()
     monkeypatch.setattr("click.confirm", confirm)
-    result = CliRunner().invoke(cli, ["auth", "login"], input="1\n1\n")
+    result = CliRunner().invoke(cli, ["auth", "login", "--interactive"], input="1\n1\n")
     assert result.exit_code == 0, result.output
     assert "1) API" in result.output and "2) Browser" in result.output
     assert "OTHER=keep" in (auth_env / ".env").read_text()
@@ -85,7 +150,7 @@ def test_new_api_profile_is_named_without_overwriting_an_existing_profile(
     )
     result = CliRunner().invoke(
         cli,
-        ["auth", "login"],
+        ["auth", "login", "--interactive"],
         input="1\n" + ("0\n" if existing else "") + "secret-code\n",
     )
     assert result.exit_code == 0, result.output
@@ -109,7 +174,7 @@ def test_failed_api_login_preserves_binding(auth_env, interactive, monkeypatch):
         Mock(side_effect=RuntimeError("invalid code")),
     )
     result = CliRunner().invoke(
-        cli, ["auth", "login", "--method", "api"], input="code\n"
+        cli, ["auth", "login", "--method", "api", "--interactive"], input="code\n"
     )
     assert result.exit_code != 0
     assert "invalid code" in result.output
@@ -118,7 +183,7 @@ def test_failed_api_login_preserves_binding(auth_env, interactive, monkeypatch):
 
 
 def test_cancelled_menu_does_not_write_credentials(auth_env, interactive):
-    result = CliRunner().invoke(cli, ["auth", "login"], input="")
+    result = CliRunner().invoke(cli, ["auth", "login", "--interactive"], input="")
     assert result.exit_code != 0
     assert not (auth_env / ".env").exists()
     assert not (auth_env / "auth.json").exists()
@@ -131,7 +196,9 @@ def test_api_profile_selection_needs_no_browser_dependencies(
     save_profile()
     monkeypatch.setitem(sys.modules, "playwright", None)
     monkeypatch.setitem(sys.modules, "playwright.sync_api", None)
-    result = CliRunner().invoke(cli, ["auth", "login", "--method", "api"], input="1\n")
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "--method", "api", "--interactive"], input="1\n"
+    )
     assert result.exit_code == 0, result.output
     assert "stored-token" in (auth_env / ".env").read_text()
 
@@ -155,9 +222,9 @@ def test_browser_menu_reuses_existing_persistent_login(
 ):
     login = Mock()
     monkeypatch.setattr(session, "login_persistent_session", login)
-    result = CliRunner().invoke(cli, ["auth", "login"], input="2\n")
+    result = CliRunner().invoke(cli, ["auth", "login", "--interactive"], input="2\n")
     assert result.exit_code == 0, result.output
-    login.assert_called_once_with(profile_dir=None, timeout_ms=300_000)
+    login.assert_called_once_with(profile_dir=None, timeout_ms=300_000, headless=False)
     assert not (auth_env / ".env").exists()
     assert not (auth_env / "auth.json").exists()
 
@@ -168,7 +235,7 @@ def test_browser_login_without_tty_fails_without_launching(auth_env, monkeypatch
     monkeypatch.setattr(session, "login_persistent_session", login)
     result = CliRunner().invoke(cli, ["auth", "login", "--method", "browser"])
     assert result.exit_code != 0
-    assert "interactive terminal" in result.output
+    assert "--interactive or --headful" in result.output
     login.assert_not_called()
 
 
@@ -308,7 +375,8 @@ def test_api_logout_clears_only_current_binding_and_selected_profile(auth_env):
     save_pending_pkce("account", "cid", "verifier", "challenge")
     env = auth_env / ".env"
     env.write_text(
-        "OTHER=keep\nYANDEX_DIRECT_TOKEN = secret\nexport YANDEX_DIRECT_LOGIN = account\n"
+        "OTHER=keep\nYANDEX_DIRECT_TOKEN = secret\n"
+        "export YANDEX_DIRECT_LOGIN = account\n"
         "YANDEX_DIRECT_OP_TOKEN_REF=op://vault/item/token\n"
         "YANDEX_DIRECT_BW_TOKEN_REF=previous-account\n"
         "YANDEX_DIRECT_INHERIT_GLOBAL=1\n"

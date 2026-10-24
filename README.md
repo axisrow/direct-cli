@@ -19,14 +19,14 @@ in the web interface, and must not be confused with `UNIFIED_CAMPAIGN` (an
 unrelated v5 API campaign type already supported by `campaigns add/get --type
 unified_campaign`). Browser-backed commands use a saved browser session,
 independent of the API token. Set it up explicitly with
-`direct auth login --method browser`. This opens a CLI-owned Chromium window
+`direct auth login --method browser --interactive`. This opens a CLI-owned Chromium window
 and works on macOS/Linux/Windows without reading Chrome or Keychain.
 Requires the optional `browser` extra:
 
 ```bash
 pip install "direct-cli[browser]"
 playwright install chromium
-direct auth login --method browser
+direct auth login --method browser --interactive
 direct masters list
 direct masters list --status archived
 direct masters get 72349978
@@ -283,7 +283,7 @@ running it twice creates a SECOND copy, not an update to the first. By
 default the copy is saved as a draft (`--draft`); pass `--launch` to launch
 it immediately in production instead. Same no-`--sandbox` caveat as `add`.
 
-**Browser authorization:** `direct auth login --method browser` opens the
+**Browser authorization:** `direct auth login --method browser --interactive` opens the
 CLI's persistent Chromium profile (`~/.direct-cli/chrome-profile/`) and waits
 up to `--timeout` seconds (default 300) for manual login. It requires a
 terminal unless `--allow-no-tty` is explicitly supplied.
@@ -343,7 +343,12 @@ section itself defaults to is used.
 
 ### Authorization
 
-`direct auth login` in a terminal offers **API** or **Browser**. For API,
+Authorization defaults to **headless, non-interactive execution**, even in a
+terminal. `direct auth login` prints the API authorization URL without opening
+a browser or asking questions. Complete the two-step flow with `--code` or
+`--code -` and bind a saved profile with `direct auth write --profile NAME`.
+
+`direct auth login --interactive` explicitly offers **API** or **Browser**. For API,
 choose a saved profile by number or log in to a new account; the choice is
 immediately bound to the current folder's `.env`. New profile names come
 from the account login and get a numeric suffix when the name is taken.
@@ -352,8 +357,9 @@ different accounts.
 
 ```bash
 direct auth login
+direct auth login --interactive
 direct auth login --method api
-direct auth login --method browser
+direct auth login --method browser --interactive
 direct auth login --method browser --source chrome
 direct auth status --method all
 direct auth doctor
@@ -361,7 +367,11 @@ direct auth logout --method api --profile agency1
 direct auth logout --method browser
 ```
 
-Only explicit login starts a login dialog. All resource commands fail with
+Login dialogs require `--interactive`. A visible browser requires
+`--interactive` or `--headful`; `--allow-no-tty` only overrides the terminal
+check. Manual browser login without an explicit UI flag fails immediately.
+Chrome import stays headless unless a UI flag is supplied, including when
+verification fails: there is no automatic headful retry. All resource commands fail with
 a helpful error when authorization is missing, including in a terminal.
 `direct` without arguments still shows help. API logout removes the named
 local profile and this folder's API binding, preserving other `.env` settings.
@@ -424,9 +434,9 @@ Notes:
 - If the first non-interactive step includes `--client-secret`, the secret is remembered for the matching completion step.
 - If a profile already stores a confidential OAuth client, `direct auth login --code CODE --profile NAME` reuses the saved `client_id` and `client_secret`.
 - `direct auth login --oauth-token TOKEN` is a manual access-token import and does not auto-refresh.
-- The login menu and explicit `--method api` interactive flow save directly to
-  the current folder's `.env`. Legacy API invocations without `--method` keep
-  their save confirmation; stdin/PKCE automation never gains a new prompt.
+- `--interactive` saves the selected API profile directly to the current
+  folder's `.env`. Headless flows never ask for save confirmation; use
+  `direct auth write --profile NAME` to bind the folder explicitly.
 - Alias `auth_login` is not supported.
 
 Credential resolution priority:
@@ -460,7 +470,7 @@ no `.env` — the CLI no longer inherits them silently:
   profile's credentials to the cwd `.env` (merge, `0600`, token never
   printed); `--profile` is required, nothing is bound implicitly.
 - Terminal sessions follow the same rule: an ordinary command never opens a
-  login dialog. Run `direct auth login --method api` explicitly to choose or
+  login dialog. Run `direct auth login --method api --interactive` to choose or
   authorize a profile and bind it to this folder. A profile created through
   the menu does not change the global active profile.
 - `direct auth status` in an unbound folder reports

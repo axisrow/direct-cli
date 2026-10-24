@@ -67,7 +67,7 @@ non-critical campaign, confirming before/after state in the web UI):
 
 Interactive human-in-the-loop login (opens a visible browser window and
 blocks waiting for a person to sign in -- cannot run unattended):
-  - direct auth login --method browser
+  - direct auth login --method browser --interactive
 
 Production commands that are only allowed in automated smoke tests with --sandbox:
   - direct bids set ...

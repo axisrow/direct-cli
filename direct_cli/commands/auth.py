@@ -1,5 +1,6 @@
 """Authentication commands for OAuth profile management."""
 
+import contextlib
 import json
 import os
 import sys
@@ -66,10 +67,9 @@ def _prompt_authorize_code(
     print_info(t("Open this URL and grant access:"))
     click.echo(auth_url)
     if open_browser:
-        try:
+        # The printed URL remains usable on hosts without a browser.
+        with contextlib.suppress(OSError, webbrowser.Error):
             webbrowser.open(auth_url)
-        except (webbrowser.Error, OSError):
-            pass  # The printed URL remains usable on hosts without a browser.
     auth_code = click.prompt(t("Enter OAuth code"), type=str, hide_input=True).strip()
     return auth_code, code_verifier
 
@@ -121,6 +121,12 @@ def auth():
 
 @auth.command()
 @click.option(
+    "--interactive",
+    "interactive_login",
+    is_flag=True,
+    help="Enable login dialogs and browser UI explicitly (default: headless)",
+)
+@click.option(
     "--method", type=click.Choice(["api", "browser"]), help="Authorization method"
 )
 @click.option(
@@ -145,11 +151,9 @@ def auth():
 @click.option(
     "--allow-no-tty",
     is_flag=True,
-    help="Open the login window even without an interactive terminal",
+    help="Allow explicitly requested browser UI without a terminal",
 )
-@click.option(
-    "--headful", is_flag=True, help="Show the browser window during Chrome import"
-)
+@click.option("--headful", is_flag=True, help="Show the browser window explicitly")
 @click.option(
     "--no-verify", is_flag=True, help="Skip session verification during Chrome import"
 )
@@ -185,6 +189,7 @@ def auth():
 @handle_api_errors
 def login(
     ctx: click.Context,
+    interactive_login: bool,
     method: Optional[str],
     source: str,
     profile_dir: Optional[str],
@@ -231,19 +236,25 @@ def login(
         ctx.get_parameter_source(name) is ParameterSource.COMMANDLINE
         for name in browser_options
     )
-    interactive = (
-        output_format == "text"
-        and code != "-"
-        and not code_stdin
-        and _should_prompt_save_env()
-    )
+    interactive = interactive_login
+    if interactive and (
+        output_format != "text" or code == "-" or code_stdin or start_pkce
+    ):
+        raise click.UsageError(
+            t(
+                "--interactive cannot be combined with --format json, "
+                "--code -, --code-stdin or --start-pkce."
+            )
+        )
+    if interactive and not _stdin_is_interactive():
+        raise click.UsageError(t("--interactive requires an interactive terminal."))
     if explicit_browser and method != "browser":
         raise click.UsageError(t("Browser options require --method browser."))
     if method == "browser" and explicit_api:
         raise click.UsageError(
             t("API options cannot be combined with --method browser.")
         )
-    canonical = method is not None
+    canonical = method is not None or interactive
     if method is None and not explicit_api and interactive:
         click.echo(t("1) API — campaigns, ads, reports"))
         click.echo(t("2) Browser — Campaign Wizard, change history"))
@@ -261,19 +272,29 @@ def login(
                     t("--timeout and --allow-no-tty require --source manual.")
                 )
             import_browser_session(
-                profile_dir, chrome_profile, headful, no_verify, output_format, None
+                profile_dir,
+                chrome_profile,
+                headful or interactive,
+                no_verify,
+                output_format,
+                None,
             )
         else:
             if (
-                headful
-                or no_verify
+                no_verify
                 or ctx.get_parameter_source("chrome_profile")
                 is ParameterSource.COMMANDLINE
             ):
                 raise click.UsageError(
                     t("Chrome import options require --source chrome.")
                 )
-            browser_login(profile_dir, timeout_seconds, allow_no_tty, output_format)
+            browser_login(
+                profile_dir,
+                timeout_seconds,
+                allow_no_tty,
+                output_format,
+                headful=headful or interactive,
+            )
         return
     auto_profile = canonical and not explicit_api and interactive
     if auto_profile:
@@ -336,8 +357,6 @@ def login(
         )
         if canonical and interactive:
             bind_credentials_to_dotenv(profile, token, login)
-        else:
-            _offer_save_token_to_env(token, login)
         print_success(
             t("Profile '{profile}' is saved and active.").format(profile=profile)
         )
@@ -349,7 +368,7 @@ def login(
     effective_client_secret = client_secret
 
     if not auth_code:
-        if not _stdin_is_interactive() or output_format == "json":
+        if not interactive:
             _start_noninteractive_auth(
                 profile=profile,
                 client_id=chosen_client_id,
@@ -439,8 +458,6 @@ def login(
     remove_pending_pkce(profile)
     if canonical and interactive and not code_from_stdin:
         bind_credentials_to_dotenv(profile, access_token, login)
-    else:
-        _offer_save_token_to_env(access_token, login, allow_prompt=not code_from_stdin)
     if auto_profile:
         print_success(t("Profile '{profile}' is saved.").format(profile=profile))
     else:
@@ -702,7 +719,8 @@ def _print_api_status(payload: Dict[str, Any]) -> None:
         )
         print_info(
             t(
-                "Bind this folder via a .env file (YANDEX_DIRECT_TOKEN) or --profile, or set {env}=1 to use the global profile."
+                "Bind this folder via a .env file (YANDEX_DIRECT_TOKEN) or "
+                "--profile, or set {env}=1 to use the global profile."
             ).format(env=INHERIT_GLOBAL_ENV)
         )
         return
@@ -712,25 +730,6 @@ def _print_api_status(payload: Dict[str, Any]) -> None:
     click.echo(f"login={payload['login'] or '(not set)'}")
     if "expires_in_seconds" in payload:
         click.echo(f"expires_in={_format_duration(payload['expires_in_seconds'])}")
-
-
-def _offer_save_token_to_env(
-    token: str, login: Optional[str], allow_prompt: bool = True
-) -> None:
-    """Ask interactive users whether to store the access token in cwd .env."""
-    if not allow_prompt:
-        return
-    if not _should_prompt_save_env():
-        return
-    if not click.confirm(t("Save token to .env?"), default=False):
-        return
-    save_env_credentials(token=token, login=login)
-    print_success(t("Saved token to .env."))
-
-
-def _should_prompt_save_env() -> bool:
-    """Return whether it is safe to ask an extra interactive question."""
-    return sys.stdin.isatty() and sys.stdout.isatty()
 
 
 def _format_duration(seconds: int) -> str:
@@ -873,13 +872,23 @@ def browser_login(
     timeout_seconds: int,
     allow_no_tty: bool,
     output_format: str = "text",
+    *,
+    headful: bool = False,
 ) -> None:
-    """Run the existing persistent-browser login with a shared terminal guard."""
+    """Run manual browser login only after explicit permission to show its UI."""
+    if not headful:
+        raise click.UsageError(
+            t(
+                "Manual browser login requires --interactive or --headful. "
+                "For headless Chrome import use "
+                "`direct auth login --method browser --source chrome`."
+            )
+        )
     if not _stdin_is_interactive() and not allow_no_tty:
         raise click.ClickException(
             t(
                 "Browser login needs an interactive terminal. Run "
-                "`direct auth login --method browser` in a terminal "
+                "`direct auth login --method browser --headful` in a terminal "
                 "(override: --allow-no-tty)."
             )
         )
@@ -895,6 +904,7 @@ def browser_login(
         login_persistent_session(
             profile_dir=Path(profile_dir) if profile_dir else None,
             timeout_ms=timeout_seconds * 1000,
+            headless=False,
         )
     except (BrowserSessionError, OSError) as exc:
         raise click.ClickException(str(exc)) from exc
@@ -933,7 +943,8 @@ def _print_browser_status(payload: Dict[str, Any]) -> None:
         f"persistent_profile: path={persistent['path']} usable={persistent['usable']}"
     )
     click.echo(
-        f"saved_session: exists={saved['exists']} expired={saved['expired']} cookie_count={saved['cookie_count']} path={saved['path']}"
+        f"saved_session: exists={saved['exists']} expired={saved['expired']} "
+        f"cookie_count={saved['cookie_count']} path={saved['path']}"
     )
     if saved["error"]:
         click.echo(f"  error: {saved['error']}")

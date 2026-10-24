@@ -35,12 +35,22 @@ Naming rules:
 
 ### Input Rules
 
-- All user-facing input must be passed only through typed CLI flags.
+- In default headless mode, all user-facing input must be passed only through typed CLI flags.
+- Authentication input prompts require explicit `direct auth login --interactive`.
 - `--json` is not part of the public CLI contract.
 - User-facing parameters must not be passed through `--json`.
 - The CLI must not accept `SelectionCriteria`, nested payloads, update payloads, bidding rules, or any other user-facing command input through `--json`.
 - Typed flags and JSON blobs must not be mixed as part of one public command contract.
 - If the API requires a complex object, the CLI must expose explicit flags or subcommands instead of forwarding raw JSON.
+
+### Authorization Execution Mode
+
+- Authorization is headless and non-interactive by default, including when stdin and stdout are terminals. TTY detection must never enable login dialogs or browser UI by itself.
+- `direct auth login` defaults to the headless API flow: print the authorization URL and accept the completion code later through typed flags or explicit stdin input.
+- Login menus and OAuth code prompts require `direct auth login --interactive`.
+- Manual browser login requires explicit `--interactive` or `--headful`. `--allow-no-tty` only overrides the terminal check; it does not authorize browser UI by itself.
+- Chrome import is headless by default. Failed headless verification must not retry in a visible browser automatically.
+- Missing or expired credentials in ordinary commands produce an actionable error, never an implicit login.
 
 ### Command Formatting Rules
 

@@ -374,7 +374,7 @@ class TestAuthWrite:
         # freshly picked profile's login.
         _save_oauth_profile("agency1", "client-login-1")
         monkeypatch.setattr(
-            "direct_cli.commands.auth._should_prompt_save_env", lambda: True
+            "direct_cli.commands.auth._stdin_is_interactive", lambda: True
         )
         monkeypatch.setenv("YANDEX_DIRECT_LOGIN", "stale-login")
 
@@ -386,7 +386,7 @@ class TestAuthWrite:
             ) as create_client,
         ):
             result = CliRunner().invoke(
-                cli, ["auth", "login", "--method", "api"], input="1\n"
+                cli, ["auth", "login", "--method", "api", "--interactive"], input="1\n"
             )
             assert result.exit_code == 0, result.output
             result = _invoke_set_bids()
