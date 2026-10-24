@@ -37,6 +37,33 @@ from ..i18n import t
 from ..output import print_info, print_success
 
 
+def bind_profile_to_dotenv(profile: str) -> Tuple[str, Optional[str]]:
+    """Resolve *profile* and bind it to this folder's cwd `.env` (merge, 0600).
+
+    Shared by `auth write` and the interactive bind menu. Re-exports the
+    pair into ``os.environ`` so the running process resolves the freshly
+    bound credentials even when the shell already exported a stale
+    ``YANDEX_DIRECT_LOGIN`` — ``load_dotenv`` never overrides set variables.
+    """
+    try:
+        token, login_value = get_credentials_with_source(
+            profile=profile,
+            allow_login_resolve=True,
+        )[:2]
+    except (RuntimeError, ValueError) as error:
+        raise click.ClickException(str(error)) from error
+    save_env_credentials(token=token, login=login_value)
+    os.environ["YANDEX_DIRECT_TOKEN"] = token
+    if login_value:
+        os.environ["YANDEX_DIRECT_LOGIN"] = login_value
+    else:
+        os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+    print_success(
+        t("Bound credentials to .env (profile {profile}).").format(profile=profile)
+    )
+    return token, login_value
+
+
 @click.group()
 def auth():
     """Manage authentication profiles."""
@@ -259,17 +286,7 @@ def use(profile):
 @click.option("--profile", required=True, help="Profile name to bind this folder to")
 def write(profile):
     """Bind this folder to a profile by writing the cwd .env file."""
-    try:
-        token, login_value = get_credentials_with_source(
-            profile=profile,
-            allow_login_resolve=False,
-        )[:2]
-    except (RuntimeError, ValueError) as error:
-        raise click.ClickException(str(error)) from error
-    save_env_credentials(token=token, login=login_value)
-    print_success(
-        t("Bound credentials to .env (profile {profile}).").format(profile=profile)
-    )
+    bind_profile_to_dotenv(profile)
 
 
 @auth.command()

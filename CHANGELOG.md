@@ -36,7 +36,9 @@ indistinguishable `source=oauth`. Now an unbound folder has no credentials:
 Explicit bindings are unchanged and still win: `--token`, `--profile`,
 base env, cwd `.env`. `--sandbox` does not bypass the gate — the sandbox
 authenticates under the same profile login, so a wrong inherited account is
-the same mistake there.
+the same mistake there. A folder with only a partial credential ref (e.g.
+an exported `YANDEX_DIRECT_LOGIN` and no token) no longer silently inherits
+the global active profile either — the bind gate applies there too.
 
 Migration: bind the folders you use via a `.env` file (`direct auth write`,
 or answer the bind menu once per folder), pass `--profile`, or set

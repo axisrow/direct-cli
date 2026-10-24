@@ -201,6 +201,23 @@ class TestUnboundFolderGate:
         assert BIND_HINT_SNIPPET in result.output
         create_client.assert_not_called()
 
+    def test_login_only_env_ref_does_not_inherit_active_profile(
+        self, unbound_folder, monkeypatch
+    ):
+        # Regression: an exported YANDEX_DIRECT_LOGIN alone (any partial ref)
+        # must not let the active-profile rung hand out its token and bypass
+        # the #904 gate — a login is not a credential binding.
+        _save_oauth_profile("agency1", "client-login-1")
+        monkeypatch.setenv("YANDEX_DIRECT_LOGIN", "stale-login")
+
+        with patch("direct_cli.commands.bids.create_client") as create_client:
+            result = _invoke_set_bids()
+
+        assert result.exit_code != 0
+        assert BIND_HINT_SNIPPET in result.output
+        assert not (unbound_folder / ".env").exists()
+        create_client.assert_not_called()
+
     def test_inherit_global_env_restores_silent_inheritance(
         self, unbound_folder, monkeypatch
     ):
@@ -320,7 +337,7 @@ class TestInteractiveBind:
             result = CliRunner().invoke(
                 cli,
                 ["bids", "set", "--campaign-id", "123", "--bid", "1000000"],
-                input="zzz\n1\n",
+                input="zzz\n²\n1\n",
             )
 
         assert result.exit_code == 0, result.output
@@ -392,11 +409,42 @@ class TestAuthWrite:
         with patch.dict(os.environ):
             CliRunner().invoke(cli, ["auth", "write", "--profile", "agency1"])
 
-        with patch(
-            "direct_cli.commands.bids.create_client",
-            return_value=_fake_mutation_client(),
-        ) as create_client:
+        with (
+            patch.dict(os.environ),
+            patch(
+                "direct_cli.commands.bids.create_client",
+                return_value=_fake_mutation_client(),
+            ) as create_client,
+        ):
             result = _invoke_set_bids()
 
         assert result.exit_code == 0, result.output
         create_client.assert_called_once()
+
+    def test_pick_profile_overrides_exported_stale_login(
+        self, unbound_folder, monkeypatch
+    ):
+        # A shell-exported YANDEX_DIRECT_LOGIN must not survive the bind:
+        # load_dotenv never overrides set variables, so the re-export in
+        # bind_profile_to_dotenv is what makes the running command use the
+        # freshly picked profile's login.
+        _save_oauth_profile("agency1", "client-login-1")
+        monkeypatch.setattr("direct_cli.cli._interactive_streams", lambda: True)
+        monkeypatch.setenv("YANDEX_DIRECT_LOGIN", "stale-login")
+
+        with (
+            patch.dict(os.environ),
+            patch(
+                "direct_cli.commands.bids.create_client",
+                return_value=_fake_mutation_client(),
+            ) as create_client,
+        ):
+            result = CliRunner().invoke(
+                cli,
+                ["bids", "set", "--campaign-id", "123", "--bid", "1000000"],
+                input="1\n",
+            )
+
+        assert result.exit_code == 0, result.output
+        create_client.assert_called_once()
+        assert create_client.call_args.kwargs["login"] == "client-login-1"

@@ -18,7 +18,6 @@ from .auth import (
     inherit_globally_enabled,
     list_profiles,
     load_env_file,
-    save_env_credentials,
 )
 from .i18n import (
     LOCALE_ENV_VAR,
@@ -60,7 +59,7 @@ from .commands.dynamicads import dynamicads
 from .commands.advideos import advideos
 from .commands.dynamicfeedadtargets import dynamicfeedadtargets
 from .commands.strategies import strategies
-from .commands.auth import auth
+from .commands.auth import auth, bind_profile_to_dotenv
 from .commands.balance import balance
 from .commands.v4events import v4events
 from .commands.v4forecast import v4forecast
@@ -157,7 +156,7 @@ def _bind_folder_interactively(ctx: click.Context) -> None:
     click.echo(t("No credentials bound to this folder. Bind a profile?"))
     for index, item in enumerate(profiles, start=1):
         login_mark = f" (login={item['login']})" if item.get("login") else ""
-        active_mark = " [active]" if item.get("active") else ""
+        active_mark = f" {t('[active]')}" if item.get("active") else ""
         click.echo(
             t("  {index}) {profile}{login_mark}{mark}").format(
                 index=index,
@@ -171,22 +170,11 @@ def _bind_folder_interactively(ctx: click.Context) -> None:
         choice = click.prompt(choice_hint, type=str).strip().lower()
         if choice in ("c", "cancel"):
             raise click.UsageError(_bind_hints())
-        if choice.isdigit() and 1 <= int(choice) <= len(profiles):
+        if choice.isdecimal() and 1 <= int(choice) <= len(profiles):
             profile_name = profiles[int(choice) - 1]["profile"]
-            try:
-                token, login_value = get_credentials_with_source(
-                    profile=profile_name,
-                    allow_login_resolve=False,
-                )[:2]
-            except (RuntimeError, ValueError) as error:
-                raise click.ClickException(str(error)) from error
+            bind_profile_to_dotenv(profile_name)
             break
         click.echo(t("Enter a profile number or 'cancel'."))
-
-    save_env_credentials(token=token, login=login_value)
-    load_env_file()
-    bound_message = t("Bound credentials to .env (profile {profile}).")
-    click.echo(bound_message.format(profile=profile_name))
 
 
 def _ensure_credentials_bound(ctx: click.Context) -> None:
@@ -553,6 +541,11 @@ def cli(
                 op_login_ref=explicit_op_login_ref,
                 bw_token_ref=explicit_bw_token_ref,
                 bw_login_ref=explicit_bw_login_ref,
+                # Rung 4 (silent active-profile inheritance) exists only
+                # under the #904 opt-in; otherwise a folder with partial
+                # refs (e.g. an exported YANDEX_DIRECT_LOGIN only) would
+                # inherit the active profile's token and bypass the gate.
+                allow_active_profile=inherit_globally_enabled(),
                 allow_login_resolve=not help_or_version,
             )
             if credential_source == "explicit-profile":
