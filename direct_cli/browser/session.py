@@ -16,13 +16,11 @@ injects the decrypted cookies into a fresh, bundled Chromium context via
 ``BrowserContext.add_cookies()``. The user's own Chrome window is never
 touched and does not need to be closed.
 
-``direct playwright login`` (see ``direct_cli/commands/browser_session.py``)
-persists the result of this decrypt-and-inject dance as a Playwright
-``storage_state`` file (``direct_cli/browser/store.py``), so subsequent
-``direct masters`` calls can skip the Keychain round-trip entirely via
-:func:`open_saved_session`. :func:`open_chrome_session` (decrypt every call,
-nothing persisted) remains the zero-setup fallback ``direct masters`` uses
-when no saved session exists — see ``direct_cli/commands/masters.py``.
+Explicit Chrome import (`direct auth login --method browser --source chrome`)
+persists a Playwright ``storage_state`` file (``direct_cli/browser/store.py``).
+Browser-backed commands reuse this via :func:`open_saved_session` or the
+persistent CLI profile; they never call :func:`open_chrome_session` as an
+automatic login fallback. The deprecated command paths remain adapters.
 
 ``direct masters login`` (issue #635) is a third, independent path that does
 not touch the user's real Chrome profile or the macOS Keychain at all:

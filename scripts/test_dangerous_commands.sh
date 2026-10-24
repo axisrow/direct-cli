@@ -19,7 +19,8 @@ Agency/account mutations:
 Local credential mutations:
   - direct auth login ...
   - direct auth use ...
-  - direct masters logout ...   (deletes ~/.direct-cli/chrome-profile/)
+  - direct auth logout --method api --profile NAME
+  - direct auth logout --method browser   (removes both CLI browser sessions)
 
 V4 Live finance money mutations (0.3.3 exposes dry-run-only previews):
   - direct v4finance transfer-money --from-campaign-id ... --to-campaign-id ... --amount ... --currency RUB --dry-run
@@ -66,7 +67,7 @@ non-critical campaign, confirming before/after state in the web UI):
 
 Interactive human-in-the-loop login (opens a visible browser window and
 blocks waiting for a person to sign in -- cannot run unattended):
-  - direct masters login
+  - direct auth login --method browser
 
 Production commands that are only allowed in automated smoke tests with --sandbox:
   - direct bids set ...

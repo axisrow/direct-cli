@@ -6,9 +6,7 @@ no credentials of its own. These tests pin the contract:
 - non-interactive sessions fail closed with binding hints (read-only and
   mutating commands alike), and `direct auth write --profile NAME` binds a
   folder without any prompts;
-- interactive sessions get a one-prompt bind menu: pick an existing profile;
-  the choice is saved to the cwd ``.env`` so it never repeats (new profiles
-  are authorized via ``direct auth login``);
+- terminal sessions fail the same way; only explicit auth login asks questions;
 - ``--dry-run`` (no API call) stays silent;
 - ``YANDEX_DIRECT_INHERIT_GLOBAL=1`` restores the pre-#904 silent inheritance
   (including the ``global-profile-inherited`` auth status marker);
@@ -69,9 +67,11 @@ def _fake_mutation_client():
     return client
 
 
-def _invoke_set_bids(*extra):
+def _invoke_set_bids(*extra, **kwargs):
     return CliRunner().invoke(
-        cli, ["bids", "set", "--campaign-id", "123", "--bid", "1000000", *extra]
+        cli,
+        ["bids", "set", "--campaign-id", "123", "--bid", "1000000", *extra],
+        **kwargs,
     )
 
 
@@ -275,89 +275,33 @@ class TestUnboundFolderGate:
         assert BIND_HINT_SNIPPET not in result.output
 
 
-class TestInteractiveBind:
-    def test_pick_profile_saves_dotenv_and_runs_command(
-        self, unbound_folder, monkeypatch
-    ):
-        # list_profiles() sorts by name; keep one profile so "1" is unambiguous.
+class TestNoImplicitLogin:
+    @pytest.mark.parametrize("terminal", [False, True])
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["campaigns", "get"],
+            ["bids", "set", "--campaign-id", "123", "--bid", "1000000"],
+        ],
+    )
+    def test_unbound_commands_never_ask_questions(self, unbound_folder, terminal, argv):
         _save_oauth_profile("agency1", "client-login-1", active=True)
-        monkeypatch.setattr("direct_cli.cli._interactive_streams", lambda: True)
-
         with (
-            patch.dict(os.environ),
-            patch(
-                "direct_cli.commands.bids.create_client",
-                return_value=_fake_mutation_client(),
-            ) as create_client,
+            patch("sys.stdin.isatty", return_value=terminal),
+            patch("sys.stdout.isatty", return_value=terminal),
+            patch("click.prompt") as prompt,
+            patch("direct_cli.commands.auth.webbrowser.open") as browser,
+            patch("direct_cli.commands.auth.exchange_oauth_code") as exchange,
+            patch("direct_cli.commands.bids.create_client") as client,
         ):
-            result = CliRunner().invoke(
-                cli,
-                ["bids", "set", "--campaign-id", "123", "--bid", "1000000"],
-                input="1\n",
-            )
-
-        assert result.exit_code == 0, result.output
-        assert "Bind a profile?" in result.output
-        assert "(login=client-login-1)" in result.output
-        assert "Bound credentials to .env (profile agency1)." in result.output
-        create_client.assert_called_once()
-        dotenv = (unbound_folder / ".env").read_text(encoding="utf-8")
-        assert "oauth-token-1" in dotenv
-        assert "client-login-1" in dotenv
-
-    def test_cancel_exits_with_hints_and_writes_nothing(
-        self, unbound_folder, monkeypatch
-    ):
-        _save_oauth_profile("agency1", "client-login-1", active=True)
-        monkeypatch.setattr("direct_cli.cli._interactive_streams", lambda: True)
-
-        with patch("direct_cli.commands.bids.create_client") as create_client:
-            result = CliRunner().invoke(
-                cli,
-                ["bids", "set", "--campaign-id", "123", "--bid", "1000000"],
-                input="cancel\n",
-            )
-
-        assert result.exit_code != 0
-        assert BIND_HINT_SNIPPET in result.output
+            result = CliRunner().invoke(cli, argv)
+        assert result.exit_code == 2, result.output
+        assert "direct auth login --method api" in result.output
         assert not (unbound_folder / ".env").exists()
-        create_client.assert_not_called()
-
-    def test_invalid_input_reprompts_then_binds(self, unbound_folder, monkeypatch):
-        _save_oauth_profile("agency1", "client-login-1", active=True)
-        monkeypatch.setattr("direct_cli.cli._interactive_streams", lambda: True)
-
-        with (
-            patch.dict(os.environ),
-            patch(
-                "direct_cli.commands.bids.create_client",
-                return_value=_fake_mutation_client(),
-            ),
-        ):
-            result = CliRunner().invoke(
-                cli,
-                ["bids", "set", "--campaign-id", "123", "--bid", "1000000"],
-                input="zzz\n²\n1\n",
-            )
-
-        assert result.exit_code == 0, result.output
-        assert "Enter a profile number or 'cancel'." in result.output
-        assert (unbound_folder / ".env").exists()
-
-    def test_no_profiles_fails_closed_without_menu(self, unbound_folder, monkeypatch):
-        monkeypatch.setattr("direct_cli.cli._interactive_streams", lambda: True)
-
-        with patch("direct_cli.commands.bids.create_client") as create_client:
-            result = CliRunner().invoke(
-                cli,
-                ["bids", "set", "--campaign-id", "123", "--bid", "1000000"],
-            )
-
-        assert result.exit_code != 0
-        assert BIND_HINT_SNIPPET in result.output
-        assert "Bind a profile?" not in result.output
-        assert not (unbound_folder / ".env").exists()
-        create_client.assert_not_called()
+        prompt.assert_not_called()
+        browser.assert_not_called()
+        exchange.assert_not_called()
+        client.assert_not_called()
 
 
 class TestAuthWrite:
@@ -429,7 +373,9 @@ class TestAuthWrite:
         # bind_profile_to_dotenv is what makes the running command use the
         # freshly picked profile's login.
         _save_oauth_profile("agency1", "client-login-1")
-        monkeypatch.setattr("direct_cli.cli._interactive_streams", lambda: True)
+        monkeypatch.setattr(
+            "direct_cli.commands.auth._should_prompt_save_env", lambda: True
+        )
         monkeypatch.setenv("YANDEX_DIRECT_LOGIN", "stale-login")
 
         with (
@@ -440,10 +386,10 @@ class TestAuthWrite:
             ) as create_client,
         ):
             result = CliRunner().invoke(
-                cli,
-                ["bids", "set", "--campaign-id", "123", "--bid", "1000000"],
-                input="1\n",
+                cli, ["auth", "login", "--method", "api"], input="1\n"
             )
+            assert result.exit_code == 0, result.output
+            result = _invoke_set_bids()
 
         assert result.exit_code == 0, result.output
         create_client.assert_called_once()

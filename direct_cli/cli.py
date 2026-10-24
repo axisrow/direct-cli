@@ -16,7 +16,6 @@ from .auth import (
     get_active_profile,
     get_credentials_with_source,
     inherit_globally_enabled,
-    list_profiles,
     load_env_file,
 )
 from .i18n import (
@@ -59,7 +58,7 @@ from .commands.dynamicads import dynamicads
 from .commands.advideos import advideos
 from .commands.dynamicfeedadtargets import dynamicfeedadtargets
 from .commands.strategies import strategies
-from .commands.auth import auth, bind_profile_to_dotenv
+from .commands.auth import auth
 from .commands.balance import balance
 from .commands.v4events import v4events
 from .commands.v4forecast import v4forecast
@@ -129,82 +128,24 @@ def _command_has_option(cmd: click.Command, option_name: str) -> bool:
     )
 
 
-def _interactive_streams() -> bool:
-    return sys.stdin.isatty() and sys.stdout.isatty()
-
-
 def _bind_hints() -> str:
-    """Shared hint text for refusals in folders with no bound credentials."""
+    """Explain explicit login without ever starting a dialog."""
     return t(
-        "No credentials bound to this folder. Run `direct auth write --profile "
-        "<name>` to bind one, `direct auth login` to authorize a new profile, "
-        "bind via a .env file (YANDEX_DIRECT_TOKEN), pass --profile, or set "
-        f"{INHERIT_GLOBAL_ENV}=1 to use the global active profile."
-    )
-
-
-def _bind_folder_interactively(ctx: click.Context) -> None:
-    """Bind this folder to an existing profile chosen by the user (#904).
-
-    Offers the existing profiles and persists the choice to the cwd `.env`
-    so the question never comes back for this folder. A cancellation exits
-    with binding hints. New profiles are authorized via `direct auth login`.
-    """
-    profiles = list_profiles()
-    if not profiles:
-        raise click.UsageError(_bind_hints())
-    click.echo(t("No credentials bound to this folder. Bind a profile?"))
-    for index, item in enumerate(profiles, start=1):
-        login_mark = f" (login={item['login']})" if item.get("login") else ""
-        active_mark = f" {t('[active]')}" if item.get("active") else ""
-        click.echo(
-            t("  {index}) {profile}{login_mark}{mark}").format(
-                index=index,
-                profile=item["profile"],
-                login_mark=login_mark,
-                mark=active_mark,
-            )
-        )
-    choice_hint = t("Select a profile number or 'cancel'")
-    while True:
-        choice = click.prompt(choice_hint, type=str).strip().lower()
-        if choice in ("c", "cancel"):
-            raise click.UsageError(_bind_hints())
-        if choice.isdecimal() and 1 <= int(choice) <= len(profiles):
-            profile_name = profiles[int(choice) - 1]["profile"]
-            bind_profile_to_dotenv(profile_name)
-            break
-        click.echo(t("Enter a profile number or 'cancel'."))
+        "No credentials bound to this folder. Run "
+        "`direct auth login --method api` or "
+        "`direct auth write --profile <name>` to bind one, "
+        "pass --profile, or set {env}=1 to use the global active profile."
+    ).format(env=INHERIT_GLOBAL_ENV)
 
 
 def _ensure_credentials_bound(ctx: click.Context) -> None:
-    """Refuse to run with no bound credentials unless the user binds now (#904).
-
-    A folder with no explicit binding (cwd `.env`, `--profile`, base env) has
-    no credentials of its own — the global active profile is no longer
-    inherited silently. Interactive sessions get a bind menu (pick a profile,
-    saved to the cwd `.env`); non-interactive
-    sessions fail closed with binding hints. `--dry-run` never touches the
-    API and needs no credentials, so it stays silent. Opt back into the old
-    inheritance with `YANDEX_DIRECT_INHERIT_GLOBAL=1`.
-    """
-    if inherit_globally_enabled():
-        return
-    if ctx.params.get("dry_run"):
+    """Fail without credentials; only auth login may start an interactive login."""
+    if inherit_globally_enabled() or ctx.params.get("dry_run"):
         return
     obj = ctx.obj or {}
     if obj.get("credential_gate") is False or obj.get("token"):
         return
-    if not _interactive_streams():
-        raise click.UsageError(_bind_hints())
-    _bind_folder_interactively(ctx)
-    token, login_value, credential_source = get_credentials_with_source(
-        allow_login_resolve=False
-    )
-    obj["token"] = token
-    obj["login"] = login_value
-    obj["credential_source"] = credential_source
-    obj["credential_profile"] = None
+    raise click.UsageError(_bind_hints())
 
 
 def _augment_no_such_option(
