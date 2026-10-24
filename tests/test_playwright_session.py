@@ -37,6 +37,13 @@ def _isolated_session_path(tmp_path, monkeypatch):
     """
     target = tmp_path / "playwright" / "session.json"
     monkeypatch.setattr(store, "PLAYWRIGHT_SESSION_PATH", target)
+    monkeypatch.setattr(
+        "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
+        tmp_path / "browser",
+    )
+    monkeypatch.setattr(
+        "direct_cli.browser.session.PROFILE_POINTER_PATH", tmp_path / "browser-path"
+    )
     yield target
 
 
@@ -213,10 +220,6 @@ class TestRunDiagnosticsSurvivesFailures(unittest.TestCase):
                 return_value=None,
             ),
             patch(
-                "direct_cli.browser.diagnostics.get_encryption_key",
-                side_effect=ChromeCookieError("no keychain"),
-            ),
-            patch(
                 "direct_cli.browser.diagnostics.importlib.util.find_spec",
                 return_value=None,
             ),
@@ -281,30 +284,24 @@ class TestRunDiagnosticsDoesNotLoginOrLaunch(unittest.TestCase):
         fake_browser_type.launch.assert_not_called()
 
 
-class TestDiagnosticsNeverLeakSecrets(unittest.TestCase):
-    def test_keychain_check_never_contains_the_password(self):
-        with patch(
-            "direct_cli.browser.diagnostics.get_encryption_key",
-            return_value=b"\x00" * 16,
+class TestDiagnosticsNeverReadSecrets(unittest.TestCase):
+    def test_keychain_and_cookie_decryption_are_skipped(self):
+        with (
+            patch("direct_cli.browser._chrome_crypto.get_encryption_key") as key,
+            patch("direct_cli.browser._chrome_crypto.load_yandex_cookies") as cookies,
         ):
-            checks = diagnostics.run_diagnostics(profile_dir=None)
-        keychain_check = next(c for c in checks if c.name == "keychain_key")
-        self.assertNotIn("super-secret-password", keychain_check.detail)
-
-    def test_keychain_derived_exactly_once(self):
-        calls = []
-
-        def _fake_get_key(**kwargs):
-            calls.append(kwargs)
-            return b"\x00" * 16
-
-        with patch(
-            "direct_cli.browser.diagnostics.get_encryption_key",
-            side_effect=_fake_get_key,
-        ):
-            diagnostics.run_diagnostics()
-
-        self.assertEqual(len(calls), 1)
+            checks = diagnostics.run_diagnostics()
+        key.assert_not_called()
+        cookies.assert_not_called()
+        skipped = {
+            c.name: c
+            for c in checks
+            if c.name in ("keychain_key", "yandex_cookies_decrypt")
+        }
+        self.assertEqual(len(skipped), 2)
+        for check in skipped.values():
+            self.assertIsNone(check.ok)
+            self.assertIn("explicit login", check.detail)
 
 
 class TestSingletonLockRecovery(unittest.TestCase):
@@ -666,7 +663,7 @@ class TestPlaywrightLoginCommand(unittest.TestCase):
             result = self._invoke_login("--format", "json")
 
         self.assertEqual(result.exit_code, 0, result.output)
-        payload = json.loads(result.output)
+        payload = json.loads(result.stdout)
         self.assertEqual(payload["cookies"], 1)
         self.assertFalse(
             payload["verified"],
@@ -678,7 +675,7 @@ class TestPlaywrightLoginCommand(unittest.TestCase):
             result = self._invoke_login("--format", "json")
 
         self.assertEqual(result.exit_code, 0, result.output)
-        self.assertTrue(json.loads(result.output)["verified"])
+        self.assertTrue(json.loads(result.stdout)["verified"])
 
     def test_no_verify_reports_unverified_even_with_a_true_default(self):
         """--no-verify skips the live check entirely, so the payload must say
@@ -687,7 +684,7 @@ class TestPlaywrightLoginCommand(unittest.TestCase):
             result = self._invoke_login("--format", "json", "--no-verify")
 
         self.assertEqual(result.exit_code, 0, result.output)
-        self.assertFalse(json.loads(result.output)["verified"])
+        self.assertFalse(json.loads(result.stdout)["verified"])
 
     def test_text_format_prints_the_verified_line(self):
         with self._patched_capture(True):
@@ -755,8 +752,8 @@ class TestCaptureStorageStateHeadfulRetryMessage(unittest.TestCase):
 
         message = str(cm.exception)
         self.assertIn("invalidated server-side", message)
-        self.assertIn("#870", message)
-        self.assertIn("direct playwright login", message)
+        self.assertIn("--headful", message)
+        self.assertIn("direct auth login", message)
 
 
 if __name__ == "__main__":

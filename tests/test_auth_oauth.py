@@ -30,6 +30,7 @@ from direct_cli.cli import cli
 def isolated_auth_store(monkeypatch, tmp_path):
     store_path = tmp_path / "auth.json"
     monkeypatch.setattr("direct_cli.auth.AUTH_STORE_PATH", store_path)
+    monkeypatch.chdir(tmp_path)
     return store_path
 
 
@@ -376,8 +377,8 @@ class TestAuthOAuth:
             "expires_in": 3600,
         },
     )
-    @patch("direct_cli.commands.auth._should_prompt_save_env", return_value=True)
-    def test_auth_login_code_yes_updates_cwd_dotenv(
+    @patch("direct_cli.commands.auth._stdin_is_interactive", return_value=True)
+    def test_interactive_code_completion_binds_dotenv_without_save_prompt(
         self,
         mock_should_prompt,
         mock_exchange,
@@ -404,6 +405,7 @@ class TestAuthOAuth:
                 [
                     "auth",
                     "login",
+                    "--interactive",
                     "--profile",
                     "agency1",
                     "--code",
@@ -435,8 +437,8 @@ class TestAuthOAuth:
             "expires_in": 3600,
         },
     )
-    @patch("direct_cli.commands.auth._should_prompt_save_env", return_value=True)
-    def test_auth_login_code_no_leaves_cwd_dotenv_unchanged(
+    @patch("direct_cli.commands.auth._stdin_is_interactive", return_value=True)
+    def test_headless_code_completion_never_asks_to_write_dotenv(
         self,
         mock_should_prompt,
         mock_exchange,
@@ -483,10 +485,8 @@ class TestAuthOAuth:
         },
     )
     @patch("direct_cli.commands.auth.click.confirm")
-    @patch("direct_cli.commands.auth._should_prompt_save_env", return_value=True)
     def test_auth_login_code_dash_does_not_prompt_or_write_cwd_dotenv(
         self,
-        mock_should_prompt,
         mock_confirm,
         mock_exchange,
         isolated_auth_store,
@@ -519,7 +519,6 @@ class TestAuthOAuth:
         assert result.exit_code == 0, result.output
         assert not (tmp_path / ".env").exists()
         mock_confirm.assert_not_called()
-        mock_should_prompt.assert_not_called()
         assert "access-4" not in result.output
 
     def test_auth_store_uses_private_permissions(self, isolated_auth_store):
@@ -1328,11 +1327,12 @@ class TestAuthOAuth:
         isolated_auth_store,
     ):
         runner = CliRunner()
-        result = runner.invoke(
-            cli,
-            ["auth", "login", "--profile", "agency1"],
-            input="abc123\n",
-        )
+        with patch("direct_cli.commands.auth.webbrowser.open"):
+            result = runner.invoke(
+                cli,
+                ["auth", "login", "--profile", "agency1", "--interactive"],
+                input="abc123\n",
+            )
         assert result.exit_code == 0
         assert "oauth.yandex.ru/authorize" in result.output
         mock_exchange.assert_called_once_with(

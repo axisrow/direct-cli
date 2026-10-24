@@ -17,18 +17,16 @@ pip install direct-cli
 Мастер кампаний has **no Yandex Direct API surface at all** — it only exists
 in the web interface, and must not be confused with `UNIFIED_CAMPAIGN` (an
 unrelated v5 API campaign type already supported by `campaigns add/get --type
-unified_campaign`). `direct masters list` / `direct masters get <ids>` read it
-by decrypting your existing Chrome cookies for `yandex.ru` and injecting them
-into a Playwright-driven browser — no separate login. Only those cookies are
-ever read; the rest of your Chrome profile is never touched. On macOS the
-cookie key lives in your login Keychain, so the first run shows a one-time
-system permission dialog — click Allow. Linux is supported when Chrome uses
-its basic (non-keyring) password store; Windows isn't supported yet. Requires
-the optional `browser` extra:
+unified_campaign`). Browser-backed commands use a saved browser session,
+independent of the API token. Set it up explicitly with
+`direct auth login --method browser --interactive`. This opens a CLI-owned Chromium window
+and works on macOS/Linux/Windows without reading Chrome or Keychain.
+Requires the optional `browser` extra:
 
 ```bash
 pip install "direct-cli[browser]"
 playwright install chromium
+direct auth login --method browser --interactive
 direct masters list
 direct masters list --status archived
 direct masters get 72349978
@@ -196,18 +194,18 @@ never a silent skip, and the whole plan (including that local image/video
 files exist) is validated before the first save.
 
 A campaign that fails is reported with an `Error` and does not stop the rest;
-the command exits non-zero afterwards. If the browser session goes stale
-mid-plan it is re-opened once and the run continues from the first campaign
-that was never saved — an already-saved campaign is never saved twice.
+the command exits non-zero afterwards. If browser authorization fails mid-plan,
+the run stops with a login hint. It never imports cookies or repeats the
+operation under another session.
 `--pacing-ms` (default 1000) controls the pause between campaigns,
 `--moderation-statuses` additionally reads each campaign's current moderation
 statuses after its save (a snapshot — moderation usually has not run yet at
 that point, so a rejection can still appear later), and `--dry-run` prints
 what would be applied without opening a browser.
 
-If you see "Found no Yandex cookies", open https://direct.yandex.ru in Chrome
-and log in first. If you use a non-default Chrome profile, pass
-`--chrome-profile "Profile 1"`.
+To import an existing Chrome session instead, run
+`direct auth login --method browser --source chrome --chrome-profile "Profile 1"`.
+Chrome profile flags belong to explicit login, not resource commands.
 
 Since this data has no API contract, the parser degrades per-section (a
 warning, not a hard failure) if Yandex changes the page markup, rather than
@@ -285,33 +283,26 @@ running it twice creates a SECOND copy, not an update to the first. By
 default the copy is saved as a draft (`--draft`); pass `--launch` to launch
 it immediately in production instead. Same no-`--sandbox` caveat as `add`.
 
-**Browser session (optional but recommended):** `direct masters` decrypts
-your Chrome cookies fresh on every call by default, which means a Keychain
-prompt every time on macOS. Run `direct playwright login` once to decrypt
-and save a reusable session (`~/.direct-cli/playwright/session.json`, `0600`)
-— subsequent `direct masters` calls use it automatically and skip the
-Keychain round-trip. If something in the pipeline is broken (playwright not
-installed, wrong Chrome profile, expired session), `direct playwright
-doctor` reports the full chain of checks without logging in or writing
-anything.
+**Browser authorization:** `direct auth login --method browser --interactive` opens the
+CLI's persistent Chromium profile (`~/.direct-cli/chrome-profile/`) and waits
+up to `--timeout` seconds (default 300) for manual login. It requires a
+terminal unless `--allow-no-tty` is explicitly supplied.
 
-**Keychain-free alternative:** `direct masters login` opens a visible
-browser window on a persistent Chromium profile owned by the CLI
-(`~/.direct-cli/chrome-profile/`) — log in by hand once via Yandex Passport,
-and the command exits once the session is confirmed. This never touches your
-real Chrome profile or the macOS Keychain at all, so it works identically on
-macOS/Linux/Windows; the cost is a one-time manual login instead of a
-transparent cookie copy. When this profile exists, `direct masters` prefers
-it automatically over the saved `playwright login` session. It's interactive
-(blocks for up to `--timeout` seconds, default 300, waiting for you to sign
-in), so it can't run unattended. Run `direct masters logout` to delete the
-profile and revoke the on-disk session (a no-op warning, not an error, if
-none exists).
+Alternatively, `direct auth login --method browser --source chrome` imports
+Chrome cookies into `~/.direct-cli/playwright/session.json` (`0600`). Only
+this explicit import may request Keychain access. `--profile-dir` selects the
+source directory and `--chrome-profile` the Chrome profile subdirectory.
 
-Run `direct masters status` to check which of these two sessions `masters`
-commands would currently use — which tier is active, the persistent
-profile's path, and the saved session's expiry — without any network call
-or side effect (no browser launch, unlike every other `masters` command).
+Commands prefer an existing persistent Chromium session over an imported
+session. `direct auth status --method browser` inspects both without opening
+a browser; it reports saved state, not proof of current server-side validity.
+`direct auth doctor` diagnoses dependencies and saved session metadata;
+cookie decryption checks are skipped. Missing or rejected sessions produce
+a login hint; commands never start login or import cookies automatically.
+
+`direct auth logout --method browser` removes both CLI-owned browser sessions.
+It does not touch the original Chrome profile. Old browser-auth commands
+remain deprecated compatibility aliases; their stdout formats are preserved.
 
 ### История изменений (change history) — browser-only
 
@@ -321,8 +312,8 @@ changed IDs, and Live v4's `GetEventsLog` logs *system* events
 (`BannerModerated`, `MoneyOut`, …) — none of them can answer "who changed
 this field, when, and from what to what". That history exists only in the web
 interface's «История изменений» section, so `direct history` reads it through
-the same browser session `direct masters` uses (same `--headful`/
-`--profile-dir`/`--chrome-profile` options, same no-`--login` rule):
+the same saved browser session `direct masters` uses (same `--headful`
+option and no-`--login` rule):
 
 ```bash
 direct history get
@@ -349,6 +340,50 @@ neither), so a change that dropped a strategy goal is visible as
 A bare `--date-from`/`--date-to` date covers the whole day; pass
 `YYYY-MM-DDTHH:MM:SS` for an exact window. Without them, the period the
 section itself defaults to is used.
+
+### Authorization
+
+Authorization defaults to **headless, non-interactive execution**, even in a
+terminal. `direct auth login` prints the API authorization URL without opening
+a browser or asking questions. Complete the two-step flow with `--code` or
+`--code -` and bind a saved profile with `direct auth write --profile NAME`.
+
+`direct auth login --interactive` explicitly offers **API** or **Browser**. For API,
+choose a saved profile by number or log in to a new account; the choice is
+immediately bound to the current folder's `.env`. New profile names come
+from the account login and get a numeric suffix when the name is taken.
+API credentials and browser cookies stay separate and may belong to
+different accounts.
+
+```bash
+direct auth login
+direct auth login --interactive
+direct auth login --method api
+direct auth login --method browser --interactive
+direct auth login --method browser --source chrome
+direct auth status --method all
+direct auth doctor
+direct auth logout --method api --profile agency1
+direct auth logout --method browser
+```
+
+Login dialogs require `--interactive`. A visible browser requires
+`--interactive` or `--headful`; `--allow-no-tty` only overrides the terminal
+check. Manual browser login without an explicit UI flag fails immediately.
+Chrome import stays headless unless a UI flag is supplied, including when
+verification fails: there is no automatic headful retry. All resource commands fail with
+a helpful error when authorization is missing, including in a terminal.
+`direct` without arguments still shows help. API logout removes the named
+local profile and this folder's API binding, preserving other `.env` settings.
+The binding includes local token/login values, secret-manager references and
+the folder's global-profile inheritance setting.
+It does not revoke token copies in other folders, external environments, or
+secret managers. Browser logout removes both saved CLI sessions.
+
+`auth status` keeps its existing API output by default. Use `--method browser`
+for browser metadata or `--method all` for both; combined JSON has `api` and
+`browser` sections. Existing API flags and two-step PKCE/stdin login remain
+supported without a method menu in unattended workflows.
 
 ### Configuration
 
@@ -399,9 +434,9 @@ Notes:
 - If the first non-interactive step includes `--client-secret`, the secret is remembered for the matching completion step.
 - If a profile already stores a confidential OAuth client, `direct auth login --code CODE --profile NAME` reuses the saved `client_id` and `client_secret`.
 - `direct auth login --oauth-token TOKEN` is a manual access-token import and does not auto-refresh.
-- After a successful interactive login, Direct CLI asks whether to save the
-  access token and login to the current working directory `.env`; non-interactive
-  login flows do not prompt.
+- `--interactive` saves the selected API profile directly to the current
+  folder's `.env`. Headless flows never ask for save confirmation; use
+  `direct auth write --profile NAME` to bind the folder explicitly.
 - Alias `auth_login` is not supported.
 
 Credential resolution priority:
@@ -434,10 +469,10 @@ no `.env` — the CLI no longer inherits them silently:
   without prompts via `direct auth write --profile <name>` — it writes the
   profile's credentials to the cwd `.env` (merge, `0600`, token never
   printed); `--profile` is required, nothing is bound implicitly.
-- Interactive sessions: the CLI offers to bind the folder on the spot — one
-  prompt listing the existing profiles; the choice is saved to the cwd `.env`
-  and never asked again for that folder. To authorize a new profile first,
-  run `direct auth login`.
+- Terminal sessions follow the same rule: an ordinary command never opens a
+  login dialog. Run `direct auth login --method api --interactive` to choose or
+  authorize a profile and bind it to this folder. A profile created through
+  the menu does not change the global active profile.
 - `direct auth status` in an unbound folder reports
   `source=null`/`has_token=false` and notes the global profile
   (`global_profile`/`global_login` in JSON) without presenting it as this

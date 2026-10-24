@@ -1007,9 +1007,9 @@ class TestMastersRegistered(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("list", result.output)
         self.assertIn("get", result.output)
-        self.assertIn("login", result.output)
-        self.assertIn("logout", result.output)
-        self.assertIn("status", result.output)
+        for name in ("login", "logout", "status"):
+            self.assertIn(name, cli.commands["masters"].commands)
+            self.assertNotIn(f"  {name} ", result.output)
 
     def test_masters_list_help(self):
         result = self.runner.invoke(cli, ["masters", "list", "--help"])
@@ -1019,7 +1019,7 @@ class TestMastersRegistered(unittest.TestCase):
         # session.py's error message tells users with a non-Default Chrome
         # profile to pass --chrome-profile — that flag must actually exist.
         result = self.runner.invoke(cli, ["masters", "list", "--help"])
-        self.assertIn("--chrome-profile", result.output)
+        self.assertNotIn("--chrome-profile", result.output)
 
     def test_masters_get_help(self):
         result = self.runner.invoke(cli, ["masters", "get", "--help"])
@@ -1099,12 +1099,12 @@ class TestMastersRegistered(unittest.TestCase):
         with list_cmd.make_context("list", []) as ctx:
             with (
                 patch(
-                    "direct_cli.browser.session.open_chrome_session",
+                    "direct_cli.browser.session.open_saved_session",
                     _fake_open_chrome_session,
                 ),
                 patch(
                     "direct_cli.browser.store.session_status",
-                    return_value={"exists": False, "error": None, "expired": None},
+                    return_value={"exists": True, "error": None, "expired": False},
                 ),
                 # Same isolation as TestOpenSessionTiers.setUp: without
                 # this, _open_session's Tier 1.5 check
@@ -2268,12 +2268,8 @@ class TestCaptureStorageState(unittest.TestCase):
             "verify navigation was not retried up to the attempt budget",
         )
 
-    def test_fresh_cookies_get_one_headful_retry_after_auth_failure(self):
-        """Issue #870 п.2: headless "Chrome for Testing" can be redirected
-        to Passport by the bot challenge even though the cookies are fresh
-        (the live repro verified fine headful immediately after) — the
-        capture must retry once with a visible window before reporting
-        failure."""
+    def test_fresh_cookies_do_not_enable_headful_retry_implicitly(self):
+        """A terminal or valid-looking cookies never authorize a visible retry."""
         pytest.importorskip("playwright")
         from direct_cli.browser import session as session_module
 
@@ -2307,11 +2303,11 @@ class TestCaptureStorageState(unittest.TestCase):
             ),
             patch.object(Path, "exists", return_value=True),
         ):
-            storage_state, source_meta = session_module.capture_storage_state()
+            with self.assertRaises(session_module.BrowserAuthError) as error:
+                session_module.capture_storage_state()
 
-        self.assertEqual(launch_headless_flags, [True, False])
-        self.assertTrue(source_meta["verified"])
-        self.assertEqual(storage_state, {"cookies": []})
+        self.assertEqual(launch_headless_flags, [True])
+        self.assertIn("--headful", str(error.exception))
 
     def test_expired_cookies_report_expiry_without_a_headful_retry(self):
         """Issue #870 п.2: when expires_utc says the cookies HAVE expired,
@@ -2478,14 +2474,12 @@ class TestCaptureStorageState(unittest.TestCase):
             ),
             patch.object(Path, "exists", return_value=True),
         ):
-            _storage_state, source_meta = session_module.capture_storage_state()
+            with self.assertRaises(session_module.BrowserAuthError) as error:
+                session_module.capture_storage_state()
 
-        self.assertTrue(
-            source_meta["verified"],
-            "an expired tracking cookie must not block a fresh session's "
-            "headful retry",
-        )
-        self.assertEqual([call.get("headless") for call in launch_calls], [True, False])
+        self.assertIn("--headful", str(error.exception))
+        self.assertNotIn("HAVE expired", str(error.exception))
+        self.assertEqual([call.get("headless") for call in launch_calls], [True])
 
     def test_headful_run_hitting_passport_raises_without_a_second_window(self):
         """The headful-retry branch must be one-way: a run that is ALREADY
@@ -2848,25 +2842,14 @@ class TestOpenSessionTiers(unittest.TestCase):
         saved.assert_not_called()
         fresh.assert_not_called()
 
-    def test_explicit_profile_dir_bypasses_saved_session(self):
-        from direct_cli.commands.masters import _open_session
-
-        with self._list_ctx(["--profile-dir", "/some/profile"]) as ctx:
-            with (
-                patch("direct_cli.browser.session.open_saved_session") as saved,
-                patch("direct_cli.browser.session.open_chrome_session") as fresh,
-            ):
-                fresh.return_value.__enter__ = lambda self: "page"
-                fresh.return_value.__exit__ = lambda self, *a: False
-                with _open_session(
-                    ctx,
-                    headful=False,
-                    profile_dir="/some/profile",
-                    chrome_profile="Default",
-                ):
-                    pass
-        saved.assert_not_called()
-        fresh.assert_called_once()
+    def test_explicit_profile_dir_is_rejected_before_session_resolution(self):
+        with patch("direct_cli.browser.session.open_chrome_session") as fresh:
+            with self.assertRaises(click.UsageError) as cm:
+                self._list_ctx(["--profile-dir", "/some/profile"])
+        self.assertIn(
+            "direct auth login --method browser --source chrome", str(cm.exception)
+        )
+        fresh.assert_not_called()
 
     def test_persistent_profile_used_when_present(self):
         """Tier 1.5: when the CLI's own persistent profile holds a session,
@@ -2904,7 +2887,7 @@ class TestOpenSessionTiers(unittest.TestCase):
                 ):
                     pass
         persistent.assert_called_once()
-        status.assert_not_called()
+        status.assert_called_once_with()
         saved.assert_not_called()
         fresh.assert_not_called()
 
@@ -2929,49 +2912,30 @@ class TestOpenSessionTiers(unittest.TestCase):
         saved.assert_called_once()
         fresh.assert_not_called()
 
-    def test_expired_saved_session_falls_through_to_fresh(self):
+    def test_expired_saved_session_requires_explicit_login(self):
+        self._assert_missing_session_fails(True)
+
+    def test_missing_session_requires_explicit_login(self):
+        self._assert_missing_session_fails(False)
+
+    def _assert_missing_session_fails(self, exists):
         from direct_cli.commands.masters import _open_session
 
         with self._list_ctx() as ctx:
             with (
                 patch(
                     "direct_cli.browser.store.session_status",
-                    return_value={"exists": True, "error": None, "expired": True},
+                    return_value={"exists": exists, "error": None, "expired": exists},
                 ),
                 patch("direct_cli.browser.session.open_saved_session") as saved,
                 patch("direct_cli.browser.session.open_chrome_session") as fresh,
-                patch("direct_cli.commands.masters.print_info"),
             ):
-                fresh.return_value.__enter__ = lambda self: "page"
-                fresh.return_value.__exit__ = lambda self, *a: False
-                with _open_session(
-                    ctx, headful=False, profile_dir=None, chrome_profile="Default"
-                ):
-                    pass
+                with self.assertRaises(click.ClickException) as cm:
+                    with _open_session(ctx, False, None, "Default"):
+                        pass
+        self.assertIn("direct auth login --method browser", str(cm.exception))
         saved.assert_not_called()
-        fresh.assert_called_once()
-
-    def test_no_saved_session_falls_through_to_fresh_with_tip(self):
-        from direct_cli.commands.masters import _open_session
-
-        with self._list_ctx() as ctx:
-            with (
-                patch(
-                    "direct_cli.browser.store.session_status",
-                    return_value={"exists": False, "error": None, "expired": None},
-                ),
-                patch("direct_cli.browser.session.open_chrome_session") as fresh,
-                patch("direct_cli.commands.masters.print_info") as info,
-            ):
-                fresh.return_value.__enter__ = lambda self: "page"
-                fresh.return_value.__exit__ = lambda self, *a: False
-                with _open_session(
-                    ctx, headful=False, profile_dir=None, chrome_profile="Default"
-                ):
-                    pass
-        fresh.assert_called_once()
-        info.assert_called_once()
-        self.assertIn("playwright login", info.call_args[0][0])
+        fresh.assert_not_called()
 
     def test_auth_error_from_saved_session_enter_propagates_uncaught(self):
         """_open_session itself no longer catches BrowserAuthError -- the
@@ -3002,7 +2966,7 @@ class TestOpenSessionTiers(unittest.TestCase):
             ):
                 fresh.return_value.__enter__ = lambda self: "page"
                 fresh.return_value.__exit__ = lambda self, *a: False
-                with self.assertRaises(BrowserAuthError):
+                with self.assertRaises(click.ClickException):
                     with _open_session(
                         ctx, headful=False, profile_dir=None, chrome_profile="Default"
                     ):
@@ -3010,119 +2974,45 @@ class TestOpenSessionTiers(unittest.TestCase):
         fresh.assert_not_called()
 
 
-class TestWithSessionRetry(unittest.TestCase):
-    """_with_session retries the whole operation on BrowserAuthError.
+class TestWithSessionNoRetry(unittest.TestCase):
+    """An authorization error never repeats a possibly side-effectful operation."""
 
-    Regression coverage for the double-yield bug: a stale saved session is
-    NOT caught on open (assert_authenticated runs inside the caller's
-    operation, after the session has already been yielded), so the retry
-    must re-run the operation against a fresh session rather than trying to
-    yield a second time from the same _open_session generator invocation
-    (which raises RuntimeError: generator didn't stop after throw()).
-    """
-
-    def setUp(self):
-        # Same isolation as TestOpenSessionTiers.setUp: every test here
-        # exercises tiers below 1.5 (persistent CLI profile) via a patched
-        # open_chrome_session/open_saved_session, but _open_session's Tier
-        # 1.5 check (persistent_profile_is_usable) reads the real
-        # filesystem regardless of those patches. On a machine that has
-        # ever run `direct masters login`/`direct playwright login` for
-        # real, ~/.direct-cli/chrome-profile/Default/Cookies exists, Tier
-        # 1.5 wins over the intended tier, and the *real*
-        # open_persistent_session launches an actual Chromium instead of
-        # hitting either patched fake — the test then asserts against a
-        # real Page object instead of "fresh-page"/the injected exception.
-        patcher = patch(
-            "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
-            Path("/nonexistent/chrome-profile"),
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        pointer = patch(
-            "direct_cli.browser.session.PROFILE_POINTER_PATH",
-            Path("/nonexistent/chrome-profile-path"),
-        )
-        pointer.start()
-        self.addCleanup(pointer.stop)
-
-    def _list_ctx(self, args=None):
-        from direct_cli.commands.masters import masters
-
-        list_cmd = masters.commands["list"]
-        return list_cmd.make_context("list", list(args or []))
-
-    def test_auth_error_raised_inside_operation_retries_via_fresh_session(self):
-        import contextlib
-
-        from direct_cli.browser.session import BrowserAuthError
+    def test_auth_error_inside_operation_does_not_repeat_or_import(self):
         from direct_cli.commands.masters import _with_session
-
-        @contextlib.contextmanager
-        def _fake_open_saved_session(**kwargs):
-            yield "saved-page"
-
-        @contextlib.contextmanager
-        def _fake_open_chrome_session(**kwargs):
-            yield "fresh-page"
 
         calls = []
 
+        @contextlib.contextmanager
+        def saved(*args, **kwargs):
+            yield "saved-page"
+
         def operation(page):
             calls.append(page)
-            if page == "saved-page":
-                # Mirrors assert_authenticated raising deep inside
-                # fetch_masters_list/fetch_master, after _open_session has
-                # already yielded the page to the caller.
-                raise BrowserAuthError("stale session, detected mid-body")
-            return f"ok:{page}"
+            raise click.ClickException("stale session")
 
-        with self._list_ctx() as ctx:
-            with (
-                patch(
-                    "direct_cli.browser.store.session_status",
-                    return_value={"exists": True, "error": None, "expired": False},
-                ),
-                patch(
-                    "direct_cli.browser.session.open_saved_session",
-                    _fake_open_saved_session,
-                ),
-                patch(
-                    "direct_cli.browser.session.open_chrome_session",
-                    _fake_open_chrome_session,
-                ),
-            ):
-                result = _with_session(ctx, False, None, "Default", operation)
+        with (
+            patch("direct_cli.commands.masters._open_session", saved),
+            patch("direct_cli.browser.session.open_chrome_session") as fresh,
+        ):
+            with self.assertRaises(click.ClickException):
+                _with_session(click.Context(cli), False, None, "Default", operation)
+        self.assertEqual(calls, ["saved-page"])
+        fresh.assert_not_called()
 
-        self.assertEqual(result, "ok:fresh-page")
-        self.assertEqual(calls, ["saved-page", "fresh-page"])
-
-    def test_no_saved_session_runs_operation_once(self):
-        import contextlib
-
+    def test_successful_operation_runs_once(self):
         from direct_cli.commands.masters import _with_session
 
         @contextlib.contextmanager
-        def _fake_open_chrome_session(**kwargs):
-            yield "fresh-page"
+        def saved(*args, **kwargs):
+            yield "saved-page"
 
-        with self._list_ctx() as ctx:
-            with (
-                patch(
-                    "direct_cli.browser.store.session_status",
-                    return_value={"exists": False, "error": None, "expired": None},
-                ),
-                patch(
-                    "direct_cli.browser.session.open_chrome_session",
-                    _fake_open_chrome_session,
-                ),
-                patch("direct_cli.commands.masters.print_info"),
-            ):
-                result = _with_session(
-                    ctx, False, None, "Default", lambda page: f"ok:{page}"
-                )
-
-        self.assertEqual(result, "ok:fresh-page")
+        operation = Mock(return_value="ok")
+        with patch("direct_cli.commands.masters._open_session", saved):
+            result = _with_session(
+                click.Context(cli), False, None, "Default", operation
+            )
+        self.assertEqual(result, "ok")
+        operation.assert_called_once_with("saved-page")
 
 
 class TestPollUntil(unittest.TestCase):
@@ -14597,9 +14487,7 @@ class TestMastersLoginCommand(unittest.TestCase):
         # CliRunner supplies a non-tty stdin, so `login` would refuse to run
         # (it needs a human). Every test here exercises the interactive path;
         # the non-interactive refusal has its own test that overrides this.
-        tty = patch(
-            "direct_cli.commands.masters._stdin_is_interactive", return_value=True
-        )
+        tty = patch("direct_cli.commands.auth._stdin_is_interactive", return_value=True)
         tty.start()
         self.addCleanup(tty.stop)
 
@@ -14617,10 +14505,10 @@ class TestMastersLoginCommand(unittest.TestCase):
         """
         with patch("direct_cli.browser.session.login_persistent_session") as login_fn:
             with patch(
-                "direct_cli.commands.masters._stdin_is_interactive",
+                "direct_cli.commands.auth._stdin_is_interactive",
                 return_value=False,
             ):
-                result = self.runner.invoke(cli, ["masters", "login"])
+                result = self.runner.invoke(cli, ["masters", "login", "--headful"])
 
         login_fn.assert_not_called()
         self.assertNotEqual(result.exit_code, 0, result.output)
@@ -14635,10 +14523,12 @@ class TestMastersLoginCommand(unittest.TestCase):
         opens the window without a TTY."""
         with patch("direct_cli.browser.session.login_persistent_session") as login_fn:
             with patch(
-                "direct_cli.commands.masters._stdin_is_interactive",
+                "direct_cli.commands.auth._stdin_is_interactive",
                 return_value=False,
             ):
-                result = self.runner.invoke(cli, ["masters", "login", "--allow-no-tty"])
+                result = self.runner.invoke(
+                    cli, ["masters", "login", "--headful", "--allow-no-tty"]
+                )
 
         self.assertEqual(result.exit_code, 0, result.output)
         login_fn.assert_called_once()
@@ -14651,7 +14541,7 @@ class TestMastersLoginCommand(unittest.TestCase):
 
     def test_login_calls_login_persistent_session(self):
         with patch("direct_cli.browser.session.login_persistent_session") as mock_login:
-            result = self.runner.invoke(cli, ["masters", "login"])
+            result = self.runner.invoke(cli, ["masters", "login", "--headful"])
 
         self.assertEqual(result.exit_code, 0, result.output)
         mock_login.assert_called_once()
@@ -14666,6 +14556,7 @@ class TestMastersLoginCommand(unittest.TestCase):
                 [
                     "masters",
                     "login",
+                    "--headful",
                     "--profile-dir",
                     "/custom/profile",
                     "--timeout",
@@ -14685,7 +14576,7 @@ class TestMastersLoginCommand(unittest.TestCase):
             "direct_cli.browser.session.login_persistent_session",
             side_effect=BrowserAuthError("timed out"),
         ):
-            result = self.runner.invoke(cli, ["masters", "login"])
+            result = self.runner.invoke(cli, ["masters", "login", "--headful"])
 
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("timed out", result.output)
@@ -14694,7 +14585,7 @@ class TestMastersLoginCommand(unittest.TestCase):
         with patch.dict(
             "sys.modules", {"playwright": None, "playwright.sync_api": None}
         ):
-            result = self.runner.invoke(cli, ["masters", "login"])
+            result = self.runner.invoke(cli, ["masters", "login", "--headful"])
 
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("playwright", result.output.lower())
@@ -14884,7 +14775,7 @@ class TestMastersStatusCommand(unittest.TestCase):
             result = self.runner.invoke(cli, ["masters", "status"])
         self.assertEqual(result.exit_code, 0, result.output)
 
-    def test_status_reports_tier_3_when_nothing_saved(self):
+    def test_status_reports_no_source_when_nothing_saved(self):
         with patch(
             "direct_cli.browser.session.configured_persistent_profile_dir",
             return_value=self.persistent_dir,
@@ -14892,7 +14783,7 @@ class TestMastersStatusCommand(unittest.TestCase):
             result = self.runner.invoke(cli, ["masters", "status"])
 
         self.assertEqual(result.exit_code, 0, result.output)
-        self.assertIn("active_tier=3", result.output)
+        self.assertIn("active_tier=None", result.output)
 
     def test_status_reports_tier_1_5_when_persistent_profile_usable(self):
         self._make_usable_persistent_profile()
@@ -14954,7 +14845,7 @@ class TestMastersStatusCommand(unittest.TestCase):
             result = self.runner.invoke(cli, ["masters", "status", "--format", "json"])
 
         self.assertEqual(result.exit_code, 0, result.output)
-        payload = json.loads(result.output)
+        payload = json.loads(result.stdout)
         self.assertEqual(payload["active_tier"], "2")
         self.assertTrue(payload["saved_session"]["exists"])
         self.assertFalse(payload["persistent_profile"]["usable"])
@@ -14967,9 +14858,9 @@ class TestMastersStatusCommand(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         with self.assertRaises(json.JSONDecodeError):
-            json.loads(result.output)
+            json.loads(result.stdout)
 
-    def test_status_reports_tier_1_when_profile_dir_explicit_even_with_saved_session(
+    def test_status_inspects_explicit_persistent_profile_without_cookie_import(
         self,
     ):
         # `_open_session`'s own tier-1 rule (masters.py's
@@ -14989,7 +14880,7 @@ class TestMastersStatusCommand(unittest.TestCase):
         )
 
         self.assertEqual(result.exit_code, 0, result.output)
-        self.assertIn("active_tier=1 ", result.output)
+        self.assertIn("active_tier=1.5 ", result.output)
 
     def test_status_reports_tier_1_5_when_profile_dir_not_explicit(self):
         # Without an explicit --profile-dir on the command line, tier
@@ -20917,7 +20808,7 @@ class TestResolveRegionIds(unittest.TestCase):
         client.dictionaries.return_value = service
 
         with patch("direct_cli.commands.masters.create_client", return_value=client):
-            with patch("direct_cli.commands.masters.print_warning") as mock_warning:
+            with patch("direct_cli.output.print_warning") as mock_warning:
                 result = _resolve_region_ids(Mock(), (213,))
 
         self.assertEqual(result, [("Москва", 213)])
@@ -20951,7 +20842,7 @@ class TestResolveRegionIds(unittest.TestCase):
         client.dictionaries.return_value = service
 
         with patch("direct_cli.commands.masters.create_client", return_value=client):
-            with patch("direct_cli.commands.masters.print_warning") as mock_warning:
+            with patch("direct_cli.output.print_warning") as mock_warning:
                 result = _resolve_region_ids(_region_ctx(), (213,))
 
         self.assertEqual(result, [("Москва", 213)])
