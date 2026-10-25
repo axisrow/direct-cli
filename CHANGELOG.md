@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **`masters list`: intermittent grid-load timeout now retries internally
+  (#912).** The campaigns grid's `GridCampaigns` data request is observed
+  across two attempts — 30s, then 60s, with a fresh page load per attempt —
+  before the command fails, so an ordinary slow page load no longer surfaces
+  as a terminal error requiring a manual retry. The exhausted-attempts error
+  is worded purely as the retryable timeout it is (the old text's "Yandex may
+  have changed the grid's internal API" clause is gone); an unrecognized
+  response structure keeps its separate, API-change message. New
+  `masters list --timeout SECONDS` scales both per-attempt budgets for slow
+  connections.
+
 ## 0.5.4 — 2026-10-24
 
 ### Unified authorization

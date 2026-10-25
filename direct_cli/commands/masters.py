@@ -338,11 +338,29 @@ _STATUS_CHOICES = ("not-archived", "active", "stopped", "archived", "all")
     default="not-archived",
     help="Filter by campaign status (default: everything except archived)",
 )
+@click.option(
+    "--timeout",
+    "capture_timeout_seconds",
+    type=click.IntRange(min=1),
+    default=None,
+    help=(
+        "Seconds to wait for the grid's data request per capture attempt "
+        "(issue #912: two attempts are made — this budget, then double it "
+        "— before the command fails). Raise on slow connections."
+    ),
+)
 @_masters_browser_options
 @click.pass_context
 @handle_api_errors
 def list_masters(
-    ctx, status, headful, profile_dir, chrome_profile, output_format, output
+    ctx,
+    status,
+    capture_timeout_seconds,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
 ):
     """List every Мастер кампаний in the account"""
     from ..browser.masters import fetch_masters_list
@@ -352,7 +370,15 @@ def list_masters(
         headful,
         profile_dir,
         chrome_profile,
-        lambda page: fetch_masters_list(page, status),
+        lambda page: fetch_masters_list(
+            page,
+            status,
+            capture_timeout_ms=(
+                capture_timeout_seconds * 1000
+                if capture_timeout_seconds is not None
+                else None
+            ),
+        ),
     )
 
     format_output(result, output_format, output)

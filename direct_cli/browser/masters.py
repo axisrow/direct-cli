@@ -395,6 +395,16 @@ GRID_PAGE_LIMIT = 200
 # 10-15s after domcontentloaded to fire it, well within this 30s budget.
 _GRID_CAPTURE_TIMEOUT_MS = 30_000
 
+# Issue #912: that 30s window intermittently expires on an ordinary slow
+# page load, and the command surfaced it as a terminal error the caller had
+# to retry by hand (an immediate re-run succeeded). Each capture attempt N
+# gets N * _GRID_CAPTURE_TIMEOUT_MS (30s, then 60s by default), so a slow
+# load is absorbed internally before any error reaches the user. Only a
+# timeout after EVERY attempt is reported, and its message is purely
+# retryable — the "structure not recognized / API changed" diagnosis is a
+# separate failure with its own message (_fetch_grid_campaigns_page).
+_GRID_CAPTURE_ATTEMPTS = 2
+
 # `status.primaryStatus` -> CLI-facing status filters for `masters list
 # --status`. "not-archived" is the default (mirrors the CLI-wide convention
 # of not surfacing archived resources unless asked, see COMMON_FIELDS
@@ -2171,7 +2181,9 @@ def _is_grid_campaigns_request(response: Any) -> bool:
     )
 
 
-def _capture_grid_campaigns_request(page: "Page") -> Dict[str, Any]:
+def _capture_grid_campaigns_request(
+    page: "Page", timeout_ms: Optional[int] = None
+) -> Dict[str, Any]:
     """Navigate the grid and capture the ``GridCampaigns`` request it fires.
 
     Returns the raw ``dict`` from ``json.loads(request.post_data)`` plus the
@@ -2193,6 +2205,14 @@ def _capture_grid_campaigns_request(page: "Page") -> Dict[str, Any]:
     seconds earlier — ``expect_response`` blocks on the actual event instead
     of sampling on an interval, and needs no listener cleanup.
 
+    Each attempt re-navigates and waits a growing budget — attempt N gets
+    ``N * timeout_ms`` (30s, then 60s by default; issue #912) — because the
+    first window intermittently expires on an ordinary slow load. Only
+    after every attempt times out does the caller see an error, worded as
+    the retryable timeout it is; ``timeout_ms`` scales those budgets for
+    slow connections (``masters list --timeout``) without introducing any
+    second time source.
+
     Uses ``wait_until="commit"``, not ``"domcontentloaded"`` (#682): live
     diagnosis in #671 found the grid is a virtualized SPA whose
     ``document.readyState`` never advances past ``"interactive"``, so
@@ -2206,41 +2226,53 @@ def _capture_grid_campaigns_request(page: "Page") -> Dict[str, Any]:
     so their marker text is present in the initial document body Yandex
     sends, before any client-side JS runs.
     """
-    try:
-        with page.expect_response(
-            _is_grid_campaigns_request, timeout=_GRID_CAPTURE_TIMEOUT_MS
-        ) as response_info:
-            # commit, not domcontentloaded/networkidle: see docstring. No
-            # ulogin here (see module docstring): passing our own login as
-            # the managed-client param produces "Доступ ограничен" + HTTP
-            # 401.
-            page.goto(GRID_URL, wait_until="commit")
-            assert_not_captcha(page.content())
-            assert_authenticated(page.content())
-        response = response_info.value
-    except BrowserSessionError:
-        # assert_not_captcha/assert_authenticated raise BrowserCaptchaError/
-        # BrowserAuthError (both BrowserSessionError subclasses) -- these
-        # must propagate as-is, not be relabelled as the generic timeout
-        # error below. Without this PlaywrightError falls back to bare
-        # Exception when the playwright package isn't installed (see the
-        # import fallback above), which would otherwise swallow them too.
-        raise
-    except PlaywrightError as exc:
-        # Playwright's EventContextManager.__exit__ resolves
-        # response_info.value itself when the `with` block exits without
-        # raising — so a expect_response timeout surfaces as the `with`
-        # block's own exit, not as an exception from reading
-        # response_info.value afterwards (issue #694). The whole block
-        # (goto/assert_* included) must be inside this try, or the timeout
-        # escapes uncaught.
+    if timeout_ms is None:
+        timeout_ms = _GRID_CAPTURE_TIMEOUT_MS
+    response = None
+    last_error: Optional[BaseException] = None
+    for attempt in range(1, _GRID_CAPTURE_ATTEMPTS + 1):
+        try:
+            with page.expect_response(
+                _is_grid_campaigns_request, timeout=timeout_ms * attempt
+            ) as response_info:
+                # commit, not domcontentloaded/networkidle: see docstring. No
+                # ulogin here (see module docstring): passing our own login as
+                # the managed-client param produces "Доступ ограничен" + HTTP
+                # 401.
+                page.goto(GRID_URL, wait_until="commit")
+                assert_not_captcha(page.content())
+                assert_authenticated(page.content())
+            response = response_info.value
+            break
+        except BrowserSessionError:
+            # assert_not_captcha/assert_authenticated raise BrowserCaptchaError/
+            # BrowserAuthError (both BrowserSessionError subclasses) -- these
+            # must propagate as-is, not be relabelled as the generic timeout
+            # error below. Without this PlaywrightError falls back to bare
+            # Exception when the playwright package isn't installed (see the
+            # import fallback above), which would otherwise swallow them too.
+            raise
+        except PlaywrightError as exc:
+            # Playwright's EventContextManager.__exit__ resolves
+            # response_info.value itself when the `with` block exits without
+            # raising — so a expect_response timeout surfaces as the `with`
+            # block's own exit, not as an exception from reading
+            # response_info.value afterwards (issue #694). The whole block
+            # (goto/assert_* included) must be inside this try, or the timeout
+            # escapes uncaught. Caught here to try again with a larger
+            # budget; reported only once every attempt has expired.
+            last_error = exc
+    if response is None:
         raise BrowserSessionError(
             "Could not observe the campaigns grid's data request "
             f"(operationName={_GRID_CAMPAIGNS_OPERATION}) within "
-            f"{_GRID_CAPTURE_TIMEOUT_MS / 1000:.0f}s. Yandex may have "
-            "changed the grid's internal API, or the page is unusually "
-            "slow to load."
-        ) from exc
+            f"{_GRID_CAPTURE_ATTEMPTS} attempts "
+            f"({timeout_ms / 1000:.0f}s, then "
+            f"{_GRID_CAPTURE_ATTEMPTS * timeout_ms / 1000:.0f}s). The page "
+            "is unusually slow to load; this is often transient, so retry "
+            "the command — `masters list --timeout` raises the per-attempt "
+            "budget."
+        ) from last_error
 
     post_data = response.request.post_data
     assert post_data  # guaranteed non-empty by _is_grid_campaigns_request
@@ -2315,7 +2347,9 @@ def _fetch_grid_campaigns_page(
 
 
 def fetch_masters_list(
-    page: "Page", status: str = "not-archived"
+    page: "Page",
+    status: str = "not-archived",
+    capture_timeout_ms: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Return every Мастер кампаний row from the account's campaigns grid.
 
@@ -2323,6 +2357,9 @@ def fetch_masters_list(
     rather than the grid's DOM, paginates through every row
     (``GRID_PAGE_LIMIT`` per page), keeps only rows whose ``source`` is
     ``MASTERS_SOURCE``, and applies ``status`` via ``STATUS_FILTERS``.
+
+    ``capture_timeout_ms`` scales the per-attempt grid-observation budgets
+    (issue #912); ``None`` keeps the built-in default.
 
     For ``status in {"archived", "all"}`` the captured request's
     ``filterStatusIn`` is widened first (see
@@ -2337,7 +2374,7 @@ def fetch_masters_list(
             f"{sorted(STATUS_FILTERS)}."
         )
 
-    request = _capture_grid_campaigns_request(page)
+    request = _capture_grid_campaigns_request(page, timeout_ms=capture_timeout_ms)
     if status in _ARCHIVE_INCLUDING_STATUSES:
         _widen_filter_status_for_archived(request)
 
