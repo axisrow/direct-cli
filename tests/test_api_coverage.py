@@ -2640,7 +2640,9 @@ class TestReportsBuildRequestExtra:
     def test_reports_request_builder_rejects_dates_with_relative_period(self):
         # Explicit dates alongside a relative period would produce a request
         # carrying dates the API forbids for that DateRangeType (issue #898).
-        with pytest.raises(click.UsageError, match="only allowed"):
+        # Match on the locale-stable flag names: t() renders Russian under
+        # the default locale.
+        with pytest.raises(click.UsageError, match=r"--from/--to"):
             build_report_request(
                 report_type="CAMPAIGN_PERFORMANCE_REPORT",
                 date_from="2026-01-01",
@@ -2651,7 +2653,7 @@ class TestReportsBuildRequestExtra:
             )
 
     def test_reports_request_builder_custom_date_requires_from(self):
-        with pytest.raises(click.UsageError, match="are required"):
+        with pytest.raises(click.UsageError, match=r"--from (and|и) --to"):
             build_report_request(
                 report_type="CAMPAIGN_PERFORMANCE_REPORT",
                 date_from=None,
@@ -2661,7 +2663,7 @@ class TestReportsBuildRequestExtra:
             )
 
     def test_reports_request_builder_custom_date_requires_to(self):
-        with pytest.raises(click.UsageError, match="are required"):
+        with pytest.raises(click.UsageError, match=r"--from (and|и) --to"):
             build_report_request(
                 report_type="CAMPAIGN_PERFORMANCE_REPORT",
                 date_from="2026-01-01",
