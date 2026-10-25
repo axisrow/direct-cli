@@ -488,6 +488,21 @@ no `.env` — the CLI no longer inherits them silently:
   inheritance for unattended workflows (auth status then labels it
   `source=global-profile-inherited`).
 
+### Optional diagnostics output (#925)
+
+Optional output — data you did not ask for — is hidden by default and printed
+to stderr only, so stdout stays byte-identical for pipes and JSON parsing:
+
+| Env var | Effect |
+|---------|--------|
+| `DIRECT_SHOW_UNITS=1` | After each successful v5 API call, one stderr line with the API Units points: `API units: <spent>/<rest>/<daily limit>` (e.g. `API units: 10/20828/64000`), plus ` (used-login: <login>)` for agency accounts (`Units-Used-Login`). The v4 Live API returns no Units headers, so v4 commands (`direct balance`, …) stay silent under this switch |
+| `DIRECT_QUIET=0` | Master switch back to the legacy behaviour for optional output that existed before #925 (Units had none) |
+
+`DIRECT_SHOW_UNITS=1` works even with `DIRECT_QUIET=1`; an explicit
+`DIRECT_SHOW_UNITS=0` wins over `DIRECT_QUIET=0`. Safety output — inherited
+credential warnings (#909), sandbox notices, API warnings — is never
+suppressed. Limit errors already include Units in their text (#921).
+
 > **Tests follow the safe credential order.** Live-API test suites (e.g. `tests/test_v4_live_contracts.py`) read `YANDEX_DIRECT_TOKEN` / `YANDEX_DIRECT_LOGIN` from the environment first, only then fall back to the active `direct auth` profile, and skip the test if neither is set. This prevents a developer machine with an active profile from silently hitting production on a plain `pytest` invocation. See `CLAUDE.md` for the contract.
 
 Install with `pip install direct-cli`, then run commands with `direct`.
