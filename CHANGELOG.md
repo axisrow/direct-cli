@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Added
+
+- **Optional diagnostics output is now env-switched and hidden by default
+  (#925).** Successful API calls no longer print anything extra: the API
+  Units points line is opt-in via `DIRECT_SHOW_UNITS=1`, which prints one
+  stderr line per successful call — `API units: <spent>/<rest>/<daily limit>`
+  (e.g. `API units: 10/20828/64000`), plus ` (used-login: <login>)` when the
+  API returned `Units-Used-Login` (agency accounts). stdout is never touched,
+  so pipes and `--format json` parsing are unaffected. `DIRECT_QUIET=0`
+  restores the legacy behaviour for channels that had one (Units had none).
+  Safety output — inherited-credential warnings (#909), sandbox notices, API
+  warnings — is never suppressed. The switch registry
+  (`direct_cli/optional_output.py`) is extensible: future optional channels
+  (Reports `retryIn`/`reportsInQueue`) are added as one entry. Supported by a
+  success-response hook in the vendored `tapi_yandex_direct` client, mirrored
+  in the axisrow fork so `update_vendor.sh` keeps it (#634).
+
 ### Fixed
 
 - **`masters list`: intermittent grid-load timeout now retries internally

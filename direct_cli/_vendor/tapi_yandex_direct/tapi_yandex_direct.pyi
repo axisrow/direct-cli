@@ -1,6 +1,11 @@
-from typing import List, Iterator, Union
+from typing import Callable, List, Iterator, Optional, Union
 
 from requests import Response
+
+# Set by direct_cli (issue #925): called with the raw requests.Response of
+# every successful (non-error) API call, so the CLI can surface optional
+# response data such as API Units. Must be mirrored in the axisrow fork.
+SUCCESS_RESPONSE_HOOK: Optional[Callable[[Response], None]] = None
 
 class YandexDirectBaseMethodsClientResponse:
     @property

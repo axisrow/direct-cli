@@ -26,6 +26,7 @@ from .i18n import (
     t,
 )
 from .utils import get_docs_url
+from .optional_output import install_vendor_hook
 
 from .commands.campaigns import campaigns
 from .commands.adgroups import adgroups
@@ -77,6 +78,11 @@ from .commands.browser_session import playwright_group
 
 # Load .env file
 load_env_file()
+
+# Surface optional response data (API Units) through the vendored client's
+# success hook — the emitter itself stays silent unless a DIRECT_SHOW_*
+# channel is enabled (issue #925).
+install_vendor_hook()
 
 
 # Groups that need no Yandex Direct credentials at all: `auth` manages
