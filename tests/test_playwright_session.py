@@ -89,7 +89,7 @@ class TestLoadSession(unittest.TestCase):
     def test_missing_file_raises_session_store_error(self):
         with self.assertRaises(store.SessionStoreError) as ctx:
             store.load_session()
-        self.assertIn("direct playwright login", str(ctx.exception))
+        self.assertIn("direct auth login browser --source chrome", str(ctx.exception))
 
     def test_wrong_version_raises_session_store_error(self):
         target = store.PLAYWRIGHT_SESSION_PATH
@@ -752,8 +752,7 @@ class TestCaptureStorageStateHeadfulRetryMessage(unittest.TestCase):
 
         message = str(cm.exception)
         self.assertIn("invalidated server-side", message)
-        self.assertIn("--headful", message)
-        self.assertIn("direct auth login", message)
+        self.assertIn("direct auth login browser --source chrome", message)
 
 
 def test_save_session_warns_when_replacing_existing_session(tmp_path, capsys):

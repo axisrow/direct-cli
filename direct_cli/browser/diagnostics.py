@@ -4,7 +4,7 @@ Read-only diagnostics for the browser-session pipeline (``direct playwright doct
 Invariant (enforced by tests in ``tests/test_playwright_session.py``): this
 module NEVER calls :func:`direct_cli.browser.session.capture_storage_state`,
 NEVER launches a real browser (``chromium.launch``), and NEVER writes
-anything to disk or reads Keychain. ``direct playwright login`` (in
+anything to disk or reads Keychain. ``playwright login`` (in
 ``direct_cli/commands/browser_session.py``) is the only command that logs in
 and persists a session — ``doctor`` only inspects and reports.
 
@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from . import store
+from .._auth_hints import HINT_LOGIN_BROWSER_CHROME
 from ._chrome_crypto import (
     ChromeCookieError,
     find_cookie_db,
@@ -142,14 +143,14 @@ def _check_saved_session(session_path: Optional[Path]) -> Check:
             "saved_session",
             False,
             "not found",
-            hint="Run: direct auth login --method browser --source chrome",
+            hint=f"Run: {HINT_LOGIN_BROWSER_CHROME}",
         )
     if status["error"]:
         return Check(
             "saved_session",
             False,
             status["error"],
-            hint="Run: direct auth login --method browser --source chrome",
+            hint=f"Run: {HINT_LOGIN_BROWSER_CHROME}",
         )
     detail = (
         f"{status['path']} ({status['cookie_count']} cookies, "
@@ -174,7 +175,7 @@ def _check_saved_session_fresh(session_path: Optional[Path]) -> Check:
             "saved_session_fresh",
             False,
             "saved session has expired",
-            hint="Run: direct auth login --method browser --source chrome",
+            hint=f"Run: {HINT_LOGIN_BROWSER_CHROME}",
         )
     return Check(
         "saved_session_fresh",
@@ -241,7 +242,7 @@ def run_diagnostics(
                 name,
                 None,
                 "skipped — cookie decryption is only performed by explicit login",
-                hint="Run: direct auth login --method browser --source chrome",
+                hint=f"Run: {HINT_LOGIN_BROWSER_CHROME}",
             )
         )
 

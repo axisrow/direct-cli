@@ -16,7 +16,7 @@ injects the decrypted cookies into a fresh, bundled Chromium context via
 ``BrowserContext.add_cookies()``. The user's own Chrome window is never
 touched and does not need to be closed.
 
-Explicit Chrome import (`direct auth login --method browser --source chrome`)
+Explicit Chrome import (`auth login --method browser --source chrome`)
 persists a Playwright ``storage_state`` file (``direct_cli/browser/store.py``).
 Browser-backed commands reuse this via :func:`open_saved_session` or the
 persistent CLI profile; they never call :func:`open_chrome_session` as an
@@ -49,6 +49,7 @@ from typing import (
 )
 
 from . import _clock
+from .._auth_hints import HINT_LOGIN_BROWSER_CHROME
 from .._captcha import find_captcha_marker, find_marker
 from ..output import print_warning_stderr
 
@@ -588,7 +589,7 @@ def open_chrome_session(
 
     Decrypts from Chrome on every call — nothing is persisted. See
     :func:`open_saved_session` for the persisted-session alternative that
-    ``direct playwright login`` sets up.
+    ``playwright login`` sets up.
     """
     sync_playwright = _import_sync_playwright()
     source_root = _resolve_profile_dir(profile_dir)
@@ -989,7 +990,7 @@ def capture_storage_state(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Decrypt Chrome's Yandex cookies and return a Playwright ``storage_state``.
 
-    Used by ``direct playwright login`` (``direct_cli/commands/browser_session.py``)
+    Used by ``playwright login`` (``direct_cli/commands/browser_session.py``)
     to build the file :func:`open_saved_session` later reads. Always launches a
     real browser context — even when ``verify=False`` — because
     ``BrowserContext.storage_state()`` is what normalizes the raw cookie dicts
@@ -1100,10 +1101,9 @@ def capture_storage_state(
             raise BrowserAuthError(
                 "Yandex served its login page instead of Direct, and the "
                 "Chrome cookie database says the session cookies HAVE "
-                "expired (expires_utc in the past). Open "
-                "https://direct.yandex.ru in Chrome, log in, then run "
-                "`direct playwright login` again. `direct playwright "
-                "doctor` shows the full chain."
+                "expired (expires_utc in the past). Log in to "
+                "https://direct.yandex.ru in Chrome, then run: "
+                f"{HINT_LOGIN_BROWSER_CHROME}."
             ) from None
         if not headless:
             raise
@@ -1111,9 +1111,8 @@ def capture_storage_state(
             "Headless verification hit Yandex's login page although the Chrome "
             "cookies do not show an expired session. The session may have been "
             "invalidated server-side or rejected by a bot challenge. "
-            "No visible browser was opened. Retry explicitly with "
-            "`direct auth login --method browser --source chrome --headful`, "
-            "or use `direct auth login --method browser --interactive`."
+            "No visible browser was opened. Retry with: "
+            f"{HINT_LOGIN_BROWSER_CHROME}."
         ) from auth_error
 
     source_meta = {
@@ -1130,7 +1129,7 @@ def open_saved_session(
     headless: bool = True,
     session_path: Optional[Path] = None,
 ) -> Generator["Page", None, None]:
-    """Launch a bundled Chromium restoring a session saved by `direct playwright login`.
+    """Launch a bundled Chromium restoring a session saved by `playwright login`.
 
     Raises :class:`BrowserSessionMissingError` (a :class:`BrowserSessionError`
     subclass) when no saved session file exists, naming the command to fix it.
@@ -1202,8 +1201,5 @@ def assert_authenticated(html: str) -> None:
             "cookies may be expired, may belong to a different account, "
             "or a headless browser may have been redirected by Yandex's "
             "bot challenge (issue #870 — this reads as a login page even "
-            "when the cookies are fresh). Run `direct playwright doctor` "
-            "to inspect the chain; if the cookies are fresh, retry "
-            "`direct playwright login --headful`. Otherwise open "
-            "https://direct.yandex.ru in Chrome, log in, then retry."
+            "when the cookies are fresh)."
         )

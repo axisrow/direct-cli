@@ -296,7 +296,7 @@ class TestNoImplicitLogin:
         ):
             result = CliRunner().invoke(cli, argv)
         assert result.exit_code == 2, result.output
-        assert "direct auth login --method api" in result.output
+        assert "direct auth login api" in result.output
         assert not (unbound_folder / ".env").exists()
         prompt.assert_not_called()
         browser.assert_not_called()

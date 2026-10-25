@@ -5,14 +5,12 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Generator, Optional
 
+from .._auth_hints import HINT_LOGIN_BROWSER
 from ..i18n import t
 from . import session, store
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
-
-
-LOGIN_HINT = "Run: direct auth login --method browser --interactive"
 
 
 def session_status(profile_dir: Optional[Path] = None) -> Dict[str, Any]:
@@ -52,16 +50,15 @@ def open_session(
         opener = session.open_saved_session(headless=headless)
     else:
         raise session.BrowserSessionMissingError(
-            t(
-                "No saved browser session. Run: direct auth login "
-                "--method browser --interactive"
-            )
+            t("No saved browser session. Run: {hint}").format(hint=HINT_LOGIN_BROWSER)
         )
     try:
         with opener as page:
             yield page
     except session.BrowserAuthError as exc:
-        raise session.BrowserAuthError(f"{exc}\n{t(LOGIN_HINT)}") from exc
+        raise session.BrowserAuthError(
+            f"{exc}\n{t('Run: {hint}').format(hint=HINT_LOGIN_BROWSER)}"
+        ) from exc
 
 
 def validate_persistent_profile(profile_dir: Path) -> None:

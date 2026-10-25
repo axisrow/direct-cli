@@ -38,6 +38,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
+from .._auth_hints import HINT_LOGIN_BROWSER_CHROME
+
 from .session import ChromeCookieError
 
 # --- Keychain -----------------------------------------------------------
@@ -437,7 +439,8 @@ def _copy_cookie_db(source: Path, dest_dir: Path) -> Path:
             "Grant Full Disk Access to the app that hosts this shell "
             "(System Settings → Privacy & Security → Full Disk Access → "
             "add Terminal/iTerm/the app running the CLI), then retry. "
-            "Alternatively, run `direct playwright login` once from a "
+            "Alternatively, run "
+            f"`{HINT_LOGIN_BROWSER_CHROME}` once from a "
             "terminal that can read Chrome — afterwards every shell on "
             "this machine reuses the saved session without any Chrome "
             "access at all."

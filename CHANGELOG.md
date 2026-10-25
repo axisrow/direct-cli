@@ -22,6 +22,20 @@
   on `master` of the axisrow fork (axisrow/tapi-yandex-direct#28, merged) so
   `update_vendor.sh` keeps it (#634).
 
+### Changed
+
+- **One canonical login pointer in every authorization error (#924, part 1 —
+  non-breaking).** A new leaf module `direct_cli/_auth_hints.py` defines the
+  canonical pointers — `direct auth login api`, `direct auth login browser`,
+  `direct auth login browser --source chrome` — and every auth error and
+  deprecated-command notice now advises exactly one domain-appropriate pointer.
+  Previously a stale `masters list` session printed four contradictory
+  suggestions, and a deprecated command's warning recommended different flags
+  than the error of the same command. Commands and flags are unchanged; the
+  `auth login api|browser` subcommand restructuring lands separately. An AST
+  guard in `tests/test_unified_auth.py` bans literal login-command strings
+  outside `_auth_hints.py`, so a second hint source fails CI.
+
 ### Fixed
 
 - **`reports get`: API error 56 (method rate limit) now retries with

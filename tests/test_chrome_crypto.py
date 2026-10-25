@@ -505,7 +505,7 @@ class TestLoadYandexCookies(unittest.TestCase):
                 )
         message = str(cm.exception)
         self.assertIn("Full Disk Access", message)
-        self.assertIn("playwright login", message)
+        self.assertIn("direct auth login browser --source chrome", message)
 
 
 if __name__ == "__main__":

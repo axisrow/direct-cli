@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import dotenv_values, load_dotenv
 
+from ._auth_hints import HINT_LOGIN_API
 from .i18n import t
 from .output import print_warning_stderr
 
@@ -625,7 +626,7 @@ def exchange_oauth_code(
 def _oauth_profile_incomplete_error(profile: str) -> ValueError:
     return ValueError(
         f"OAuth profile '{profile}' is incomplete. "
-        f"Run direct auth login --profile {profile} again."
+        f"Run {HINT_LOGIN_API} --profile {profile} again."
     )
 
 
@@ -686,7 +687,7 @@ def refresh_access_token(profile: str, path: Optional[Path] = None) -> Dict[str,
                     return fresh_item
             raise RuntimeError(
                 f"OAuth refresh token expired. "
-                f"Run direct auth login --profile {profile} again."
+                f"Run {HINT_LOGIN_API} --profile {profile} again."
             ) from error
         raise RuntimeError(
             f"OAuth refresh request failed with HTTP {error.code}"
@@ -859,7 +860,7 @@ def _resolve_profile_or_raise(
     if not final_token:
         raise ValueError(
             f"Profile '{selected_profile}' is not configured. "
-            "Use direct auth login --profile NAME or set "
+            f"Use {HINT_LOGIN_API} --profile NAME or set "
             f"YANDEX_DIRECT_TOKEN_{_profile_suffix(selected_profile)}."
         )
     return final_token, final_login

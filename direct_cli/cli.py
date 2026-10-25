@@ -11,6 +11,7 @@ import click
 from click.core import ParameterSource
 
 from . import __version__
+from ._auth_hints import HINT_LOGIN_API
 from .auth import (
     INHERIT_GLOBAL_ENV,
     get_active_profile,
@@ -137,11 +138,10 @@ def _command_has_option(cmd: click.Command, option_name: str) -> bool:
 def _bind_hints() -> str:
     """Explain explicit login without ever starting a dialog."""
     return t(
-        "No credentials bound to this folder. Run "
-        "`direct auth login --method api` or "
+        "No credentials bound to this folder. Run `{hint}` or "
         "`direct auth write --profile <name>` to bind one, "
         "pass --profile, or set {env}=1 to use the global active profile."
-    ).format(env=INHERIT_GLOBAL_ENV)
+    ).format(hint=HINT_LOGIN_API, env=INHERIT_GLOBAL_ENV)
 
 
 def _ensure_credentials_bound(ctx: click.Context) -> None:
