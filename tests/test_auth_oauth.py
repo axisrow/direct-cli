@@ -738,7 +738,7 @@ class TestAuthOAuth:
 
         result = runner.invoke(
             cli,
-            ["auth", "login", "--profile", "agency1", "--code", "abc123"],
+            ["auth", "login", "--profile", "agency1", "--code", "abc123", "--force"],
         )
 
         assert result.exit_code == 0
@@ -759,7 +759,7 @@ class TestAuthOAuth:
 
         result = runner.invoke(
             cli,
-            ["auth", "login", "--profile", "agency1", "--code", "abc123"],
+            ["auth", "login", "--profile", "agency1", "--code", "abc123", "--force"],
         )
 
         assert result.exit_code != 0
@@ -1001,7 +1001,7 @@ class TestAuthOAuth:
 
         result = runner.invoke(
             cli,
-            ["auth", "login", "--profile", "agency1", "--code", "abc123"],
+            ["auth", "login", "--profile", "agency1", "--code", "abc123", "--force"],
         )
 
         assert result.exit_code != 0
@@ -1048,7 +1048,7 @@ class TestAuthOAuth:
 
         result = runner.invoke(
             cli,
-            ["auth", "login", "--profile", "agency1", "--code", "abc123"],
+            ["auth", "login", "--profile", "agency1", "--code", "abc123", "--force"],
         )
 
         assert result.exit_code == 0
@@ -1094,7 +1094,7 @@ class TestAuthOAuth:
 
         result = runner.invoke(
             cli,
-            ["auth", "login", "--profile", "agency1", "--code", "abc123"],
+            ["auth", "login", "--profile", "agency1", "--code", "abc123", "--force"],
         )
 
         assert result.exit_code == 0
@@ -1168,7 +1168,7 @@ class TestAuthOAuth:
 
         result = runner.invoke(
             cli,
-            ["auth", "login", "--profile", "agency1", "--code", "abc123"],
+            ["auth", "login", "--profile", "agency1", "--code", "abc123", "--force"],
         )
 
         assert result.exit_code == 0
@@ -1223,7 +1223,7 @@ class TestAuthOAuth:
 
         result = runner.invoke(
             cli,
-            ["auth", "login", "--profile", "agency1", "--code", "abc123"],
+            ["auth", "login", "--profile", "agency1", "--code", "abc123", "--force"],
         )
 
         assert result.exit_code == 0
@@ -1261,6 +1261,7 @@ class TestAuthOAuth:
                 "agency1",
                 "--code",
                 "abc123",
+                "--force",
                 "--client-id",
                 "other-cid",
             ],
@@ -1299,6 +1300,7 @@ class TestAuthOAuth:
                 "agency1",
                 "--code",
                 "abc123",
+                "--force",
                 "--client-id",
                 "other-cid",
             ],

@@ -114,6 +114,97 @@ def test_interactive_requires_a_terminal(auth_env, monkeypatch):
     prompt.assert_not_called()
 
 
+def test_headless_code_completion_refuses_to_overwrite_an_existing_profile(
+    auth_env, monkeypatch
+):
+    save_profile("default", token="stored-token")
+    exchange = Mock()
+    monkeypatch.setattr("direct_cli.commands.auth.exchange_oauth_code", exchange)
+    result = CliRunner().invoke(cli, ["auth", "login", "--code", "some-code"])
+    assert result.exit_code == 2, result.output
+    assert "already exists" in result.output
+    assert "--force" in result.output
+    assert "(login=default)" in result.output
+    exchange.assert_not_called()
+
+
+def test_oauth_token_import_refuses_to_overwrite_an_existing_profile(
+    auth_env, monkeypatch
+):
+    save_profile("default", token="stored-token")
+    resolve = Mock()
+    monkeypatch.setattr("direct_cli.commands.auth.resolve_account_login", resolve)
+    result = CliRunner().invoke(cli, ["auth", "login", "--oauth-token", "tok"])
+    assert result.exit_code == 2, result.output
+    assert "--force" in result.output
+    resolve.assert_not_called()
+
+
+def test_force_overwrites_an_existing_profile(auth_env, monkeypatch):
+    save_profile("default", token="stored-token")
+    save_pending_pkce("default", "cid", "verifier", "account")
+    monkeypatch.setattr(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        Mock(
+            return_value={
+                "access_token": "new-token",
+                "refresh_token": "new-refresh",
+                "expires_in": 3600,
+            }
+        ),
+    )
+    result = CliRunner().invoke(cli, ["auth", "login", "--code", "c", "--force"])
+    assert result.exit_code == 0, result.output
+    assert get_oauth_profile("default")["token"] == "new-token"
+
+
+def test_completion_into_a_fresh_profile_name_needs_no_force(auth_env, monkeypatch):
+    save_profile("default", token="stored-token")
+    save_pending_pkce("fresh", "cid", "verifier", "fresh-login")
+    monkeypatch.setattr(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        Mock(
+            return_value={
+                "access_token": "fresh-token",
+                "refresh_token": "r",
+                "expires_in": 3600,
+            }
+        ),
+    )
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "--code", "c", "--profile", "fresh"]
+    )
+    assert result.exit_code == 0, result.output
+    assert get_oauth_profile("fresh")["token"] == "fresh-token"
+    assert get_oauth_profile("default")["token"] == "stored-token"
+
+
+def test_save_oauth_profile_refuses_to_overwrite_without_explicit_flag(auth_env):
+    save_profile("account", token="stored-token")
+    with pytest.raises(ValueError, match="already exists"):
+        save_oauth_profile("account", "new-token", login="account")
+    assert get_oauth_profile("account")["token"] == "stored-token"
+    save_oauth_profile(
+        "account", "new-token", login="account", source="manual", overwrite=True
+    )
+    assert get_oauth_profile("account")["token"] == "new-token"
+
+
+def test_save_env_credentials_warns_when_replacing_existing_token(auth_env, capsys):
+    (auth_env / ".env").write_text(
+        "YANDEX_DIRECT_TOKEN=old-token\nYANDEX_DIRECT_LOGIN=old-login\n"
+    )
+    save_env_credentials(token="new-token", login="new-login")
+    err = capsys.readouterr().err
+    assert "Replacing existing YANDEX_DIRECT_TOKEN" in err
+    assert "old-login" in err
+
+
+def test_save_env_credentials_is_silent_for_a_fresh_binding(auth_env, capsys):
+    save_env_credentials(token="new-token", login="new-login")
+    assert "YANDEX" not in capsys.readouterr().err
+
+
 def test_api_menu_reuses_profile_and_binds_without_confirmation(
     auth_env, interactive, monkeypatch
 ):

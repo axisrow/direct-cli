@@ -119,6 +119,20 @@ def auth():
     """Manage API and browser authorization."""
 
 
+def _refuse_existing_profile_without_force(profile: str, force: bool) -> None:
+    """Refuse to write credentials into an existing profile without --force."""
+    existing = get_oauth_profile(profile)
+    if existing is None or force:
+        return
+    owner = f" (login={existing['login']})" if existing.get("login") else ""
+    raise click.UsageError(
+        t(
+            "Profile '{profile}' already exists{owner}. Overwriting "
+            "requires --force, or pick another name with --profile NAME."
+        ).format(profile=profile, owner=owner)
+    )
+
+
 @auth.command()
 @click.option(
     "--interactive",
@@ -158,6 +172,11 @@ def auth():
     "--no-verify", is_flag=True, help="Skip session verification during Chrome import"
 )
 @click.option("--profile", default="default", show_default=True, help="Profile name")
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite an existing profile's stored credentials explicitly",
+)
 @click.option(
     "--code",
     help="OAuth authorization code; use '-' to read from stdin for automation",
@@ -199,6 +218,7 @@ def login(
     headful: bool,
     no_verify: bool,
     profile: str,
+    force: bool,
     code: Optional[str],
     code_stdin: bool,
     oauth_token: Optional[str],
@@ -297,6 +317,9 @@ def login(
             )
         return
     auto_profile = canonical and not explicit_api and interactive
+    if code or code_stdin or oauth_token:
+        # A one-time code must not be spent on a run that will refuse to save.
+        _refuse_existing_profile_without_force(profile, force)
     if auto_profile:
         profiles = list_profiles()
         if profiles:
@@ -354,6 +377,7 @@ def login(
             token=token,
             login=login,
             source="manual",
+            overwrite=True,
         )
         if canonical and interactive:
             bind_credentials_to_dotenv(profile, token, login)
@@ -454,6 +478,7 @@ def login(
         client_id=effective_client_id,
         client_secret=effective_client_secret,
         make_active=not auto_profile,
+        overwrite=True,
     )
     remove_pending_pkce(profile)
     if canonical and interactive and not code_from_stdin:

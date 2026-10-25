@@ -347,6 +347,11 @@ Authorization defaults to **headless, non-interactive execution**, even in a
 terminal. `direct auth login` prints the API authorization URL without opening
 a browser or asking questions. Complete the two-step flow with `--code` or
 `--code -` and bind a saved profile with `direct auth write --profile NAME`.
+Saving into an existing profile (including the default `default`) requires
+explicit `--force`; without it the save refuses to overwrite stored
+credentials. The CLI never replaces stored credentials, profiles or browser
+sessions silently: a replacement is either the command's declared purpose
+(and it reports what was replaced) or requires explicit `--force`.
 
 `direct auth login --interactive` explicitly offers **API** or **Browser**. For API,
 choose a saved profile by number or log in to a new account; the choice is
@@ -432,7 +437,7 @@ Notes:
 - In a non-interactive shell, run `direct auth login --profile NAME` first, then finish with `direct auth login --code - --profile NAME` and pass the browser code on stdin.
 - `direct auth login --code CODE --profile NAME` remains supported for compatibility, but automation should use `--code -` to avoid exposing the code in process arguments.
 - If the first non-interactive step includes `--client-secret`, the secret is remembered for the matching completion step.
-- If a profile already stores a confidential OAuth client, `direct auth login --code CODE --profile NAME` reuses the saved `client_id` and `client_secret`.
+- If a profile already stores a confidential OAuth client, `direct auth login --code CODE --profile NAME` reuses the saved `client_id` and `client_secret`. Re-logging into an existing profile requires `--force`.
 - `direct auth login --oauth-token TOKEN` is a manual access-token import and does not auto-refresh.
 - `--interactive` saves the selected API profile directly to the current
   folder's `.env`. Headless flows never ask for save confirmation; use

@@ -20,7 +20,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
+
+from .i18n import t
+from .output import print_warning_stderr
 
 YANDEX_OAUTH_AUTHORIZE_URL = "https://oauth.yandex.ru/authorize"
 YANDEX_OAUTH_TOKEN_URL = "https://oauth.yandex.ru/token"
@@ -169,6 +172,7 @@ def save_env_credentials(
     existed = dotenv_path.exists()
     if not existed and token is None:
         return dotenv_path
+    previous = dotenv_values(dotenv_path) if existed else {}
     lines = (
         dotenv_path.read_text(encoding="utf-8").splitlines(keepends=True)
         if existed
@@ -222,6 +226,14 @@ def save_env_credentials(
         with contextlib.suppress(OSError):
             os.unlink(temporary_path)
         raise
+    if token is not None and "YANDEX_DIRECT_TOKEN" in previous:
+        previous_login = previous.get("YANDEX_DIRECT_LOGIN")
+        owner = f" (was login={previous_login})" if previous_login else ""
+        print_warning_stderr(
+            t(
+                "Replacing existing YANDEX_DIRECT_TOKEN{owner} with new credentials."
+            ).format(owner=owner)
+        )
     return dotenv_path
 
 
@@ -395,11 +407,17 @@ def save_oauth_profile(
     client_secret: Optional[str] = None,
     source: str = "oauth",
     make_active: bool = True,
+    overwrite: bool = False,
     path: Optional[Path] = None,
 ) -> None:
     """Save/update one OAuth profile without exposing secret values."""
     store = load_auth_store(path=path)
     profiles = store["profiles"]
+    if profile in profiles and not overwrite:
+        raise ValueError(
+            f"Profile '{profile}' already exists; "
+            "pass overwrite=True to replace its stored credentials"
+        )
     item: Dict[str, Any] = {
         "token": token,
         "login": login,

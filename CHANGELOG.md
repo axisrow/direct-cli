@@ -4,6 +4,13 @@
 
 ### Unified authorization
 
+- **Existing profiles are never overwritten silently.** `direct auth login`
+  refuses to write credentials into an existing profile (including the default
+  `default`) without explicit `--force`; a fresh profile name is unaffected.
+  Previously a headless completion replaced the profile's token, refresh token
+  and OAuth client without warning. The refusal names the current owner's
+  login, and replacing an existing `YANDEX_DIRECT_TOKEN` in the folder `.env`
+  prints a warning.
 - Authorization is headless and non-interactive by default, including in a
   terminal. Login dialogs require `--interactive`; manual browser login also
   accepts explicit `--headful`. TTY detection never selects an interactive mode.

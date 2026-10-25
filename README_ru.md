@@ -254,6 +254,10 @@ Chrome в `~/.direct-cli/playwright/session.json` с правами `0600`. То
 открывает браузер, не показывает меню и не задаёт вопросов. Код передаётся
 отдельным вызовом через `--code` или `--code -`; привязать сохранённый
 профиль к папке можно через `direct auth write --profile NAME`.
+Запись в существующий профиль (включая `default`) требует явного `--force`.
+CLI никогда не заменяет сохранённые credentials, профили и браузерные сессии
+молча: замена — либо заявленное назначение команды (и она сообщает, что
+заменено), либо требует явного `--force`.
 
 Только `direct auth login --interactive` предлагает **API** или **Браузер**. Для API
 можно выбрать сохранённый профиль номером или войти в новый аккаунт.
@@ -335,7 +339,7 @@ direct --profile agency1 campaigns get
 - В non-interactive shell сначала выполните `direct auth login --profile NAME`, затем завершите через `direct auth login --code - --profile NAME` и передайте browser code через stdin.
 - `direct auth login --code CODE --profile NAME` сохраняется для совместимости, но автоматизация должна использовать `--code -`, чтобы не раскрывать код в process arguments.
 - Если первый non-interactive шаг включает `--client-secret`, secret запоминается для последующего completion step.
-- Если profile уже хранит confidential OAuth client, `direct auth login --code CODE --profile NAME` использует сохраненные `client_id` и `client_secret`.
+- Если profile уже хранит confidential OAuth client, `direct auth login --code CODE --profile NAME` использует сохраненные `client_id` и `client_secret`. Повторный вход в существующий профиль требует `--force`.
 - `direct auth login --oauth-token TOKEN` импортирует access token вручную и не включает auto-refresh.
 - Вход с `--interactive` сразу сохраняет выбранный API-профиль в `.env`
   текущей папки. Headless-вход не спрашивает о записи; для явной привязки

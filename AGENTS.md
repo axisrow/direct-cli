@@ -51,6 +51,16 @@ Naming rules:
 - Manual browser login requires explicit `--interactive` or `--headful`. `--allow-no-tty` only overrides the terminal check; it does not authorize browser UI by itself.
 - Chrome import is headless by default. Failed headless verification must not retry in a visible browser automatically.
 - Missing or expired credentials in ordinary commands produce an actionable error, never an implicit login.
+- Saving credentials into an existing profile requires explicit `--force`; the headless completion and token import refuse to overwrite otherwise.
+
+### Data Safety — No Silent Overwrites
+
+- Stored user data (auth profiles, credentials, folder bindings, browser sessions) is never replaced silently.
+- A write is either the command's declared purpose (the command then reports what was replaced) or requires an explicit confirmation flag (`--force`). Ordinary commands never write stored user data as a side effect.
+- Overwriting an existing auth profile requires explicit `--force` on the CLI layer and `overwrite=True` on the helper layer; the refusal names the current owner's login.
+- Replacing an existing `YANDEX_DIRECT_TOKEN` in the folder `.env` prints a warning naming the previous owner.
+- New write paths for stored user data must go through the guarded helpers (`save_oauth_profile`, `save_env_credentials`); bypassing the guard is a contract violation.
+- Production API mutations are always explicit commands, classified SAFE / WRITE_SANDBOX / DANGEROUS in `direct_cli/smoke_matrix.py`.
 
 ### Command Formatting Rules
 
