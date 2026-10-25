@@ -337,6 +337,35 @@ def print_info(message: str) -> None:
     print(f"ℹ {message}")
 
 
+def units_error_hint(e: Exception) -> str:
+    """Append the API ``Units`` balance from the response to an error message.
+
+    Every vendored API exception carries the raw ``requests.Response`` in
+    ``.response``; Yandex returns ``Units: spent/left/limit`` on every call.
+    A limit error (56/152/506) is only diagnosable with that number:
+    nothing left = daily quota exhausted (retries pointless until Yandex
+    replenishes units), units left = per-method throttling or a concurrent
+    client on the same token (#919).
+    """
+    response = getattr(e, "response", None)
+    headers = getattr(response, "headers", None) or {}
+    units = headers.get("Units")
+    if not units:
+        return ""
+    parts = units.split("/")
+    if len(parts) == 3 and parts[1].strip() == "0":
+        hint = (
+            "daily balance exhausted; retries cannot succeed "
+            "until Yandex replenishes units"
+        )
+    else:
+        hint = (
+            "units remain; the limit is per-method throttling "
+            "or a concurrent client on the same token"
+        )
+    return f"\nAPI units (spent/left/limit): {units} — {hint}"
+
+
 def handle_api_errors(func):
     """Convert uncaught exceptions into a printed error + ``click.Abort``.
 
@@ -344,7 +373,8 @@ def handle_api_errors(func):
     unchanged so Click renders it normally (usage text, exit code 2). Any other
     exception is printed via :func:`print_error` and converted to
     ``click.Abort`` (exit code 1), matching the canonical command
-    error-handling block this decorator replaces.
+    error-handling block this decorator replaces. When the exception carries
+    an API response with a ``Units`` header, the balance is appended (#919).
     """
 
     @functools.wraps(func)
@@ -354,7 +384,7 @@ def handle_api_errors(func):
         except click.ClickException:
             raise
         except Exception as e:
-            print_error(str(e))
+            print_error(str(e) + units_error_hint(e))
             raise click.Abort()
 
     return wrapper

@@ -45,6 +45,7 @@ from .commands.leads import leads
 from .commands.clients import clients
 from .commands.agencyclients import agencyclients
 from .commands.dictionaries import dictionaries
+from .commands.api import api
 from .commands.trackingparams import tracking_params
 from .commands.changes import changes
 from .commands.reports import reports
@@ -545,6 +546,7 @@ for command in (
     clients,
     agencyclients,
     dictionaries,
+    api,
     tracking_params,
     changes,
     reports,

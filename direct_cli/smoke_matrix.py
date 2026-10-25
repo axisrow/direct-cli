@@ -32,6 +32,7 @@ SMOKE_MATRIX = {
         # docstring); no page it touches has a Save control, so this is safe
         # to exercise like any other *.get (issue #892).
         "adrestrictions",
+        "api.units",
         "audiencetargets.get",
         "auth.list",
         "auth.status",
