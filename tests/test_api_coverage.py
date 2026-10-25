@@ -2610,13 +2610,65 @@ class TestReportsBuildRequestExtra:
     def test_reports_request_builder_custom_date_range_type(self):
         result = build_report_request(
             report_type="CAMPAIGN_PERFORMANCE_REPORT",
-            date_from="2026-01-01",
-            date_to="2026-01-31",
+            date_from=None,
+            date_to=None,
             name="Last 7 Days Report",
             fields="Date,CampaignId",
             date_range_type="LAST_7_DAYS",
         )
         assert result["params"]["DateRangeType"] == "LAST_7_DAYS"
+
+    @pytest.mark.parametrize(
+        "date_range_type",
+        ["TODAY", "YESTERDAY", "LAST_30_DAYS", "ALL_TIME", "AUTO"],
+    )
+    def test_reports_request_builder_relative_period_omits_dates(self, date_range_type):
+        # Reports spec: DateFrom/DateTo are forbidden unless DateRangeType is
+        # CUSTOM_DATE (issue #898).
+        result = build_report_request(
+            report_type="CAMPAIGN_PERFORMANCE_REPORT",
+            date_from=None,
+            date_to=None,
+            name="Relative Period Report",
+            fields="Date,CampaignId",
+            date_range_type=date_range_type,
+        )
+        assert result["params"]["DateRangeType"] == date_range_type
+        assert "DateFrom" not in result["params"]["SelectionCriteria"]
+        assert "DateTo" not in result["params"]["SelectionCriteria"]
+
+    def test_reports_request_builder_rejects_dates_with_relative_period(self):
+        # Explicit dates alongside a relative period would produce a request
+        # carrying dates the API forbids for that DateRangeType (issue #898).
+        with pytest.raises(click.UsageError, match="only allowed"):
+            build_report_request(
+                report_type="CAMPAIGN_PERFORMANCE_REPORT",
+                date_from="2026-01-01",
+                date_to="2026-01-31",
+                name="Audit Report",
+                fields="Date,CampaignId",
+                date_range_type="TODAY",
+            )
+
+    def test_reports_request_builder_custom_date_requires_from(self):
+        with pytest.raises(click.UsageError, match="are required"):
+            build_report_request(
+                report_type="CAMPAIGN_PERFORMANCE_REPORT",
+                date_from=None,
+                date_to="2026-01-31",
+                name="Custom Range Report",
+                fields="Date,CampaignId",
+            )
+
+    def test_reports_request_builder_custom_date_requires_to(self):
+        with pytest.raises(click.UsageError, match="are required"):
+            build_report_request(
+                report_type="CAMPAIGN_PERFORMANCE_REPORT",
+                date_from="2026-01-01",
+                date_to=None,
+                name="Custom Range Report",
+                fields="Date,CampaignId",
+            )
 
 
 # ----------------------------------------------------------------------

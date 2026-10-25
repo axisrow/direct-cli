@@ -36,6 +36,13 @@
   final error names the likely cause — another client or session working
   with the same Yandex Direct account. Any other error code (53, 152, 506,
   9000, …) fails immediately as before.
+- **`reports get`: `--from`/`--to` are bound to `--date-range-type
+  CUSTOM_DATE` (#898).** Relative periods (`TODAY`, `YESTERDAY`, `LAST_*`,
+  `ALL_TIME`, `AUTO`) no longer require the flags and build requests without
+  `DateFrom`/`DateTo`, per the Reports spec ("required at CUSTOM_DATE and
+  forbidden with other values"). Explicit dates alongside a relative period,
+  and `CUSTOM_DATE` with either date missing, fail with a usage error instead
+  of silently sending a forbidden combination.
 
 - **`masters list`: intermittent grid-load timeout now retries internally
   (#912).** The campaigns grid's `GridCampaigns` data request is observed
