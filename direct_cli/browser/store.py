@@ -29,6 +29,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from ..i18n import t
+from ..output import print_warning_stderr
+
 SESSION_FORMAT_VERSION = 1
 
 PLAYWRIGHT_SESSION_PATH = Path.home() / ".direct-cli" / "playwright" / "session.json"
@@ -76,6 +79,7 @@ def save_session(
     never used to re-decrypt) provenance. Returns the path written.
     """
     target = path or PLAYWRIGHT_SESSION_PATH
+    replaced = target.exists()
     envelope = {
         "version": SESSION_FORMAT_VERSION,
         "created_at": time.time(),
@@ -83,6 +87,12 @@ def save_session(
         "storage_state": storage_state,
     }
     _atomic_write_json(target, envelope)
+    if replaced:
+        print_warning_stderr(
+            t("Replacing an existing saved browser session at {path}.").format(
+                path=target
+            )
+        )
     return target
 
 

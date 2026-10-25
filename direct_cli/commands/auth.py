@@ -231,6 +231,7 @@ def login(
     """Log in to the API or save a browser session."""
     api_options = (
         "profile",
+        "force",
         "code",
         "code_stdin",
         "oauth_token",
@@ -317,8 +318,10 @@ def login(
             )
         return
     auto_profile = canonical and not explicit_api and interactive
-    if code or code_stdin or oauth_token:
+    if code or code_stdin or oauth_token or (interactive and explicit_api):
         # A one-time code must not be spent on a run that will refuse to save.
+        # interactive + explicit_api prompts for the code and saves into
+        # `profile` — the same write the headless completion is gated on.
         _refuse_existing_profile_without_force(profile, force)
     if auto_profile:
         profiles = list_profiles()

@@ -179,8 +179,7 @@ def _run_per_id(
     human-readable reports, not machine-consumed streams.
 
     Batch bookkeeping keeps per-ID outcomes when an operation fails.
-    operation, so IDs completed before the auth failure appear twice — once
-    for each real attempt. Every line is still a genuine outcome.
+    Every line is still a genuine outcome.
 
     Note: the streamed JSON path does not go through ``format_output``, so
     its ``raise_for_api_result_errors``/``warn_for_api_result_warnings``

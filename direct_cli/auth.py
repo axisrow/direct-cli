@@ -228,12 +228,17 @@ def save_env_credentials(
         raise
     if token is not None and "YANDEX_DIRECT_TOKEN" in previous:
         previous_login = previous.get("YANDEX_DIRECT_LOGIN")
-        owner = f" (was login={previous_login})" if previous_login else ""
-        print_warning_stderr(
-            t(
-                "Replacing existing YANDEX_DIRECT_TOKEN{owner} with new credentials."
-            ).format(owner=owner)
-        )
+        if previous_login:
+            print_warning_stderr(
+                t(
+                    "Replacing existing YANDEX_DIRECT_TOKEN (was login={login})"
+                    " with new credentials."
+                ).format(login=previous_login)
+            )
+        else:
+            print_warning_stderr(
+                t("Replacing existing YANDEX_DIRECT_TOKEN with new credentials.")
+            )
     return dotenv_path
 
 

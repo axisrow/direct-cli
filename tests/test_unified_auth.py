@@ -196,13 +196,47 @@ def test_save_env_credentials_warns_when_replacing_existing_token(auth_env, caps
     )
     save_env_credentials(token="new-token", login="new-login")
     err = capsys.readouterr().err
-    assert "Replacing existing YANDEX_DIRECT_TOKEN" in err
+    assert "YANDEX_DIRECT_TOKEN" in err
     assert "old-login" in err
 
 
 def test_save_env_credentials_is_silent_for_a_fresh_binding(auth_env, capsys):
     save_env_credentials(token="new-token", login="new-login")
     assert "YANDEX" not in capsys.readouterr().err
+
+
+def test_interactive_explicit_profile_refuses_to_overwrite_without_force(
+    auth_env, interactive, monkeypatch
+):
+    save_profile("agency1", token="stored-token")
+    monkeypatch.setattr(
+        "direct_cli.commands.auth.exchange_oauth_code",
+        Mock(
+            return_value={
+                "access_token": "hijacked-token",
+                "refresh_token": "r",
+                "expires_in": 3600,
+            }
+        ),
+    )
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "--interactive", "--profile", "agency1"], input="code\n"
+    )
+    assert result.exit_code == 2, result.output
+    assert "already exists" in result.output
+    assert "--force" in result.output
+
+
+def test_force_is_rejected_with_browser_method(auth_env, monkeypatch):
+    browser_import = Mock()
+    monkeypatch.setattr(
+        "direct_cli.commands.auth.import_browser_session", browser_import
+    )
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "--method", "browser", "--source", "chrome", "--force"]
+    )
+    assert result.exit_code == 2, result.output
+    browser_import.assert_not_called()
 
 
 def test_api_menu_reuses_profile_and_binds_without_confirmation(

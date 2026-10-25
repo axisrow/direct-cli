@@ -756,5 +756,17 @@ class TestCaptureStorageStateHeadfulRetryMessage(unittest.TestCase):
         self.assertIn("direct auth login", message)
 
 
+def test_save_session_warns_when_replacing_existing_session(tmp_path, capsys):
+    from direct_cli.browser import store
+
+    target = tmp_path / "session.json"
+    store.save_session({"cookies": []}, path=target)
+    assert capsys.readouterr().err == ""
+    store.save_session({"cookies": []}, path=target)
+    err = capsys.readouterr().err
+    assert str(target) in err
+    assert "session.json" in err
+
+
 if __name__ == "__main__":
     unittest.main()
