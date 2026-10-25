@@ -9,6 +9,7 @@ import json
 import click
 
 from ..api import create_client, post_with_retry
+from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings
 
@@ -202,8 +203,8 @@ def build_report_request(
 
     Args:
         report_type: Yandex Direct report type enum value.
-        date_from: Start date in ``YYYY-MM-DD`` format.
-        date_to: End date in ``YYYY-MM-DD`` format.
+        date_from: Start date in ``YYYY-MM-DD`` format (CUSTOM_DATE only).
+        date_to: End date in ``YYYY-MM-DD`` format (CUSTOM_DATE only).
         name: User-facing report name.
         fields: Comma-separated field names.
         campaign_ids: Optional comma-separated campaign IDs filter.
@@ -225,7 +226,27 @@ def build_report_request(
         # elements". Click ``required=True`` only checks presence, not content,
         # so ``--fields ",,,"`` would otherwise send an empty FieldNames list.
         raise ValueError("Reports request requires at least one field name.")
-    selection_criteria = {"DateFrom": date_from, "DateTo": date_to}
+    # Reports spec: DateFrom and DateTo are required when DateRangeType is
+    # CUSTOM_DATE and forbidden with any other value — sending them alongside
+    # e.g. TODAY is an API error, so the combination is rejected up front.
+    selection_criteria = {}
+    if date_range_type == "CUSTOM_DATE":
+        if not date_from or not date_to:
+            raise click.UsageError(
+                t(
+                    "--from and --to are required when --date-range-type is "
+                    "CUSTOM_DATE"
+                )
+            )
+        selection_criteria["DateFrom"] = date_from
+        selection_criteria["DateTo"] = date_to
+    elif date_from or date_to:
+        raise click.UsageError(
+            t(
+                "--from/--to are only allowed when --date-range-type is "
+                "CUSTOM_DATE; omit them for DateRangeType {date_range_type}"
+            ).format(date_range_type=date_range_type)
+        )
 
     if filters:
         filter_items = [_parse_filter(f) for f in filters]
@@ -298,8 +319,18 @@ def reports():
     type=click.Choice(_load_report_types(), case_sensitive=False),
     help="Report type. Loaded from spec snapshot.",
 )
-@click.option("--from", "date_from", required=True, help="Start date (YYYY-MM-DD)")
-@click.option("--to", "date_to", required=True, help="End date (YYYY-MM-DD)")
+@click.option(
+    "--from",
+    "date_from",
+    default=None,
+    help="Start date (YYYY-MM-DD); required with --date-range-type CUSTOM_DATE",
+)
+@click.option(
+    "--to",
+    "date_to",
+    default=None,
+    help="End date (YYYY-MM-DD); required with --date-range-type CUSTOM_DATE",
+)
 @click.option("--name", required=True, help="Report name")
 @click.option("--fields", required=True, help="Comma-separated field names")
 @click.option("--campaign-ids", help="Comma-separated campaign IDs")

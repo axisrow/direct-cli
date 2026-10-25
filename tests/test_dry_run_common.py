@@ -522,6 +522,79 @@ def test_reports_get_dry_run_outputs_request():
     assert "SelectionCriteria" in body_params
 
 
+def test_reports_get_dry_run_relative_period_omits_dates():
+    """A relative DateRangeType builds a valid request without dates (#898)."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "reports",
+            "get",
+            "--type",
+            "campaign_performance_report",
+            "--date-range-type",
+            "today",
+            "--name",
+            "Today Report",
+            "--fields",
+            "Date,CampaignId",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    body_params = json.loads(result.output)["body"]["params"]
+    assert body_params["DateRangeType"] == "TODAY"
+    assert "DateFrom" not in body_params["SelectionCriteria"]
+    assert "DateTo" not in body_params["SelectionCriteria"]
+
+
+def test_reports_get_rejects_dates_with_relative_period():
+    """Explicit --from/--to alongside a relative period is a usage error."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "reports",
+            "get",
+            "--type",
+            "campaign_performance_report",
+            "--date-range-type",
+            "TODAY",
+            "--from",
+            "2026-10-25",
+            "--to",
+            "2026-10-25",
+            "--name",
+            "Audit Report",
+            "--fields",
+            "Date,CampaignId",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code == 2, result.output
+
+
+@pytest.mark.parametrize("missing", ["--from", "--to"])
+def test_reports_get_custom_date_requires_both_dates(missing):
+    """CUSTOM_DATE without either date fails with a usage error, not exit 0."""
+    args = [
+        "reports",
+        "get",
+        "--type",
+        "campaign_performance_report",
+        "--name",
+        "Custom Range Report",
+        "--fields",
+        "Date,CampaignId",
+        "--from",
+        "2026-01-01",
+        "--to",
+        "2026-01-31",
+        "--dry-run",
+    ]
+    args.remove(missing)
+    result = CliRunner().invoke(cli, args)
+    assert result.exit_code == 2, result.output
+
+
 def test_reports_get_dry_run_no_skip_header_summary_opt_out():
     """--no-skip-report-* omits default skip headers from dry-run output."""
     result = CliRunner().invoke(
