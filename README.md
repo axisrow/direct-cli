@@ -495,7 +495,7 @@ to stderr only, so stdout stays byte-identical for pipes and JSON parsing:
 
 | Env var | Effect |
 |---------|--------|
-| `DIRECT_SHOW_UNITS=1` | After each successful API call, one stderr line with the API Units points: `API units: <spent>/<rest>/<daily limit>` (e.g. `API units: 10/20828/64000`), plus ` (used-login: <login>)` for agency accounts (`Units-Used-Login`) |
+| `DIRECT_SHOW_UNITS=1` | After each successful v5 API call, one stderr line with the API Units points: `API units: <spent>/<rest>/<daily limit>` (e.g. `API units: 10/20828/64000`), plus ` (used-login: <login>)` for agency accounts (`Units-Used-Login`). The v4 Live API returns no Units headers, so v4 commands (`direct balance`, …) stay silent under this switch |
 | `DIRECT_QUIET=0` | Master switch back to the legacy behaviour for optional output that existed before #925 (Units had none) |
 
 `DIRECT_SHOW_UNITS=1` works even with `DIRECT_QUIET=1`; an explicit

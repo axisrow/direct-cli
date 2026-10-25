@@ -5,11 +5,13 @@
 ### Added
 
 - **Optional diagnostics output is now env-switched and hidden by default
-  (#925).** Successful API calls no longer print anything extra: the API
+  (#925).** Successful v5 API calls no longer print anything extra: the API
   Units points line is opt-in via `DIRECT_SHOW_UNITS=1`, which prints one
   stderr line per successful call — `API units: <spent>/<rest>/<daily limit>`
   (e.g. `API units: 10/20828/64000`), plus ` (used-login: <login>)` when the
-  API returned `Units-Used-Login` (agency accounts). stdout is never touched,
+  API returned `Units-Used-Login` (agency accounts). The v4 Live API returns
+  no Units headers, so v4 commands stay silent under this switch. stdout is
+  never touched,
   so pipes and `--format json` parsing are unaffected. `DIRECT_QUIET=0`
   restores the legacy behaviour for channels that had one (Units had none).
   Safety output — inherited-credential warnings (#909), sandbox notices, API
