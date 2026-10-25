@@ -19,7 +19,8 @@
   (`direct_cli/optional_output.py`) is extensible: future optional channels
   (Reports `retryIn`/`reportsInQueue`) are added as one entry. Supported by a
   success-response hook in the vendored `tapi_yandex_direct` client, mirrored
-  in the axisrow fork so `update_vendor.sh` keeps it (#634).
+  on `master` of the axisrow fork (axisrow/tapi-yandex-direct#28, merged) so
+  `update_vendor.sh` keeps it (#634).
 
 ### Fixed
 
