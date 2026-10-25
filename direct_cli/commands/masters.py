@@ -678,7 +678,8 @@ def _parse_target_action_price_options(
     Unlike ``_parse_repeating_slot_options`` (1-based slot NUMBER, a fixed
     small range), the key here is Yandex Metrika's own numeric goal id
     (unbounded, no fixed count known ahead of time — see
-    ``direct_cli/browser/masters.py::_read_target_actions``'s docstring for
+    ``direct_cli/browser/masters.py::_read_target_actions_or_none``'s
+    docstring for
     why a goal can only be identified by this id, never by its label). All
     format errors are raised as ``click.UsageError`` before any browser
     session is opened, mirroring every other CLI-boundary parse in this

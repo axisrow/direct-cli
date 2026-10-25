@@ -6496,8 +6496,8 @@ def _read_sitelinks(page: "Page") -> List[Dict[str, str]]:
     "treat an unreadable/unexpected slot as an empty value, not a fatal
     error" convention for a bulk read.
 
-    Returns ``[]`` both when the section can't be found (mirrors
-    ``_read_target_actions``' "absent/inconclusive" convention) and when the
+    Returns ``[]`` both when the section can't be found (an absent section
+    is not an error for this bulk read) and when the
     campaign genuinely has zero sitelinks.
     """
     try:
@@ -6672,19 +6672,20 @@ def _remove_sitelink(page: "Page", index: int) -> None:
         ) from exc
 
 
-def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
-    """Read the "Целевые действия" table's current rows.
+def _read_target_actions_or_none(page: "Page") -> Optional[List[Dict[str, Any]]]:
+    """Read the "Целевые действия" table's current rows, or ``None`` —
+    distinct from ``[]`` — the moment ANY step of the row scan fails.
 
     Returns a list of ``{"GoalId": int, "Name": str, "Price": Optional[float]}``
     — one entry per goal row currently in the table (see
-    ``_TARGET_ACTION_ROW_TESTID_TEMPLATE``'s docstring). Returns ``[]`` both
-    when the section can't be found/read AND when it legitimately does not
-    exist for the campaign's current promotion goal (mirrors
-    ``_read_goal_price``'s "inconclusive/absent" convention) — callers that
-    need to distinguish "no goals configured" from "section not on this
-    page"/"row scan failed" should use ``_read_target_actions_or_none``
-    instead (used by ``_verify_saved``'s add/remove verification, where that
-    distinction is safety-critical — see its docstring).
+    ``_TARGET_ACTION_ROW_TESTID_TEMPLATE``'s docstring). ``[]`` is a truthful
+    "section visible, no rows" snapshot; ``None`` means "could not read" and
+    must never be reported as empty — ``fetch_master_target_actions`` fails
+    loudly on a rendered-but-unreadable section (issue #910), and
+    ``--add-target-action``/``--remove-target-action`` verification cannot
+    afford the collapse either: a removed goal reported "absent" from a read
+    that never actually saw the table would silently confirm a removal that
+    may not have happened server-side — see ``_verify_saved``.
 
     Goal ids are discovered via ``_read_testid_suffixes`` on the row-testid
     prefix (same convention as ``_read_image_content_ids``), skipping the
@@ -6696,29 +6697,10 @@ def _read_target_actions(page: "Page") -> List[Dict[str, Any]]:
     (see ``_read_testid_suffixes``'s docstring) while still disambiguating
     between rows, which a bare prefix scan cannot do for a repeated child
     testid.
-    """
-    rows = _read_target_actions_or_none(page)
-    return [] if rows is None else rows
-
-
-def _read_target_actions_or_none(page: "Page") -> Optional[List[Dict[str, Any]]]:
-    """Same read as ``_read_target_actions``, but returns ``None`` — distinct
-    from ``[]`` — the moment ANY step of the row scan fails, rather than
-    only on the section-visibility check.
-
-    ``_read_target_actions`` itself collapses every failure into ``[]`` —
-    a legitimate simplification for its read-only callers
-    (``fetch_master_target_actions``, ``target_action_prices``
-    verification), for whom "couldn't read" and "genuinely empty" are both
-    handled the same way (retry, then report what was last seen).
-    ``--add-target-action``/``--remove-target-action`` verification cannot
-    afford that collapse: a removed goal reported "absent" from a read that
-    never actually saw the table would silently confirm a removal that may
-    not have happened server-side — see ``_verify_saved``.
 
     Deliberately does NOT delegate row enumeration to
-    ``_read_testid_suffixes`` (unlike ``_read_target_actions``'s first cut,
-    Codex adversarial review of #717 round 2): that helper does its own
+    ``_read_testid_suffixes`` (this read's first cut did; Codex adversarial
+    review of #717 round 2): that helper does its own
     independent ``page.locator(...).count()`` call and swallows a failure
     there into ``[]`` — an earlier "probe" ``count()`` call in this function
     verifying the SAME locator succeeds is not a guarantee the helper's own
@@ -7885,7 +7867,8 @@ def _read_until_matches(
     ``_wait_for_edit_form`` only guarantees the first headline slot has
     rendered — a one-shot call to ``_read_weekly_budget``/
     ``_read_directs_helps``/``_read_promotion_goal_label``/
-    ``_read_campaign_name``/``_read_goal_price``/``_read_target_actions``
+    ``_read_campaign_name``/``_read_goal_price``/
+    ``_read_target_actions_or_none``
     right after it can catch that field still showing its pre-reload value
     while the rest of the form is still hydrating (issue #706/#716, same
     race ``_read_goal_price`` was first hardened against in issue #696).
@@ -7897,7 +7880,7 @@ def _read_until_matches(
     ``matches`` defaults to ``==`` but accepts a predicate for callers whose
     "did it match" comparison isn't plain equality (e.g. ``_goal_price_matches``'s
     comma/dot normalization, or ``target_action_prices``' per-goal lookup into
-    the list ``_read_target_actions`` returns).
+    the rows ``_read_target_actions_or_none`` returns).
     """
     is_match = matches or (lambda actual, exp: actual == exp)
     last: Any = None
@@ -10456,7 +10439,8 @@ def fetch_master_tracking_params(page: "Page", campaign_id: int) -> Dict[str, An
 
 def fetch_master_target_actions(page: "Page", campaign_id: int) -> Dict[str, Any]:
     """Read a campaign's current "Целевые действия" (target action / CPA)
-    table — see ``_read_target_actions``'s docstring for the row shape.
+    table — see ``_read_target_actions_or_none``'s docstring for the row
+    shape.
 
     Read-only, mirrors ``fetch_master_images``: navigates straight to the
     edit page (this data does not exist on the overview page ``fetch_master``
