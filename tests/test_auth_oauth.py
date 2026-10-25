@@ -763,7 +763,7 @@ class TestAuthOAuth:
         )
 
         assert result.exit_code != 0
-        assert "direct auth login --profile agency1" in result.output
+        assert "direct auth login api --profile agency1" in result.output
 
     @patch(
         "direct_cli.commands.auth.exchange_oauth_code",
@@ -1005,7 +1005,7 @@ class TestAuthOAuth:
         )
 
         assert result.exit_code != 0
-        assert "direct auth login --profile agency1" in result.output
+        assert "direct auth login api --profile agency1" in result.output
 
     @patch(
         "direct_cli.commands.auth.exchange_oauth_code",
@@ -1585,7 +1585,7 @@ class TestAuthOAuth:
         )
 
         with pytest.raises(
-            ValueError, match="Run direct auth login --profile agency1 again"
+            ValueError, match="Run direct auth login api --profile agency1 again"
         ):
             get_credentials(profile="agency1")
 
@@ -1881,7 +1881,7 @@ class TestAuthOAuth:
         result = runner.invoke(cli, ["auth", "status", "--profile", "agency1"])
 
         assert result.exit_code != 0
-        assert "Run direct auth login --profile agency1 again" in result.output
+        assert "Run direct auth login api --profile agency1 again" in result.output
 
     def test_auth_login_oauth_token_mode_saves_manual_profile(
         self, isolated_auth_store

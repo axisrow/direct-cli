@@ -40,6 +40,11 @@ from ..auth import (
     set_active_profile,
     validate_oauth_profile,
 )
+from .._auth_hints import (
+    HINT_LOGIN_API,
+    HINT_LOGIN_BROWSER,
+    HINT_LOGIN_BROWSER_CHROME,
+)
 from ..i18n import t
 from ..output import (
     format_output,
@@ -878,7 +883,7 @@ def _print_start_auth_output(
 def _start_pkce_required_message(profile: str) -> str:
     return (
         "Missing or expired pending PKCE state. "
-        f"Run direct auth login --profile {profile} first."
+        f"Run {HINT_LOGIN_API} --profile {profile} first."
     )
 
 
@@ -908,17 +913,15 @@ def browser_login(
         raise click.UsageError(
             t(
                 "Manual browser login requires --interactive or --headful. "
-                "For headless Chrome import use "
-                "`direct auth login --method browser --source chrome`."
-            )
+                "For headless Chrome import use `{hint}`."
+            ).format(hint=HINT_LOGIN_BROWSER_CHROME)
         )
     if not _stdin_is_interactive() and not allow_no_tty:
         raise click.ClickException(
             t(
                 "Browser login needs an interactive terminal. Run "
-                "`direct auth login --method browser --headful` in a terminal "
-                "(override: --allow-no-tty)."
-            )
+                "`{hint}` in a terminal (override: --allow-no-tty)."
+            ).format(hint=HINT_LOGIN_BROWSER)
         )
     try:
         from ..browser.session import BrowserSessionError, login_persistent_session

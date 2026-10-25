@@ -41,6 +41,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional
 import click
 from click.core import ParameterSource
 
+from .._auth_hints import HINT_LOGIN_BROWSER, HINT_LOGIN_BROWSER_CHROME
 from ..api import create_client
 from ..browser.masters import _BATCH_UPDATE_PACING_MS as _BATCH_UPDATE_PACING_MS_DEFAULT
 from ..browser.masters import AGE_FROM_CHOICES as _AGE_FROM_CHOICES
@@ -65,11 +66,10 @@ def _reject_chrome_import(
     if ctx.get_parameter_source(param.name) is ParameterSource.COMMANDLINE:
         raise click.UsageError(
             t(
-                "Chrome profile flags are only supported during explicit login. "
-                "Run `direct auth login --method browser --source chrome` "
-                "with --profile-dir / --chrome-profile, then retry this command "
-                "without those flags."
-            )
+                "Chrome profile flags are only supported during explicit "
+                "login. Run `{hint}` with --profile-dir / --chrome-profile, "
+                "then retry this command without those flags."
+            ).format(hint=HINT_LOGIN_BROWSER_CHROME)
         )
     return value
 
@@ -295,10 +295,10 @@ def login(
     allow_no_tty: bool,
     headful: bool,
 ) -> None:
-    """Browser login; use direct auth login --method browser --interactive."""
+    """Browser login (deprecated); the printed warning names the replacement."""
     from .auth import browser_login, legacy_auth_warning
 
-    legacy_auth_warning("direct auth login --method browser --interactive")
+    legacy_auth_warning(HINT_LOGIN_BROWSER)
     browser_login(profile_dir, timeout_seconds, allow_no_tty, headful=headful)
 
 

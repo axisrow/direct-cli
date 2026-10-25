@@ -5,7 +5,7 @@ Split out from ``session.py`` on purpose: this module imports neither
 ``playwright`` nor ``cryptography``, so ``direct playwright doctor`` and the
 offline test suite can inspect a saved session without the optional
 ``browser`` extra installed. See ``direct_cli/commands/browser_session.py``
-for the ``direct playwright login`` / ``direct playwright doctor`` commands
+for the ``playwright login`` / ``direct playwright doctor`` commands
 this backs.
 
 Session file: ``~/.direct-cli/playwright/session.json`` — a sibling directory
@@ -28,6 +28,8 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+from .._auth_hints import HINT_LOGIN_BROWSER_CHROME
 
 from ..i18n import t
 from ..output import print_warning_stderr
@@ -128,20 +130,20 @@ def load_session(path: Optional[Path] = None) -> Dict[str, Any]:
     if envelope is None:
         raise SessionStoreError(
             f"No saved browser session found at {target}. "
-            "Run: direct playwright login"
+            f"Run: {HINT_LOGIN_BROWSER_CHROME}"
         )
     version = envelope.get("version")
     if version != SESSION_FORMAT_VERSION:
         raise SessionStoreError(
             f"Saved session at {target} has unsupported format version "
             f"{version!r} (expected {SESSION_FORMAT_VERSION}). "
-            "Run: direct playwright login"
+            f"Run: {HINT_LOGIN_BROWSER_CHROME}"
         )
     storage_state = envelope.get("storage_state")
     if not isinstance(storage_state, dict):
         raise SessionStoreError(
             f"Saved session at {target} is corrupt (missing storage_state). "
-            "Run: direct playwright login"
+            f"Run: {HINT_LOGIN_BROWSER_CHROME}"
         )
     return storage_state
 

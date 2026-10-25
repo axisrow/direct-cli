@@ -2329,7 +2329,7 @@ class TestCaptureStorageState(unittest.TestCase):
                 session_module.capture_storage_state()
 
         self.assertEqual(launch_headless_flags, [True])
-        self.assertIn("--headful", str(error.exception))
+        self.assertIn("direct auth login browser --source chrome", str(error.exception))
 
     def test_expired_cookies_report_expiry_without_a_headful_retry(self):
         """Issue #870 п.2: when expires_utc says the cookies HAVE expired,
@@ -2499,7 +2499,7 @@ class TestCaptureStorageState(unittest.TestCase):
             with self.assertRaises(session_module.BrowserAuthError) as error:
                 session_module.capture_storage_state()
 
-        self.assertIn("--headful", str(error.exception))
+        self.assertIn("direct auth login browser --source chrome", str(error.exception))
         self.assertNotIn("HAVE expired", str(error.exception))
         self.assertEqual([call.get("headless") for call in launch_calls], [True])
 
@@ -2868,9 +2868,7 @@ class TestOpenSessionTiers(unittest.TestCase):
         with patch("direct_cli.browser.session.open_chrome_session") as fresh:
             with self.assertRaises(click.UsageError) as cm:
                 self._list_ctx(["--profile-dir", "/some/profile"])
-        self.assertIn(
-            "direct auth login --method browser --source chrome", str(cm.exception)
-        )
+        self.assertIn("direct auth login browser --source chrome", str(cm.exception))
         fresh.assert_not_called()
 
     def test_persistent_profile_used_when_present(self):
@@ -2955,7 +2953,7 @@ class TestOpenSessionTiers(unittest.TestCase):
                 with self.assertRaises(click.ClickException) as cm:
                     with _open_session(ctx, False, None, "Default"):
                         pass
-        self.assertIn("direct auth login --method browser", str(cm.exception))
+        self.assertIn("direct auth login browser", str(cm.exception))
         saved.assert_not_called()
         fresh.assert_not_called()
 

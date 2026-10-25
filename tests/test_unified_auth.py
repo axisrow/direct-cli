@@ -1,14 +1,17 @@
 """Unified auth entrypoints and the no-implicit-login boundary."""
 
+import ast
 import contextlib
 import json
 import os
 import sys
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 from click.testing import CliRunner
 
+import direct_cli
 from direct_cli.auth import (
     get_oauth_profile,
     load_auth_store,
@@ -435,7 +438,7 @@ def test_browser_commands_never_import_or_log_in(auth_env, monkeypatch, argv, ex
     monkeypatch.setattr("direct_cli.browser._chrome_crypto.get_encryption_key", decrypt)
     result = CliRunner().invoke(cli, argv)
     assert result.exit_code != 0
-    assert "direct auth login --method browser" in result.output, result.output
+    assert "direct auth login browser" in result.output, result.output
     for operation in (import_cookies, login, decrypt, opener):
         operation.assert_not_called()
 
@@ -454,7 +457,7 @@ def test_invalid_saved_session_does_not_repeat_operation(auth_env, monkeypatch):
     monkeypatch.setattr("direct_cli.browser.masters.fetch_masters_list", operation)
     result = CliRunner().invoke(cli, ["masters", "list"])
     assert result.exit_code != 0
-    assert "direct auth login --method browser" in result.output
+    assert "direct auth login browser" in result.output
     operation.assert_called_once()
     fresh.assert_not_called()
 
@@ -467,7 +470,7 @@ def test_resource_chrome_flags_have_migration_error(auth_env, monkeypatch, flag,
     monkeypatch.setattr("direct_cli.browser._chrome_crypto.get_encryption_key", key)
     result = CliRunner().invoke(cli, ["masters", "list", flag, value])
     assert result.exit_code == 2
-    assert "direct auth login --method browser --source chrome" in result.output
+    assert "direct auth login browser --source chrome" in result.output
     key.assert_not_called()
 
 
@@ -626,3 +629,75 @@ def test_browser_logout_refuses_unowned_profile_without_deleting_saved_session(
     assert "marker" in result.output
     assert session.DEFAULT_PERSISTENT_PROFILE_DIR.exists()
     assert store.PLAYWRIGHT_SESSION_PATH.exists()
+
+
+# Issue #924: every auth error and deprecation notice must advise exactly one
+# canonical login command, imported from ``direct_cli/_auth_hints.py``. A
+# hand-written literal (``direct auth login …`` / ``direct playwright login
+# …``) is how one error ended up printing four contradictory suggestions, so
+# the guard below bans those substrings in ANY string literal outside the
+# constants module — including Click help/docstrings, which do reach users.
+_BANNED_LOGIN_HINTS = ("direct auth login", "direct playwright login")
+
+
+def _banned_login_hint_literals(source: str) -> list[tuple[int, str]]:
+    """Return (lineno, text) for every string literal that advises a login."""
+    offenders = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            text = node.value
+            if any(banned in text for banned in _BANNED_LOGIN_HINTS):
+                offenders.append((node.lineno, text))
+    return offenders
+
+
+def test_no_literal_login_hints_outside_auth_hints():
+    package_dir = Path(direct_cli.__file__).parent
+    offenders = []
+    for module_path in sorted(package_dir.rglob("*.py")):
+        if module_path.name == "_auth_hints.py":
+            continue  # the one legitimate source of login pointers
+        if "_vendor" in module_path.parts:
+            continue  # fork-synced third-party code, not our message surface
+        offenders.extend(
+            f"{module_path.relative_to(package_dir)}:{lineno}: {text!r}"
+            for lineno, text in _banned_login_hint_literals(
+                module_path.read_text(encoding="utf-8")
+            )
+        )
+    assert offenders == [], (
+        "These literals hard-code a login pointer instead of importing it "
+        "from direct_cli/_auth_hints.py — a second hint source drifts from "
+        "the canonical one and contradicts it at runtime (issue #924):\n"
+        + "\n".join(offenders)
+    )
+
+
+# The detector needs its own coverage, same as TestBrowserPackageClock: the
+# guard passes both when the package is clean and when the detector is blind.
+
+
+def test_detector_flags_a_plain_hint_literal():
+    source = 'raise UsageError("Run: direct auth login --method browser")\n'
+    assert len(_banned_login_hint_literals(source)) == 1
+
+
+def test_detector_flags_a_literal_inside_an_f_string():
+    source = 'msg = f"see direct auth login --profile x docs"\n'
+    assert len(_banned_login_hint_literals(source)) == 1
+
+
+def test_detector_flags_a_docstring():
+    source = 'def cmd():\n    """Use direct playwright login instead."""\n'
+    assert len(_banned_login_hint_literals(source)) == 1
+
+
+def test_detector_allows_composition_from_the_constant():
+    from direct_cli._auth_hints import HINT_LOGIN_BROWSER
+
+    source = (
+        "from direct_cli._auth_hints import HINT_LOGIN_BROWSER\n"
+        'msg = f"Run: {HINT_LOGIN_BROWSER}"\n'
+    )
+    assert _banned_login_hint_literals(source) == []
+    assert HINT_LOGIN_BROWSER  # the imported name is the sanctioned pointer

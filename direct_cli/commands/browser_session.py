@@ -2,6 +2,7 @@
 
 import click
 
+from .._auth_hints import HINT_LOGIN_BROWSER_CHROME
 from ..utils import reference_output_options
 from .auth import (
     _browser_options,
@@ -29,8 +30,8 @@ def login(
     output_format: str,
     output: str,
 ) -> None:
-    """Import Chrome cookies; use direct auth login --method browser --source chrome."""
-    legacy_auth_warning("direct auth login --method browser --source chrome")
+    """Import Chrome cookies (deprecated); the printed warning names the replacement."""
+    legacy_auth_warning(HINT_LOGIN_BROWSER_CHROME)
     import_browser_session(
         profile_dir, chrome_profile, headful, no_verify, output_format, output
     )
