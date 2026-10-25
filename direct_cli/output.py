@@ -273,7 +273,14 @@ def _format_delimited(data: Any, headers: Optional[List[str]], delimiter: str) -
 
     if isinstance(data, list) and len(data) > 0:
         if isinstance(data[0], dict):
-            fieldnames = headers or list(data[0].keys())
+            if headers:
+                fieldnames = headers
+            else:
+                # Union of keys across ALL records in first-seen order (#900):
+                # optional fields (e.g. TextAd) may exist only in later
+                # records, so data[0] alone under-reports columns. Records
+                # missing a field get an empty cell (DictWriter restval).
+                fieldnames = list(dict.fromkeys(key for row in data for key in row))
             writer = csv.DictWriter(output, fieldnames=fieldnames, delimiter=delimiter)
             writer.writeheader()
             writer.writerows(data)

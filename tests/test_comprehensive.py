@@ -148,6 +148,55 @@ class TestOutputFormatters(unittest.TestCase):
         result = output.format_tsv(self.data)
         self.assertIn("id\tname", result)
 
+    def test_format_csv_extra_field_in_later_record(self):
+        """#900: optional fields appearing only in later records export fine."""
+        data = [
+            {"Id": 1, "Type": "MOBILE_APP_AD"},
+            {"Id": 2, "Type": "TEXT_AD", "TextAd": {"Title": "Example"}},
+        ]
+        result = output.format_csv(data)
+        self.assertEqual(result.splitlines()[0], "Id,Type,TextAd")
+        self.assertIn("1,MOBILE_APP_AD,", result)
+        self.assertIn("2,TEXT_AD,", result)
+        self.assertIn("Title", result)
+
+    def test_format_tsv_extra_field_in_later_record(self):
+        data = [
+            {"Id": 1, "Type": "MOBILE_APP_AD"},
+            {"Id": 2, "Type": "TEXT_AD", "TextAd": {"Title": "Example"}},
+        ]
+        result = output.format_tsv(data)
+        self.assertEqual(result.splitlines()[0], "Id\tType\tTextAd")
+        self.assertIn("1\tMOBILE_APP_AD\t", result)
+
+    def test_format_csv_missing_field_in_later_record(self):
+        """#900 inverse: later records with fewer keys get empty cells."""
+        data = [
+            {"Id": 1, "Name": "A", "Extra": "x"},
+            {"Id": 2, "Name": "B"},
+        ]
+        result = output.format_csv(data)
+        self.assertEqual(result.splitlines()[0], "Id,Name,Extra")
+        self.assertIn("1,A,x", result)
+        self.assertIn("2,B,", result)
+
+    def test_format_csv_column_set_independent_of_row_order(self):
+        first, second = (
+            {"Id": 1, "Type": "MOBILE_APP_AD"},
+            {"Id": 2, "Type": "TEXT_AD", "TextAd": {"Title": "Example"}},
+        )
+        cols = [
+            output.format_csv([a, b]).splitlines()[0].split(",")
+            for a, b in ((first, second), (second, first))
+        ]
+        self.assertEqual(set(cols[0]), set(cols[1]))
+        self.assertEqual(set(cols[0]), {"Id", "Type", "TextAd"})
+
+    def test_format_csv_explicit_headers_preserved(self):
+        result = output.format_csv(self.data, headers=["name", "id"])
+        self.assertEqual(result.splitlines()[0], "name,id")
+        self.assertEqual(result.splitlines()[1], "Test,1")
+
 
 class TestAuth(unittest.TestCase):
     """Test authentication module"""
