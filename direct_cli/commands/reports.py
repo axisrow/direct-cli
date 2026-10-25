@@ -8,7 +8,7 @@ import json
 
 import click
 
-from ..api import create_client
+from ..api import create_client, post_with_retry
 from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings
 
@@ -471,7 +471,7 @@ def get(
         language=language,
     )
 
-    result = client.reports().post(data=body)
+    result = post_with_retry(client.reports(), data=body)
 
     if output_format == "json":
         format_output(result().to_dicts(), "json", output)

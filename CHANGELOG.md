@@ -24,6 +24,19 @@
 
 ### Fixed
 
+- **`reports get`: API error 56 (method rate limit) now retries with
+  exponential backoff (#918).** Yandex allows only 1 request per 10 seconds
+  per method; with several `direct`/MCP clients sharing one account, each
+  keeps consuming the other's window and the first 56 used to kill the
+  command (the vendored client's own retry branches read the error code from
+  the wrong payload key and never fire). Now the reports POST is retried up
+  to 5 attempts, waiting 10/20/40/80s plus up to 50% jitter; each attempt
+  logs `attempt N/5 … retrying in Xs` to stderr so a waiting CLI is
+  distinguishable from a dead one. If the limit still doesn't clear, the
+  final error names the likely cause — another client or session working
+  with the same Yandex Direct account. Any other error code (53, 152, 506,
+  9000, …) fails immediately as before.
+
 - **`masters list`: intermittent grid-load timeout now retries internally
   (#912).** The campaigns grid's `GridCampaigns` data request is observed
   across two attempts — 30s, then 60s, with a fresh page load per attempt —
