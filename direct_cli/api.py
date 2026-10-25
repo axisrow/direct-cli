@@ -2,12 +2,18 @@
 API client wrapper for Direct CLI
 """
 
+import random
 import sys
-from typing import Optional, Dict, Any, List
+import time
+from typing import Optional, Dict, Any, List, Callable
+
+import click
 
 from direct_cli._vendor.tapi_yandex_direct import YandexDirect
+from direct_cli._vendor.tapi_yandex_direct import exceptions as tapi_exceptions
 from direct_cli._vendor.tapi_yandex_direct.v4 import YandexDirectV4Live
 from .auth import get_credentials
+from .output import print_warning_stderr
 
 
 def create_client(
@@ -219,3 +225,68 @@ def fetch_all_pages(
         return all_items
 
     return items if isinstance(items, list) else [items]
+
+
+# Error 56 = "Exceeded limit of method requests" — the per-method quota
+# ("This method can't be requested more than 1 times in 10 seconds"). Several
+# `direct` CLI / MCP sessions sharing one account trip each other's window,
+# so the transport retries on 56 with exponential backoff + jitter (#918).
+# The vendored client has retry branches for 56 in ``retry_request``, but they
+# read the code from ``error.code`` while Yandex v5 payloads carry
+# ``error.error_code`` — those branches never fire, which is why the CLI used
+# to die on the first 56 with no retries at all.
+ERROR_56_ATTEMPTS = 5
+ERROR_56_BASE_DELAY = 10.0
+# Each retry waits base * 2**(attempt-1) seconds plus up to +50% jitter.
+ERROR_56_JITTER = 0.5
+
+
+def _error_56_delay(attempt: int, base_delay: float = ERROR_56_BASE_DELAY) -> float:
+    """Exponential backoff for the Nth failed attempt (1-based), with jitter."""
+    return base_delay * 2 ** (attempt - 1) + random.uniform(
+        0, base_delay * ERROR_56_JITTER
+    )
+
+
+def post_with_retry(
+    resource,
+    *,
+    data,
+    attempts: int = ERROR_56_ATTEMPTS,
+    base_delay: float = ERROR_56_BASE_DELAY,
+    sleep: Optional[Callable[[float], None]] = None,
+) -> Any:
+    """POST ``data`` on ``resource``, retrying API error 56 with backoff (#918).
+
+    Error 56 is the per-method quota (1 request / 10 seconds): with several
+    clients sharing one account, an immediate re-request keeps losing the
+    window, so each retry waits ``base_delay * 2**(attempt-1)`` seconds plus
+    jitter. Every other error — including the sibling limit codes 53/152/506/
+    9000 — propagates on the first occurrence, unchanged. After ``attempts``
+    failures a ``click.ClickException`` reports the original error together
+    with the likely cause (another client/session consuming the same
+    account's method limit).
+
+    ``sleep`` is injectable so tests never wait real time; production uses
+    :func:`time.sleep`.
+    """
+    sleep_fn = sleep or time.sleep
+    for attempt in range(1, attempts + 1):
+        try:
+            return resource.post(data=data)
+        except tapi_exceptions.YandexDirectClientError as exc:
+            if getattr(exc, "error_code", None) != 56:
+                raise
+            if attempt >= attempts:
+                raise click.ClickException(
+                    "API error 56 persisted after {} attempts: this method "
+                    "allows only 1 request per 10 seconds, and another client "
+                    "or session working with the same Yandex Direct account is "
+                    "likely consuming that limit. Last error: {}".format(attempts, exc)
+                ) from exc
+            delay = _error_56_delay(attempt, base_delay)
+            print_warning_stderr(
+                "attempt {}/{} failed with error 56 (1 request per 10 "
+                "seconds); retrying in {:.0f}s".format(attempt, attempts, delay)
+            )
+            sleep_fn(delay)
