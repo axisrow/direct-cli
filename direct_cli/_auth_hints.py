@@ -8,6 +8,12 @@ used to print four contradictory suggestions). The AST guard in
 ``tests/test_unified_auth.py`` bans literal ``direct auth login`` /
 ``direct playwright login`` strings anywhere else in the package, so a new
 hint source fails CI instead of quietly disagreeing with these.
+
+These name the part-2 canonical surface (issue #924): the
+``auth login api|browser`` subcommands go live with the command
+restructuring that lands separately; until then ``auth login`` still
+takes ``--method``. Flipping nothing here — part 2 makes these exact
+strings executable.
 """
 
 HINT_LOGIN_API = "direct auth login api"
