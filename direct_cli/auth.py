@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -19,7 +20,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
+
+from .i18n import t
+from .output import print_warning_stderr
 
 YANDEX_OAUTH_AUTHORIZE_URL = "https://oauth.yandex.ru/authorize"
 YANDEX_OAUTH_TOKEN_URL = "https://oauth.yandex.ru/token"
@@ -111,6 +115,15 @@ def load_env_file(env_path: Optional[str] = None) -> None:
 
 
 INHERIT_GLOBAL_ENV = "YANDEX_DIRECT_INHERIT_GLOBAL"
+FOLDER_CREDENTIAL_KEYS = (
+    "YANDEX_DIRECT_TOKEN",
+    "YANDEX_DIRECT_LOGIN",
+    "YANDEX_DIRECT_OP_TOKEN_REF",
+    "YANDEX_DIRECT_OP_LOGIN_REF",
+    "YANDEX_DIRECT_BW_TOKEN_REF",
+    "YANDEX_DIRECT_BW_LOGIN_REF",
+    INHERIT_GLOBAL_ENV,
+)
 
 
 def inherit_globally_enabled() -> bool:
@@ -135,14 +148,14 @@ def _format_dotenv_value(value: str) -> str:
 
 
 def save_env_credentials(
-    token: str,
+    token: Optional[str],
     login: Optional[str] = None,
     env_path: Optional[Path] = None,
 ) -> Path:
     """Write Direct credentials to the current-directory .env file.
 
     Args:
-        token: OAuth access token to store.
+        token: OAuth access token to store; None removes the credential binding.
         login: Optional Direct client login to store; removes any stale env login
             when omitted.
         env_path: Optional target path, used by tests. Defaults to cwd .env.
@@ -154,16 +167,25 @@ def save_env_credentials(
         ValueError: If token or login contain newline characters.
     """
     dotenv_path = env_path or Path.cwd() / ".env"
+    if dotenv_path.is_symlink():
+        raise ValueError("Refusing to rewrite a symlinked .env file.")
     existed = dotenv_path.exists()
+    if not existed and token is None:
+        return dotenv_path
+    previous = dotenv_values(dotenv_path) if existed else {}
     lines = (
         dotenv_path.read_text(encoding="utf-8").splitlines(keepends=True)
         if existed
         else []
     )
     replacements: Dict[str, Optional[str]] = {
-        "YANDEX_DIRECT_TOKEN": _format_dotenv_value(token),
+        "YANDEX_DIRECT_TOKEN": (
+            _format_dotenv_value(token) if token is not None else None
+        ),
         "YANDEX_DIRECT_LOGIN": _format_dotenv_value(login) if login else None,
     }
+    if token is None:
+        replacements = dict.fromkeys(FOLDER_CREDENTIAL_KEYS)
     seen = set()
     updated_lines = []
 
@@ -171,7 +193,7 @@ def save_env_credentials(
         stripped = line.lstrip()
         matched_key = None
         for key in replacements:
-            if stripped.startswith(f"{key}=") or stripped.startswith(f"export {key}="):
+            if re.match(rf"(?:export\s+)?{key}\s*=", stripped):
                 matched_key = key
                 break
         if matched_key is None:
@@ -192,12 +214,31 @@ def save_env_credentials(
         if value is not None and key not in seen:
             updated_lines.append(f"{key}={value}\n")
 
-    if existed:
-        os.chmod(dotenv_path, 0o600)
-    fd = os.open(dotenv_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as dotenv_file:
-        dotenv_file.write("".join(updated_lines))
-    os.chmod(dotenv_path, 0o600)
+    fd, temporary_path = tempfile.mkstemp(prefix=".direct-env-", dir=dotenv_path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as dotenv_file:
+            fd = -1
+            dotenv_file.write("".join(updated_lines))
+        os.replace(temporary_path, dotenv_path)
+    except BaseException:
+        if fd != -1:
+            os.close(fd)
+        with contextlib.suppress(OSError):
+            os.unlink(temporary_path)
+        raise
+    if token is not None and "YANDEX_DIRECT_TOKEN" in previous:
+        previous_login = previous.get("YANDEX_DIRECT_LOGIN")
+        if previous_login:
+            print_warning_stderr(
+                t(
+                    "Replacing existing YANDEX_DIRECT_TOKEN (was login={login})"
+                    " with new credentials."
+                ).format(login=previous_login)
+            )
+        else:
+            print_warning_stderr(
+                t("Replacing existing YANDEX_DIRECT_TOKEN with new credentials.")
+            )
     return dotenv_path
 
 
@@ -371,11 +412,17 @@ def save_oauth_profile(
     client_secret: Optional[str] = None,
     source: str = "oauth",
     make_active: bool = True,
+    overwrite: bool = False,
     path: Optional[Path] = None,
 ) -> None:
     """Save/update one OAuth profile without exposing secret values."""
     store = load_auth_store(path=path)
     profiles = store["profiles"]
+    if profile in profiles and not overwrite:
+        raise ValueError(
+            f"Profile '{profile}' already exists; "
+            "pass overwrite=True to replace its stored credentials"
+        )
     item: Dict[str, Any] = {
         "token": token,
         "login": login,

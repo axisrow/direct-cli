@@ -2,6 +2,32 @@
 
 ## 0.5.4 — 2026-10-24
 
+### Unified authorization
+
+- **Existing profiles are never overwritten silently.** `direct auth login`
+  refuses to write credentials into an existing profile (including the default
+  `default`) without explicit `--force`; a fresh profile name is unaffected.
+  Previously a headless completion replaced the profile's token, refresh token
+  and OAuth client without warning. The refusal names the current owner's
+  login, and replacing an existing `YANDEX_DIRECT_TOKEN` in the folder `.env`
+  prints a warning.
+- Authorization is headless and non-interactive by default, including in a
+  terminal. Login dialogs require `--interactive`; manual browser login also
+  accepts explicit `--headful`. TTY detection never selects an interactive mode.
+- Chrome import no longer retries failed headless verification with a visible
+  browser. Legacy browser login paths also require an explicit UI flag.
+
+- Canonical API/browser login, status, logout and browser diagnostics now live
+  under `direct auth`. Existing explicit login paths and JSON remain supported
+  through deprecated adapters; credentials and browser storage are not migrated.
+- Resource commands use saved browser sessions only. Missing, expired or rejected
+  sessions fail with a login hint, without Chrome cookie import, Keychain access
+  or retrying an operation. Move resource Chrome flags to explicit
+  `direct auth login --method browser --source chrome`.
+- API logout removes the selected local profile and this folder's binding;
+  browser logout removes both CLI browser sessions. Source Chrome is untouched.
+- Browser diagnostics skip Keychain and cookie decryption, preserving check names.
+
 ### BREAKING CHANGES
 
 **A folder with no bound credentials has no credentials — the global active
@@ -19,12 +45,11 @@ indistinguishable `source=oauth`. Now an unbound folder has no credentials:
   <name>` binds a folder without any prompts — it writes the profile's
   credentials to the cwd `.env` (merge, `0600`, the token is never printed);
   `--profile` is required, nothing is bound implicitly.
-- **Interactive sessions**: the CLI offers to bind the folder on the spot —
-  one prompt listing the existing profiles; the choice is saved to the cwd
-  `.env`, so the question never repeats for that folder. To authorize a new
-  profile first, run `direct auth login`. Cancelling exits with binding
-  hints. `--dry-run` never touches the API and needs no credentials, so it
-  stays silent.
+- **Terminal sessions** also fail without opening a login dialog. Explicit
+  `direct auth login --interactive` offers API or browser authorization. The API menu
+  binds a saved or newly authorized profile to the cwd `.env` immediately;
+  a newly named profile does not change the global active profile.
+  `--dry-run` still needs no credentials and stays silent.
 - **`direct auth status`** in an unbound folder reports
   `source=null`/`has_token=false` plus a note about the global profile
   (`global_profile`/`global_login` in JSON) — the global profile exists, but
@@ -41,7 +66,7 @@ an exported `YANDEX_DIRECT_LOGIN` and no token) no longer silently inherits
 the global active profile either — the bind gate applies there too.
 
 Migration: bind the folders you use via a `.env` file (`direct auth write`,
-or answer the bind menu once per folder), pass `--profile`, or set
+or run `direct auth login --method api` once per folder), pass `--profile`, or set
 `YANDEX_DIRECT_INHERIT_GLOBAL=1` where inheritance is intended.
 
 Offline tests are insulated from the same nondeterminism: the suite now

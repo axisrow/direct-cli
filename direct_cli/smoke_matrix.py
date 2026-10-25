@@ -88,6 +88,7 @@ SMOKE_MATRIX = {
         # page but never commits" safety as masters.adimages.get above.
         "masters.targetactions.get",
         "negativekeywordsharedsets.get",
+        "auth.doctor",
         "playwright.doctor",
         "playwright.login",
         "reports.get",
@@ -219,6 +220,7 @@ SMOKE_MATRIX = {
         "agencyclients.delete",
         "agencyclients.update",
         "auth.login",
+        "auth.logout",
         "auth.use",
         # auth.write rewrites the cwd .env credential binding -- a local
         # credential-store mutation like auth.login/auth.use, not a read;

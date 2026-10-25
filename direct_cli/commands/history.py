@@ -9,9 +9,8 @@ than a ``masters`` subcommand because the section is account-wide — its
 records cover ordinary ТГО/ЕПК campaigns, ad groups and ads just as much as
 Мастера, and ``--campaign-ids`` is only a filter over that.
 
-The session-resolution stack (``_open_session``/``_with_session``, the
-``--headful``/``--profile-dir``/``--chrome-profile`` options and the
-saved-session self-heal) is imported from ``commands/masters.py`` rather than
+The session-resolution stack (``_open_session``/``_with_session`` and
+``--headful``) is imported from ``commands/masters.py`` rather than
 duplicated: none of it is Мастер-specific, and a second copy would drift.
 """
 

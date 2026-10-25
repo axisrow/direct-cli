@@ -124,8 +124,9 @@ class TestCLIOpOptions:
     @patch("direct_cli.auth.get_active_profile", return_value=None)
     @patch("direct_cli.auth.op_read", return_value="resolved-op-token")
     def test_op_token_ref_resolves_via_cli_flag(
-        self, mock_op_read, mock_profile, mock_load, monkeypatch
+        self, mock_op_read, mock_profile, mock_load, monkeypatch, tmp_path
     ):
+        monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         runner = CliRunner()
@@ -143,8 +144,9 @@ class TestCLIOpOptions:
         side_effect=RuntimeError("1Password CLI (op) not found"),
     )
     def test_op_token_ref_error_surfaces_cleanly(
-        self, mock_op_read, mock_profile, mock_load, monkeypatch
+        self, mock_op_read, mock_profile, mock_load, monkeypatch, tmp_path
     ):
+        monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
         runner = CliRunner()

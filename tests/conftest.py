@@ -85,13 +85,15 @@ def _block_login_resolve_network(monkeypatch):
     ``get_credentials`` (issue #480 migration). Under ``CliRunner`` that call
     can fire per invocation and — if the network is slow or Yandex serves a
     SmartCaptcha gateway — hang the whole suite (it had no timeout). Tests must
-    never depend on that round-trip, so neutralize the resolver here. Tests
+    never depend on that round-trip or the Passport fallback, so neutralize
+    both resolvers here. Tests
     that specifically exercise the resolver patch it themselves.
     """
     monkeypatch.setattr(
         "direct_cli.auth._resolve_client_login_via_api",
         lambda *_args, **_kwargs: None,
     )
+    monkeypatch.setattr("direct_cli.auth.resolve_login", lambda *_args, **_kwargs: None)
 
 
 @pytest.fixture(autouse=True)
