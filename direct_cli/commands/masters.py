@@ -2100,6 +2100,12 @@ def targetactions_get(
     campaign's promotion goal is not "max-conversions" (the table doesn't
     exist on the page at all), or no goal has been added to it yet. Use
     ``masters get`` to check the campaign's current promotion goal.
+
+    The table is read settled (issue #910): rows are reported only once
+    their snapshot is stable, so a mid-hydration page no longer answers
+    ``Count: 0`` for a populated table; a rendered section whose rows never
+    settle into a readable snapshot fails with an error instead of printing
+    an empty list.
     """
     from ..browser.masters import fetch_master_target_actions
 

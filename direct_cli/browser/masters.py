@@ -10462,23 +10462,54 @@ def fetch_master_target_actions(page: "Page", campaign_id: int) -> Dict[str, Any
     edit page (this data does not exist on the overview page ``fetch_master``
     reads — see issue #707) and reads without ever touching Save.
 
-    An empty list is a legitimate result — either the campaign's promotion
-    goal is not "max-conversions" (the table doesn't exist on the page at
-    all), or it is but no goal has been added to it yet. This function does
-    not distinguish the two; callers that need to know which should also
-    check ``promotion_goal`` via ``fetch_master``.
+    Issue #910: the read is the settled, failure-aware snapshot the
+    ``--preserve-target-actions`` guard already relies on
+    (``_read_confirmed_target_actions``), not a single immediate read — this
+    table goes through a genuine, non-throwing EMPTY interval mid-hydration
+    (issues #750/#756), so a single read landing in that dip used to report
+    a populated table as ``TargetActions: [], Count: 0``, indistinguishable
+    from genuinely empty.
+
+    An empty list is therefore still a legitimate result — the campaign's
+    promotion goal is not "max-conversions" (the section is not on the page
+    at all), or it is but no goal has been added to it yet; callers that
+    need to know which should also check ``promotion_goal`` via
+    ``fetch_master``. The third state — a rendered section whose rows never
+    settle into a readable snapshot — raises ``BrowserSessionError`` rather
+    than masquerading as "empty". The cost of that guarantee mirrors the
+    guard path: a genuinely absent section pays the full settle deadline
+    before the ``Count: 0`` answer, because the same dips briefly unmount
+    the section too, so its absence is only meaningful once settling has
+    been given its chance.
     """
     page.goto(WIZARD_EDIT_URL.format(campaign_id=campaign_id), wait_until="commit")
     assert_not_captcha(page.content())
     assert_authenticated(page.content())
     _wait_for_edit_form(page, campaign_id)
 
-    target_actions = _read_target_actions(page)
+    rows = _read_confirmed_target_actions(page)
+    if rows is None:
+        # Same discrimination as update_master's --preserve-target-actions
+        # baseline (issue #873): reached only after the settle deadline has
+        # absorbed the hydration dips, so a bare section count is meaningful
+        # here. A max-clicks campaign renders no section at all — genuinely
+        # empty. A rendered section that never read is the silent false
+        # negative issue #910 forbids: fail loudly instead.
+        if _target_actions_section_present(page):
+            raise BrowserSessionError(
+                f"Could not obtain a stable read of the 'Целевые действия' "
+                f"table for campaign {campaign_id}: the section is rendered, "
+                "but its rows never settled into a readable snapshot. "
+                "Reporting it as empty would misclassify a max-conversions "
+                "campaign (issue #910); re-run after the page has fully "
+                "loaded."
+            )
+        rows = []
 
     return {
         "CampaignId": campaign_id,
-        "TargetActions": target_actions,
-        "Count": len(target_actions),
+        "TargetActions": rows,
+        "Count": len(rows),
     }
 
 
