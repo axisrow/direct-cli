@@ -1043,6 +1043,28 @@ class TestMastersRegistered(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("--status", result.output)
 
+    def test_masters_list_timeout_flag_reaches_fetch_in_ms(self):
+        # Issue #912: --timeout is forwarded to the browser layer in ms,
+        # where it scales the existing capture attempt deadlines.
+        captured = {}
+
+        def _fake_fetch(page, status="not-archived", capture_timeout_ms=None):
+            captured["capture_timeout_ms"] = capture_timeout_ms
+            return []
+
+        with (
+            patch(
+                "direct_cli.browser.masters.fetch_masters_list",
+                side_effect=_fake_fetch,
+            ),
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["masters", "list", "--timeout", "45"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(captured["capture_timeout_ms"], 45_000)
+
     def test_masters_no_credentials_required(self):
         # masters is in cli.py's _NO_CREDENTIALS_GROUPS -- no API token/login
         # is needed to even reach the browser layer's own errors.
@@ -3693,6 +3715,97 @@ class TestFetchMastersList(unittest.TestCase):
 
         with self.assertRaises(BrowserSessionError):
             browser_masters.fetch_masters_list(page, status="all")
+
+    def _slow_then_ready_page(self):
+        """A page that fires GridCampaigns only on its SECOND load — models
+        issue #912's intermittent slow first load. Uses the exit-raises
+        expect_response fake (the real Playwright failure ordering, #694):
+        the lazy-`.value` fake would let attempt 1 "succeed" on the response
+        attempt 2's goto() had just armed."""
+        page = FakePage(
+            grid_response=None,
+            api_request=_FakeApiRequestContext(pages=[_load_grid_campaigns_fixture()]),
+        )
+        page._expect_response_exit_raises = True
+        original_goto = page.goto
+
+        def _goto(url, wait_until=None):
+            original_goto(url, wait_until=wait_until)
+            if len(page.navigated_to) >= 2:
+                page._grid_response = self._grid_response()
+
+        page.goto = _goto
+        return page
+
+    def test_capture_retries_and_succeeds_on_second_attempt(self):
+        # Issue #912: a slow first page load must be retried internally
+        # (re-navigation included) instead of surfacing as a terminal error
+        # the caller has to retry by hand.
+        page = self._slow_then_ready_page()
+
+        result = browser_masters.fetch_masters_list(page, status="all")
+
+        self.assertEqual(len(page.navigated_to), 2)
+        self.assertIn(72349978, {row["CampaignId"] for row in result})
+
+    def test_capture_exhaustion_raises_retryable_timeout_message(self):
+        # Issue #912's split messages, side 1: once EVERY attempt has timed
+        # out the error is a *retryable* timeout (transient, --timeout
+        # hint) — never the old wording that mixed in "Yandex may have
+        # changed the grid's internal API". Structure drift has its own
+        # separate message (_fetch_grid_campaigns_page).
+        page = FakePage(grid_response=None)
+        page._expect_response_exit_raises = True
+
+        with self.assertRaises(BrowserSessionError) as caught:
+            browser_masters.fetch_masters_list(page, status="all")
+
+        message = str(caught.exception)
+        self.assertIn("30s, then 60s", message)
+        self.assertIn("transient", message)
+        self.assertIn("--timeout", message)
+        self.assertNotIn("changed", message)
+        self.assertNotIn("schema", message)
+
+    def test_unrecognized_response_shape_message_is_distinct_from_timeout(self):
+        # Issue #912's split messages, side 2: a GridCampaigns response that
+        # DID fire but whose structure the parser doesn't recognize is the
+        # API-change diagnosis — a different message from the retryable
+        # timeout above, with no retry hint.
+        page = FakePage(
+            grid_response=self._grid_response(),
+            api_request=_FakeApiRequestContext(pages=[{"unexpected": True}]),
+        )
+
+        with self.assertRaises(BrowserSessionError) as caught:
+            browser_masters.fetch_masters_list(page, status="all")
+
+        message = str(caught.exception)
+        self.assertIn("expected shape", message)
+        self.assertIn("schema", message)
+        self.assertNotIn("transient", message)
+        self.assertNotIn("--timeout", message)
+
+    def test_capture_timeout_scales_attempt_deadlines(self):
+        # Issue #912: --timeout scales the existing expect_response deadline
+        # (attempt N gets N * capture_timeout_ms) — no second time source.
+        page = FakePage(grid_response=None)
+        page._expect_response_exit_raises = True
+        original_expect = page.expect_response
+        timeouts = []
+
+        def _recording_expect_response(predicate, timeout=None):
+            timeouts.append(timeout)
+            return original_expect(predicate, timeout=timeout)
+
+        page.expect_response = _recording_expect_response
+
+        with self.assertRaises(BrowserSessionError):
+            browser_masters.fetch_masters_list(
+                page, status="all", capture_timeout_ms=5_000
+            )
+
+        self.assertEqual(timeouts, [5_000, 10_000])
 
     def test_non_ok_api_response_raises_browser_session_error(self):
         fixture = _load_grid_campaigns_fixture()
