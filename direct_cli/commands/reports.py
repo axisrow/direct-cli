@@ -9,6 +9,7 @@ import json
 import click
 
 from ..api import create_client, post_with_retry
+from ..i18n import t
 from ..output import format_output, handle_api_errors
 from ..utils import parse_csv_strings
 
@@ -232,14 +233,19 @@ def build_report_request(
     if date_range_type == "CUSTOM_DATE":
         if not date_from or not date_to:
             raise click.UsageError(
-                "--from and --to are required when --date-range-type is " "CUSTOM_DATE"
+                t(
+                    "--from and --to are required when --date-range-type is "
+                    "CUSTOM_DATE"
+                )
             )
         selection_criteria["DateFrom"] = date_from
         selection_criteria["DateTo"] = date_to
     elif date_from or date_to:
         raise click.UsageError(
-            "--from/--to are only allowed when --date-range-type is "
-            f"CUSTOM_DATE; omit them for DateRangeType {date_range_type}"
+            t(
+                "--from/--to are only allowed when --date-range-type is "
+                "CUSTOM_DATE; omit them for DateRangeType {date_range_type}"
+            ).format(date_range_type=date_range_type)
         )
 
     if filters:
