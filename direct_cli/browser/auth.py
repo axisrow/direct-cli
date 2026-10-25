@@ -38,6 +38,10 @@ def open_session(
     *, headless: bool = True, profile_dir: Optional[Path] = None
 ) -> Generator["Page", None, None]:
     """Use saved credentials once; never import Chrome cookies or retry an operation."""
+    # Every tier below launches a browser, so a missing playwright must
+    # surface as the install hint even when no saved session exists — the
+    # session-state report would otherwise preempt the actionable error.
+    session._import_sync_playwright()
     status = session_status(profile_dir)
     if status["active_tier"] == "1.5":
         opener = session.open_persistent_session(
