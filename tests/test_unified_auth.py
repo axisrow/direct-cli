@@ -155,7 +155,8 @@ def test_force_overwrites_an_existing_profile(auth_env, monkeypatch):
     )
     result = CliRunner().invoke(cli, ["auth", "login", "--code", "c", "--force"])
     assert result.exit_code == 0, result.output
-    assert get_oauth_profile("default")["token"] == "new-token"
+    profile = get_oauth_profile("default")
+    assert profile is not None and profile["token"] == "new-token"
 
 
 def test_completion_into_a_fresh_profile_name_needs_no_force(auth_env, monkeypatch):
@@ -175,19 +176,23 @@ def test_completion_into_a_fresh_profile_name_needs_no_force(auth_env, monkeypat
         cli, ["auth", "login", "--code", "c", "--profile", "fresh"]
     )
     assert result.exit_code == 0, result.output
-    assert get_oauth_profile("fresh")["token"] == "fresh-token"
-    assert get_oauth_profile("default")["token"] == "stored-token"
+    fresh = get_oauth_profile("fresh")
+    assert fresh is not None and fresh["token"] == "fresh-token"
+    default_profile = get_oauth_profile("default")
+    assert default_profile is not None and default_profile["token"] == "stored-token"
 
 
 def test_save_oauth_profile_refuses_to_overwrite_without_explicit_flag(auth_env):
     save_profile("account", token="stored-token")
     with pytest.raises(ValueError, match="already exists"):
         save_oauth_profile("account", "new-token", login="account")
-    assert get_oauth_profile("account")["token"] == "stored-token"
+    stored = get_oauth_profile("account")
+    assert stored is not None and stored["token"] == "stored-token"
     save_oauth_profile(
         "account", "new-token", login="account", source="manual", overwrite=True
     )
-    assert get_oauth_profile("account")["token"] == "new-token"
+    overwritten = get_oauth_profile("account")
+    assert overwritten is not None and overwritten["token"] == "new-token"
 
 
 def test_save_env_credentials_warns_when_replacing_existing_token(auth_env, capsys):
