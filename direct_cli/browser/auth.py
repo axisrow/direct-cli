@@ -13,6 +13,19 @@ if TYPE_CHECKING:
     from playwright.sync_api import Page
 
 
+def _marker_owner(profile_dir: Path) -> Optional[str]:
+    """Owner login stamped into the profile marker (issue #916), if any.
+
+    ``None`` for a marker saved before the stamp existed — soft fallback.
+    """
+    try:
+        return (profile_dir / session.PROFILE_MARKER_NAME).read_text(
+            encoding="utf-8"
+        ).strip() or None
+    except OSError:
+        return None
+
+
 def session_status(profile_dir: Optional[Path] = None) -> Dict[str, Any]:
     """Inspect saved authorization without launching a browser or decrypting cookies."""
     persistent_dir = profile_dir or session.configured_persistent_profile_dir()
@@ -26,7 +39,11 @@ def session_status(profile_dir: Optional[Path] = None) -> Dict[str, Any]:
     return {
         "active_tier": tier,
         "active_source": source,
-        "persistent_profile": {"path": str(persistent_dir), "usable": usable},
+        "persistent_profile": {
+            "path": str(persistent_dir),
+            "usable": usable,
+            "owner": _marker_owner(persistent_dir),
+        },
         "saved_session": saved,
     }
 

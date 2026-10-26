@@ -58,6 +58,17 @@ replacement notices now point at the new subcommand surface.
   on `master` of the axisrow fork (axisrow/tapi-yandex-direct#28, merged) so
   `update_vendor.sh` keeps it (#634).
 
+- **Saved browser sessions are stamped with their owner's Yandex login
+  (#916, partial #907).** `session.json`'s envelope and the persistent
+  profile's `.direct-cli-profile` marker now record the account the session
+  belongs to, resolved from the same cookie jar the login verification runs
+  on (`auth login browser --source chrome` and the verified manual login).
+  `auth status browser`, `playwright doctor` and the import payload show the
+  owner. Re-saving a session while a *different* owner is stamped prints a
+  stderr warning naming both logins (Data-Safety class B: attributed write +
+  replacement report) without blocking. Sessions saved before this change
+  have no stamp and read as unknown — a soft fallback, not an error.
+
 ### Changed
 
 - **One canonical login pointer in every authorization error (#924, part 1 —

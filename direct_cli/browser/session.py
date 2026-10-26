@@ -51,6 +51,7 @@ from typing import (
 from . import _clock
 from .._auth_hints import HINT_LOGIN_BROWSER_CHROME
 from .._captcha import find_captcha_marker, find_marker
+from ..i18n import t
 from ..output import print_warning_stderr
 
 if TYPE_CHECKING:
@@ -428,6 +429,68 @@ def _is_yandex_ru_domain(domain: str) -> bool:
     would let ``notyandex.ru`` through (review of #858).
     """
     return domain == "yandex.ru" or domain.endswith(".yandex.ru")
+
+
+# Passport's identity cookies: their value is the login of the account the
+# session belongs to (issue #916's owner stamp), set on the ``*.yandex.ru``
+# hosts alongside the SSO pair in :data:`_AUTH_SESSION_COOKIE_NAMES`. The
+# second name is Passport's legacy spelling, kept as a fallback.
+_OWNER_LOGIN_COOKIE_NAMES = ("yandex_login", "login")
+
+
+def _owner_login_from_cookies(
+    cookies: Sequence[Dict[str, Any]],
+) -> Optional[str]:
+    """Best-effort owner stamp: the login behind a cookie jar (issue #916).
+
+    Resolved from the same jar the auth checks read — the SSO cookies in
+    :data:`_AUTH_SESSION_COOKIE_NAMES` and the identity cookie live on the
+    same ``*.yandex.ru`` hosts. Returns ``None`` when the jar carries no
+    identity cookie: callers then save an unstamped session (soft fallback),
+    never fail.
+    """
+    for name in _OWNER_LOGIN_COOKIE_NAMES:
+        for cookie in cookies:
+            if cookie.get("name") != name:
+                continue
+            if not _is_yandex_ru_domain(str(cookie.get("domain", ""))):
+                continue
+            value = str(cookie.get("value") or "").strip()
+            if value:
+                return value
+    return None
+
+
+def _stamp_profile_owner(profile_dir: Path, owner_login: Optional[str]) -> None:
+    """Write the owner login into the profile marker (issue #916).
+
+    The marker stays the sole ownership proof ``masters logout`` accepts —
+    its *existence*, not its content, authorizes the delete; the login is
+    metadata on top. A ``None`` owner leaves the marker untouched (old
+    sessions stay unstamped). Overwriting a marker that names a *different*
+    owner warns on stderr (Data-Safety class B replacement report) without
+    blocking the login. The stamp is diagnostic: a write failure must never
+    turn a verified login into an error.
+    """
+    marker = profile_dir / PROFILE_MARKER_NAME
+    try:
+        previous = marker.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        previous = None
+    if previous and owner_login and previous != owner_login:
+        print_warning_stderr(
+            t(
+                "Replacing the browser profile at {path}: it belonged to "
+                "{old}, the new session belongs to {new}."
+            ).format(path=profile_dir, old=previous, new=owner_login)
+        )
+    if not owner_login:
+        return
+    try:
+        marker.write_text(owner_login + "\n", encoding="utf-8")
+        os.chmod(marker, 0o600)
+    except OSError:
+        pass  # ponytail: diagnostic stamp — a failed write is not a failed login
 
 
 def _session_cookie_signature(
@@ -931,6 +994,11 @@ def login_persistent_session(
                         # recording an unfinished login would point them at
                         # an empty profile.
                         remember_persistent_profile_dir(resolved_dir)
+                        # Issue #916: the same verified jar names the owner —
+                        # stamp it into the profile marker.
+                        _stamp_profile_owner(
+                            resolved_dir, _owner_login_from_cookies(context.cookies())
+                        )
                         return
                     if verdict is False:
                         # Conclusive "no valid session": don't re-probe this
@@ -1119,6 +1187,9 @@ def capture_storage_state(
         "profile_dir": str(source_root),
         "chrome_profile": chrome_profile,
         "verified": verified,
+        # Issue #916: the owner stamp, resolved from the same decrypted jar
+        # the auth checks run on. None → session is saved without a stamp.
+        "owner_login": _owner_login_from_cookies(cookies),
     }
     return storage_state, source_meta
 
