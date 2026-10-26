@@ -35,6 +35,21 @@ def test_make_get_command_dry_run_needs_no_credentials():
         assert body["method"] == "get", argv
 
 
+def test_leads_get_dry_run_builds_no_client():
+    """#899: --dry-run prints the request without resolving credentials."""
+    with patch("direct_cli.commands.leads.create_client") as mock_create:
+        result = CliRunner().invoke(
+            cli,
+            ["leads", "get", "--turbo-page-ids", "1", "--dry-run"],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_create.assert_not_called()
+    body = json.loads(result.output)
+    assert body["method"] == "get"
+    assert body["params"]["SelectionCriteria"] == {"TurboPageIds": [1]}
+
+
 def test_get_selection_criteria_new_typed_flags_payloads():
     """Focused payload coverage for WSDL SelectionCriteria flags added for #146."""
     cases = [

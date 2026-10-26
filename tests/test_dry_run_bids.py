@@ -5,6 +5,9 @@ See :mod:`tests.test_dry_run_shared` for the shared invocation helpers and
 ``tests/test_dry_run.py`` for the rationale behind the whole suite.
 """
 
+import json
+from unittest.mock import patch
+
 import pytest
 from click.testing import CliRunner
 
@@ -684,6 +687,21 @@ def test_keywordbids_get_rejects_over_10000_keyword_ids():
 def test_keywordbids_get_allows_exactly_10_campaign_ids():
     body = _read_dry_run("keywordbids", "get", "--campaign-ids", _ids_csv(10))
     assert len(body["params"]["SelectionCriteria"]["CampaignIds"]) == 10
+
+
+def test_keywordbids_get_dry_run_builds_no_client():
+    """#899: --dry-run prints the request without resolving credentials."""
+    with patch("direct_cli.commands.keywordbids.create_client") as mock_create:
+        result = CliRunner().invoke(
+            cli,
+            ["keywordbids", "get", "--campaign-ids", "1", "--dry-run"],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_create.assert_not_called()
+    body = json.loads(result.output)
+    assert body["method"] == "get"
+    assert body["params"]["SelectionCriteria"] == {"CampaignIds": [1]}
 
 
 def test_keywordbids_set_auto_payload_uses_bidding_rule():

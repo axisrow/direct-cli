@@ -253,8 +253,6 @@ def get(
     if status and statuses:
         raise click.UsageError(t("--status and --statuses are mutually exclusive"))
 
-    client = client_from_ctx(ctx, create_client)
-
     # Parse field names
     field_names = (
         _parse_csv_option("--fields", fields)
@@ -331,6 +329,7 @@ def get(
         format_output(body, "json", None)
         return
 
+    client = client_from_ctx(ctx, create_client)
     result = client.campaigns().post(data=body)
 
     if fetch_all:

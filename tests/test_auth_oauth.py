@@ -69,6 +69,17 @@ def request_form_body(mock_urlopen):
     return urllib.parse.parse_qs(request.data.decode("utf-8"))
 
 
+def _fake_get_client(mock_create_client):
+    """Make the mocked client answer ``campaigns get`` (live path, #899).
+
+    ``--dry-run`` no longer builds a client, so credential-wiring tests
+    invoke the real code path and stub the response instead.
+    """
+    client = mock_create_client.return_value
+    post = client.campaigns.return_value.post
+    post.return_value.return_value.extract.return_value = []
+
+
 class TestAuthOAuth:
     """OAuth profile and credential resolution tests."""
 
@@ -166,8 +177,9 @@ class TestAuthOAuth:
             client_id=DEFAULT_OAUTH_CLIENT_ID,
         )
         runner = CliRunner()
+        _fake_get_client(mock_create_client)
 
-        result = runner.invoke(cli, ["campaigns", "get", "--ids", "123", "--dry-run"])
+        result = runner.invoke(cli, ["campaigns", "get", "--ids", "123"])
 
         assert result.exit_code == 0
         mock_create_client.assert_called_once_with(
@@ -183,8 +195,9 @@ class TestAuthOAuth:
         monkeypatch.setenv("YANDEX_DIRECT_TOKEN", "env-token")
         monkeypatch.setenv("YANDEX_DIRECT_LOGIN", "env-login")
         runner = CliRunner()
+        _fake_get_client(mock_create_client)
 
-        result = runner.invoke(cli, ["campaigns", "get", "--ids", "123", "--dry-run"])
+        result = runner.invoke(cli, ["campaigns", "get", "--ids", "123"])
 
         assert result.exit_code == 0
         mock_create_client.assert_called_once_with(
@@ -215,10 +228,9 @@ class TestAuthOAuth:
                 client_id=DEFAULT_OAUTH_CLIENT_ID,
             )
             runner = CliRunner()
+            _fake_get_client(mock_create_client)
 
-            result = runner.invoke(
-                cli, ["campaigns", "get", "--ids", "123", "--dry-run"]
-            )
+            result = runner.invoke(cli, ["campaigns", "get", "--ids", "123"])
 
         assert result.exit_code == 0
         mock_create_client.assert_called_once_with(
@@ -252,6 +264,7 @@ class TestAuthOAuth:
                 make_active=False,
             )
             runner = CliRunner()
+            _fake_get_client(mock_create_client)
 
             result = runner.invoke(
                 cli,
@@ -262,7 +275,6 @@ class TestAuthOAuth:
                     "get",
                     "--ids",
                     "123",
-                    "--dry-run",
                 ],
             )
 
@@ -289,10 +301,9 @@ class TestAuthOAuth:
             monkeypatch.chdir(tmp_path)
             load_env_file()
             runner = CliRunner()
+            _fake_get_client(mock_create_client)
 
-            result = runner.invoke(
-                cli, ["campaigns", "get", "--ids", "123", "--dry-run"]
-            )
+            result = runner.invoke(cli, ["campaigns", "get", "--ids", "123"])
 
         assert result.exit_code == 0
         mock_create_client.assert_called_once_with(
@@ -323,6 +334,7 @@ class TestAuthOAuth:
                 client_id=DEFAULT_OAUTH_CLIENT_ID,
             )
             runner = CliRunner()
+            _fake_get_client(mock_create_client)
 
             result = runner.invoke(
                 cli,
@@ -335,7 +347,6 @@ class TestAuthOAuth:
                     "get",
                     "--ids",
                     "123",
-                    "--dry-run",
                 ],
             )
 
