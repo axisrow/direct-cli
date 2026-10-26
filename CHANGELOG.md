@@ -85,6 +85,16 @@ replacement notices now point at the new subcommand surface.
 
 ### Fixed
 
+- **README campaign examples now pass `--dry-run` (#902).** Eight examples
+  (four per language) used raw currency amounts instead of micro-currency:
+  `--priority-goals` with values `80`/`20` (now `80000000`/`20000000`,
+  advertiser currency × 1,000,000) and the CPM banner example with
+  `--average-cpm 120`/`--strategy-spend-limit 1000` (now `120000000`/
+  `1000000000`, micro-rubles). Copying any of them used to fail with the
+  CLI's micro-scale validation hint; every fixed example was verified with
+  `--dry-run` (exit 0, request printed). Documentation only — no CLI
+  contract change.
+
 - **`reports get`: API error 56 (method rate limit) now retries with
   exponential backoff (#918).** Yandex allows only 1 request per 10 seconds
   per method; with several `direct`/MCP clients sharing one account, each
