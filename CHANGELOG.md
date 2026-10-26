@@ -57,6 +57,14 @@
   forbidden with other values"). Explicit dates alongside a relative period,
   and `CUSTOM_DATE` with either date missing, fail with a usage error instead
   of silently sending a forbidden combination.
+- **`--format csv`/`--format tsv`: export no longer fails when later records
+  carry optional fields missing from the first record (#900).** The column set
+  is now the union of keys across all records (in first-seen order) instead of
+  the first record's keys alone, so a record with an extra optional field
+  (e.g. `TextAd` present only on `TEXT_AD` rows) gets its own column and rows
+  missing a field export an empty cell — success no longer depends on row
+  order. Explicitly passed `headers` still define the columns exactly as
+  before.
 
 - **`masters list`: intermittent grid-load timeout now retries internally
   (#912).** The campaigns grid's `GridCampaigns` data request is observed
