@@ -48,8 +48,6 @@ def get(
     dry_run,
 ):
     """Get leads"""
-    client = client_from_ctx(ctx, create_client)
-
     field_names = parse_csv_strings(fields) or get_default_fields("leads")
 
     criteria = {"TurboPageIds": parse_ids(turbo_page_ids)}
@@ -68,6 +66,7 @@ def get(
         format_output(body, "json", None)
         return
 
+    client = client_from_ctx(ctx, create_client)
     result = client.leads().post(data=body)
 
     if fetch_all:

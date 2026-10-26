@@ -91,8 +91,6 @@ def get(
     dry_run,
 ):
     """Get keyword bids"""
-    client = client_from_ctx(ctx, create_client)
-
     parsed_fields = parse_csv_strings(fields)
     if fields is not None and not parsed_fields:
         raise click.UsageError(
@@ -155,6 +153,7 @@ def get(
         format_output(body, "json", None)
         return
 
+    client = client_from_ctx(ctx, create_client)
     result = client.keywordbids().post(data=body)
 
     if fetch_all:

@@ -5,6 +5,9 @@ See :mod:`tests.test_dry_run_shared` for the shared invocation helpers and
 ``tests/test_dry_run.py`` for the rationale behind the whole suite.
 """
 
+import json
+from unittest.mock import patch
+
 from click.testing import CliRunner
 
 from direct_cli.cli import cli
@@ -24,6 +27,21 @@ def test_campaigns_get_text_campaign_fields_dry_run():
 
     assert body["params"]["FieldNames"] == ["Id", "Name", "State"]
     assert body["params"]["TextCampaignFieldNames"] == ["BiddingStrategy"]
+
+
+def test_campaigns_get_dry_run_builds_no_client():
+    """#899: --dry-run prints the request without resolving credentials."""
+    with patch("direct_cli.commands.campaigns.create_client") as mock_create:
+        result = CliRunner().invoke(
+            cli,
+            ["campaigns", "get", "--fields", "Id,Name,State", "--dry-run"],
+        )
+
+    assert result.exit_code == 0, result.output
+    mock_create.assert_not_called()
+    body = json.loads(result.output)
+    assert body["method"] == "get"
+    assert body["params"]["FieldNames"] == ["Id", "Name", "State"]
 
 
 def test_campaigns_get_campaign_specific_fields_dry_run():

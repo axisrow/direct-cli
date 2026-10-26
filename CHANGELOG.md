@@ -163,6 +163,13 @@ replacement notices now point at the new subcommand surface.
   needed. All-numeric columns keep their right alignment. json/csv/tsv/text
   output is byte-identical to before.
 
+- **`campaigns get`, `keywordbids get`, `leads get`: `--dry-run` no longer
+  requires an OAuth token (#899).** These three read commands built the API
+  client before the `--dry-run` guard, so previewing the request without any
+  credentials configured failed with «API token required» while every other
+  `--dry-run` printed it. The client is now created after the dry-run branch,
+  like in `ads get` and the shared `get` factory; the real (non-dry-run) path
+  still resolves and checks credentials before calling the API.
 - **`reports get`: API error 56 (method rate limit) now retries with
   exponential backoff (#918).** Yandex allows only 1 request per 10 seconds
   per method; with several `direct`/MCP clients sharing one account, each
