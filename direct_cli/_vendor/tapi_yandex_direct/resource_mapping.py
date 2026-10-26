@@ -147,6 +147,10 @@ RESOURCE_MAPPING_V5 = {
             "period": "https://yandex.ru/dev/direct/doc/ru/period",
             "fields-list": "https://yandex.ru/dev/direct/doc/ru/fields-list",
             "headers": "https://yandex.ru/dev/direct/doc/ru/headers",
+            # Units/Units-Used-Login/Use-Operator-Units are documented on the
+            # concepts page, not on the HTTP-headers page (#922). Keep both
+            # here so the header manifest cites registry URLs only.
+            "units": "https://yandex.ru/dev/direct/doc/ru/concepts/units",
         },
     },
     "debugtoken": {

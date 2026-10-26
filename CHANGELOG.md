@@ -40,6 +40,24 @@ replacement notices now point at the new subcommand surface.
 
 ### Added
 
+- **Transport-layer guard: manifest of documented HTTP headers (#922).** The
+  API-coverage model is blind to the transport layer — `Units` rode through
+  the vendored client on every response for years while no CLI command showed
+  it (#919), because a header is not a WSDL endpoint. `HEADERS_MANIFEST` in
+  `tests/test_headers_manifest.py` now lists every HTTP header Yandex
+  documents with a status — `surfaced` (where the CLI reads/shows/sends it),
+  `planned` (issue filed) or `declined` (reason) — and the guard fails in both
+  drift directions: a header documented by Yandex but missing from the
+  manifest, or a manifest entry no longer documented on its cited page. The
+  manifest sources are registry URLs, not literals: the Units headers
+  (`Units`, `Units-Used-Login`, `Use-Operator-Units`) are documented on the
+  `concepts/units` page, not on the «HTTP-заголовки» page that
+  `docs_pages["headers"]` points at, so a `units` key was added to
+  `RESOURCE_MAPPING_V5["reports"]["docs_pages"]` (mirrored on the axisrow
+  fork per the #634 practice) and to `REPORTS_SPEC_URLS`; both pages are
+  cached in `tests/reports_cache/raw/` (captcha-guarded by the existing
+  freshness tests) so the guard runs offline.
+
 - **Optional diagnostics output is now env-switched and hidden by default
   (#925).** Successful v5 API calls no longer print anything extra: the API
   Units points line is opt-in via `DIRECT_SHOW_UNITS=1`, which prints one
