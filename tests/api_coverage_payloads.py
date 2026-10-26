@@ -1,6 +1,11 @@
 """Shared dry-run payload coverage cases for API schema gates."""
 
 DRY_RUN_PAYLOAD_EXCLUSIONS = {
+    "api.units": (
+        "Diagnostic command reading the HTTP Units response header via a raw "
+        "clients.get call; it is not a WSDL operation. Dry-run shape is covered "
+        "by test_api_units.py::test_units_dry_run_makes_no_request."
+    ),
     "adextensions.get": (
         "Read-path SelectionCriteria dry-run is covered by WSDL selection criteria "
         "tests."

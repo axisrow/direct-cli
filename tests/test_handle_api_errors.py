@@ -99,3 +99,92 @@ def test_preserves_function_metadata():
 
     assert documented.__name__ == "documented"
     assert documented.__doc__ == "Original docstring."
+
+
+# --- Units balance in error output (#919) -----------------------------------
+#
+# Every vendored API exception carries the raw requests.Response in
+# ``.response``; Yandex returns ``Units: spent/left/limit`` on every call.
+# The decorator must append that balance so a limit error (56/152/506) is
+# diagnosable: zero left = daily quota exhausted, units left = per-method
+# throttling or a concurrent client on the same token.
+
+
+class _FakeResponse:
+    def __init__(self, headers):
+        self.headers = headers
+
+
+class _FakeLimitError(Exception):
+    """Stand-in for the vendored YandexDirectRequestsLimitError."""
+
+    def __init__(self, message, headers):
+        super().__init__(message)
+        self.response = _FakeResponse(headers)
+
+
+def test_appends_units_balance_to_limit_error(capsys):
+    @handle_api_errors
+    def boom():
+        raise _FakeLimitError(
+            "request_id=1, error_code=56, "
+            "error_string=Exceeded limit of method requests",
+            {"Units": "15/239100/240000"},
+        )
+
+    with pytest.raises(click.Abort):
+        boom()
+    err = capsys.readouterr().err
+    assert "15/239100/240000" in err
+    assert "API units (spent/left/limit): 15/239100/240000" in err
+
+
+def test_units_hint_zero_balance_says_daily_exhaustion(capsys):
+    @handle_api_errors
+    def boom():
+        raise _FakeLimitError("error_code=152", {"Units": "15000/0/240000"})
+
+    with pytest.raises(click.Abort):
+        boom()
+    err = capsys.readouterr().err
+    assert (
+        "daily balance exhausted; retries cannot succeed "
+        "until Yandex replenishes units" in err
+    )
+
+
+def test_units_hint_with_balance_says_throttling(capsys):
+    @handle_api_errors
+    def boom():
+        raise _FakeLimitError("error_code=56", {"Units": "15/239100/240000"})
+
+    with pytest.raises(click.Abort):
+        boom()
+    err = capsys.readouterr().err
+    assert (
+        "units remain; the limit is per-method throttling "
+        "or a concurrent client on the same token" in err
+    )
+
+
+def test_no_units_header_means_no_hint(capsys):
+    @handle_api_errors
+    def boom():
+        raise _FakeLimitError("plain api error", {"Content-Type": "application/json"})
+
+    with pytest.raises(click.Abort):
+        boom()
+    err = capsys.readouterr().err
+    # Pin the exact error line: an empty hint must append nothing at all.
+    assert "✗ plain api error\x1b[0m" in err
+    assert "API units" not in err
+
+
+def test_plain_exception_without_response_no_hint(capsys):
+    @handle_api_errors
+    def boom():
+        raise RuntimeError("no response attribute at all")
+
+    with pytest.raises(click.Abort):
+        boom()
+    assert "API units" not in capsys.readouterr().err
