@@ -13,6 +13,7 @@ from click.core import ParameterSource
 from . import __version__
 from ._auth_hints import HINT_LOGIN_API
 from .auth import (
+    BIND_PROFILE_ENV,
     INHERIT_GLOBAL_ENV,
     get_active_profile,
     get_credentials_with_source,
@@ -147,7 +148,12 @@ def _bind_hints() -> str:
 
 def _ensure_credentials_bound(ctx: click.Context) -> None:
     """Fail without credentials; only auth login may start an interactive login."""
-    if inherit_globally_enabled() or ctx.params.get("dry_run"):
+    if (
+        inherit_globally_enabled()
+        # A folder link names its profile explicitly (issue #917) — bound.
+        or os.getenv(BIND_PROFILE_ENV)
+        or ctx.params.get("dry_run")
+    ):
         return
     obj = ctx.obj or {}
     if obj.get("credential_gate") is False or obj.get("token"):
@@ -457,11 +463,13 @@ def cli(
     # credential-less (#904 removed the active profile that used to force
     # the resolve path).
     load_env_file()
+    linked_profile = (os.getenv(BIND_PROFILE_ENV) or "").strip() or None
     has_refs = (
         token
         or login
         or profile
         or active_profile
+        or linked_profile
         or op_token_ref
         or op_login_ref
         or bw_token_ref
@@ -500,6 +508,8 @@ def cli(
                 credential_profile = profile
             elif credential_source == "active-profile":
                 credential_profile = active_profile
+            elif credential_source == "linked-profile":
+                credential_profile = linked_profile
             else:
                 credential_profile = None
             ctx.obj["token"] = resolved_token
@@ -509,8 +519,9 @@ def cli(
         except RuntimeError as e:
             raise click.ClickException(str(e))
         except ValueError as e:
-            if profile or active_profile:
-                # Explicit profile selected but not found — surface the error
+            if profile or active_profile or linked_profile:
+                # An explicitly named profile (flag or folder link, #917)
+                # that cannot be resolved — surface the error
                 raise click.ClickException(str(e))
             # No credential source at all — let subcommands fail naturally
             ctx.obj["token"] = explicit_token

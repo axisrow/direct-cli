@@ -349,19 +349,23 @@ token for API/v4 commands, saved in an auth profile) and
 `masters`, `history`, ...). Bare `direct auth login` is the API login.
 
 In a terminal the API login is interactive by default: it prints the
-authorize URL, opens the browser, reads the code, and binds the credentials
-to this folder's `.env`. In a non-interactive shell it prints the API
+authorize URL, opens the browser, reads the code, and binds this folder to
+the profile via a `.env` link (`YANDEX_DIRECT_BIND_PROFILE=<name>` — no
+token is copied to disk). In a non-interactive shell it prints the API
 authorization URL without opening a browser or asking questions. Complete
 the two-step flow with `--code` or `--code -` and bind a saved profile with
-`direct auth write --profile NAME`. Saving into an existing profile
+`direct auth write --profile NAME`; pass `--copy-token` there (or pick
+"copy" in the bind menu) to store the raw token in `.env` instead — an
+explicit choice, since a raw copy has no profile identity (issue #917).
+Saving into an existing profile
 (including the default `default`) requires explicit `--force`; without it
 the save refuses to overwrite stored credentials. The CLI never replaces
 stored credentials, profiles or browser sessions silently: a replacement is
 either the command's declared purpose (and it reports what was replaced) or
 requires explicit `--force`.
 
-The API login in a terminal first offers to reuse a saved profile (bound to
-this folder's `.env` on the spot); otherwise a new profile name comes from
+The API login in a terminal first offers to reuse a saved profile (linked
+to this folder on the spot); otherwise a new profile name comes from
 the account login and gets a numeric suffix when the name is taken.
 API credentials and browser cookies stay separate and may belong to
 different accounts.
@@ -447,10 +451,11 @@ Notes:
 - If the first non-interactive step includes `--client-secret`, the secret is remembered for the matching completion step.
 - If a profile already stores a confidential OAuth client, `direct auth login --code CODE --profile NAME` reuses the saved `client_id` and `client_secret`. Re-logging into an existing profile requires `--force`.
 - `direct auth login --oauth-token TOKEN` is a manual access-token import and does not auto-refresh.
-- In a terminal, the interactive API login saves the selected API profile
-  directly to the current folder's `.env`. Headless flows never ask for save
-  confirmation; use `direct auth write --profile NAME` to bind the folder
-  explicitly.
+- In a terminal, the interactive API login links the current folder to the
+  selected API profile (a `YANDEX_DIRECT_BIND_PROFILE` line in the folder's
+  `.env`; the menu offers an explicit "copy the raw token" choice). Headless
+  flows never ask questions; use `direct auth write --profile NAME` to bind
+  the folder without prompts.
 - Alias `auth_login` is not supported.
 
 Credential resolution priority:
@@ -460,29 +465,36 @@ Credential resolution priority:
 | 1 | Explicit CLI options | `direct --token TOKEN --login LOGIN campaigns get` |
 | 2 | Explicit profile credentials | `direct --profile agency1 campaigns get` |
 | 3 | Base env vars or current working directory `.env` | `YANDEX_DIRECT_TOKEN`, `YANDEX_DIRECT_LOGIN` |
-| 4 | Active profile credentials | `direct auth use --profile agency1` |
-| 5 | 1Password references | `--op-token-ref`, `YANDEX_DIRECT_OP_TOKEN_REF` |
-| 6 | Bitwarden references | `--bw-token-ref`, `YANDEX_DIRECT_BW_TOKEN_REF` |
+| 4 | Folder profile link (issue #917) | `YANDEX_DIRECT_BIND_PROFILE=agency1` in cwd `.env` |
+| 5 | Active profile credentials | `direct auth use --profile agency1` |
+| 6 | 1Password references | `--op-token-ref`, `YANDEX_DIRECT_OP_TOKEN_REF` |
+| 7 | Bitwarden references | `--bw-token-ref`, `YANDEX_DIRECT_BW_TOKEN_REF` |
 
 Direct CLI automatically loads only the `.env` file from the current working
 directory, i.e. the directory where you run `direct`. It does not search for
 `.env` from the installed package or source-code location. Without an explicit
 `--profile`, base `YANDEX_DIRECT_TOKEN` / `YANDEX_DIRECT_LOGIN` from env or cwd
-`.env` win over the active OAuth profile. With explicit `--profile`, Direct CLI
+`.env` win over the folder link and the active OAuth profile; the link
+resolves its named profile like an explicit `--profile` and fails loudly when
+that profile is gone (issue #917). With explicit `--profile`, Direct CLI
 uses only that profile's OAuth/profile-env credentials and does not fall back to
 base `YANDEX_DIRECT_LOGIN`; this prevents mixing accounts. `direct auth status`
 without `--profile` reports the effective credential source; with `--profile` it
 reports that profile.
 
 **An unbound folder has no credentials (#904).** When credentials would come
-from the active profile fallback (priority 4) — e.g. a brand-new folder with
+from the active profile fallback (priority 5) — e.g. a brand-new folder with
 no `.env` — the CLI no longer inherits them silently:
 
 - Non-interactive sessions (scripts, sub-processes): API commands fail with
   `UsageError` and binding hints until the folder is bound. Bind a folder
-  without prompts via `direct auth write --profile <name>` — it writes the
-  profile's credentials to the cwd `.env` (merge, `0600`, token never
-  printed); `--profile` is required, nothing is bound implicitly.
+  without prompts via `direct auth write --profile <name>` — it links the
+  folder to the profile (a `YANDEX_DIRECT_BIND_PROFILE` line in the cwd
+  `.env`, merge, `0600`, no secret on disk; `--copy-token` stores the raw
+  credentials instead); `--profile` is required, nothing is bound implicitly.
+- `auth logout api --profile A` removes the folder link only when it names
+  A: a link to another profile, a raw token copy and the inherit flag are
+  kept and reported (issue #917).
 - Terminal sessions follow the same rule: an ordinary command never opens a
   login dialog. Run `direct auth login api` to choose or
   authorize a profile and bind it to this folder. A profile created through

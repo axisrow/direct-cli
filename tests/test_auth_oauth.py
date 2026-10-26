@@ -423,13 +423,13 @@ class TestAuthOAuth:
             )
 
         assert result.exit_code == 0, result.output
+        # Issue #917: a terminal login binds a profile link by default —
+        # no raw token lands in the folder's .env.
         assert env_path.read_text(encoding="utf-8") == (
-            "OTHER=value\n"
-            "YANDEX_DIRECT_TOKEN=access-2\n"
-            "YANDEX_DIRECT_LOGIN=client-login\n"
+            "OTHER=value\nYANDEX_DIRECT_BIND_PROFILE=agency1\n"
         )
         assert "access-2" not in result.output
-        assert "old-token" not in env_path.read_text(encoding="utf-8")
+        assert "access-2" not in env_path.read_text(encoding="utf-8")
 
     @patch(
         "direct_cli.commands.auth.exchange_oauth_code",
@@ -1331,12 +1331,16 @@ class TestAuthOAuth:
         isolated_auth_store,
     ):
         runner = CliRunner()
-        with patch("direct_cli.commands.auth.webbrowser.open"):
-            result = runner.invoke(
-                cli,
-                ["auth", "login", "--profile", "agency1"],
-                input="abc123\n",
-            )
+        # The terminal login binds this folder (issue #917): the link is
+        # re-exported into os.environ — keep it inside patch.dict so the
+        # next tests in this process never see it.
+        with patch.dict(os.environ):
+            with patch("direct_cli.commands.auth.webbrowser.open"):
+                result = runner.invoke(
+                    cli,
+                    ["auth", "login", "--profile", "agency1"],
+                    input="abc123\n",
+                )
         assert result.exit_code == 0
         assert "oauth.yandex.ru/authorize" in result.output
         mock_exchange.assert_called_once_with(

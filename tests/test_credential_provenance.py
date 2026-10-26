@@ -22,6 +22,7 @@ import pytest
 from click.testing import CliRunner
 
 from direct_cli.auth import (
+    BIND_PROFILE_ENV,
     DEFAULT_OAUTH_CLIENT_ID,
     save_oauth_profile,
     set_active_profile,
@@ -42,8 +43,16 @@ def unbound_folder(monkeypatch, tmp_path):
     monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
     monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
     monkeypatch.delenv("YANDEX_DIRECT_INHERIT_GLOBAL", raising=False)
+    monkeypatch.delenv(BIND_PROFILE_ENV, raising=False)
     monkeypatch.chdir(tmp_path)
-    return tmp_path
+    yield tmp_path
+    # An invoke whose cwd .env carries credential keys leaks them into
+    # os.environ via load_dotenv; strip this test's values so later tests
+    # in the same xdist worker never see them (monkeypatch restores the
+    # pre-test ones).
+    for name in tuple(os.environ):
+        if name.startswith("YANDEX_DIRECT_"):
+            del os.environ[name]
 
 
 def _save_oauth_profile(profile="agency1", login="client-login-1", active=False):
@@ -312,11 +321,27 @@ class TestAuthWrite:
             result = CliRunner().invoke(cli, ["auth", "write", "--profile", "agency1"])
 
         assert result.exit_code == 0, result.output
-        assert "Bound credentials to .env (profile agency1)." in result.output
+        assert BIND_PROFILE_ENV in result.output
         assert "oauth-token-1" not in result.output  # токен не печатается
+        dotenv = (unbound_folder / ".env").read_text(encoding="utf-8")
+        # Issue #917: the default binding is a link — no secret on disk.
+        assert f"{BIND_PROFILE_ENV}=agency1" in dotenv
+        assert "oauth-token-1" not in dotenv
+        assert "client-login-1" not in dotenv
+
+    def test_write_copy_token_stores_the_raw_pair(self, unbound_folder):
+        _save_oauth_profile("agency1", "client-login-1", active=True)
+
+        with patch.dict(os.environ):
+            result = CliRunner().invoke(
+                cli, ["auth", "write", "--profile", "agency1", "--copy-token"]
+            )
+
+        assert result.exit_code == 0, result.output
         dotenv = (unbound_folder / ".env").read_text(encoding="utf-8")
         assert "oauth-token-1" in dotenv
         assert "client-login-1" in dotenv
+        assert BIND_PROFILE_ENV not in dotenv
 
     def test_write_merges_with_existing_dotenv(self, unbound_folder):
         _save_oauth_profile("agency1", "client-login-1")
@@ -330,7 +355,8 @@ class TestAuthWrite:
         assert result.exit_code == 0, result.output
         dotenv = (unbound_folder / ".env").read_text(encoding="utf-8")
         assert "OTHER=value" in dotenv
-        assert "oauth-token-1" in dotenv
+        # The link replaces the raw copy: one binding form per folder.
+        assert f"{BIND_PROFILE_ENV}=agency1" in dotenv
         assert "old-token" not in dotenv
 
     def test_write_unknown_profile_fails(self, unbound_folder):
@@ -385,10 +411,86 @@ class TestAuthWrite:
                 return_value=_fake_mutation_client(),
             ) as create_client,
         ):
-            result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\n")
+            result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\n\n")
             assert result.exit_code == 0, result.output
             result = _invoke_set_bids()
 
         assert result.exit_code == 0, result.output
         create_client.assert_called_once()
         assert create_client.call_args.kwargs["login"] == "client-login-1"
+
+
+class TestFolderProfileLink:
+    """The YANDEX_DIRECT_BIND_PROFILE link binding (issue #917)."""
+
+    def _link_dotenv(self, unbound_folder, profile):
+        (unbound_folder / ".env").write_text(
+            f"{BIND_PROFILE_ENV}={profile}\n", encoding="utf-8"
+        )
+
+    def test_link_enables_api_commands_without_menu(self, unbound_folder):
+        _save_oauth_profile("agency1", "client-login-1", active=True)
+        self._link_dotenv(unbound_folder, "agency1")
+
+        with (
+            patch.dict(os.environ),
+            patch(
+                "direct_cli.commands.bids.create_client",
+                return_value=_fake_mutation_client(),
+            ) as create_client,
+        ):
+            result = _invoke_set_bids()
+
+        assert result.exit_code == 0, result.output
+        assert BIND_HINT_SNIPPET not in result.output
+        create_client.assert_called_once()
+        assert create_client.call_args.kwargs["token"] == "oauth-token-1"
+
+    def test_raw_dotenv_token_wins_over_the_link(self, unbound_folder):
+        _save_oauth_profile("agency1", "client-login-1")
+        (unbound_folder / ".env").write_text(
+            f"YANDEX_DIRECT_TOKEN=dotenv-token\n{BIND_PROFILE_ENV}=agency1\n",
+            encoding="utf-8",
+        )
+
+        with (
+            patch.dict(os.environ),
+            patch(
+                "direct_cli.commands.bids.create_client",
+                return_value=_fake_mutation_client(),
+            ) as create_client,
+        ):
+            result = _invoke_set_bids()
+
+        assert result.exit_code == 0, result.output
+        assert create_client.call_args.kwargs["token"] == "dotenv-token"
+
+    def test_dangling_link_fails_loudly(self, unbound_folder):
+        _save_oauth_profile("agency1", "client-login-1", active=True)
+        self._link_dotenv(unbound_folder, "ghost")
+
+        with (
+            patch.dict(os.environ),
+            patch("direct_cli.commands.bids.create_client") as create_client,
+        ):
+            result = _invoke_set_bids()
+
+        assert result.exit_code != 0
+        assert "Profile 'ghost'" in result.output
+        create_client.assert_not_called()
+
+    def test_status_reports_the_linked_profile(self, unbound_folder):
+        _save_oauth_profile("agency1", "client-login-1", active=True)
+        self._link_dotenv(unbound_folder, "agency1")
+
+        with patch.dict(os.environ):
+            result = CliRunner().invoke(
+                cli, ["auth", "status", "api", "--format", "json"]
+            )
+
+        assert result.exit_code == 0, result.output
+        payload = json.loads(result.output)
+        assert payload["profile"] == "agency1"
+        assert payload["source"] == "linked-profile"
+        assert payload["has_token"] is True
+        assert "oauth-token-1" not in result.output

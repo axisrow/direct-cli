@@ -34,7 +34,13 @@ def auth_env(monkeypatch, tmp_path):
     monkeypatch.setattr(session, "DEFAULT_PERSISTENT_PROFILE_DIR", tmp_path / "browser")
     monkeypatch.setattr(session, "PROFILE_POINTER_PATH", tmp_path / "browser-path")
     monkeypatch.setattr(store, "PLAYWRIGHT_SESSION_PATH", tmp_path / "session.json")
-    return tmp_path
+    yield tmp_path
+    # A bind re-exports the fresh link/token into os.environ; strip the
+    # YANDEX_DIRECT_* values this test produced so later tests in the same
+    # xdist worker never see them (monkeypatch restores the pre-test ones).
+    for name in tuple(os.environ):
+        if name.startswith("YANDEX_DIRECT_"):
+            del os.environ[name]
 
 
 @pytest.fixture
@@ -85,7 +91,12 @@ def test_login_in_a_terminal_is_interactive_by_default(
     assert result.exit_code == 0, result.output
     prompt.assert_called_once()
     interactive.assert_called_once()
-    assert "fresh-token" in (auth_env / ".env").read_text()
+    # Issue #917: a terminal login binds a profile link — no raw token copy.
+    dotenv = (auth_env / ".env").read_text()
+    assert "YANDEX_DIRECT_BIND_PROFILE=account" in dotenv
+    assert "fresh-token" not in dotenv
+    stored = get_oauth_profile("account")
+    assert stored is not None and stored["token"] == "fresh-token"
 
 
 def test_scripted_inputs_stay_headless_in_a_terminal(
@@ -244,15 +255,30 @@ def test_api_menu_reuses_profile_and_binds_without_confirmation(
     (auth_env / ".env").write_text("OTHER=keep\n")
     confirm = Mock()
     monkeypatch.setattr("click.confirm", confirm)
-    result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\n")
+    result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\n\n")
     assert result.exit_code == 0, result.output
     assert "1) account" in result.output
     assert "1) API" not in result.output  # the method-choice menu is gone
-    assert "OTHER=keep" in (auth_env / ".env").read_text()
-    assert "YANDEX_DIRECT_TOKEN=stored-token" in (auth_env / ".env").read_text()
+    dotenv = (auth_env / ".env").read_text()
+    assert "OTHER=keep" in dotenv
+    # Issue #917: the menu default is a link; Enter accepts it.
+    assert "YANDEX_DIRECT_BIND_PROFILE=account" in dotenv
+    assert "stored-token" not in dotenv
     assert "stored-token" not in result.output
     confirm.assert_not_called()
     interactive.assert_not_called()
+
+
+def test_api_menu_copy_choice_stores_the_raw_token(auth_env, interactive, monkeypatch):
+    save_profile()
+    (auth_env / ".env").write_text("OTHER=keep\n")
+    result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\ncopy\n")
+    assert result.exit_code == 0, result.output
+    dotenv = (auth_env / ".env").read_text()
+    assert "OTHER=keep" in dotenv
+    assert "YANDEX_DIRECT_TOKEN=stored-token" in dotenv
+    assert "YANDEX_DIRECT_BIND_PROFILE" not in dotenv
+    assert "stored-token" not in result.output
 
 
 @pytest.mark.parametrize("existing", [False, True])
@@ -281,7 +307,10 @@ def test_new_api_profile_is_named_without_overwriting_an_existing_profile(
     name = "account-2" if existing else "account"
     saved = get_oauth_profile(name)
     assert saved is not None and saved["token"] == "fresh-token"
-    assert "fresh-token" in (auth_env / ".env").read_text()
+    # Issue #917: the fresh login binds a link, not a token copy.
+    dotenv = (auth_env / ".env").read_text()
+    assert f"YANDEX_DIRECT_BIND_PROFILE={name}" in dotenv
+    assert "fresh-token" not in dotenv
     assert "secret-code" not in result.output
     interactive.assert_called_once()
     if existing:
@@ -320,9 +349,11 @@ def test_api_profile_selection_needs_no_browser_dependencies(
     save_profile()
     monkeypatch.setitem(sys.modules, "playwright", None)
     monkeypatch.setitem(sys.modules, "playwright.sync_api", None)
-    result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\n")
+    result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\n\n")
     assert result.exit_code == 0, result.output
-    assert "stored-token" in (auth_env / ".env").read_text()
+    dotenv = (auth_env / ".env").read_text()
+    assert "YANDEX_DIRECT_BIND_PROFILE=account" in dotenv
+    assert "stored-token" not in dotenv
 
 
 def test_json_api_start_never_prompts_even_in_terminal(
@@ -568,26 +599,65 @@ def test_status_defaults_to_both_domains(auth_env):
     assert json.loads(browser.stdout)["active_source"] is None
 
 
-def test_api_logout_clears_only_current_binding_and_selected_profile(auth_env):
+def test_api_logout_removes_only_a_link_that_names_the_removed_profile(auth_env):
     save_profile("account", active=True)
     save_profile("other")
     save_pending_pkce("account", "cid", "verifier", "challenge")
     env = auth_env / ".env"
-    env.write_text(
-        "OTHER=keep\nYANDEX_DIRECT_TOKEN = secret\n"
-        "export YANDEX_DIRECT_LOGIN = account\n"
-        "YANDEX_DIRECT_OP_TOKEN_REF=op://vault/item/token\n"
-        "YANDEX_DIRECT_BW_TOKEN_REF=previous-account\n"
-        "YANDEX_DIRECT_INHERIT_GLOBAL=1\n"
-    )
+    env.write_text("OTHER=keep\nYANDEX_DIRECT_BIND_PROFILE=account\n")
     result = CliRunner().invoke(cli, ["auth", "logout", "api", "--profile", "account"])
     assert result.exit_code == 0, result.output
+    # The link unambiguously named the removed profile: it goes, the rest of
+    # the file stays.
     assert env.read_text() == "OTHER=keep\n"
+    assert "YANDEX_DIRECT_BIND_PROFILE=account" in result.output
     data = load_auth_store()
     assert set(data["profiles"]) == {"other"}
     assert data["active_profile"] is None
     assert "account" not in data["pending_pkce"]
-    assert "secret" not in result.output
+    assert "stored-token" not in result.output
+
+
+def test_api_logout_keeps_a_link_to_another_profile(auth_env):
+    save_profile("account", active=True)
+    save_profile("other")
+    env = auth_env / ".env"
+    env.write_text("OTHER=keep\nYANDEX_DIRECT_BIND_PROFILE=other\n")
+    result = CliRunner().invoke(cli, ["auth", "logout", "api", "--profile", "account"])
+    assert result.exit_code == 0, result.output
+    # Issue #917: removing profile A must not silently break a folder bound
+    # to profile B.
+    assert env.read_text() == "OTHER=keep\nYANDEX_DIRECT_BIND_PROFILE=other\n"
+    assert "YANDEX_DIRECT_BIND_PROFILE=other" in result.output
+    data = load_auth_store()
+    assert set(data["profiles"]) == {"other"}
+    assert data["active_profile"] is None
+
+
+def test_api_logout_leaves_a_raw_token_copy_alone(auth_env):
+    save_profile("account", active=True)
+    env = auth_env / ".env"
+    env.write_text(
+        "OTHER=keep\nYANDEX_DIRECT_TOKEN=secret\nYANDEX_DIRECT_LOGIN=account\n"
+    )
+    result = CliRunner().invoke(cli, ["auth", "logout", "api", "--profile", "account"])
+    assert result.exit_code == 0, result.output
+    # A raw copy has no profile identity — logout never rewrites it.
+    assert env.read_text() == (
+        "OTHER=keep\nYANDEX_DIRECT_TOKEN=secret\nYANDEX_DIRECT_LOGIN=account\n"
+    )
+    assert get_oauth_profile("account") is None
+
+
+def test_api_logout_keeps_the_inherit_flag(auth_env):
+    save_profile("account", active=True)
+    env = auth_env / ".env"
+    env.write_text("OTHER=keep\nYANDEX_DIRECT_INHERIT_GLOBAL=1\n")
+    result = CliRunner().invoke(cli, ["auth", "logout", "api", "--profile", "account"])
+    assert result.exit_code == 0, result.output
+    # The inherit flag is about the global active profile, not profile A.
+    assert env.read_text() == "OTHER=keep\nYANDEX_DIRECT_INHERIT_GLOBAL=1\n"
+    assert get_oauth_profile("account") is None
 
 
 def test_failed_dotenv_write_keeps_original_file(auth_env, monkeypatch):
@@ -643,12 +713,12 @@ def test_api_logout_requires_explicit_profile(auth_env):
 def test_api_logout_rejects_symlinked_dotenv_before_removing_profile(auth_env):
     save_profile()
     target = auth_env / "external.env"
-    target.write_text("YANDEX_DIRECT_TOKEN=secret\n")
+    target.write_text("YANDEX_DIRECT_BIND_PROFILE=account\n")
     (auth_env / ".env").symlink_to(target)
     result = CliRunner().invoke(cli, ["auth", "logout", "api", "--profile", "account"])
     assert result.exit_code != 0
     assert get_oauth_profile("account") is not None
-    assert target.read_text() == "YANDEX_DIRECT_TOKEN=secret\n"
+    assert target.read_text() == "YANDEX_DIRECT_BIND_PROFILE=account\n"
 
 
 def test_browser_logout_forgets_both_cli_sessions(auth_env):

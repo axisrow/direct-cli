@@ -13,8 +13,8 @@ import click
 from click.core import ParameterSource
 
 from ..auth import (
+    BIND_PROFILE_ENV,
     DEFAULT_OAUTH_CLIENT_ID,
-    FOLDER_CREDENTIAL_KEYS,
     INHERIT_GLOBAL_ENV,
     bw_read,
     build_oauth_authorize_url,
@@ -30,9 +30,11 @@ from ..auth import (
     list_profiles,
     load_auth_store,
     op_read,
+    read_folder_binding,
     remove_pending_pkce,
     resolve_account_login,
     save_env_credentials,
+    save_env_binding,
     save_auth_store,
     save_oauth_profile,
     save_pending_confidential_auth,
@@ -76,43 +78,85 @@ def _prompt_authorize_code(
 
 
 def bind_credentials_to_dotenv(
-    profile: str, token: str, login_value: Optional[str]
+    profile: str,
+    token: str,
+    login_value: Optional[str],
+    copy_token: bool = False,
 ) -> None:
-    """Persist an in-hand credential pair as this folder's cwd `.env` binding.
+    """Bind this folder's cwd `.env` to *profile*.
 
-    Re-exports the pair into ``os.environ`` so the running process resolves
-    the freshly bound credentials even when the shell already exported a
-    stale ``YANDEX_DIRECT_LOGIN`` — ``load_dotenv`` never overrides set
-    variables.
+    Default writes a profile link (``YANDEX_DIRECT_BIND_PROFILE``): no
+    secret lands on disk, the raw token stays in the global profile store
+    (issue #917 design — the folder `.env` is a fallback, not the primary
+    binding). ``copy_token=True`` stores the raw pair instead — the explicit
+    bind-menu/`--copy-token` choice.
+
+    Either form is re-exported into ``os.environ`` so the running process
+    resolves the freshly chosen binding even when the shell already exported
+    stale credential values — ``load_dotenv`` never overrides set variables.
     """
     try:
-        save_env_credentials(token=token, login=login_value)
+        if copy_token:
+            save_env_credentials(token=token, login=login_value)
+        else:
+            save_env_binding(profile)
     except (OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
-    os.environ["YANDEX_DIRECT_TOKEN"] = token
-    if login_value:
-        os.environ["YANDEX_DIRECT_LOGIN"] = login_value
+    if copy_token:
+        os.environ["YANDEX_DIRECT_TOKEN"] = token
+        if login_value:
+            os.environ["YANDEX_DIRECT_LOGIN"] = login_value
+        else:
+            os.environ.pop("YANDEX_DIRECT_LOGIN", None)
+        os.environ.pop(BIND_PROFILE_ENV, None)
+        print_success(
+            t("Bound credentials to .env (profile {profile}).").format(profile=profile)
+        )
     else:
+        os.environ[BIND_PROFILE_ENV] = profile
+        os.environ.pop("YANDEX_DIRECT_TOKEN", None)
         os.environ.pop("YANDEX_DIRECT_LOGIN", None)
-    print_success(
-        t("Bound credentials to .env (profile {profile}).").format(profile=profile)
-    )
+        print_success(
+            t(
+                "Bound this folder to profile '{profile}' via {key}"
+                " (no token copied)."
+            ).format(profile=profile, key=BIND_PROFILE_ENV)
+        )
 
 
-def bind_profile_to_dotenv(profile: str) -> Tuple[str, Optional[str]]:
-    """Resolve *profile* and bind it to this folder's cwd `.env` (merge, 0600).
+def bind_profile_to_dotenv(
+    profile: str, copy_token: bool = False
+) -> Tuple[str, Optional[str]]:
+    """Resolve *profile* and bind this folder to it via cwd `.env` (merge, 0600).
 
-    Shared by `auth write` and the interactive bind menu.
+    Shared by `auth write` and the interactive bind menu. Default binds a
+    link (no secret on disk); ``copy_token=True`` stores the raw pair
+    (issue #917). Resolution validates the profile in both modes.
     """
     try:
         token, login_value = get_credentials_with_source(
             profile=profile,
-            allow_login_resolve=True,
+            allow_login_resolve=copy_token,
         )[:2]
     except (RuntimeError, ValueError) as error:
         raise click.ClickException(str(error)) from error
-    bind_credentials_to_dotenv(profile, token, login_value)
+    bind_credentials_to_dotenv(profile, token, login_value, copy_token=copy_token)
     return token, login_value
+
+
+def _ask_copy_token(profile: str) -> bool:
+    """Ask link vs raw-token copy; the link is the default (issue #917)."""
+    return (
+        click.prompt(
+            t(
+                "Bind '{profile}' as a link to the global profile, or copy the"
+                " raw token to .env?"
+            ).format(profile=profile),
+            type=click.Choice(["link", "copy"]),
+            default="link",
+        )
+        == "copy"
+    )
 
 
 @click.group()
@@ -377,7 +421,8 @@ def login_api(
                 t("Choose a profile"), type=click.IntRange(0, len(profiles))
             )
             if profile_choice:
-                bind_profile_to_dotenv(profiles[profile_choice - 1]["profile"])
+                chosen = profiles[profile_choice - 1]["profile"]
+                bind_profile_to_dotenv(chosen, copy_token=_ask_copy_token(chosen))
                 return
     chosen_client_id = client_id or DEFAULT_OAUTH_CLIENT_ID
     code_from_stdin = False
@@ -707,9 +752,14 @@ def use(profile):
 
 @auth.command()
 @click.option("--profile", required=True, help="Profile name to bind this folder to")
-def write(profile):
-    """Bind this folder to a profile by writing the cwd .env file."""
-    bind_profile_to_dotenv(profile)
+@click.option(
+    "--copy-token",
+    is_flag=True,
+    help="Store the raw token/login in .env instead of linking to the global profile",
+)
+def write(profile: str, copy_token: bool) -> None:
+    """Bind this folder to a profile in the cwd .env (a link, no secret)."""
+    bind_profile_to_dotenv(profile, copy_token=copy_token)
 
 
 @auth.group(invoke_without_command=True)
@@ -846,6 +896,8 @@ def api_status(ctx: click.Context, profile: Optional[str]) -> Dict[str, Any]:
     # fallback — only possible under the #904 opt-in env; then the
     # credentials are inherited, not bound to this folder.
     inherited_profile = False
+    # True when the folder's .env links a named profile (issue #917).
+    linked_profile = False
     if not selected:
         root_token = root_obj.get("token")
         if root_token:
@@ -864,6 +916,11 @@ def api_status(ctx: click.Context, profile: Optional[str]) -> Dict[str, Any]:
                 login_value=env_login,
                 expires_at=None,
             )
+        linked = (os.getenv(BIND_PROFILE_ENV) or "").strip()
+        if linked:
+            selected = linked
+            linked_profile = True
+    if not selected:
         active = get_active_profile()
         if active and not inherit_globally_enabled():
             # #904: the global active profile is not a credential source
@@ -934,13 +991,19 @@ def api_status(ctx: click.Context, profile: Optional[str]) -> Dict[str, Any]:
             except ValueError as exc:
                 raise click.ClickException(str(exc)) from exc
         login_value = oauth_profile.get("login")
-        source = "global-profile-inherited" if inherited_profile else stored_source
+        if linked_profile:
+            source = "linked-profile"
+        else:
+            source = "global-profile-inherited" if inherited_profile else stored_source
         if not login_value and env_login:
             login_value = env_login
-            if not inherited_profile:
+            if not inherited_profile and not linked_profile:
                 source = "oauth+env"
     elif env_token:
-        source = "global-profile-inherited" if inherited_profile else "env"
+        if linked_profile:
+            source = "linked-profile"
+        else:
+            source = "global-profile-inherited" if inherited_profile else "env"
         login_value = env_login
     else:
         raise click.ClickException(f"Profile '{selected}' is not configured.")
@@ -1389,7 +1452,7 @@ def logout(method: Any) -> None:
 @logout.command(name="api")
 @click.option("--profile", required=True, help="Local API profile to remove")
 def logout_api(profile: Optional[str]) -> None:
-    """Forget a local API profile and this folder's binding."""
+    """Forget a local API profile and this folder's link when it names it."""
     try:
         if not profile:
             raise click.UsageError(
@@ -1400,19 +1463,40 @@ def logout_api(profile: Optional[str]) -> None:
             raise click.ClickException(
                 t("No local API profile named '{profile}'.").format(profile=profile)
             )
-        save_env_credentials(token=None)
+        # Issue #917: the folder's binding is touched only when it
+        # unambiguously names the profile being removed. A raw token copy
+        # has no profile identity, secret refs and the inherit flag are
+        # other binding forms — logout leaves all of them alone.
+        bound = read_folder_binding()
+        removed_link = bound == profile
+        if removed_link:
+            save_env_binding(None)
         del store["profiles"][profile]
         store["pending_pkce"].pop(profile, None)
         if store["active_profile"] == profile:
             store["active_profile"] = None
         save_auth_store(store)
-        for name in FOLDER_CREDENTIAL_KEYS:
-            os.environ.pop(name, None)
-        print_success(
-            t("API profile '{profile}' and this folder's binding removed.").format(
-                profile=profile
+        print_success(t("API profile '{profile}' removed.").format(profile=profile))
+        if removed_link:
+            os.environ.pop(BIND_PROFILE_ENV, None)
+            print_success(
+                t("Removed this folder's binding ({key}={profile}).").format(
+                    key=BIND_PROFILE_ENV, profile=profile
+                )
             )
-        )
+        elif bound:
+            print_warning(
+                t("This folder's .env binding ({key}={bound}) was kept.").format(
+                    key=BIND_PROFILE_ENV, bound=bound
+                )
+            )
+        else:
+            print_info(
+                t(
+                    "This folder's .env was kept (raw token copies are not"
+                    " managed by logout)."
+                )
+            )
         print_info(
             t("Token copies in other folders or external environments are not revoked.")
         )
