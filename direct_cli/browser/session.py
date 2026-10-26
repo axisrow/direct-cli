@@ -147,12 +147,25 @@ class SaveNotVerifiedError(BrowserSessionError):
     unannotated error as NOT retryable (fail-closed): only the real raise
     site — which always has lines to attach — may opt an error into the
     auto-retry.
+
+    ``no_op_save`` certifies the #870 no-op mode: the raise site compared
+    the page's post-save state with the certified pre-save baseline and
+    found them EQUAL — nothing the request asked for was applied and
+    nothing else changed. That is the one section-guard firing a re-run
+    may converge on: the target-actions guard folds the REQUESTED prices
+    into its expected map, so a no-op save fires it as a restatement of
+    the requested-value mismatch, not as a section loss. Default
+    ``False`` (fail-closed — a guard mismatch without this certification
+    keeps the no-retry behavior). The retry gate additionally requires
+    that no OTHER guard prefix fired alongside it.
     """
 
     mismatches: Sequence[str] = ()
     # `List[str]` would share one mutable list across every unannotated
     # instance; the tuple default cannot be poisoned by an errant
     # `exc.mismatches.append(...)` on a raise site that forgot to assign.
+
+    no_op_save: bool = False
 
 
 class BrowserNetworkError(BrowserSessionError):

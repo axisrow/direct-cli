@@ -103,7 +103,27 @@ replacement notices now point at the new subcommand surface.
   CLI's micro-scale validation hint; every fixed example was verified with
   `--dry-run` (exit 0, request printed). Documentation only — no CLI
   contract change.
-
+- **`masters update`: a first save that applies nothing is now retried
+  automatically — including when the target-actions guard fires (#870,
+  NOT closed by #884).** The #882 auto-retry re-runs a value-set update
+  whose save did not verify, but the section-preservation guard suppressed
+  it in exactly the reported scenario: the guard's expected map folds in
+  the REQUESTED price (`{**baseline, **requested}`), so a no-op first save
+  failed both the `target_action_price[…]: expected …, page now shows …`
+  check and the `target actions: …` guard line, and that guard prefix made
+  the retry gate refuse to re-run — the operator still had to repeat the
+  command by hand (live repro 2026-10-23, twice on `--target-action-price`).
+  `_verify_saved` now compares the post-save table with the certified
+  pre-save baseline: when they are EQUAL, the guard mismatch is a
+  restatement of the requested-value mismatch, the error is annotated
+  `no_op_save`, and the retry gate re-runs the update once inside the same
+  call. Any divergence beyond the baseline (a dropped goal, a shifted
+  untouched price — issue #876's silent loss), an unreadable table, or any
+  other guard firing (audience tags / Metrika counters / sitelinks — where
+  a retry would re-baseline from a possibly mutated page) keeps the
+  fail-closed single-attempt behavior; two failed attempts still surface
+  the final "did not save as requested" error with the "automatic retry
+  has already run once" marker.
 - **`reports get`: API error 56 (method rate limit) now retries with
   exponential backoff (#918).** Yandex allows only 1 request per 10 seconds
   per method; with several `direct`/MCP clients sharing one account, each
