@@ -163,6 +163,21 @@ replacement notices now point at the new subcommand surface.
   No anchor (browser-only setup, a stale global profile in a default
   no-binding folder, or a pre-#480 profile whose stored login is
   still an email) means no opinion instead of a guess.
+
+- **`masters get` now reports the promotion goal (#911).** The overview page
+  `get` already reads carries the "Цель продвижения" block, but its output
+  stopped at CampaignId/Name/Status/LandingUrl/Stats — while
+  `masters targetactions get --help` explicitly says "Use `masters get` to
+  check the campaign's current promotion goal", and an empty
+  `TargetActions: []` is uninterpretable without it. Each result now also
+  carries `PromotionGoal` — the kebab key `update --promotion-goal` takes
+  (`max-conversions`/`max-clicks`; a label the CLI doesn't know yet passes
+  through verbatim) — and `GoalPrice` when the page renders the price field
+  ("max-clicks" only). Pure pass-through of the already-fetched page, no
+  flags, no extra navigation; existing keys and their order are unchanged,
+  and a page without the block simply omits both keys as before (the DRAFT
+  form, where the block is guaranteed, reports it via `print_warning`).
+
 - **README campaign examples now pass `--dry-run` (#902).** Eight examples
   (four per language) used raw currency amounts instead of micro-currency:
   `--priority-goals` with values `80`/`20` (now `80000000`/`20000000`,

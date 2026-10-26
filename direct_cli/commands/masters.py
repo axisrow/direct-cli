@@ -421,6 +421,14 @@ def get(
 ):
     """Get one or more Мастер кампаний by ID (comma-separated)
 
+    Each result carries the campaign's promotion goal (PromotionGoal, the
+    same kebab key --promotion-goal takes, e.g. "max-conversions") and its
+    goal price when the page renders the field (GoalPrice, "max-clicks"
+    only) — read off the same overview page as the rest of the output, so
+    `masters targetactions get`'s empty list can be disambiguated (issue
+    #911). A goal the page reports but this CLI doesn't know yet is passed
+    through verbatim.
+
     With --moderation-statuses, additionally reads each campaign's edit page
     for ad elements that moderation rejected individually (the campaign keeps
     running on its remaining approved elements, so this does not show up in

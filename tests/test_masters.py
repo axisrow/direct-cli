@@ -166,6 +166,11 @@ class _FakeLocatorHandle:
         # only observable an offline fake has for that cost, mirroring
         # click_timeouts above.
         self.inner_text_timeouts = []
+        # Same recording for wait_for()'s `timeout=` (issue #911 review):
+        # _read_goal_price's visibility wait is the other read whose absent
+        # element must not pay a caller's full verify budget on a page that
+        # never renders the field.
+        self.wait_for_timeouts = []
         # {selector: _FakeLocatorHandle} for a SCOPED child lookup — models
         # Playwright's Locator.locator(), e.g. `label.locator("xpath=.//input
         # [...]")` (issue #656: _set_region reads a checkbox scoped off the
@@ -234,6 +239,7 @@ class _FakeLocatorHandle:
         # the same PlaywrightError a real timeout would when the element is
         # absent/detached/not visible, so a test can model "field never
         # rendered" without a separate polling loop.
+        self.wait_for_timeouts.append(timeout)
         if self._raises or not self._visible:
             raise PlaywrightError("Timeout waiting for element state")
 
@@ -3987,6 +3993,92 @@ class TestFetchMaster(unittest.TestCase):
             },
         )
 
+    def _page_with_goal(self, label, price_value=None):
+        """A dashboard page whose "Цель продвижения" block renders ``label``
+        (the trigger's two-line inner_text) and, when ``price_value`` is
+        given, the max-clicks-only price input holding it (issue #911)."""
+        locators = {
+            browser_masters._OVERVIEW_TITLE_SELECTOR: _FakeLocator(
+                [_FakeLocatorHandle(text="Мастер Тест")]
+            ),
+            browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator(
+                [_FakeLocatorHandle(text=f"Цель продвижения\n{label}")]
+            ),
+        }
+        if price_value is not None:
+            locators[browser_masters._GOAL_PRICE_INPUT_TESTID] = _FakeLocator(
+                [_FakeLocatorHandle(get_value=lambda: price_value)]
+            )
+        return FakePage(locators=locators, body_text="Кампания активна")
+
+    def test_promotion_goal_passed_through_max_conversions(self):
+        # Issue #911: the overview page's "Цель продвижения" selection must
+        # surface in fetch_master's result, keyed the way update_master's own
+        # result row and --promotion-goal spell it (kebab key), so
+        # `masters targetactions get`'s empty list can be disambiguated.
+        # Under max-conversions the price input does not exist on the page
+        # at all (see _GOAL_PRICE_INPUT_TESTID) — GoalPrice stays omitted.
+        result = browser_masters.fetch_master(
+            self._page_with_goal("Максимум целевых действий"), 75107869
+        )
+
+        self.assertEqual(result["PromotionGoal"], "max-conversions")
+        self.assertNotIn("GoalPrice", result)
+
+    def test_promotion_goal_max_clicks_includes_goal_price(self):
+        result = browser_masters.fetch_master(
+            self._page_with_goal("Максимум переходов", price_value="150"),
+            75107869,
+        )
+
+        self.assertEqual(result["PromotionGoal"], "max-clicks")
+        self.assertEqual(result["GoalPrice"], "150")
+
+    def test_promotion_goal_unknown_label_passed_through_verbatim(self):
+        # Same no-invented-mapping rule as masters list's Strategy: a label
+        # the CLI doesn't know (markup drift, a brand-new Yandex goal) is
+        # reported as-is rather than dropped or re-keyed.
+        result = browser_masters.fetch_master(
+            self._page_with_goal("Что-то новенькое"), 1
+        )
+
+        self.assertEqual(result["PromotionGoal"], "Что-то новенькое")
+
+    def test_promotion_goal_block_absent_is_silent_omission(self):
+        # A page shape without the block (per the committed dashboard recon
+        # it may not render it) omits both keys best-effort — and, unlike
+        # the guaranteed DRAFT form, without a warning: ordinary dashboard
+        # `get` runs must stay noise-free.
+        page = self._page_for()
+
+        with patch("direct_cli.browser.masters.print_warning") as warn:
+            result = browser_masters.fetch_master(page, 72349978)
+
+        self.assertNotIn("PromotionGoal", result)
+        self.assertNotIn("GoalPrice", result)
+        warn.assert_not_called()
+
+    def test_promotion_goal_probes_use_short_timeouts(self):
+        # The goal readers are best-effort probes on a page that may never
+        # render the block: an omitted explicit timeout would pay Playwright's
+        # ~30s inner_text auto-wait (and _read_goal_price's 5s verify wait)
+        # on every such page, so both must carry the 1s probe budget. Mirrors
+        # the inner_text_timeouts guard convention (issue #848 review).
+        trigger = _FakeLocatorHandle(text="Цель продвижения\nМаксимум переходов")
+        price = _FakeLocatorHandle(get_value=lambda: "150")
+        page = FakePage(
+            locators={
+                browser_masters._PROMOTION_GOAL_BUTTON_XPATH: _FakeLocator([trigger]),
+                browser_masters._GOAL_PRICE_INPUT_TESTID: _FakeLocator([price]),
+            },
+            body_text="Кампания активна",
+        )
+
+        browser_masters._extract_promotion_goal(page, {"CampaignId": 1})
+
+        self.assertEqual(trigger.inner_text_timeouts, [1_000])
+        self.assertEqual(price.wait_for_timeouts, [1_000])
+
     def test_landing_url_ignores_yandex_promo_banner(self):
         # Issue #763: the overview page always also renders a Yandex promo
         # banner ("Yandex Neuro Ads") whose own href carries an unrelated
@@ -4347,6 +4439,8 @@ class TestFetchMasterDraft(unittest.TestCase):
         title="Мастер ИЖ-1 Сосуды и вены (холодный)",
         budget="80 000",
         landing_url: Optional[str] = "https://lp.ksamata.ru/",
+        goal_label: Optional[str] = None,
+        goal_price: Optional[str] = None,
     ):
         locators = {
             browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator(
@@ -4362,6 +4456,14 @@ class TestFetchMasterDraft(unittest.TestCase):
         if landing_url is not None:
             locators[browser_masters._EDIT_URL_INPUT_TESTID] = _FakeLocator(
                 [_FakeLocatorHandle(text=landing_url)]
+            )
+        if goal_label is not None:
+            locators[browser_masters._PROMOTION_GOAL_BUTTON_XPATH] = _FakeLocator(
+                [_FakeLocatorHandle(text=f"Цель продвижения\n{goal_label}")]
+            )
+        if goal_price is not None:
+            locators[browser_masters._GOAL_PRICE_INPUT_TESTID] = _FakeLocator(
+                [_FakeLocatorHandle(get_value=lambda: goal_price)]
             )
         return FakePage(locators=locators)
 
@@ -4409,7 +4511,29 @@ class TestFetchMasterDraft(unittest.TestCase):
             result = browser_masters.fetch_master(page, 1)
 
         self.assertEqual(result, {"CampaignId": 1, "Status": "DRAFT"})
-        self.assertEqual(warn.call_count, 3)  # name, budget, landing URL
+        # name, budget, landing URL, promotion goal (issue #911: the DRAFT
+        # form guarantees the "Цель продвижения" block, so its absence is
+        # reported like the other guaranteed fields).
+        self.assertEqual(warn.call_count, 4)
+
+    def test_draft_overview_includes_promotion_goal(self):
+        # Issue #911: the DRAFT overview IS the wizard form (issue #660), so
+        # the promotion-goal block is on the already-open page — pass it
+        # through like every other form field, no extra navigation.
+        result = browser_masters.fetch_master(
+            self._draft_page(goal_label="Максимум целевых действий", goal_price=None),
+            713231614,
+        )
+
+        self.assertEqual(result["PromotionGoal"], "max-conversions")
+        self.assertNotIn("GoalPrice", result)
+
+    def test_draft_overview_warns_when_goal_unreadable(self):
+        with patch("direct_cli.browser.masters.print_warning") as warn:
+            result = browser_masters.fetch_master(self._draft_page(), 1)
+
+        self.assertNotIn("PromotionGoal", result)
+        warn.assert_any_call("Could not read promotion goal for 1.")
 
     def test_non_draft_page_unaffected(self):
         # A page whose CampaignHeader.Status reads something other than
@@ -12465,7 +12589,7 @@ class TestUpdateMaster(unittest.TestCase):
         goal_labels = browser_masters.PROMOTION_GOAL_CHOICES
         selected_new = {"value": False}
 
-        def _trigger_text():
+        def _trigger_text(timeout=None):
             label = (
                 goal_labels["max-clicks"]
                 if selected_new["value"]
