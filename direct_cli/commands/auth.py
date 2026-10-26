@@ -40,11 +40,7 @@ from ..auth import (
     set_active_profile,
     validate_oauth_profile,
 )
-from .._auth_hints import (
-    HINT_LOGIN_API,
-    HINT_LOGIN_BROWSER,
-    HINT_LOGIN_BROWSER_CHROME,
-)
+from .._auth_hints import HINT_LOGIN_API, HINT_LOGIN_BROWSER
 from ..i18n import t
 from ..output import (
     format_output,
@@ -138,43 +134,156 @@ def _refuse_existing_profile_without_force(profile: str, force: bool) -> None:
     )
 
 
-@auth.command()
+def _reject_removed_login_flag(flag: str, hint: str) -> Callable[..., Any]:
+    """Stub out a deleted login flag with the exact canonical replacement.
+
+    The old surface is never silently accepted: each stub raises the one
+    command from ``_auth_hints`` that replaces it (issue #924).
+    """
+
+    def callback(ctx: click.Context, param: click.Parameter, value: Any) -> Any:
+        if value:
+            raise click.UsageError(
+                t("{flag} was removed; run {hint}.").format(flag=flag, hint=hint)
+            )
+        return value
+
+    return callback
+
+
+def _reject_domainless_ui_flag(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> Any:
+    """Stub for --interactive/--headful given without an api|browser domain."""
+    if value:
+        raise click.UsageError(
+            t(
+                "{flag} was removed; {api} is interactive in a terminal, "
+                "and {browser} opens the login window itself."
+            ).format(
+                flag=param.opts[0],
+                api=HINT_LOGIN_API,
+                browser=HINT_LOGIN_BROWSER,
+            )
+        )
+    return value
+
+
+def _reject_login_method(ctx: click.Context, param: click.Parameter, value: Any) -> Any:
+    """Stub for the deleted --method on `auth login`: name the subcommand."""
+    if value is None:
+        return None
+    hint = HINT_LOGIN_API if value == "api" else HINT_LOGIN_BROWSER
+    raise click.UsageError(t("--method was removed; run {hint}.").format(hint=hint))
+
+
+def _reject_status_method(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> Any:
+    """Stub for the deleted --method on `auth status`."""
+    if value is None:
+        return None
+    replacement = {
+        "api": "direct auth status api",
+        "browser": "direct auth status browser",
+        "all": "direct auth status (shows both)",
+    }[value]
+    raise click.UsageError(
+        t("--method was removed; run {replacement}.").format(replacement=replacement)
+    )
+
+
+def _reject_logout_method(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> Any:
+    """Stub for the deleted --method on `auth logout`."""
+    if value is None:
+        return None
+    replacement = (
+        "direct auth logout api --profile NAME"
+        if value == "api"
+        else "direct auth logout browser"
+    )
+    raise click.UsageError(
+        t("--method was removed; run {replacement}.").format(replacement=replacement)
+    )
+
+
+def _warn_profile_ignored_in_browser_domain(ctx: click.Context) -> None:
+    """--profile names an API profile; browser sessions are shared."""
+    if ctx.get_parameter_source("profile") is ParameterSource.COMMANDLINE:
+        print_info(
+            t(
+                "--profile selects an API profile; browser sessions are "
+                "shared across profiles, so it is ignored here."
+            )
+        )
+
+
+class _DefaultApiLoginGroup(click.Group):
+    """`auth login` without an explicit domain means `auth login api` (#924).
+
+    Click stops group parsing at the first non-group token, so old-style
+    API flags after bare `auth login` (--profile, --code, ...) reach this
+    hook unexpanded: prefixing the api subcommand keeps them COMMANDLINE-
+    sourced — the save-overwrite gates see exactly the same surface as the
+    explicit `auth login api` form.
+    """
+
+    def resolve_command(self, ctx: click.Context, args: list) -> Any:
+        if args and args[0] not in self.commands:
+            args = ["api", *args]
+        return super().resolve_command(ctx, args)
+
+
+@auth.group(
+    invoke_without_command=True,
+    cls=_DefaultApiLoginGroup,
+    context_settings={"ignore_unknown_options": True},
+)
+@click.option(
+    "--method",
+    type=click.Choice(["api", "browser"]),
+    callback=_reject_login_method,
+    help="Removed: use the api|browser subcommand.",
+)
 @click.option(
     "--interactive",
     "interactive_login",
     is_flag=True,
-    help="Enable login dialogs and browser UI explicitly (default: headless)",
+    callback=_reject_domainless_ui_flag,
+    help="Removed: the api subcommand is interactive in a terminal.",
 )
 @click.option(
-    "--method", type=click.Choice(["api", "browser"]), help="Authorization method"
-)
-@click.option(
-    "--source",
-    type=click.Choice(["manual", "chrome"]),
-    default="manual",
-    help="Browser login source",
-)
-@click.option(
-    "--profile-dir", type=click.Path(file_okay=False), help="Browser profile directory"
-)
-@click.option(
-    "--chrome-profile", default="Default", help="Chrome profile subdirectory to import"
-)
-@click.option(
-    "--timeout",
-    "timeout_seconds",
-    type=click.IntRange(min=1),
-    default=300,
-    help="Seconds to wait for browser login",
-)
-@click.option(
-    "--allow-no-tty",
+    "--headful",
     is_flag=True,
-    help="Allow explicitly requested browser UI without a terminal",
+    callback=_reject_domainless_ui_flag,
+    help="Removed: the browser subcommand opens the login window itself.",
 )
-@click.option("--headful", is_flag=True, help="Show the browser window explicitly")
+def login(method: Any, interactive_login: bool, headful: bool) -> None:
+    """Log in: an API OAuth token, or a browser session for browser commands."""
+    if click.get_current_context().invoked_subcommand is None:
+        # Owner decision (issue #924): bare login is the API login; the old
+        # method-choice menu is gone.
+        ctx = click.get_current_context()
+        ctx.invoke(login_api)
+
+
+@login.command(name="api")
 @click.option(
-    "--no-verify", is_flag=True, help="Skip session verification during Chrome import"
+    "--interactive",
+    "interactive_login",
+    is_flag=True,
+    hidden=True,
+    callback=_reject_removed_login_flag("--interactive", HINT_LOGIN_API),
+    help="Removed: this command is interactive in a terminal.",
+)
+@click.option(
+    "--headful",
+    is_flag=True,
+    hidden=True,
+    callback=_reject_removed_login_flag("--headful", HINT_LOGIN_API),
+    help="Removed.",
 )
 @click.option("--profile", default="default", show_default=True, help="Profile name")
 @click.option(
@@ -211,17 +320,10 @@ def _refuse_existing_profile_without_force(profile: str, force: bool) -> None:
 )
 @click.pass_context
 @handle_api_errors
-def login(
+def login_api(
     ctx: click.Context,
     interactive_login: bool,
-    method: Optional[str],
-    source: str,
-    profile_dir: Optional[str],
-    chrome_profile: str,
-    timeout_seconds: int,
-    allow_no_tty: bool,
     headful: bool,
-    no_verify: bool,
     profile: str,
     force: bool,
     code: Optional[str],
@@ -233,7 +335,13 @@ def login(
     start_pkce: bool,
     output_format: str,
 ) -> None:
-    """Log in to the API or save a browser session."""
+    """Log in to the Yandex Direct API (OAuth token saved in an auth profile).
+
+    Used by API and v4 commands (campaigns, ads, reports, ...). In a
+    terminal this opens the authorize flow and binds the credentials to
+    this folder; without a terminal it prints the authorize URL for
+    unattended completion.
+    """
     api_options = (
         "profile",
         "force",
@@ -245,89 +353,19 @@ def login(
         "login",
         "start_pkce",
     )
-    browser_options = (
-        "source",
-        "profile_dir",
-        "chrome_profile",
-        "timeout_seconds",
-        "allow_no_tty",
-        "headful",
-        "no_verify",
-    )
     explicit_api = any(
         ctx.get_parameter_source(name) is ParameterSource.COMMANDLINE
         for name in api_options
     )
-    explicit_browser = any(
-        ctx.get_parameter_source(name) is ParameterSource.COMMANDLINE
-        for name in browser_options
-    )
-    interactive = interactive_login
-    if interactive and (
-        output_format != "text" or code == "-" or code_stdin or start_pkce
-    ):
-        raise click.UsageError(
-            t(
-                "--interactive cannot be combined with --format json, "
-                "--code -, --code-stdin or --start-pkce."
-            )
-        )
-    if interactive and not _stdin_is_interactive():
-        raise click.UsageError(t("--interactive requires an interactive terminal."))
-    if explicit_browser and method != "browser":
-        raise click.UsageError(t("Browser options require --method browser."))
-    if method == "browser" and explicit_api:
-        raise click.UsageError(
-            t("API options cannot be combined with --method browser.")
-        )
-    canonical = method is not None or interactive
-    if method is None and not explicit_api and interactive:
-        click.echo(t("1) API — campaigns, ads, reports"))
-        click.echo(t("2) Browser — Campaign Wizard, change history"))
-        choice = click.prompt(t("Choose login method"), type=click.Choice(["1", "2"]))
-        method = "api" if choice == "1" else "browser"
-        canonical = True
-    if method == "browser":
-        if source == "chrome":
-            if (
-                allow_no_tty
-                or ctx.get_parameter_source("timeout_seconds")
-                is ParameterSource.COMMANDLINE
-            ):
-                raise click.UsageError(
-                    t("--timeout and --allow-no-tty require --source manual.")
-                )
-            import_browser_session(
-                profile_dir,
-                chrome_profile,
-                headful or interactive,
-                no_verify,
-                output_format,
-                None,
-            )
-        else:
-            if (
-                no_verify
-                or ctx.get_parameter_source("chrome_profile")
-                is ParameterSource.COMMANDLINE
-            ):
-                raise click.UsageError(
-                    t("Chrome import options require --source chrome.")
-                )
-            browser_login(
-                profile_dir,
-                timeout_seconds,
-                allow_no_tty,
-                output_format,
-                headful=headful or interactive,
-            )
-        return
-    auto_profile = canonical and not explicit_api and interactive
+    # Owner decision (issue #924): a terminal is the interactive default;
+    # machine-readable or scripted inputs stay headless.
+    interactive = _stdin_is_interactive() and output_format == "text"
     if code or code_stdin or oauth_token or (interactive and explicit_api):
         # A one-time code must not be spent on a run that will refuse to save.
         # interactive + explicit_api prompts for the code and saves into
         # `profile` — the same write the headless completion is gated on.
         _refuse_existing_profile_without_force(profile, force)
+    auto_profile = interactive and not explicit_api
     if auto_profile:
         profiles = list_profiles()
         if profiles:
@@ -387,7 +425,7 @@ def login(
             source="manual",
             overwrite=True,
         )
-        if canonical and interactive:
+        if interactive:
             bind_credentials_to_dotenv(profile, token, login)
         print_success(
             t("Profile '{profile}' is saved and active.").format(profile=profile)
@@ -413,7 +451,7 @@ def login(
         auth_code, code_verifier = _prompt_authorize_code(
             client_id=chosen_client_id,
             client_secret=client_secret,
-            open_browser=canonical,
+            open_browser=True,
         )
     elif not client_secret:
         pending_pkce = get_pending_pkce(profile)
@@ -489,7 +527,7 @@ def login(
         overwrite=True,
     )
     remove_pending_pkce(profile)
-    if canonical and interactive and not code_from_stdin:
+    if interactive and not code_from_stdin:
         bind_credentials_to_dotenv(profile, access_token, login)
     if auto_profile:
         print_success(t("Profile '{profile}' is saved.").format(profile=profile))
@@ -497,6 +535,121 @@ def login(
         print_success(
             t("Profile '{profile}' is saved and active.").format(profile=profile)
         )
+
+
+@login.command(name="browser")
+@click.option(
+    "--interactive",
+    "interactive_login",
+    is_flag=True,
+    hidden=True,
+    callback=_reject_removed_login_flag("--interactive", HINT_LOGIN_BROWSER),
+    help="Removed: manual login opens the window itself.",
+)
+@click.option(
+    "--headful",
+    is_flag=True,
+    hidden=True,
+    callback=_reject_removed_login_flag("--headful", HINT_LOGIN_BROWSER),
+    help="Removed: manual login is always visible.",
+)
+@click.option(
+    "--source",
+    type=click.Choice(["manual", "chrome"]),
+    default="manual",
+    show_default=True,
+    help="manual: log in by hand in the opened window; chrome: decrypt an "
+    "existing Chrome session without opening a window",
+)
+@click.option(
+    "--profile-dir",
+    type=click.Path(file_okay=False),
+    help="Browser profile directory (manual) or Chrome user-data-dir (chrome)",
+)
+@click.option(
+    "--chrome-profile",
+    default="Default",
+    help="Chrome profile subdirectory to import (--source chrome)",
+)
+@click.option(
+    "--timeout",
+    "timeout_seconds",
+    type=click.IntRange(min=1),
+    default=300,
+    show_default=True,
+    help="Seconds to wait for manual login",
+)
+@click.option(
+    "--allow-no-tty",
+    is_flag=True,
+    help="Open the login window from a script without a terminal",
+)
+@click.option(
+    "--no-verify", is_flag=True, help="Skip session verification during Chrome import"
+)
+@click.option(
+    "--profile",
+    default=None,
+    help="Accepted for uniform syntax; browser sessions are shared, so the "
+    "name is ignored",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+    help="Output format",
+)
+@click.pass_context
+@handle_api_errors
+def login_browser(
+    ctx: click.Context,
+    interactive_login: bool,
+    headful: bool,
+    source: str,
+    profile_dir: Optional[str],
+    chrome_profile: str,
+    timeout_seconds: int,
+    allow_no_tty: bool,
+    no_verify: bool,
+    profile: Optional[str],
+    output_format: str,
+) -> None:
+    """Log in by hand in a visible browser window.
+
+    Saves the browser session used by browser commands (masters, history,
+    ...). With --source chrome, decrypts an already-logged-in Chrome session
+    instead of opening a window.
+    """
+    _warn_profile_ignored_in_browser_domain(ctx)
+    if source == "chrome":
+        if (
+            allow_no_tty
+            or ctx.get_parameter_source("timeout_seconds")
+            is ParameterSource.COMMANDLINE
+        ):
+            raise click.UsageError(
+                t(
+                    "--timeout and --allow-no-tty require manual login "
+                    "(--source manual)."
+                )
+            )
+        import_browser_session(
+            profile_dir,
+            chrome_profile,
+            False,
+            no_verify,
+            output_format,
+            None,
+        )
+    else:
+        if (
+            no_verify
+            or ctx.get_parameter_source("chrome_profile") is ParameterSource.COMMANDLINE
+        ):
+            raise click.UsageError(t("Chrome import options require --source chrome."))
+        browser_login(profile_dir, timeout_seconds, allow_no_tty, output_format)
 
 
 @auth.command(name="list")
@@ -536,13 +689,12 @@ def write(profile):
     bind_profile_to_dotenv(profile)
 
 
-@auth.command()
+@auth.group(invoke_without_command=True)
 @click.option(
     "--method",
     type=click.Choice(["api", "browser", "all"]),
-    default="api",
-    show_default=True,
-    help="Authorization method",
+    callback=_reject_status_method,
+    help="Removed: use the api|browser subcommand; bare auth status shows both.",
 )
 @click.option("--profile", help="Profile name (otherwise show effective credentials)")
 @click.option(
@@ -558,42 +710,87 @@ def write(profile):
     show_default=True,
     help="Output format",
 )
-@click.pass_context
 def status(
-    ctx: click.Context,
-    method: str,
+    method: Any,
     profile: Optional[str],
     profile_dir: Optional[str],
     output_format: str,
 ) -> None:
-    """Show API authorization, browser authorization, or both."""
-    if method == "api" and profile_dir:
-        raise click.UsageError(t("--profile-dir requires --method browser or all."))
-    if method == "browser" and profile:
-        raise click.UsageError(
-            t("--profile selects an API profile, not a browser session.")
-        )
-    if method == "api":
-        payload = api_status(ctx, profile)
-    else:
-        from ..browser.auth import session_status
+    """Show API and browser authorization (both domains by default)."""
+    ctx = click.get_current_context()
+    if ctx.invoked_subcommand is not None:
+        return
+    from ..browser.auth import session_status
 
-        browser = session_status(Path(profile_dir) if profile_dir else None)
-        if method == "browser":
-            payload = browser
-        else:
-            payload = {"api": api_status(ctx, profile), "browser": browser}
+    # Owner decision (issue #924): bare status reports both domains, as the
+    # old `--method all` did; the old default was API-only.
+    browser = session_status(Path(profile_dir) if profile_dir else None)
+    if output_format == "json":
+        payload = {"api": api_status(ctx, profile), "browser": browser}
+        click.echo(json.dumps(payload, ensure_ascii=False))
+        return
+    click.echo("API:")
+    _print_api_status(api_status(ctx, profile))
+    click.echo(t("Browser:"))
+    _print_browser_status(browser)
+
+
+@status.command(name="api")
+@click.option("--profile", help="Profile name (otherwise show effective credentials)")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+    help="Output format",
+)
+@click.pass_context
+def status_api(ctx: click.Context, profile: Optional[str], output_format: str) -> None:
+    """Show API authorization (OAuth token / env credentials in use)."""
+    payload = api_status(ctx, profile)
     if output_format == "json":
         click.echo(json.dumps(payload, ensure_ascii=False))
-    elif method == "api":
-        _print_api_status(payload)
-    elif method == "browser":
-        _print_browser_status(payload)
     else:
-        click.echo("API:")
-        _print_api_status(payload["api"])
-        click.echo(t("Browser:"))
-        _print_browser_status(payload["browser"])
+        _print_api_status(payload)
+
+
+@status.command(name="browser")
+@click.option(
+    "--profile-dir",
+    type=click.Path(file_okay=False),
+    help="Saved browser profile directory",
+)
+@click.option(
+    "--profile",
+    default=None,
+    help="Accepted for uniform syntax; browser sessions are shared, so the "
+    "name is ignored",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+    help="Output format",
+)
+@click.pass_context
+def status_browser(
+    ctx: click.Context,
+    profile_dir: Optional[str],
+    profile: Optional[str],
+    output_format: str,
+) -> None:
+    """Show saved browser session metadata."""
+    from ..browser.auth import session_status
+
+    _warn_profile_ignored_in_browser_domain(ctx)
+    browser = session_status(Path(profile_dir) if profile_dir else None)
+    if output_format == "json":
+        click.echo(json.dumps(browser, ensure_ascii=False))
+    else:
+        _print_browser_status(browser)
 
 
 def api_status(ctx: click.Context, profile: Optional[str]) -> Dict[str, Any]:
@@ -905,21 +1102,16 @@ def browser_login(
     timeout_seconds: int,
     allow_no_tty: bool,
     output_format: str = "text",
-    *,
-    headful: bool = False,
 ) -> None:
-    """Run manual browser login only after explicit permission to show its UI."""
-    if not headful:
-        raise click.UsageError(
-            t(
-                "Manual browser login requires --interactive or --headful. "
-                "For headless Chrome import use `{hint}`."
-            ).format(hint=HINT_LOGIN_BROWSER_CHROME)
-        )
+    """Run the manual login in a visible window (the browser-domain default).
+
+    Headless headful flags are gone (issue #924): manual login is visible by
+    definition, and scripts pass --allow-no-tty explicitly.
+    """
     if not _stdin_is_interactive() and not allow_no_tty:
         raise click.ClickException(
             t(
-                "Browser login needs an interactive terminal. Run "
+                "Manual browser login needs an interactive terminal. Run "
                 "`{hint}` in a terminal (override: --allow-no-tty)."
             ).format(hint=HINT_LOGIN_BROWSER)
         )
@@ -1126,31 +1318,22 @@ def doctor(
     doctor_browser(profile_dir, chrome_profile, output_format, output)
 
 
-@auth.command()
+@auth.group()
 @click.option(
     "--method",
     type=click.Choice(["api", "browser"]),
-    required=True,
-    help="Authorization method",
+    callback=_reject_logout_method,
+    help="Removed: use the api|browser subcommand.",
 )
-@click.option("--profile", help="Local API profile to remove")
-def logout(method: str, profile: Optional[str]) -> None:
-    """Forget local API credentials or both saved browser sessions."""
-    try:
-        if method == "browser":
-            if profile:
-                raise click.UsageError(
-                    t("--profile selects an API profile, not a browser session.")
-                )
-            from ..browser.auth import logout as logout_browser
-            from ..browser.session import BrowserSessionError
+def logout(method: Any) -> None:
+    """Forget local API credentials or saved browser sessions."""
 
-            try:
-                logout_browser()
-            except BrowserSessionError as exc:
-                raise click.ClickException(str(exc)) from exc
-            print_success(t("Saved browser authorization removed."))
-            return
+
+@logout.command(name="api")
+@click.option("--profile", required=True, help="Local API profile to remove")
+def logout_api(profile: Optional[str]) -> None:
+    """Forget a local API profile and this folder's binding."""
+    try:
         if not profile:
             raise click.UsageError(
                 t("API logout requires --profile to select the profile to remove.")
@@ -1176,5 +1359,21 @@ def logout(method: str, profile: Optional[str]) -> None:
         print_info(
             t("Token copies in other folders or external environments are not revoked.")
         )
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+@logout.command(name="browser")
+def logout_browser() -> None:
+    """Forget both saved browser sessions (persistent profile and import)."""
+    try:
+        from ..browser.auth import logout as logout_browser_session
+        from ..browser.session import BrowserSessionError
+
+        try:
+            logout_browser_session()
+        except BrowserSessionError as exc:
+            raise click.ClickException(str(exc)) from exc
+        print_success(t("Saved browser authorization removed."))
     except (OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc

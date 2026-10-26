@@ -405,7 +405,7 @@ class TestAuthOAuth:
                 [
                     "auth",
                     "login",
-                    "--interactive",
+                    "api",
                     "--profile",
                     "agency1",
                     "--code",
@@ -437,7 +437,7 @@ class TestAuthOAuth:
             "expires_in": 3600,
         },
     )
-    @patch("direct_cli.commands.auth._stdin_is_interactive", return_value=True)
+    @patch("direct_cli.commands.auth._stdin_is_interactive", return_value=False)
     def test_headless_code_completion_never_asks_to_write_dotenv(
         self,
         mock_should_prompt,
@@ -1332,7 +1332,7 @@ class TestAuthOAuth:
         with patch("direct_cli.commands.auth.webbrowser.open"):
             result = runner.invoke(
                 cli,
-                ["auth", "login", "--profile", "agency1", "--interactive"],
+                ["auth", "login", "--profile", "agency1"],
                 input="abc123\n",
             )
         assert result.exit_code == 0
@@ -1758,7 +1758,7 @@ class TestAuthOAuth:
         runner = CliRunner()
 
         result = runner.invoke(
-            cli, ["auth", "status", "--profile", "agency1", "--format", "json"]
+            cli, ["auth", "status", "api", "--profile", "agency1", "--format", "json"]
         )
 
         assert result.exit_code == 0
@@ -1794,7 +1794,7 @@ class TestAuthOAuth:
             )
             runner = CliRunner()
 
-            result = runner.invoke(cli, ["auth", "status", "--format", "json"])
+            result = runner.invoke(cli, ["auth", "status", "api", "--format", "json"])
 
         assert result.exit_code == 0
         assert json.loads(result.output) == {
@@ -1815,7 +1815,7 @@ class TestAuthOAuth:
             monkeypatch.chdir(tmp_path)
             runner = CliRunner()
 
-            result = runner.invoke(cli, ["auth", "status", "--format", "json"])
+            result = runner.invoke(cli, ["auth", "status", "api", "--format", "json"])
 
         assert result.exit_code == 0
         assert json.loads(result.output) == {
@@ -1848,7 +1848,8 @@ class TestAuthOAuth:
             runner = CliRunner()
 
             result = runner.invoke(
-                cli, ["auth", "status", "--profile", "agency1", "--format", "json"]
+                cli,
+                ["auth", "status", "api", "--profile", "agency1", "--format", "json"],
             )
 
         assert result.exit_code == 0

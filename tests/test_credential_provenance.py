@@ -79,7 +79,7 @@ class TestAuthStatusUnbound:
     def test_status_json_reports_no_binding_plus_global_note(self, unbound_folder):
         _save_oauth_profile("default", "global-login", active=True)
 
-        result = CliRunner().invoke(cli, ["auth", "status", "--format", "json"])
+        result = CliRunner().invoke(cli, ["auth", "status", "api", "--format", "json"])
 
         assert result.exit_code == 0
         assert json.loads(result.output) == {
@@ -110,7 +110,7 @@ class TestAuthStatusUnbound:
         _save_oauth_profile("agency1", "client-login-1", active=True)
         monkeypatch.setenv("YANDEX_DIRECT_INHERIT_GLOBAL", "1")
 
-        result = CliRunner().invoke(cli, ["auth", "status", "--format", "json"])
+        result = CliRunner().invoke(cli, ["auth", "status", "api", "--format", "json"])
 
         assert result.exit_code == 0
         payload = json.loads(result.output)
@@ -121,7 +121,7 @@ class TestAuthStatusUnbound:
         _save_oauth_profile("agency1", "client-login-1", active=True)
 
         result = CliRunner().invoke(
-            cli, ["auth", "status", "--profile", "agency1", "--format", "json"]
+            cli, ["auth", "status", "api", "--profile", "agency1", "--format", "json"]
         )
 
         assert result.exit_code == 0
@@ -134,7 +134,7 @@ class TestAuthStatusUnbound:
             encoding="utf-8",
         )
 
-        result = CliRunner().invoke(cli, ["auth", "status", "--format", "json"])
+        result = CliRunner().invoke(cli, ["auth", "status", "api", "--format", "json"])
 
         assert result.exit_code == 0
         payload = json.loads(result.output)
@@ -385,9 +385,7 @@ class TestAuthWrite:
                 return_value=_fake_mutation_client(),
             ) as create_client,
         ):
-            result = CliRunner().invoke(
-                cli, ["auth", "login", "--method", "api", "--interactive"], input="1\n"
-            )
+            result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\n")
             assert result.exit_code == 0, result.output
             result = _invoke_set_bids()
 

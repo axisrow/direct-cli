@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### BREAKING CHANGES
+
+**`auth login`/`auth status`/`auth logout` use `api|browser` subcommands; `--method`, `--interactive` and `--headful` are removed without aliases (#924).**
+
+The two authorization domains — the Direct API OAuth token and the browser
+session used by `masters`/`history` — now have explicit names:
+
+- `direct auth login api` — OAuth login for API/v4 commands (what bare
+  `direct auth login` did and still does: the owner-decided default is the
+  API domain, and the old "Choose login method" menu is gone).
+- `direct auth login browser` — manual login in a visible window for browser
+  commands (`masters`, `history`, ...); visibility needs no flag anymore.
+  `--source chrome` keeps importing an existing Chrome session headless;
+  `--allow-no-tty` is the only surviving special flag — it lets a script
+  open the login window without a terminal.
+- `direct auth status api|browser` selects a domain; **bare `direct auth
+  status` now reports both domains** (an `API:` and a `Browser:` block,
+  previously the API-only default — parse the new `Browser:` section or use
+  `auth status api` for the old behavior; combined JSON is unchanged:
+  `{"api": ..., "browser": ...}`).
+- `direct auth logout api --profile NAME` / `direct auth logout browser`
+  (bare `auth logout` asks for a domain).
+- `--profile` is valid in both domains; in the browser domain it is accepted
+  and reported as ignored (browser sessions are shared). `--profile-dir`/
+  `--chrome-profile` live only in the browser domain.
+- In the API domain a terminal is now the interactive default: the login
+  prints the URL, opens the browser, reads the code and binds the folder's
+  `.env`. `--format json`, `--start-pkce` and `--code -` stay headless —
+  unattended scripts are unaffected.
+
+Every removed flag fails with `click.UsageError` naming the exact
+replacement from `direct_cli/_auth_hints.py` — the same pointer the live
+auth errors advise. Deprecated aliases (`playwright login`,
+`masters login`/`logout`/`status`) keep their stdout formats; their
+replacement notices now point at the new subcommand surface.
+
 ### Added
 
 - **Optional diagnostics output is now env-switched and hidden by default

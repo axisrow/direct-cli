@@ -173,7 +173,7 @@ class TestCLIOpOptions:
         monkeypatch.setenv("YANDEX_DIRECT_OP_LOGIN_REF", "op://vault/item/login")
         runner = CliRunner()
 
-        result = runner.invoke(cli, ["auth", "status", "--format", "json"])
+        result = runner.invoke(cli, ["auth", "status", "api", "--format", "json"])
 
         assert result.exit_code == 0, result.output
         assert json.loads(result.output) == {

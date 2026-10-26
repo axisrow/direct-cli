@@ -16,7 +16,7 @@ injects the decrypted cookies into a fresh, bundled Chromium context via
 ``BrowserContext.add_cookies()``. The user's own Chrome window is never
 touched and does not need to be closed.
 
-Explicit Chrome import (`auth login --method browser --source chrome`)
+Explicit Chrome import (`auth login browser --source chrome`)
 persists a Playwright ``storage_state`` file (``direct_cli/browser/store.py``).
 Browser-backed commands reuse this via :func:`open_saved_session` or the
 persistent CLI profile; they never call :func:`open_chrome_session` as an
