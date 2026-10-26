@@ -80,6 +80,26 @@ replacement notices now point at the new subcommand surface.
   profile feeds credential inheritance (#904), so a silent switch was a
   silent account change for every later command in unbound folders.
 
+- **Folder binding defaults to a profile link; `auth logout` no longer wipes
+  an unrelated `.env` binding (#917).** A folder's `.env` is a fallback
+  mechanism, not the primary binding, and a raw token copy carries no
+  profile identity. Now:
+  - Binding writes a link — `YANDEX_DIRECT_BIND_PROFILE=<name>` in the cwd
+    `.env` (no secret on disk; the token stays in the global profile store
+    and resolves like an explicit `--profile`, sitting between the base env
+    token and the active-profile rungs). The interactive bind menu asks
+    "link or copy?" with link as the default; `direct auth write` links and
+    offers `--copy-token` for the explicit raw-token copy; a terminal
+    `auth login api` links the fresh profile without questions. Binding
+    replaces the previous form — a folder has one binding.
+  - `auth logout api --profile A` removes the folder link only when it
+    names A. A link to another profile, a raw token copy, secret refs and
+    the inherit flag are kept and reported; previously logout wiped every
+    folder credential key, silently breaking a folder bound to profile B.
+    A dangling link (the linked profile was removed elsewhere) fails loudly
+    instead of silently falling back to another credential source;
+    `auth status api` reports the link as `source=linked-profile`.
+
 - **One canonical login pointer in every authorization error (#924, part 1 —
   non-breaking).** A new leaf module `direct_cli/_auth_hints.py` defines the
   canonical pointers — `direct auth login api`, `direct auth login browser`,

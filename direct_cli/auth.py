@@ -116,6 +116,11 @@ def load_env_file(env_path: Optional[str] = None) -> None:
 
 
 INHERIT_GLOBAL_ENV = "YANDEX_DIRECT_INHERIT_GLOBAL"
+# Issue #917: a folder link to a global profile. Stores a profile NAME, never
+# a secret — the token keeps living in the global store and the folder
+# resolves it at command time. This is the default binding form; a raw token
+# copy in .env is the explicit fallback form (one binding form per folder).
+BIND_PROFILE_ENV = "YANDEX_DIRECT_BIND_PROFILE"
 FOLDER_CREDENTIAL_KEYS = (
     "YANDEX_DIRECT_TOKEN",
     "YANDEX_DIRECT_LOGIN",
@@ -123,6 +128,7 @@ FOLDER_CREDENTIAL_KEYS = (
     "YANDEX_DIRECT_OP_LOGIN_REF",
     "YANDEX_DIRECT_BW_TOKEN_REF",
     "YANDEX_DIRECT_BW_LOGIN_REF",
+    BIND_PROFILE_ENV,
     INHERIT_GLOBAL_ENV,
 )
 
@@ -148,45 +154,25 @@ def _format_dotenv_value(value: str) -> str:
     return f'"{escaped}"'
 
 
-def save_env_credentials(
-    token: Optional[str],
-    login: Optional[str] = None,
-    env_path: Optional[Path] = None,
+def _rewrite_env_keys(
+    replacements: Dict[str, Optional[str]], dotenv_path: Path
 ) -> Path:
-    """Write Direct credentials to the current-directory .env file.
+    """Atomically upsert/remove *replacements* keys in *dotenv_path*.
 
-    Args:
-        token: OAuth access token to store; None removes the credential binding.
-        login: Optional Direct client login to store; removes any stale env login
-            when omitted.
-        env_path: Optional target path, used by tests. Defaults to cwd .env.
-
-    Returns:
-        Path to the updated .env file.
-
-    Raises:
-        ValueError: If token or login contain newline characters.
+    ``None`` removes the key; other keys of the file are kept verbatim. A
+    value absent from the file is appended. Refuses to rewrite a symlinked
+    .env file, and does not create one when every replacement removes.
     """
-    dotenv_path = env_path or Path.cwd() / ".env"
     if dotenv_path.is_symlink():
         raise ValueError("Refusing to rewrite a symlinked .env file.")
     existed = dotenv_path.exists()
-    if not existed and token is None:
+    if not existed and all(value is None for value in replacements.values()):
         return dotenv_path
-    previous = dotenv_values(dotenv_path) if existed else {}
     lines = (
         dotenv_path.read_text(encoding="utf-8").splitlines(keepends=True)
         if existed
         else []
     )
-    replacements: Dict[str, Optional[str]] = {
-        "YANDEX_DIRECT_TOKEN": (
-            _format_dotenv_value(token) if token is not None else None
-        ),
-        "YANDEX_DIRECT_LOGIN": _format_dotenv_value(login) if login else None,
-    }
-    if token is None:
-        replacements = dict.fromkeys(FOLDER_CREDENTIAL_KEYS)
     seen = set()
     updated_lines = []
 
@@ -227,6 +213,47 @@ def save_env_credentials(
         with contextlib.suppress(OSError):
             os.unlink(temporary_path)
         raise
+    return dotenv_path
+
+
+def save_env_credentials(
+    token: Optional[str],
+    login: Optional[str] = None,
+    env_path: Optional[Path] = None,
+) -> Path:
+    """Write a raw Direct credential pair to the current-directory .env file.
+
+    This is the explicit "copy" binding form (issue #917): the token itself
+    lands in the folder's `.env`. It replaces any profile link — a folder
+    has one binding form. ``token=None`` removes only the stored pair; the
+    profile link, secret refs and the inherit flag belong to other binding
+    forms and are left untouched.
+
+    Args:
+        token: OAuth access token to store; None removes the stored pair.
+        login: Optional Direct client login to store; removes any stale env login
+            when omitted.
+        env_path: Optional target path, used by tests. Defaults to cwd .env.
+
+    Returns:
+        Path to the updated .env file.
+
+    Raises:
+        ValueError: If token or login contain newline characters.
+    """
+    dotenv_path = env_path or Path.cwd() / ".env"
+    previous = dotenv_values(dotenv_path) if dotenv_path.exists() else {}
+    result = _rewrite_env_keys(
+        {
+            "YANDEX_DIRECT_TOKEN": (
+                _format_dotenv_value(token) if token is not None else None
+            ),
+            "YANDEX_DIRECT_LOGIN": _format_dotenv_value(login) if login else None,
+            # A raw copy replaces the link (#917): one binding form per folder.
+            BIND_PROFILE_ENV: None,
+        },
+        dotenv_path,
+    )
     if token is not None and "YANDEX_DIRECT_TOKEN" in previous:
         previous_login = previous.get("YANDEX_DIRECT_LOGIN")
         if previous_login:
@@ -240,7 +267,44 @@ def save_env_credentials(
             print_warning_stderr(
                 t("Replacing existing YANDEX_DIRECT_TOKEN with new credentials.")
             )
-    return dotenv_path
+    return result
+
+
+def save_env_binding(profile: Optional[str], env_path: Optional[Path] = None) -> Path:
+    """Bind the current-directory .env to a global profile by name (issue #917).
+
+    The link (``YANDEX_DIRECT_BIND_PROFILE=<name>``) stores no secret: the
+    token keeps living in the global profile store and the folder resolves
+    it at command time. Writing a link replaces any raw token/login copy —
+    a folder has one binding form. ``profile=None`` removes only the link;
+    raw copies, secret refs and the inherit flag belong to other binding
+    forms and are left for their own owners.
+
+    Returns:
+        Path to the updated .env file.
+    """
+    dotenv_path = env_path or Path.cwd() / ".env"
+    if profile is None:
+        return _rewrite_env_keys({BIND_PROFILE_ENV: None}, dotenv_path)
+    return _rewrite_env_keys(
+        {
+            BIND_PROFILE_ENV: _format_dotenv_value(profile),
+            "YANDEX_DIRECT_TOKEN": None,
+            "YANDEX_DIRECT_LOGIN": None,
+        },
+        dotenv_path,
+    )
+
+
+def read_folder_binding(env_path: Optional[Path] = None) -> Optional[str]:
+    """Return the profile name this folder's .env links to, or None."""
+    dotenv_path = env_path or Path.cwd() / ".env"
+    if not dotenv_path.exists():
+        return None
+    value = dotenv_values(dotenv_path).get(BIND_PROFILE_ENV)
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip()
 
 
 def _profile_suffix(profile: str) -> str:
@@ -909,10 +973,11 @@ def get_credentials_with_source(
     Get credentials with priority:
     1. Direct arguments (--token, --login)
     2. Explicit selected profile storage or profile-specific environment variables
-    3. Environment variables or cwd .env (YANDEX_DIRECT_TOKEN, YANDEX_DIRECT_LOGIN)
-    4. Active profile storage or profile-specific environment variables
-    5. 1Password (op_token_ref arg or YANDEX_DIRECT_OP_TOKEN_REF env var)
-    6. Bitwarden (bw_token_ref arg or YANDEX_DIRECT_BW_TOKEN_REF env var)
+    3. Base env vars or cwd .env raw token (YANDEX_DIRECT_TOKEN, YANDEX_DIRECT_LOGIN)
+    4. Folder profile link (cwd .env YANDEX_DIRECT_BIND_PROFILE=<name>, issue #917)
+    5. Active profile storage or profile-specific environment variables
+    6. 1Password (op_token_ref arg or YANDEX_DIRECT_OP_TOKEN_REF env var)
+    7. Bitwarden (bw_token_ref arg or YANDEX_DIRECT_BW_TOKEN_REF env var)
 
     Args:
         token: API access token
@@ -924,7 +989,7 @@ def get_credentials_with_source(
         bw_login_ref: Bitwarden item name/ID for login
         allow_login_resolve: Allow the one-time #480 email->Client-Login
             migration for profile-sourced credentials
-        allow_active_profile: Allow rung 4 (silent inheritance of the global
+        allow_active_profile: Allow rung 5 (silent inheritance of the global
             active profile). The root CLI callback passes the #904 opt-in
             here — without it a folder with partial refs (e.g. an exported
             YANDEX_DIRECT_LOGIN only) would otherwise silently inherit the
@@ -932,8 +997,8 @@ def get_credentials_with_source(
 
     Returns:
         Tuple of (token, login, source) where source is one of
-        "args", "explicit-profile", "env", "active-profile", "op", "bw" —
-        the winning rung of the priority ladder (issue #904).
+        "args", "explicit-profile", "env", "linked-profile", "active-profile",
+        "op", "bw" — the winning rung of the priority ladder (issue #904).
 
     Raises:
         ValueError: If token is not provided
@@ -962,6 +1027,18 @@ def get_credentials_with_source(
             if not final_login:
                 final_login = os.getenv("YANDEX_DIRECT_LOGIN")
             source = "env"
+
+    if not final_token and not selected_profile:
+        linked_profile = (os.getenv(BIND_PROFILE_ENV) or "").strip()
+        if linked_profile:
+            # Issue #917: an explicit folder link names its profile and
+            # resolves like --profile against that name. A dangling link
+            # raises instead of silently falling through to another rung.
+            final_token, final_login = _resolve_profile_or_raise(
+                linked_profile, final_login, allow_login_resolve
+            )
+            profile_credentials_selected = True
+            source = "linked-profile"
 
     if not final_token and not selected_profile and allow_active_profile:
         active_profile = get_active_profile()
