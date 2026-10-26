@@ -141,6 +141,7 @@ def get_retargeting_goals(ctx, name, ids, output_format, output):
 
 @dictionaries.command()
 @reference_output_options
+@handle_api_errors
 def list_names(output_format, output):
     """List available dictionary names"""
     format_output(DICTIONARY_NAMES, output_format, output)
