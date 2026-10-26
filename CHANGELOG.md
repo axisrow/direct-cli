@@ -152,6 +152,17 @@ replacement notices now point at the new subcommand surface.
   `trackingparams`, `dictionaries list-names`, `auth doctor` and the
   deprecated `playwright login|doctor` / `masters status` aliases. Normal
   stdout output and writing to a valid file are unchanged.
+
+- **`--format table` keeps exact API numeric text (#901).** tabulate's
+  default numeric parsing rounded money cells to six significant digits
+  (`Cost = 123456.78` printed as `123457`, `AvgCpc = 123.456789` as
+  `123.457`) silently, so the table showed different values than
+  json/csv/tsv for the same response. Table cells are now rendered verbatim:
+  string values from the API pass through unchanged, typed numbers print the
+  same shortest round-trip text as json — no silent rounding, no warning
+  needed. All-numeric columns keep their right alignment. json/csv/tsv/text
+  output is byte-identical to before.
+
 - **`reports get`: API error 56 (method rate limit) now retries with
   exponential backoff (#918).** Yandex allows only 1 request per 10 seconds
   per method; with several `direct`/MCP clients sharing one account, each
