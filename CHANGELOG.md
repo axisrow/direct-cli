@@ -114,6 +114,22 @@ replacement notices now point at the new subcommand surface.
 
 ### Fixed
 
+- **Browser commands refuse a saved session that belongs to another account
+  (#907).** After the user switched Yandex profiles in their real browser,
+  every `masters`/`history` command silently worked on the wrong account and
+  surfaced only as an unrelated "wizard page did not render" timeout. Opening
+  a saved session (`open_session`, the shared stack behind both command
+  groups) now compares the #916 owner stamp with the login the CLI's own
+  credential chain considers active — the folder-linked profile's stored
+  login, else base `YANDEX_DIRECT_LOGIN` next to a base token, else the
+  active profile's stored login (read-only, tokenless, no network). An
+  explicit mismatch fails loudly before any navigation — `The saved browser
+  session belongs to X, but the active CLI profile is Y — refusing to work
+  on the wrong Yandex account. Re-login: direct auth login browser`. A
+  session saved before the stamp existed stays a soft fallback: it opens,
+  with one stderr warning (safety output — never silenced by `DIRECT_QUIET`).
+  No anchor (browser-only setup, or a pre-#480 profile whose stored login is
+  still an email) means no opinion instead of a guess.
 - **README campaign examples now pass `--dry-run` (#902).** Eight examples
   (four per language) used raw currency amounts instead of micro-currency:
   `--priority-goals` with values `80`/`20` (now `80000000`/`20000000`,

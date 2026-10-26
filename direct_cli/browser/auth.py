@@ -1,12 +1,14 @@
 """Saved browser authorization shared by auth and browser-backed commands."""
 
 import contextlib
+import os
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Generator, Optional
 
 from .._auth_hints import HINT_LOGIN_BROWSER
 from ..i18n import t
+from ..output import print_warning_stderr
 from . import session, store
 
 if TYPE_CHECKING:
@@ -24,6 +26,91 @@ def _marker_owner(profile_dir: Path) -> Optional[str]:
         ).strip() or None
     except OSError:
         return None
+
+
+def _comparable_login(login: Any) -> Optional[str]:
+    """Normalize a stored login into something comparable to a Passport login.
+
+    Pre-#480 profiles may still store a Passport *email*; the owner stamp
+    carries the Client-Login, so an email is not a mismatch — it is "no
+    opinion". Same for anything non-string or empty.
+    """
+    if not isinstance(login, str):
+        return None
+    login = login.strip()
+    if not login or "@" in login:
+        return None
+    return login
+
+
+def _expected_session_login() -> Optional[str]:
+    """Login of the account the CLI's own credential chain considers active.
+
+    A tokenless, network-free mirror of ``get_credentials_with_source``'s
+    ladder — the anchor the owner check (#907) compares a session stamp
+    against: the folder-linked profile's stored login (an explicit binding
+    is isolated — configured link, no fall-through, per #917), else base
+    ``YANDEX_DIRECT_LOGIN`` alongside a base ``YANDEX_DIRECT_TOKEN``, else
+    the active profile's stored login. ``None`` = no comparable anchor
+    (browser-only setup, an unconfigured link/profile, or an email-only
+    login): the check then has no opinion instead of guessing.
+    """
+    from .. import auth as api_auth
+
+    linked = (os.getenv(api_auth.BIND_PROFILE_ENV) or "").strip()
+    if linked:
+        profile = api_auth.get_oauth_profile(linked)
+        return _comparable_login(profile.get("login")) if profile else None
+    if os.getenv("YANDEX_DIRECT_TOKEN"):
+        return _comparable_login(os.getenv("YANDEX_DIRECT_LOGIN"))
+    active = api_auth.get_active_profile()
+    if active:
+        profile = api_auth.get_oauth_profile(active)
+        if profile:
+            return _comparable_login(profile.get("login"))
+    return None
+
+
+def _assert_session_owner(status: Dict[str, Any]) -> None:
+    """Refuse to open a session that demonstrably belongs to another account.
+
+    Issue #907: after the user switched Yandex profiles in their real
+    browser, every ``masters`` command silently worked on the wrong account
+    and surfaced only as an unrelated "did not render" timeout. The owner
+    stamps from #916 make a pre-flight check free: a *stamped* session whose
+    owner differs from the active credential anchor fails loudly
+    (:class:`session.BrowserAuthError`) before any navigation happens; an
+    *unstamped* session (saved before #916) stays a soft fallback and only
+    warns on stderr. No anchor means no opinion — a browser-only setup has
+    nothing to compare against. The warning is safety output: it goes
+    through ``print_warning_stderr`` and is never silenced by DIRECT_QUIET.
+    """
+    tier = status.get("active_tier")
+    if tier is None:
+        return  # nothing is about to open; the missing-session error reports that
+    if tier == "1.5":
+        owner = status["persistent_profile"].get("owner")
+    else:
+        owner = status["saved_session"].get("owner_login")
+    if not owner:
+        print_warning_stderr(
+            t(
+                "The saved browser session carries no owner stamp (saved by "
+                "an older direct-cli), so the account it belongs to cannot "
+                "be verified. Run: {hint}"
+            ).format(hint=HINT_LOGIN_BROWSER)
+        )
+        return
+    expected = _expected_session_login()
+    if not expected or owner.strip().lower() == expected.strip().lower():
+        return
+    raise session.BrowserAuthError(
+        t(
+            "The saved browser session belongs to {owner}, but the active "
+            "CLI profile is {expected} — refusing to work on the wrong "
+            "Yandex account. Re-login: {hint}"
+        ).format(owner=owner, expected=expected, hint=HINT_LOGIN_BROWSER)
+    )
 
 
 def session_status(profile_dir: Optional[Path] = None) -> Dict[str, Any]:
@@ -58,6 +145,9 @@ def open_session(
     # session-state report would otherwise preempt the actionable error.
     session._import_sync_playwright()
     status = session_status(profile_dir)
+    # Before any launch: a stamped session owned by another account fails
+    # here, loudly, instead of navigating the wrong account's pages (#907).
+    _assert_session_owner(status)
     if status["active_tier"] == "1.5":
         opener = session.open_persistent_session(
             headless=headless,
