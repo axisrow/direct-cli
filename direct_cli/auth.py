@@ -121,16 +121,6 @@ INHERIT_GLOBAL_ENV = "YANDEX_DIRECT_INHERIT_GLOBAL"
 # resolves it at command time. This is the default binding form; a raw token
 # copy in .env is the explicit fallback form (one binding form per folder).
 BIND_PROFILE_ENV = "YANDEX_DIRECT_BIND_PROFILE"
-FOLDER_CREDENTIAL_KEYS = (
-    "YANDEX_DIRECT_TOKEN",
-    "YANDEX_DIRECT_LOGIN",
-    "YANDEX_DIRECT_OP_TOKEN_REF",
-    "YANDEX_DIRECT_OP_LOGIN_REF",
-    "YANDEX_DIRECT_BW_TOKEN_REF",
-    "YANDEX_DIRECT_BW_LOGIN_REF",
-    BIND_PROFILE_ENV,
-    INHERIT_GLOBAL_ENV,
-)
 
 
 def inherit_globally_enabled() -> bool:
