@@ -668,6 +668,21 @@ def list_command():
         click.echo(f"{marker} {profile}  source={source}  login={login_display}")
 
 
+def _stored_login_display(profile: Optional[str]) -> str:
+    """Profile login from the auth store for the switch report.
+
+    Falls back to the profile name when no login is stored (env profiles
+    keep no login in the store) and to ``(none)`` when there is no profile.
+    """
+    if not profile:
+        return "(none)"
+    item = load_auth_store()["profiles"].get(profile)
+    login = item.get("login") if isinstance(item, dict) else None
+    if isinstance(login, str) and login:
+        return login
+    return profile
+
+
 @auth.command()
 @click.option("--profile", required=True, help="Profile name")
 def use(profile):
@@ -678,8 +693,16 @@ def use(profile):
         raise click.ClickException(
             f"Profile '{profile}' not found in OAuth storage or env variables."
         )
+    # #915: the global active profile feeds credential inheritance (#904),
+    # so the switch must name the account it replaces (data-class B report).
+    old_display = _stored_login_display(get_active_profile())
     set_active_profile(profile)
-    print_success(t("Active profile is '{profile}'.").format(profile=profile))
+    new_display = _stored_login_display(profile)
+    print_success(
+        t("Active profile is '{profile}': {old} → {new}.").format(
+            profile=profile, old=old_display, new=new_display
+        )
+    )
 
 
 @auth.command()

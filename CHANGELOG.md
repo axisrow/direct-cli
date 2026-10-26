@@ -71,6 +71,15 @@ replacement notices now point at the new subcommand surface.
 
 ### Changed
 
+- **`auth use` now reports the account switch (#915).** Switching the global
+  active profile prints the old and new login next to the profile name —
+  `Active profile is 'beta': login-alpha → login-beta.` — both read from the
+  auth store (before and after the switch). A profile with no stored login
+  (env profiles keep none) is shown by name; `(none)` marks the first-ever
+  switch when no profile was active. Data-Safety class B: the global active
+  profile feeds credential inheritance (#904), so a silent switch was a
+  silent account change for every later command in unbound folders.
+
 - **One canonical login pointer in every authorization error (#924, part 1 —
   non-breaking).** A new leaf module `direct_cli/_auth_hints.py` defines the
   canonical pointers — `direct auth login api`, `direct auth login browser`,
