@@ -3,6 +3,7 @@
 import io
 import json
 import os
+import re
 import stat
 import urllib.parse
 from email.message import Message
@@ -22,6 +23,7 @@ from direct_cli.auth import (
     resolve_account_login,
     save_auth_store,
     save_oauth_profile,
+    set_active_profile,
 )
 from direct_cli.cli import cli
 
@@ -1379,11 +1381,91 @@ class TestAuthOAuth:
         runner = CliRunner()
         result = runner.invoke(cli, ["auth", "use", "--profile", "agency1"])
         assert result.exit_code == 0
-        assert "Active profile is 'agency1'." in result.output
+        # #915: switch report matches on logins/profile names and the arrow,
+        # never on the localized message words.
+        assert re.search(r"\(none\)\s*→\s*agency1", result.output)
 
         result = runner.invoke(cli, ["auth", "list"])
         assert result.exit_code == 0
         assert "* agency1" in result.output
+
+    def test_auth_use_reports_old_and_new_login(self, isolated_auth_store):
+        for name, login in (("alpha", "login-alpha"), ("beta", "login-beta")):
+            save_oauth_profile(
+                profile=name,
+                token=f"token-{name}",
+                login=login,
+                refresh_token=f"refresh-{name}",
+                expires_at=4_100_000_000.0,
+                client_id=DEFAULT_OAUTH_CLIENT_ID,
+                make_active=False,
+            )
+        runner = CliRunner()
+
+        result = runner.invoke(cli, ["auth", "use", "--profile", "alpha"])
+        assert result.exit_code == 0
+        assert re.search(r"\(none\)\s*→\s*login-alpha", result.output)
+
+        result = runner.invoke(cli, ["auth", "use", "--profile", "beta"])
+        assert result.exit_code == 0
+        assert re.search(r"login-alpha\s*→\s*login-beta", result.output)
+        assert load_auth_store().get("active_profile") == "beta"
+
+    def test_auth_use_shows_profile_name_without_stored_login(
+        self, isolated_auth_store
+    ):
+        save_oauth_profile(
+            profile="alpha",
+            token="token-alpha",
+            login="login-alpha",
+            refresh_token="refresh-alpha",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
+        )
+        save_oauth_profile(
+            profile="nologin",
+            token="token-nologin",
+            refresh_token="refresh-nologin",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
+            make_active=False,
+        )
+        runner = CliRunner()
+        result = runner.invoke(cli, ["auth", "use", "--profile", "nologin"])
+        assert result.exit_code == 0
+        assert re.search(r"login-alpha\s*→\s*nologin\b", result.output)
+
+    def test_auth_use_switch_report_is_locale_independent(self, isolated_auth_store):
+        save_oauth_profile(
+            profile="alpha",
+            token="token-alpha",
+            login="login-alpha",
+            refresh_token="refresh-alpha",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
+        )
+        save_oauth_profile(
+            profile="beta",
+            token="token-beta",
+            login="login-beta",
+            refresh_token="refresh-beta",
+            expires_at=4_100_000_000.0,
+            client_id=DEFAULT_OAUTH_CLIENT_ID,
+            make_active=False,
+        )
+        runner = CliRunner()
+        for locale in ("en", "ru"):
+            set_active_profile("alpha")
+            result = runner.invoke(
+                cli,
+                ["auth", "use", "--profile", "beta"],
+                env={"YANDEX_DIRECT_CLI_LOCALE": locale},
+            )
+            assert result.exit_code == 0, (locale, result.output)
+            assert re.search(r"login-alpha\s*→\s*login-beta", result.output), (
+                locale,
+                result.output,
+            )
 
     @patch(
         "direct_cli.auth.urllib.request.urlopen",
