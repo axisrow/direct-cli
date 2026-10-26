@@ -48,7 +48,9 @@ _BINARY_SUFFIXES = {
 
 # Hyphen/underscore forms only: ``browser use`` with a space is ordinary
 # English prose ("browser, use ..."), not the tool name.
-_EXTERNAL_AUTOMATION_RE = re.compile(r"browser[-_]?use|claude-in-chrome", re.IGNORECASE)
+_EXTERNAL_AUTOMATION_RE = re.compile(
+    r"browser[-_]?use|claude[-_]in[-_]chrome", re.IGNORECASE
+)
 
 
 def test_no_external_browser_automation_named():
