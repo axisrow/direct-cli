@@ -2993,6 +2993,77 @@ class TestOpenSessionTiers(unittest.TestCase):
                         pass
         fresh.assert_not_called()
 
+    def test_stamped_session_from_another_account_fails_before_any_browser(self):
+        """#907: a session stamped with a foreign owner is refused upfront —
+        loudly, naming both logins — instead of navigating the wrong
+        account's wizard pages and timing out on missing markup."""
+        from direct_cli.commands.masters import _open_session
+
+        with self._list_ctx() as ctx:
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "YANDEX_DIRECT_TOKEN": "t",
+                        "YANDEX_DIRECT_LOGIN": "ksamatadirect",
+                    },
+                    clear=False,
+                ),
+                patch(
+                    "direct_cli.browser.store.session_status",
+                    return_value={
+                        "exists": True,
+                        "error": None,
+                        "expired": False,
+                        "owner_login": "engineeringprint-ru",
+                    },
+                ),
+                patch("direct_cli.browser.session.open_saved_session") as saved,
+                patch("direct_cli.browser.session.open_chrome_session") as fresh,
+            ):
+                with self.assertRaises(click.ClickException) as cm:
+                    with _open_session(ctx, False, None, "Default"):
+                        pass
+        self.assertIn("engineeringprint-ru", str(cm.exception))
+        self.assertIn("ksamatadirect", str(cm.exception))
+        self.assertIn("direct auth login browser", str(cm.exception))
+        saved.assert_not_called()
+        fresh.assert_not_called()
+
+    def test_unstamped_saved_session_opens_with_stderr_warning(self):
+        """#907: an old session without the #916 stamp stays a soft fallback —
+        one stderr warning (never silenced by DIRECT_QUIET), then it opens."""
+        from direct_cli.commands.masters import _open_session
+
+        with self._list_ctx() as ctx:
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "YANDEX_DIRECT_TOKEN": "t",
+                        "YANDEX_DIRECT_LOGIN": "ksamatadirect",
+                    },
+                    clear=False,
+                ),
+                patch(
+                    "direct_cli.browser.store.session_status",
+                    return_value={"exists": True, "error": None, "expired": False},
+                ),
+                patch("direct_cli.browser.auth.print_warning_stderr") as warn,
+                patch("direct_cli.browser.session.open_saved_session") as saved,
+                patch("direct_cli.browser.session.open_chrome_session") as fresh,
+            ):
+                saved.return_value.__enter__ = lambda self: "page"
+                saved.return_value.__exit__ = lambda self, *a: False
+                with _open_session(
+                    ctx, headful=False, profile_dir=None, chrome_profile="Default"
+                ):
+                    pass
+        warn.assert_called_once()
+        self.assertIn("direct auth login browser", str(warn.call_args))
+        saved.assert_called_once()
+        fresh.assert_not_called()
+
 
 class TestWithSessionNoRetry(unittest.TestCase):
     """An authorization error never repeats a possibly side-effectful operation."""

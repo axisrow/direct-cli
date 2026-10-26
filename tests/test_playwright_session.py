@@ -853,6 +853,204 @@ class TestOwnerLoginFromCookies(unittest.TestCase):
         self.assertIsNone(_owner_login_from_cookies(cookies))
 
 
+class TestAssertSessionOwner(unittest.TestCase):
+    """Issue #907: opening a saved session must refuse a stamped session
+    owned by another account, and only warn for an unstamped (old) one."""
+
+    def setUp(self):
+        # Keep the anchor deterministic: no developer .env/env leakage, an
+        # empty per-test auth store (conftest already isolates AUTH_STORE_PATH).
+        env = patch.dict(
+            "os.environ",
+            {
+                "YANDEX_DIRECT_TOKEN": "",
+                "YANDEX_DIRECT_LOGIN": "",
+                "YANDEX_DIRECT_BIND_PROFILE": "",
+            },
+            clear=False,
+        )
+        env.start()
+        self.addCleanup(env.stop)
+
+    @staticmethod
+    def _status(tier, owner):
+        return {
+            "active_tier": tier,
+            "persistent_profile": {"owner": owner if tier == "1.5" else None},
+            "saved_session": {"owner_login": owner if tier == "2" else None},
+        }
+
+    def test_mismatched_stamp_raises_loudly_with_both_logins(self):
+        from direct_cli.browser import auth as browser_auth
+        from direct_cli.browser.session import BrowserAuthError
+
+        with patch.object(
+            browser_auth, "_expected_session_login", return_value="ksamatadirect"
+        ):
+            with self.assertRaises(BrowserAuthError) as cm:
+                browser_auth._assert_session_owner(
+                    self._status("2", "engineeringprint-ru")
+                )
+        message = str(cm.exception)
+        self.assertIn("engineeringprint-ru", message)
+        self.assertIn("ksamatadirect", message)
+        # The hint must be the canonical _auth_hints pointer, not a variant.
+        self.assertIn("direct auth login browser", message)
+
+    def test_mismatched_persistent_profile_marker_raises_too(self):
+        from direct_cli.browser import auth as browser_auth
+        from direct_cli.browser.session import BrowserAuthError
+
+        with patch.object(
+            browser_auth, "_expected_session_login", return_value="expected"
+        ):
+            with self.assertRaises(BrowserAuthError):
+                browser_auth._assert_session_owner(self._status("1.5", "other"))
+
+    def test_unstamped_session_warns_but_opens(self):
+        from direct_cli.browser import auth as browser_auth
+
+        with patch.object(
+            browser_auth, "_expected_session_login", return_value="expected"
+        ):
+            with patch.object(browser_auth, "print_warning_stderr") as warn:
+                browser_auth._assert_session_owner(self._status("2", None))
+        warn.assert_called_once()
+        self.assertIn("direct auth login browser", str(warn.call_args))
+
+    def test_matching_owner_is_silent(self):
+        from direct_cli.browser import auth as browser_auth
+
+        with patch.object(
+            browser_auth, "_expected_session_login", return_value="Owner"
+        ):
+            with patch.object(browser_auth, "print_warning_stderr") as warn:
+                browser_auth._assert_session_owner(self._status("2", "owner"))
+        warn.assert_not_called()
+
+    def test_no_anchor_means_no_opinion(self):
+        from direct_cli.browser import auth as browser_auth
+
+        with patch.object(browser_auth, "_expected_session_login", return_value=None):
+            with patch.object(browser_auth, "print_warning_stderr") as warn:
+                browser_auth._assert_session_owner(self._status("2", "anyone"))
+        warn.assert_not_called()
+
+    def test_no_session_tier_is_a_noop(self):
+        """Nothing is about to open — the missing-session error reports it."""
+        from direct_cli.browser import auth as browser_auth
+
+        with patch.object(
+            browser_auth, "_expected_session_login", return_value="expected"
+        ) as anchor:
+            with patch.object(browser_auth, "print_warning_stderr") as warn:
+                browser_auth._assert_session_owner(self._status(None, None))
+        anchor.assert_not_called()
+        warn.assert_not_called()
+
+
+class TestExpectedSessionLogin(unittest.TestCase):
+    """The tokenless anchor ladder: linked profile > base env > active
+    profile (the last rung only under the #904 inherit opt-in)."""
+
+    def setUp(self):
+        env = patch.dict(
+            "os.environ",
+            {
+                "YANDEX_DIRECT_TOKEN": "",
+                "YANDEX_DIRECT_LOGIN": "",
+                "YANDEX_DIRECT_BIND_PROFILE": "",
+                # Explicit, not the conftest default: the gate is part of
+                # the ladder under test.
+                "YANDEX_DIRECT_INHERIT_GLOBAL": "1",
+            },
+            clear=False,
+        )
+        env.start()
+        self.addCleanup(env.stop)
+
+    def _save_store(self, profiles, active=None):
+        from direct_cli import auth as api_auth
+
+        api_auth.save_auth_store({"profiles": profiles, "active_profile": active})
+
+    @staticmethod
+    def _profile(login):
+        return {"token": "t", "login": login, "source": "oauth"}
+
+    def test_base_env_login_needs_the_base_token(self):
+        from direct_cli.browser.auth import _expected_session_login
+
+        self.assertIsNone(_expected_session_login())
+        import os
+
+        os.environ["YANDEX_DIRECT_LOGIN"] = "env-owner"
+        self.assertIsNone(_expected_session_login())
+        os.environ["YANDEX_DIRECT_TOKEN"] = "t"
+        self.assertEqual(_expected_session_login(), "env-owner")
+
+    def test_linked_profile_wins_and_is_isolated(self):
+        """A configured folder link resolves like --profile: no fall-through
+        to the active profile when the link's own login is absent (#917)."""
+        import os
+
+        from direct_cli.browser.auth import _expected_session_login
+
+        self._save_store(
+            {
+                "linked": self._profile(None),
+                "active": self._profile("active-owner"),
+            },
+            active="active",
+        )
+        os.environ["YANDEX_DIRECT_BIND_PROFILE"] = "linked"
+        self.assertIsNone(_expected_session_login())
+
+        os.environ["YANDEX_DIRECT_BIND_PROFILE"] = "missing"
+        self.assertIsNone(_expected_session_login())
+
+    def test_active_profile_login_is_the_last_rung(self):
+        import os
+
+        from direct_cli.browser.auth import _expected_session_login
+
+        self._save_store({"p": self._profile("profile-owner")}, active="p")
+        self.assertEqual(_expected_session_login(), "profile-owner")
+        # A linked profile beats the active profile's login.
+        self._save_store(
+            {
+                "p": self._profile("profile-owner"),
+                "l": self._profile("linked-owner"),
+            },
+            active="p",
+        )
+        os.environ["YANDEX_DIRECT_BIND_PROFILE"] = "l"
+        self.assertEqual(_expected_session_login(), "linked-owner")
+
+    def test_stale_active_profile_is_no_anchor_without_the_inherit_opt_in(self):
+        """The silent active-profile rung exists only under the #904 opt-in,
+        like the chain's own allow_active_profile gate (review of #943): in
+        a default no-binding folder a stale global profile must not refuse
+        the browser session — the re-login hint could not fix that."""
+        import os
+
+        from direct_cli.browser.auth import _expected_session_login
+
+        self._save_store({"p": self._profile("profile-owner")}, active="p")
+        os.environ["YANDEX_DIRECT_INHERIT_GLOBAL"] = ""
+        self.assertIsNone(_expected_session_login())
+        os.environ["YANDEX_DIRECT_INHERIT_GLOBAL"] = "1"
+        self.assertEqual(_expected_session_login(), "profile-owner")
+
+    def test_email_login_is_not_a_comparable_anchor(self):
+        """Pre-#480 profiles may store a Passport email; that is no opinion,
+        never a mismatch against the Client-Login in the stamp."""
+        from direct_cli.browser.auth import _expected_session_login
+
+        self._save_store({"p": self._profile("owner@example.com")}, active="p")
+        self.assertIsNone(_expected_session_login())
+
+
 def test_capture_storage_state_resolves_owner_login(tmp_path, monkeypatch):
     """`auth login browser --source chrome` stamps the owner resolved from
     the same decrypted jar the verification ran on."""
