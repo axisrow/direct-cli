@@ -950,7 +950,8 @@ class TestAssertSessionOwner(unittest.TestCase):
 
 
 class TestExpectedSessionLogin(unittest.TestCase):
-    """The tokenless anchor ladder: linked profile > base env > active profile."""
+    """The tokenless anchor ladder: linked profile > base env > active
+    profile (the last rung only under the #904 inherit opt-in)."""
 
     def setUp(self):
         env = patch.dict(
@@ -959,6 +960,9 @@ class TestExpectedSessionLogin(unittest.TestCase):
                 "YANDEX_DIRECT_TOKEN": "",
                 "YANDEX_DIRECT_LOGIN": "",
                 "YANDEX_DIRECT_BIND_PROFILE": "",
+                # Explicit, not the conftest default: the gate is part of
+                # the ladder under test.
+                "YANDEX_DIRECT_INHERIT_GLOBAL": "1",
             },
             clear=False,
         )
@@ -1022,6 +1026,21 @@ class TestExpectedSessionLogin(unittest.TestCase):
         )
         os.environ["YANDEX_DIRECT_BIND_PROFILE"] = "l"
         self.assertEqual(_expected_session_login(), "linked-owner")
+
+    def test_stale_active_profile_is_no_anchor_without_the_inherit_opt_in(self):
+        """The silent active-profile rung exists only under the #904 opt-in,
+        like the chain's own allow_active_profile gate (review of #943): in
+        a default no-binding folder a stale global profile must not refuse
+        the browser session — the re-login hint could not fix that."""
+        import os
+
+        from direct_cli.browser.auth import _expected_session_login
+
+        self._save_store({"p": self._profile("profile-owner")}, active="p")
+        os.environ["YANDEX_DIRECT_INHERIT_GLOBAL"] = ""
+        self.assertIsNone(_expected_session_login())
+        os.environ["YANDEX_DIRECT_INHERIT_GLOBAL"] = "1"
+        self.assertEqual(_expected_session_login(), "profile-owner")
 
     def test_email_login_is_not_a_comparable_anchor(self):
         """Pre-#480 profiles may store a Passport email; that is no opinion,

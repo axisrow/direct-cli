@@ -50,10 +50,13 @@ def _expected_session_login() -> Optional[str]:
     ladder — the anchor the owner check (#907) compares a session stamp
     against: the folder-linked profile's stored login (an explicit binding
     is isolated — configured link, no fall-through, per #917), else base
-    ``YANDEX_DIRECT_LOGIN`` alongside a base ``YANDEX_DIRECT_TOKEN``, else
-    the active profile's stored login. ``None`` = no comparable anchor
-    (browser-only setup, an unconfigured link/profile, or an email-only
-    login): the check then has no opinion instead of guessing.
+    ``YANDEX_DIRECT_LOGIN`` alongside a base ``YANDEX_DIRECT_TOKEN``, else —
+    only under the #904 opt-in, like the chain's own
+    ``allow_active_profile=inherit_globally_enabled()`` — the active
+    profile's stored login. ``None`` = no comparable anchor (browser-only
+    setup, an unconfigured link/profile, an email-only login, or a stale
+    global profile in a default no-binding folder): the check then has no
+    opinion instead of guessing.
     """
     from .. import auth as api_auth
 
@@ -63,11 +66,16 @@ def _expected_session_login() -> Optional[str]:
         return _comparable_login(profile.get("login")) if profile else None
     if os.getenv("YANDEX_DIRECT_TOKEN"):
         return _comparable_login(os.getenv("YANDEX_DIRECT_LOGIN"))
-    active = api_auth.get_active_profile()
-    if active:
-        profile = api_auth.get_oauth_profile(active)
-        if profile:
-            return _comparable_login(profile.get("login"))
+    # The silent active-profile rung exists only under the #904 opt-in: in
+    # the default no-binding folder a stale global profile is nobody's
+    # anchor, and a false refusal here could not be fixed by the re-login
+    # hint this check prints.
+    if api_auth.inherit_globally_enabled():
+        active = api_auth.get_active_profile()
+        if active:
+            profile = api_auth.get_oauth_profile(active)
+            if profile:
+                return _comparable_login(profile.get("login"))
     return None
 
 
