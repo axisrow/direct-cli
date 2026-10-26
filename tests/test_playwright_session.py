@@ -840,6 +840,18 @@ class TestOwnerLoginFromCookies(unittest.TestCase):
         self.assertIsNone(_owner_login_from_cookies([{"name": "Session_id"}]))
         self.assertIsNone(_owner_login_from_cookies([]))
 
+    def test_legacy_login_cookie_is_not_trusted(self):
+        """Only ``yandex_login`` stamps the owner (review of PR #933): this
+        repo never observed a Passport ``login`` cookie, so trusting that
+        name would let a foreign cookie forge the owner stamp."""
+        from direct_cli.browser.session import _owner_login_from_cookies
+
+        cookies = [
+            {"name": "login", "value": "someone", "domain": ".yandex.ru"},
+            {"name": "Session_id", "value": "s", "domain": ".yandex.ru"},
+        ]
+        self.assertIsNone(_owner_login_from_cookies(cookies))
+
 
 def test_capture_storage_state_resolves_owner_login(tmp_path, monkeypatch):
     """`auth login browser --source chrome` stamps the owner resolved from

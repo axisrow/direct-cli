@@ -431,11 +431,14 @@ def _is_yandex_ru_domain(domain: str) -> bool:
     return domain == "yandex.ru" or domain.endswith(".yandex.ru")
 
 
-# Passport's identity cookies: their value is the login of the account the
+# Passport's identity cookie: its value is the login of the account the
 # session belongs to (issue #916's owner stamp), set on the ``*.yandex.ru``
-# hosts alongside the SSO pair in :data:`_AUTH_SESSION_COOKIE_NAMES`. The
-# second name is Passport's legacy spelling, kept as a fallback.
-_OWNER_LOGIN_COOKIE_NAMES = ("yandex_login", "login")
+# hosts alongside the SSO pair in :data:`_AUTH_SESSION_COOKIE_NAMES`.
+# Deliberately no legacy-name fallback: this repo and its tests only ever
+# observed ``yandex_login``, and a same-named foreign cookie would forge the
+# owner stamp (and a false replacement warning) — review of PR #933. An
+# absent cookie means an unstamped session, the soft fallback.
+_OWNER_LOGIN_COOKIE_NAME = "yandex_login"
 
 
 def _owner_login_from_cookies(
@@ -449,15 +452,14 @@ def _owner_login_from_cookies(
     identity cookie: callers then save an unstamped session (soft fallback),
     never fail.
     """
-    for name in _OWNER_LOGIN_COOKIE_NAMES:
-        for cookie in cookies:
-            if cookie.get("name") != name:
-                continue
-            if not _is_yandex_ru_domain(str(cookie.get("domain", ""))):
-                continue
-            value = str(cookie.get("value") or "").strip()
-            if value:
-                return value
+    for cookie in cookies:
+        if cookie.get("name") != _OWNER_LOGIN_COOKIE_NAME:
+            continue
+        if not _is_yandex_ru_domain(str(cookie.get("domain", ""))):
+            continue
+        value = str(cookie.get("value") or "").strip()
+        if value:
+            return value
     return None
 
 
