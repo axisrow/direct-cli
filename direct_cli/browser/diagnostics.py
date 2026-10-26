@@ -156,6 +156,10 @@ def _check_saved_session(session_path: Optional[Path]) -> Check:
         f"{status['path']} ({status['cookie_count']} cookies, "
         f"mode={status['mode']}, age={status['age_seconds']}s)"
     )
+    owner = status.get("owner_login")
+    if owner:
+        # Issue #916: name the account the saved session belongs to.
+        detail += f", owner={owner}"
     return Check("saved_session", True, detail)
 
 

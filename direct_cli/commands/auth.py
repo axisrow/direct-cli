@@ -1183,12 +1183,16 @@ def _print_browser_status(payload: Dict[str, Any]) -> None:
     persistent = payload["persistent_profile"]
     saved = payload["saved_session"]
     click.echo(f"active_tier={payload['active_tier']} ({payload['active_source']})")
+    owner = persistent.get("owner")
     click.echo(
         f"persistent_profile: path={persistent['path']} usable={persistent['usable']}"
+        + (f" owner={owner}" if owner else "")
     )
+    saved_owner = saved.get("owner_login")
     click.echo(
         f"saved_session: exists={saved['exists']} expired={saved['expired']} "
         f"cookie_count={saved['cookie_count']} path={saved['path']}"
+        + (f" owner={saved_owner}" if saved_owner else "")
     )
     if saved["error"]:
         click.echo(f"  error: {saved['error']}")
@@ -1250,7 +1254,11 @@ def import_browser_session(
     except BrowserSessionError as exc:
         raise click.ClickException(str(exc)) from exc
 
-    saved_path = store.save_session(storage_state, source=source_meta)
+    saved_path = store.save_session(
+        storage_state,
+        owner_login=source_meta.get("owner_login"),
+        source=source_meta,
+    )
     status = store.session_status(saved_path)
     cookies = storage_state.get("cookies") or []
     domains = sorted({c["domain"] for c in cookies if c.get("domain")})
@@ -1265,6 +1273,9 @@ def import_browser_session(
         # session from a merely saved one. Default False, never True: an
         # unknown verification state must not read as verified (#692).
         "verified": bool(source_meta.get("verified", False)),
+        # Issue #916: whose account the saved session belongs to (None when
+        # the cookie jar carried no identity cookie).
+        "owner": source_meta.get("owner_login"),
         "mode": status["mode"],
     }
 
@@ -1277,6 +1288,8 @@ def import_browser_session(
         click.echo(f"cookies={payload['cookies']}")
         click.echo(f"domains={', '.join(domains)}")
         click.echo(f"verified={'yes' if payload['verified'] else 'no'}")
+        if payload["owner"]:
+            click.echo(f"owner={payload['owner']}")
         click.echo(f"mode={payload['mode']}")
         return
 

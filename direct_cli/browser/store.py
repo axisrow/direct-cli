@@ -72,29 +72,49 @@ def _atomic_write_json(path: Path, payload: Dict[str, Any]) -> None:
 def save_session(
     storage_state: Dict[str, Any],
     *,
+    owner_login: Optional[str] = None,
     source: Optional[Dict[str, Any]] = None,
     path: Optional[Path] = None,
 ) -> Path:
     """Persist ``storage_state`` (as returned by Playwright) to disk.
 
-    Wraps it in a versioned envelope with a timestamp and (diagnostic-only,
-    never used to re-decrypt) provenance. Returns the path written.
+    Wraps it in a versioned envelope with a timestamp, the owner's Yandex
+    login when it could be resolved (issue #916 — ``None`` simply saves an
+    unstamped session; old envelopes without the key read back as ``None``
+    too) and (diagnostic-only, never used to re-decrypt) provenance.
+    Returns the path written.
     """
     target = path or PLAYWRIGHT_SESSION_PATH
     replaced = target.exists()
+    previous_owner = None
+    if replaced:
+        previous = read_session_envelope(target)
+        if previous:
+            previous_owner = previous.get("owner_login")
     envelope = {
         "version": SESSION_FORMAT_VERSION,
         "created_at": time.time(),
+        "owner_login": owner_login,
         "source": source or {},
         "storage_state": storage_state,
     }
     _atomic_write_json(target, envelope)
     if replaced:
-        print_warning_stderr(
-            t("Replacing an existing saved browser session at {path}.").format(
-                path=target
+        if previous_owner and owner_login and previous_owner != owner_login:
+            # Data-Safety class B: a save is attributed (owner_login) and
+            # must report replacing a *different* account's session.
+            print_warning_stderr(
+                t(
+                    "Replacing the saved browser session at {path}: it "
+                    "belonged to {old}, the new session belongs to {new}."
+                ).format(path=target, old=previous_owner, new=owner_login)
             )
-        )
+        else:
+            print_warning_stderr(
+                t("Replacing an existing saved browser session at {path}.").format(
+                    path=target
+                )
+            )
     return target
 
 
@@ -169,6 +189,7 @@ def session_status(
         "path": str(target),
         "version": None,
         "created_at": None,
+        "owner_login": None,
         "age_seconds": None,
         "cookie_count": None,
         "expires_at": None,
@@ -190,6 +211,9 @@ def session_status(
     status["version"] = envelope.get("version")
     created_at = envelope.get("created_at")
     status["created_at"] = created_at
+    # Owner stamp (issue #916): None for old sessions saved before the stamp
+    # existed — a soft fallback, never an error.
+    status["owner_login"] = envelope.get("owner_login")
     current = now if now is not None else time.time()
     if isinstance(created_at, (int, float)):
         status["age_seconds"] = int(current - created_at)

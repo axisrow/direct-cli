@@ -767,5 +767,303 @@ def test_save_session_warns_when_replacing_existing_session(tmp_path, capsys):
     assert "session.json" in err
 
 
+class TestOwnerStamp(unittest.TestCase):
+    """Issue #916: the envelope records whose account the session belongs to.
+
+    Old sessions saved before the stamp read back as ``owner_login=None`` —
+    a soft fallback, never an error."""
+
+    def test_envelope_and_status_carry_owner_login(self):
+        store.save_session({"cookies": [], "origins": []}, owner_login="some-owner")
+        envelope = store.read_session_envelope()
+        assert envelope is not None
+        self.assertEqual(envelope["owner_login"], "some-owner")
+        self.assertEqual(store.session_status()["owner_login"], "some-owner")
+
+    def test_missing_stamp_reads_as_none_and_still_loads(self):
+        state = {"cookies": [], "origins": []}
+        store.save_session(state)
+        envelope = store.read_session_envelope()
+        assert envelope is not None
+        self.assertIsNone(envelope["owner_login"])
+        self.assertIsNone(store.session_status()["owner_login"])
+        self.assertEqual(store.load_session(), state)
+
+    def test_replacing_a_different_owner_warns_with_both_logins(self):
+        store.save_session({"cookies": []}, owner_login="old-owner")
+        with patch("direct_cli.browser.store.print_warning_stderr") as warn:
+            store.save_session({"cookies": []}, owner_login="new-owner")
+        warned = " ".join(str(call) for call in warn.call_args_list)
+        self.assertIn("old-owner", warned)
+        self.assertIn("new-owner", warned)
+
+    def test_replacing_the_same_owner_keeps_the_generic_warning(self):
+        store.save_session({"cookies": []}, owner_login="same-owner")
+        with patch("direct_cli.browser.store.print_warning_stderr") as warn:
+            store.save_session({"cookies": []}, owner_login="same-owner")
+        warned = " ".join(str(call) for call in warn.call_args_list)
+        self.assertNotIn("same-owner", warned)
+
+    def test_replacing_an_unstamped_session_keeps_the_generic_warning(self):
+        store.save_session({"cookies": []})
+        with patch("direct_cli.browser.store.print_warning_stderr") as warn:
+            store.save_session({"cookies": []}, owner_login="new-owner")
+        warned = " ".join(str(call) for call in warn.call_args_list)
+        self.assertNotIn("new-owner", warned)
+
+
+class TestOwnerLoginFromCookies(unittest.TestCase):
+    """The owner stamp is resolved from the same jar the auth checks read."""
+
+    def test_reads_passport_identity_cookie(self):
+        from direct_cli.browser.session import _owner_login_from_cookies
+
+        cookies = [
+            {"name": "Session_id", "value": "s", "domain": ".yandex.ru"},
+            {"name": "yandex_login", "value": "owner", "domain": ".yandex.ru"},
+        ]
+        self.assertEqual(_owner_login_from_cookies(cookies), "owner")
+
+    def test_ignores_foreign_domains_and_empty_values(self):
+        from direct_cli.browser.session import _owner_login_from_cookies
+
+        cookies = [
+            {"name": "yandex_login", "value": "evil", "domain": ".notyandex.ru"},
+            {"name": "yandex_login", "value": "  ", "domain": "yandex.ru"},
+            {"name": "other", "value": "x", "domain": ".yandex.ru"},
+        ]
+        self.assertIsNone(_owner_login_from_cookies(cookies))
+
+    def test_absent_identity_cookie_is_a_soft_none(self):
+        from direct_cli.browser.session import _owner_login_from_cookies
+
+        self.assertIsNone(_owner_login_from_cookies([{"name": "Session_id"}]))
+        self.assertIsNone(_owner_login_from_cookies([]))
+
+    def test_legacy_login_cookie_is_not_trusted(self):
+        """Only ``yandex_login`` stamps the owner (review of PR #933): this
+        repo never observed a Passport ``login`` cookie, so trusting that
+        name would let a foreign cookie forge the owner stamp."""
+        from direct_cli.browser.session import _owner_login_from_cookies
+
+        cookies = [
+            {"name": "login", "value": "someone", "domain": ".yandex.ru"},
+            {"name": "Session_id", "value": "s", "domain": ".yandex.ru"},
+        ]
+        self.assertIsNone(_owner_login_from_cookies(cookies))
+
+
+def test_capture_storage_state_resolves_owner_login(tmp_path, monkeypatch):
+    """`auth login browser --source chrome` stamps the owner resolved from
+    the same decrypted jar the verification ran on."""
+    pytest.importorskip("playwright")
+    from direct_cli.browser import session as browser_session
+
+    cookies = [
+        {"name": "Session_id", "value": "s", "expires": -1, "domain": ".yandex.ru"},
+        {"name": "yandex_login", "value": "chrome-owner", "domain": ".yandex.ru"},
+    ]
+
+    @contextlib.contextmanager
+    def fake_launch(_sync_playwright, *, headless, storage_state=None):
+        page = Mock()
+        page.locator.return_value.first.count.return_value = 1
+        page.content.return_value = "<html><body>grid</body></html>"
+        context = Mock()
+        context.new_page.return_value = page
+        context.storage_state.return_value = {"cookies": cookies, "origins": []}
+        yield Mock(), context
+
+    monkeypatch.setattr(browser_session, "_import_sync_playwright", lambda: object())
+    monkeypatch.setattr(
+        "direct_cli.browser._chrome_crypto.load_yandex_cookies",
+        lambda *args, **kwargs: cookies,
+    )
+    monkeypatch.setattr(browser_session, "_launch_context", fake_launch)
+
+    _storage_state, source_meta = browser_session.capture_storage_state(
+        profile_dir=tmp_path
+    )
+    assert source_meta["owner_login"] == "chrome-owner"
+    assert source_meta["verified"] is True
+
+
+def test_persistent_login_stamps_marker_with_owner(tmp_path):
+    from direct_cli.browser import session as session_module
+
+    profile = tmp_path / "profile"
+    profile.mkdir(parents=True)
+    (profile / session_module.PROFILE_MARKER_NAME).touch()
+    cookies = [
+        {"name": "Session_id", "value": "s", "domain": ".yandex.ru"},
+        {"name": "yandex_login", "value": "marker-owner", "domain": ".yandex.ru"},
+    ]
+
+    class _Context:
+        def cookies(self):
+            return cookies
+
+        def new_page(self):
+            page = Mock()
+            page.locator.return_value.first.count.return_value = 1
+            page.content.return_value = "<html><body>grid</body></html>"
+            return page
+
+    @contextlib.contextmanager
+    def fake_launch(sync_playwright, profile_dir, *, headless):
+        yield _Context()
+
+    with (
+        patch.object(session_module, "_import_sync_playwright", return_value=object()),
+        patch.object(session_module, "_launch_persistent_context", fake_launch),
+        patch.object(session_module, "_goto_with_network_retry"),
+    ):
+        session_module.login_persistent_session(profile_dir=profile)
+
+    assert (profile / session_module.PROFILE_MARKER_NAME).read_text(
+        encoding="utf-8"
+    ) == "marker-owner\n"
+    assert session_module.PROFILE_POINTER_PATH.exists()
+
+
+def test_persistent_login_warns_when_replacing_a_different_owner(tmp_path):
+    from direct_cli.browser import session as session_module
+
+    profile = tmp_path / "profile"
+    profile.mkdir(parents=True)
+    (profile / session_module.PROFILE_MARKER_NAME).write_text("old-owner\n")
+    cookies = [
+        {"name": "Session_id", "value": "s", "domain": ".yandex.ru"},
+        {"name": "yandex_login", "value": "new-owner", "domain": ".yandex.ru"},
+    ]
+
+    class _Context:
+        def cookies(self):
+            return cookies
+
+        def new_page(self):
+            page = Mock()
+            page.locator.return_value.first.count.return_value = 1
+            page.content.return_value = "<html><body>grid</body></html>"
+            return page
+
+    @contextlib.contextmanager
+    def fake_launch(sync_playwright, profile_dir, *, headless):
+        yield _Context()
+
+    with (
+        patch.object(session_module, "_import_sync_playwright", return_value=object()),
+        patch.object(session_module, "_launch_persistent_context", fake_launch),
+        patch.object(session_module, "_goto_with_network_retry"),
+        patch.object(session_module, "print_warning_stderr") as warn,
+    ):
+        session_module.login_persistent_session(profile_dir=profile)
+
+    warned = " ".join(str(call) for call in warn.call_args_list)
+    assert "old-owner" in warned and "new-owner" in warned
+
+
+def test_persistent_login_without_identity_cookie_leaves_marker_unstamped(tmp_path):
+    """No identity cookie in the jar → no stamp (soft fallback), no warning."""
+    from direct_cli.browser import session as session_module
+
+    profile = tmp_path / "profile"
+    profile.mkdir(parents=True)
+    (profile / session_module.PROFILE_MARKER_NAME).touch()
+    cookies = [{"name": "Session_id", "value": "s", "domain": ".yandex.ru"}]
+
+    class _Context:
+        def cookies(self):
+            return cookies
+
+        def new_page(self):
+            page = Mock()
+            page.locator.return_value.first.count.return_value = 1
+            page.content.return_value = "<html><body>grid</body></html>"
+            return page
+
+    @contextlib.contextmanager
+    def fake_launch(sync_playwright, profile_dir, *, headless):
+        yield _Context()
+
+    with (
+        patch.object(session_module, "_import_sync_playwright", return_value=object()),
+        patch.object(session_module, "_launch_persistent_context", fake_launch),
+        patch.object(session_module, "_goto_with_network_retry"),
+        patch.object(session_module, "print_warning_stderr") as warn,
+    ):
+        session_module.login_persistent_session(profile_dir=profile)
+
+    warn.assert_not_called()
+    assert (profile / session_module.PROFILE_MARKER_NAME).read_text(
+        encoding="utf-8"
+    ) == ""
+
+
+def test_browser_session_status_reports_both_owners(tmp_path):
+    from direct_cli.browser import auth as browser_auth
+    from direct_cli.browser import session as session_module
+
+    profile = tmp_path / "browser"
+    (profile / "Default").mkdir(parents=True)
+    (profile / session_module.PROFILE_MARKER_NAME).write_text("marker-owner\n")
+    (profile / "Default" / "Cookies").touch()
+    store.save_session({"cookies": [], "origins": []}, owner_login="saved-owner")
+
+    payload = browser_auth.session_status()
+
+    assert payload["persistent_profile"]["owner"] == "marker-owner"
+    assert payload["saved_session"]["owner_login"] == "saved-owner"
+    assert payload["active_tier"] == "1.5"
+
+
+def test_auth_status_text_shows_owners(tmp_path):
+    from click.testing import CliRunner
+
+    from direct_cli.browser import session as session_module
+    from direct_cli.cli import cli
+
+    profile = tmp_path / "browser"
+    (profile / "Default").mkdir(parents=True)
+    (profile / session_module.PROFILE_MARKER_NAME).write_text("marker-owner\n")
+    (profile / "Default" / "Cookies").touch()
+    store.save_session({"cookies": [], "origins": []}, owner_login="saved-owner")
+
+    result = CliRunner().invoke(cli, ["auth", "status", "browser"])
+
+    assert result.exit_code == 0, result.output
+    assert "owner=marker-owner" in result.output
+    assert "owner=saved-owner" in result.output
+
+
+def test_import_browser_session_stamps_owner(tmp_path):
+    from click.testing import CliRunner
+
+    from direct_cli.cli import cli
+
+    with patch(
+        "direct_cli.browser.session.capture_storage_state",
+        return_value=(
+            {"cookies": [{"name": "Session_id", "domain": ".yandex.ru"}]},
+            {
+                "profile_dir": "/fake/chrome",
+                "chrome_profile": "Default",
+                "verified": True,
+                "owner_login": "chrome-owner",
+            },
+        ),
+    ):
+        result = CliRunner().invoke(
+            cli,
+            ["auth", "login", "browser", "--source", "chrome", "--format", "json"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["owner"] == "chrome-owner"
+    envelope = store.read_session_envelope()
+    assert envelope is not None
+    assert envelope["owner_login"] == "chrome-owner"
+
+
 if __name__ == "__main__":
     unittest.main()
