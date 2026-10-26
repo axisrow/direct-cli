@@ -719,6 +719,27 @@ def status(
     """Show API and browser authorization (both domains by default)."""
     ctx = click.get_current_context()
     if ctx.invoked_subcommand is not None:
+        # Group-level flags are not forwarded into the subcommand: accepting
+        # `auth status --profile X api` would silently show effective
+        # credentials instead of X (the silent-flag-drop principle of the
+        # WSDL-parity gate). The canonical order is the subcommand first.
+        misplaced = [
+            flag
+            for flag, name in (
+                ("--profile", "profile"),
+                ("--profile-dir", "profile_dir"),
+                ("--format", "output_format"),
+            )
+            if ctx.get_parameter_source(name) is ParameterSource.COMMANDLINE
+        ]
+        if misplaced:
+            raise click.UsageError(
+                t(
+                    "Place {flags} after the domain subcommand: "
+                    "`direct auth status api {flags}` or "
+                    "`direct auth status browser {flags}`."
+                ).format(flags=" ".join(misplaced))
+            )
         return
     from ..browser.auth import session_status
 

@@ -406,6 +406,20 @@ def test_removed_method_flag_names_the_exact_replacement(
     assert replacement in result.output
 
 
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--profile", "agency1", "api"],
+        ["--format", "json", "browser"],
+        ["--profile-dir", "/unused", "browser"],
+    ],
+)
+def test_status_flags_before_the_subcommand_are_rejected(auth_env, arguments):
+    result = CliRunner().invoke(cli, ["auth", "status", *arguments])
+    assert result.exit_code == 2, result.output
+    assert "after the domain subcommand" in result.output
+
+
 @pytest.mark.parametrize("arguments", [["--interactive"], ["--headful"]])
 def test_removed_ui_flags_without_a_domain_name_both_commands(auth_env, arguments):
     result = CliRunner().invoke(cli, ["auth", "login", *arguments])
