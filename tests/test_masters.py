@@ -10232,6 +10232,174 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertIn("markup changed under us", str(ctx.exception))
         self.assertIn("first attempt's save had already failed", str(ctx.exception))
 
+    def _page_with_no_op_first_save(self, prices_state):
+        """Fake edit page whose FIRST save click is the #870 no-op.
+
+        The whole-form save model in this class is a shared state dict (the
+        fake "server"): ``_set_target_action_price``'s fill writes the typed
+        price into it, and the post-save re-read reads it back. The #870
+        first-click failure is modelled at the CLICK: click #1 closes the
+        form WITHOUT committing, so every goal rolls back to its pre-save
+        value; later clicks commit normally (an identical second run saves
+        fine — the issue's own repro).
+        """
+        pre_save = dict(prices_state)
+        page, save_clicks = self._page_with_save_button(
+            target_action_prices_state=prices_state
+        )
+        save_handle = page.get_by_role(
+            "button", name=browser_masters._SAVE_BUTTON_TEXT
+        ).nth(0)
+        base_on_click = save_handle._on_click
+
+        def _no_op_first_click():
+            base_on_click()
+            if len(save_clicks) == 1:
+                prices_state.update(pre_save)
+
+        save_handle._on_click = _no_op_first_click
+        return page, save_clicks
+
+    def test_no_op_first_target_action_price_save_is_auto_retried(self):
+        # Issue #870 (live repro 2026-10-23): the FIRST save click after
+        # typing a target-action price closes the form without applying.
+        # The unchanged-table guard fires alongside the requested-price
+        # mismatch — its expected map folds in the REQUESTED price — and
+        # that guard line used to suppress the #882 auto-retry, so the CLI
+        # reported "did not save as requested" and the identical manual
+        # re-run was needed. The raise site now certifies the no-op
+        # (post-save table == certified pre-save baseline) and the retry
+        # converges inside the SAME call: two save clicks, success.
+        prices_state = {159614149: "120"}
+        page, save_clicks = self._page_with_no_op_first_save(prices_state)
+
+        with (patch.object(browser_masters, "print_warning_stderr") as warning,):
+            result = browser_masters.update_master(
+                page, 713234179, target_action_prices={159614149: 150}
+            )
+
+        self.assertEqual(len(save_clicks), 2)
+        self.assertEqual(prices_state[159614149], "150")
+        self.assertEqual(
+            result,
+            {
+                "CampaignId": 713234179,
+                "TargetActions": [{"GoalId": 159614149, "Name": None, "Price": 150.0}],
+                "TargetActionPrices": {159614149: 150},
+            },
+        )
+        # The re-run must stay observable (same #850 standard as #882).
+        self.assertEqual(warning.call_count, 1)
+
+    def test_no_op_save_retry_is_bounded_and_fails_honestly(self):
+        # A save that no-ops on BOTH attempts is a real rejection, not a
+        # race: the auto-retry must stop at its attempt limit and surface
+        # the final verification failure ("The automatic retry has already
+        # run once") instead of masking it — and never click a third time.
+        prices_state = {159614149: "120"}
+        pre_save = dict(prices_state)
+        page, save_clicks = self._page_with_save_button(
+            target_action_prices_state=prices_state
+        )
+        save_handle = page.get_by_role(
+            "button", name=browser_masters._SAVE_BUTTON_TEXT
+        ).nth(0)
+        base_on_click = save_handle._on_click
+
+        def _every_click_is_a_no_op():
+            base_on_click()
+            prices_state.update(pre_save)
+
+        save_handle._on_click = _every_click_is_a_no_op
+
+        with patch.object(browser_masters, "print_warning_stderr"):
+            with self.assertRaises(SaveNotVerifiedError) as ctx:
+                browser_masters.update_master(
+                    page, 42, target_action_prices={159614149: 150}
+                )
+        self.assertEqual(len(save_clicks), 2)
+        self.assertIn("already run once", str(ctx.exception))
+        self.assertIn("159614149", str(ctx.exception))
+
+    def test_guard_divergence_beyond_the_noop_baseline_is_not_retried(self):
+        # The no-op certification covers ONLY "page == pre-save baseline".
+        # A first click that rolls back the requested price AND shifts an
+        # UNTOUCHED goal's price (issue #876's silent-CPA-shift loss)
+        # diverges from the baseline: retrying would re-baseline from the
+        # mutated page and accept the loss, so the error must surface after
+        # a single save click with no_op_save left False.
+        prices_state = {159614149: "120", 281285474: "50"}
+        page, save_clicks = self._page_with_save_button(
+            target_action_prices_state=prices_state
+        )
+        save_handle = page.get_by_role(
+            "button", name=browser_masters._SAVE_BUTTON_TEXT
+        ).nth(0)
+        base_on_click = save_handle._on_click
+
+        def _first_click_rolls_back_and_shifts():
+            base_on_click()
+            if len(save_clicks) == 1:
+                prices_state[159614149] = "120"  # requested change not applied
+                prices_state[281285474] = "99"  # …and an untouched price shifted
+
+        save_handle._on_click = _first_click_rolls_back_and_shifts
+
+        with self.assertRaises(SaveNotVerifiedError) as ctx:
+            browser_masters.update_master(
+                page, 42, target_action_prices={159614149: 150}
+            )
+        self.assertEqual(len(save_clicks), 1)
+        self.assertFalse(ctx.exception.no_op_save)
+        self.assertIn("281285474", str(ctx.exception))
+
+    def test_certified_noop_guard_mismatch_is_retried(self):
+        # Gate-level pin of the #870 carve-out: when the raise site
+        # certified the target-actions guard mismatch as the no-op save
+        # (no_op_save), the retry gate must treat the error like any other
+        # requested-value mismatch and re-run. The mismatch lines are the
+        # exact shape of the live repro — requested mismatch plus the
+        # guard's folded-in restatement of it.
+        first = SaveNotVerifiedError("no")
+        first.mismatches = [
+            "target_action_price[159614149]: expected 150.0, " "page now shows 120.0",
+            "target actions: expected goals (id → price) "
+            "{159614149: 150.0} to survive the save intact — page now "
+            "shows {159614149: 120.0}",
+        ]
+        first.no_op_save = True
+        once = Mock(side_effect=[first, {"CampaignId": 42}])
+        with (
+            patch.object(browser_masters, "_update_master_once", once),
+            patch.object(browser_masters, "print_warning_stderr"),
+        ):
+            result = browser_masters.update_master(
+                FakePage(), 42, target_action_prices={159614149: 150}
+            )
+        self.assertEqual(result, {"CampaignId": 42})
+        self.assertEqual(once.call_count, 2)
+
+    def test_noop_certification_does_not_override_another_guard(self):
+        # The certification explains only the target-actions guard. A
+        # second guard prefix in the same error (a possible audience-tag
+        # loss) must keep the fail-closed no-retry mode — a baseline
+        # equality in the target-actions section cannot vouch for a
+        # different section.
+        first = SaveNotVerifiedError("no")
+        first.mismatches = [
+            "target_action_price[159614149]: expected 150.0, " "page now shows 120.0",
+            "target actions: expected goals (id → price) "
+            "{159614149: 150.0} to survive the save intact — page now "
+            "shows {159614149: 120.0}",
+            "audience_tags: expected ['a'], page now shows []",
+        ]
+        first.no_op_save = True
+        once = Mock(side_effect=first)
+        with patch.object(browser_masters, "_update_master_once", once):
+            with self.assertRaises(SaveNotVerifiedError):
+                browser_masters.update_master(FakePage(), 42, goal_price=500)
+        self.assertEqual(once.call_count, 1)
+
     def test_verify_saved_survives_delayed_weekly_budget_hydration(self):
         # Issue #706: _wait_for_edit_form's poll only waits for the FIRST
         # HEADLINE slot (_EDIT_FORM_READY_TESTID) to appear — a different,

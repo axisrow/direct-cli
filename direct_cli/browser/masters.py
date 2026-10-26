@@ -7916,6 +7916,7 @@ def _verify_saved(
     target_action_goal_ids_before: Optional[List[int]] = None,
     target_actions_unchanged_expected: Optional[Dict[int, Optional[float]]] = None,
     target_actions_unchanged_requested: bool = False,
+    target_actions_baseline: Optional[Dict[int, Optional[float]]] = None,
     gender: Optional[str] = None,
     age_from_requested: bool = False,
     age_from: Optional[int] = None,
@@ -8038,6 +8039,11 @@ def _verify_saved(
     # The post-save target-action set, filled by the unchanged-table check
     # below when it ran and verified intact; returned to the caller.
     verified_target_actions: Optional[List[Dict[str, Any]]] = None
+    # Set by the unchanged-table guard when its mismatch is exactly the
+    # #870 no-op save (page == certified pre-save baseline) — the one
+    # guard firing the auto-retry may act on. Only meaningful when the
+    # guard actually fired; stays False otherwise.
+    target_actions_no_op = False
 
     if mismatches:
         # RE-NAVIGATE on a mismatch in any of ``checks``, not just re-poll
@@ -8579,6 +8585,21 @@ def _verify_saved(
                 f"(id → price) {expected_unchanged!r} to survive the save "
                 f"intact — page now shows {actual_unchanged!r}"
             )
+            # Issue #870: the guard's expected map folds in the REQUESTED
+            # prices ({**baseline, **requested}, see _update_master_once),
+            # so when the #869/#870 no-op save leaves the table at its
+            # baseline this guard fires as a tautological restatement of
+            # the requested-price mismatch — not as a section loss. Page ==
+            # certified pre-save baseline is the ONE guard firing provably
+            # consistent with a converged re-run; the raise site annotates
+            # the error with it and the auto-retry gate keys on that. A
+            # divergence in ANY row (dropped goal, shifted other price,
+            # unreadable table) keeps the fail-closed no-retry mode.
+            target_actions_no_op = (
+                actual_unchanged is not None
+                and target_actions_baseline is not None
+                and actual_unchanged == target_actions_baseline
+            )
         elif rows_after is not None:
             # Verified intact — handed back so the caller's result row can
             # show WHICH goals at WHICH bid survived the save (issues
@@ -8645,6 +8666,11 @@ def _verify_saved(
             + " Verify manually before retrying."
         )
         error.mismatches = list(mismatches)
+        # A pure fact about THIS section: the guard fired AND the post-save
+        # table equals the certified pre-save baseline. Whether that
+        # certifies a retryable no-op is the retry gate's decision (it also
+        # checks no OTHER guard prefix fired — see _no_op_guard_mismatch).
+        error.no_op_save = target_actions_no_op
         raise error
 
     return verified_target_actions
@@ -8731,13 +8757,36 @@ _SECTION_GUARD_MISMATCH_PREFIXES = (
 def _section_guard_mismatch(mismatches: Sequence[str]) -> bool:
     """Did any verification mismatch come from a section-preservation guard?
 
-    Such a mismatch is never auto-retried: unlike "the requested scalar
-    kept its old value" (the #869 no-op — a re-run converges), a guard
-    firing means the page's section state may already have changed under
-    us, and a second attempt's baseline read would certify the mutated
-    state instead of catching the loss.
+    Such a mismatch is never auto-retried, except when the raise site
+    certified it as the #870 no-op save (``no_op_save`` — checked by the
+    retry gate at the call site): the target-actions guard folds the
+    requested prices into its expected map, so a save that applied
+    nothing fires it while the page still equals its pre-save baseline.
+    Unlike that certified case, a guard firing WITHOUT it means the
+    page's section state may already have changed under us, and a second
+    attempt's baseline read would certify the mutated state instead of
+    catching the loss.
     """
     return any(m.startswith(_SECTION_GUARD_MISMATCH_PREFIXES) for m in mismatches)
+
+
+def _no_op_guard_mismatch(exc: "SaveNotVerifiedError") -> bool:
+    """Is this verify failure the #870 no-op save, safe for the auto-retry?
+
+    True only when BOTH hold: the raise site certified the target-actions
+    guard's mismatch as "post-save table == certified pre-save baseline"
+    (``no_op_save`` — nothing the request asked for was applied, nothing
+    else in the section changed), AND the target-actions guard is the ONLY
+    guard that fired. An audience/metrika/sitelink mismatch is a possible
+    section loss that a baseline equality in a DIFFERENT section cannot
+    explain away, so its presence keeps the fail-closed no-retry mode.
+    """
+    return exc.no_op_save and not any(
+        mismatch.startswith(prefix)
+        for mismatch in exc.mismatches
+        for prefix in _SECTION_GUARD_MISMATCH_PREFIXES
+        if prefix != _TARGET_ACTIONS_GUARD_LABEL
+    )
 
 
 #: Value-SET parameters of ``update_master`` whose re-application is
@@ -8833,8 +8882,16 @@ def update_master(
     A failed verification is also NOT retried when a section-preservation
     guard produced the mismatch (``_section_guard_mismatch``) — there the
     save may have silently dropped a section, and a second attempt would
-    re-baseline from the mutated page and accept the loss. The gate is
-    fail-closed: an error without mismatch lines is never retried.
+    re-baseline from the mutated page and accept the loss. The ONE
+    exception is the guard's own no-op certification (``no_op_save``,
+    issue #870): the target-actions guard folds the REQUESTED prices into
+    its expected map, so the #869/#870 no-op save fires it as a
+    restatement of the requested-value mismatch; when the raise site
+    certified the post-save table equal to the pre-save baseline (and no
+    other guard fired), the failure IS the benign no-op mode and the
+    retry converges. The gate is fail-closed: an error without mismatch
+    lines, or with a guard mismatch lacking that certification, is never
+    retried.
 
     See ``_update_master_once`` for the per-parameter documentation and
     the save-verification contract itself.
@@ -8924,8 +8981,17 @@ def update_master(
         return _attempt()
     except SaveNotVerifiedError as exc:
         # Fail-closed: an error without mismatch lines (only the real
-        # raise site annotates them) is never auto-retried.
-        if not exc.mismatches or _section_guard_mismatch(exc.mismatches):
+        # raise site annotates them) is never auto-retried. A section-
+        # preservation guard mismatch is retried ONLY as the raise site's
+        # certified #870 no-op (_no_op_guard_mismatch): the target-actions
+        # guard folds the requested prices into its expected map, so the
+        # benign no-op save fires it as a tautology of the requested-value
+        # mismatch — the exact first-run failure this retry exists for.
+        # Without that certification (section may have been dropped), fail
+        # loudly as before.
+        if not exc.mismatches or (
+            _section_guard_mismatch(exc.mismatches) and not _no_op_guard_mismatch(exc)
+        ):
             raise
         # stderr, not stdout (issue #850's standard): the batch path
         # streams machine-readable JSON on stdout.
@@ -9341,6 +9407,12 @@ def _update_master_once(
     target_actions_unchanged_expected: Optional[Dict[int, Optional[float]]] = None
     target_actions_unchanged_requested = False
     target_actions_preservation_requested = False
+    # The #756 certified pre-save target-action snapshot; read only on the
+    # unchanged-table path below, ``None`` everywhere else (max-clicks
+    # campaigns, add/remove saves). Its {GoalId: Price} map is what
+    # _verify_saved compares the post-save table against to certify the
+    # #870 no-op save.
+    target_actions_at_load: Optional[List[Dict[str, Any]]] = None
     target_action_goal_ids_before: Optional[List[int]] = None
     # Certified WITH the ids (same two-read snapshot): the pre-click guard
     # compares the full {GoalId: Price} state on a certified removal
@@ -9923,6 +9995,11 @@ def _update_master_once(
             target_action_goal_ids_before=target_action_goal_ids_before,
             target_actions_unchanged_expected=target_actions_unchanged_expected,
             target_actions_unchanged_requested=target_actions_unchanged_requested,
+            target_actions_baseline=(
+                None
+                if target_actions_at_load is None
+                else _target_action_price_map(target_actions_at_load)
+            ),
             gender=gender,
             age_from_requested=age_from_requested,
             age_from=age_from,
