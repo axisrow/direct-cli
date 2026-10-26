@@ -144,12 +144,15 @@ replacement notices now point at the new subcommand surface.
   fail-closed single-attempt behavior; two failed attempts still surface
   the final "did not save as requested" error with the "automatic retry
   has already run once" marker.
-- **`trackingparams` / `dictionaries list-names`: a failing `--output` path
-  (e.g. a directory) no longer prints a raw Python traceback (#903).** The
-  local reference commands now wrap formatting in the shared error handler,
-  so write failures report a short `✗` message to stderr and exit 1 — the
-  same convention as API commands. Normal stdout output and writing to a
-  valid file are unchanged.
+- **`--output` failures on reference commands no longer print a raw Python
+  traceback (#903).** The `reference_output_options` decorator now wraps the
+  command body in the shared error handler, so a failing output path (e.g. a
+  directory) reports a short `✗` message to stderr and exits 1 — the same
+  convention as API commands. This covers every user of the option stack:
+  `trackingparams`, `dictionaries list-names`, `auth doctor`,
+  `auth status browser` and the deprecated `playwright login|doctor` /
+  `masters status` aliases. Normal stdout output and writing to a valid file
+  are unchanged.
 - **`reports get`: API error 56 (method rate limit) now retries with
   exponential backoff (#918).** Yandex allows only 1 request per 10 seconds
   per method; with several `direct`/MCP clients sharing one account, each

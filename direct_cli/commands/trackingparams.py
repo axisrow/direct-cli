@@ -4,7 +4,7 @@ Tracking parameters reference command (local, no API call).
 
 import click
 
-from ..output import format_output, handle_api_errors
+from ..output import format_output
 from ..tracking_params import TRACKING_PARAMS, TRACKING_PARAMS_DOCS_URL
 from ..utils import reference_output_options
 
@@ -14,7 +14,6 @@ from ..utils import reference_output_options
     epilog=f"\b\nDocumentation: {TRACKING_PARAMS_DOCS_URL}",
 )
 @reference_output_options
-@handle_api_errors
 def tracking_params(output_format, output):
     """Dynamic tracking parameters reference (UTM template placeholders).
 
