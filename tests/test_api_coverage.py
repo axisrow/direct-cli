@@ -2192,6 +2192,7 @@ class TestReportsCoverage:
             "spec": "https://yandex.ru/dev/direct/doc/ru/spec",
             "fields-list": docs_pages["fields-list"],
             "headers": docs_pages["headers"],
+            "units": docs_pages["units"],
         }
 
     def test_reports_cache_files_exist(self):

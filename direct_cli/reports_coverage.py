@@ -28,6 +28,11 @@ REPORTS_SPEC_URLS: dict[str, str] = {
     "spec": "https://yandex.ru/dev/direct/doc/ru/spec",
     "fields-list": _REPORTS_DOCS_PAGES["fields-list"],
     "headers": _REPORTS_DOCS_PAGES["headers"],
+    # Transport-level Units headers (Units/Units-Used-Login/Use-Operator-Units)
+    # are documented on the concepts page, not on the HTTP-headers page (#922).
+    # Cached alongside the reports pages so the header manifest guard
+    # (tests/test_headers_manifest.py) can run offline.
+    "units": _REPORTS_DOCS_PAGES["units"],
 }
 
 REPORTS_CACHE_DIR = Path(__file__).resolve().parent.parent / "tests" / "reports_cache"
