@@ -678,7 +678,8 @@ def _parse_target_action_price_options(
     Unlike ``_parse_repeating_slot_options`` (1-based slot NUMBER, a fixed
     small range), the key here is Yandex Metrika's own numeric goal id
     (unbounded, no fixed count known ahead of time — see
-    ``direct_cli/browser/masters.py::_read_target_actions``'s docstring for
+    ``direct_cli/browser/masters.py::_read_target_actions_or_none``'s
+    docstring for
     why a goal can only be identified by this id, never by its label). All
     format errors are raised as ``click.UsageError`` before any browser
     session is opened, mirroring every other CLI-boundary parse in this
@@ -2100,6 +2101,12 @@ def targetactions_get(
     campaign's promotion goal is not "max-conversions" (the table doesn't
     exist on the page at all), or no goal has been added to it yet. Use
     ``masters get`` to check the campaign's current promotion goal.
+
+    The table is read settled (issue #910): rows are reported only once
+    their snapshot is stable, so a mid-hydration page no longer answers
+    ``Count: 0`` for a populated table; a rendered section whose rows never
+    settle into a readable snapshot fails with an error instead of printing
+    an empty list.
     """
     from ..browser.masters import fetch_master_target_actions
 

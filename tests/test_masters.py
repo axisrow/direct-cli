@@ -450,7 +450,7 @@ class _FakeLocator:
         return self._handles[0] if self._handles else _FakeLocatorHandle(raises=True)
 
     def all_inner_texts(self):
-        # Models Locator.all_inner_texts() — used by _read_target_actions
+        # Models Locator.all_inner_texts() — used by _read_target_actions_or_none
         # (issue #707) to read a target-action row's label off its
         # `[data-testid="Text"]` child (not unique across rows, so scoped by
         # a compound CSS selector rather than `.first`).
@@ -8229,8 +8229,10 @@ class _FakeTargetActionsPage(FakePage):
         )
 
 
-class TestReadTargetActions(unittest.TestCase):
-    """``_read_target_actions`` (issue #707)."""
+class TestReadTargetActionsOrNone(unittest.TestCase):
+    """``_read_target_actions_or_none`` (issue #707) — the row shape and the
+    None-on-unreadable contract the settled readers and verification build
+    on."""
 
     def test_reads_one_row(self):
         page = _FakeTargetActionsPage(
@@ -8238,7 +8240,7 @@ class TestReadTargetActions(unittest.TestCase):
         )
 
         self.assertEqual(
-            browser_masters._read_target_actions(page),
+            browser_masters._read_target_actions_or_none(page),
             [{"GoalId": 159614149, "Name": "Регистрация", "Price": 150.0}],
         )
 
@@ -8250,7 +8252,8 @@ class TestReadTargetActions(unittest.TestCase):
             }
         )
 
-        results = browser_masters._read_target_actions(page)
+        results = browser_masters._read_target_actions_or_none(page)
+        assert results is not None
 
         self.assertEqual(len(results), 2)
         self.assertEqual({r["GoalId"] for r in results}, {159614149, 281285474})
@@ -8259,25 +8262,27 @@ class TestReadTargetActions(unittest.TestCase):
         page = _FakeTargetActionsPage({159614149: {"name": "Регистрация", "price": ""}})
 
         self.assertEqual(
-            browser_masters._read_target_actions(page),
+            browser_masters._read_target_actions_or_none(page),
             [{"GoalId": 159614149, "Name": "Регистрация", "Price": None}],
         )
 
     def test_empty_table_is_not_an_error(self):
         page = _FakeTargetActionsPage({})
 
-        self.assertEqual(browser_masters._read_target_actions(page), [])
+        self.assertEqual(browser_masters._read_target_actions_or_none(page), [])
 
-    def test_section_absent_returns_empty_list(self):
+    def test_section_absent_returns_none(self):
         # e.g. promotion goal is 'max-clicks', not 'max-conversions' — the
-        # table doesn't exist on the page at all, same "absent, not an
-        # error" convention as _read_goal_price under the opposite goal.
+        # table doesn't exist on the page at all. ``None`` (unreadable) is
+        # distinct from ``[]`` (readable, no rows) — callers like
+        # fetch_master_target_actions discriminate the two via
+        # _target_actions_section_present (issue #910).
         page = _FakeTargetActionsPage(
             {159614149: {"name": "Регистрация", "price": "150"}},
             section_present=False,
         )
 
-        self.assertEqual(browser_masters._read_target_actions(page), [])
+        self.assertIsNone(browser_masters._read_target_actions_or_none(page))
 
 
 class TestParseTargetActionPrice(unittest.TestCase):
@@ -8955,6 +8960,87 @@ class TestFetchMasterTargetActions(unittest.TestCase):
 
     def test_empty_table_is_a_valid_result(self):
         page = _FakeTargetActionsPage({})
+
+        result = browser_masters.fetch_master_target_actions(page, 713234191)
+
+        self.assertEqual(
+            result, {"CampaignId": 713234191, "TargetActions": [], "Count": 0}
+        )
+
+    def test_hydration_dip_no_longer_reads_as_empty(self):
+        """Issue #910: a populated table read mid-hydration was the silent
+        false negative — the dip reports a well-formed, non-throwing EMPTY
+        snapshot (issues #750/#756), and the old single read collapsed it
+        into ``Count: 0`` for a campaign whose table is populated. The
+        settled read must wait the dip out and report the rows."""
+        page = _FakeTargetActionsPage(
+            {159614149: {"name": "Регистрация", "price": "350"}}
+        )
+        original_locator = page.locator
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+        acquisitions = {"count": 0}
+
+        def _stub_locator(selector):
+            if selector == row_prefix_selector:
+                acquisitions["count"] += 1
+                real = original_locator(selector)
+                # The dip: the first few reads report an empty table (the
+                # section itself stays visible — the documented dip shape),
+                # then the real rows commit.
+                if acquisitions["count"] <= 5:
+                    return _CountOverrideLocator(real, count=0)
+                return _CountOverrideLocator(real)
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        result = browser_masters.fetch_master_target_actions(page, 107707079)
+
+        self.assertEqual(
+            result["TargetActions"],
+            [{"GoalId": 159614149, "Name": "Регистрация", "Price": 350.0}],
+        )
+        self.assertEqual(result["Count"], 1)
+
+    def test_rendered_section_that_never_reads_raises_not_silent_zero(self):
+        """Issue #910: a rendered section whose rows never settle into a
+        READABLE snapshot (every row scan fails, not merely reads empty) must
+        fail loudly — answering ``Count: 0`` there is indistinguishable from
+        a genuinely empty table, which is exactly the ambiguity the issue
+        forbids."""
+        page = _FakeTargetActionsPage(
+            {159614149: {"name": "Регистрация", "price": "350"}}
+        )
+        original_locator = page.locator
+        row_prefix_selector = (
+            f'[data-testid^="TargetActions.'
+            f'{browser_masters._TARGET_ACTIONS_CATEGORY}."]'
+        )
+
+        def _stub_locator(selector):
+            if selector == row_prefix_selector:
+                # The row scan itself fails on every attempt — the "parser
+                # never saw the rows" shape, which _read_target_actions_or_none
+                # reports as None, never as [].
+                raise PlaywrightError("element detached")
+            return original_locator(selector)
+
+        page.locator = _stub_locator
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.fetch_master_target_actions(page, 107707079)
+
+        message = str(ctx.exception)
+        self.assertIn("Целевые действия", message)
+        self.assertIn("107707079", message)
+
+    def test_absent_section_still_reads_as_empty(self):
+        """A max-clicks campaign renders no section at all — genuinely
+        empty, no error, the same ``Count: 0`` as before the fix."""
+        page = _FakeTargetActionsPage({}, section_present=False)
 
         result = browser_masters.fetch_master_target_actions(page, 713234191)
 
@@ -10236,8 +10322,9 @@ class TestUpdateMaster(unittest.TestCase):
         self.assertEqual(result, {"CampaignId": 42, "GoalPrice": 500})
 
     def test_verify_saved_survives_delayed_target_action_price_hydration(self):
-        # Issue #716: target_action_prices' one-shot _read_target_actions()
-        # call in _verify_saved wasn't wrapped in _read_until_matches either
+        # Issue #716: target_action_prices' one-shot read of the
+        # "Целевые действия" table in _verify_saved wasn't wrapped in
+        # _read_until_matches either
         # — the "Целевые действия" table sits even lower on the edit page
         # (per _set_target_action_price's own docstring) so it is at least
         # as exposed to this hydration race as weekly_budget/goal_price.
@@ -10739,7 +10826,7 @@ class TestUpdateMaster(unittest.TestCase):
     def test_raises_when_removal_verify_hits_transient_row_scan_failure(self):
         """Codex adversarial review of #717: the section-visibility retry
         (test above) is NOT enough — a transient failure can also occur
-        INSIDE ``_read_target_actions`` itself (enumerating the row
+        INSIDE the target-actions row scan itself (enumerating the row
         elements) even though the section is visible. Without a matching
         ``None`` propagation there, that mid-scan hiccup collapses to `[]`,
         and `_add_remove_match` reads a genuinely-still-present goal as

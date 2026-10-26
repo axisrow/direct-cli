@@ -76,6 +76,23 @@
   response structure keeps its separate, API-change message. New
   `masters list --timeout SECONDS` scales both per-attempt budgets for slow
   connections.
+- **`masters targetactions get`: a populated goals table is no longer
+  reported as empty (#910).** The "Целевые действия" table goes through a
+  genuine, non-throwing EMPTY interval mid-hydration (the same race
+  #750/#756 documented for the save guard), and the command answered with a
+  single immediate read — landing in that dip silently returned
+  `{"TargetActions": [], "Count": 0}` for a campaign whose table is
+  populated, indistinguishable from genuinely empty (the audit over 28
+  campaigns produced 2 false violations this way). The read is now the same
+  settled, failure-aware snapshot the `--preserve-target-actions` guard
+  uses: rows are reported only once their `{GoalId: Price}` identity is
+  stable, and a rendered section whose rows never settle into a readable
+  snapshot fails with an error instead of printing `Count: 0`. A genuinely
+  empty table still answers `Count: 0`, and so does a max-clicks campaign
+  (no section rendered) — the latter now pays the settle deadline (~20 s)
+  before that answer, same as the guard path, because the same dips briefly
+  unmount the section and its absence is only meaningful after settling had
+  its chance.
 
 ## 0.5.4 — 2026-10-24
 
