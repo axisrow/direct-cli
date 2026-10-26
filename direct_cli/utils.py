@@ -16,6 +16,7 @@ from direct_cli._vendor.tapi_yandex_direct.resource_mapping import (
     RESOURCE_MAPPING_V5,
 )
 from direct_cli.i18n import t
+from direct_cli.output import handle_api_errors
 
 
 def parse_ids(ids_str: Optional[str]) -> Optional[List[int]]:
@@ -1112,12 +1113,18 @@ def reference_output_options(func):
     there is no ``--dry-run`` (no API call). The shared convention for local
     reference commands (``trackingparams``, ``dictionaries list-names``, …);
     ``text`` is rendered by :func:`direct_cli.output.format_text`.
+
+    The command body is wrapped in :func:`direct_cli.output.handle_api_errors`
+    (#903): every user of these options formats locally and writes ``--output``
+    here, so a failing output path (e.g. a directory) is a clean CLI error for
+    all of them — commands must not re-apply the decorator themselves.
     """
     func = click.option("--output", help="Output file")(func)
-    return click.option(
+    func = click.option(
         "--format",
         "output_format",
         default="text",
         type=click.Choice(["text", "json", "table", "csv", "tsv"]),
         help="Output format",
     )(func)
+    return handle_api_errors(func)

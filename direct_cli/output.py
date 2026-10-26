@@ -376,19 +376,22 @@ def units_error_hint(e: Exception) -> str:
 def handle_api_errors(func):
     """Convert uncaught exceptions into a printed error + ``click.Abort``.
 
-    ``click.ClickException`` (including ``click.UsageError``) is re-raised
-    unchanged so Click renders it normally (usage text, exit code 2). Any other
-    exception is printed via :func:`print_error` and converted to
-    ``click.Abort`` (exit code 1), matching the canonical command
-    error-handling block this decorator replaces. When the exception carries
-    an API response with a ``Units`` header, the balance is appended (#919).
+    ``click.ClickException`` (including ``click.UsageError``) and
+    ``click.Abort`` are re-raised unchanged so Click renders them normally
+    (usage text, exit code 2; "Aborted!", exit code 1). Abort in particular
+    is raised only after the command already printed its own error — printing
+    a second, empty message for it would be noise. Any other exception is
+    printed via :func:`print_error` and converted to ``click.Abort``
+    (exit code 1), matching the canonical command error-handling block this
+    decorator replaces. When the exception carries an API response with a
+    ``Units`` header, the balance is appended (#919).
     """
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except click.ClickException:
+        except (click.ClickException, click.Abort):
             raise
         except Exception as e:
             print_error(str(e) + units_error_hint(e))

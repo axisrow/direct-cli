@@ -102,3 +102,47 @@ def test_list_names_all_formats_succeed(fmt):
     result = _run("dictionaries", "list-names", "--format", fmt)
     assert result.exit_code == 0, result.output
     assert "Currencies" in result.output
+
+
+# ── --output write errors are CLI errors, not tracebacks (issue #903) ─────
+
+
+@pytest.mark.parametrize(
+    "args, marker",
+    [
+        (("trackingparams",), "{campaign_id}"),
+        (("dictionaries", "list-names"), "Currencies"),
+    ],
+)
+def test_output_directory_is_clean_cli_error(tmp_path, args, marker):
+    result = _run(*args, "--output", str(tmp_path))
+    assert result.exit_code == 1
+    assert not isinstance(result.exception, IsADirectoryError)
+    assert "Traceback" not in result.stderr
+    assert "Is a directory" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "args, marker",
+    [
+        (("trackingparams",), "{campaign_id}"),
+        (("dictionaries", "list-names"), "Currencies"),
+    ],
+)
+def test_output_to_valid_file_writes_content(tmp_path, args, marker):
+    path = tmp_path / "out.txt"
+    result = _run(*args, "--output", str(path))
+    assert result.exit_code == 0, result.output
+    assert marker in path.read_text(encoding="utf-8")
+
+
+def test_auth_doctor_output_directory_is_clean_cli_error(tmp_path):
+    # The handler lives inside reference_output_options itself, so browser
+    # commands sharing the option stack are covered too (review of PR #935).
+    # doctor renders json/text itself via click.echo; table/csv/tsv go through
+    # format_output, where a directory output used to traceback.
+    result = _run("auth", "doctor", "--format", "csv", "--output", str(tmp_path))
+    assert result.exit_code == 1
+    assert not isinstance(result.exception, IsADirectoryError)
+    assert "Traceback" not in result.stderr
+    assert "Is a directory" in result.stderr
