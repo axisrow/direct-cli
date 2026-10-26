@@ -112,6 +112,18 @@ replacement notices now point at the new subcommand surface.
   guard in `tests/test_unified_auth.py` bans literal login-command strings
   outside `_auth_hints.py`, so a second hint source fails CI.
 
+- **No third-party browser automation is named in docs, code hints or
+  fixtures (#906).** Recon-provenance notes in `direct_cli/browser/masters.py`,
+  a historical changelog entry and the wizard fixture headers credited
+  live-verified facts to an external Chrome-automation tool; issue #906 keeps
+  third-party browser automation out of the CLI workflow entirely. The notes
+  keep their facts and dates but describe the method neutrally (read-only
+  recon against a real Chrome session). Session advice already pointed only
+  at the native paths — the canonical pointers in `direct_cli/_auth_hints.py`
+  (`direct auth login browser`, `direct auth login browser --source chrome`,
+  the `direct playwright login` deprecation notice) — and command behavior
+  is untouched.
+
 ### Fixed
 
 - **README campaign examples now pass `--dry-run` (#902).** Eight examples
@@ -993,7 +1005,7 @@ counter by its 0-based position via its close button. Testid shapes
 after opening the section's editor.
 
 **`--add-metrika-counter`'s expected text CONFIRMED LIVE** (2026-08-06, via
-`mcp claude-in-chrome` against a real Chrome session — separate from the
+a read-only recon pass against a real Chrome session — separate from the
 Playwright/Chrome-for-Testing browser this module normally drives): a
 suggestion's accessible text is one line shaped `"{label} • {domain/path}
 • {numeric counter id}"` (e.g. `"Ксамата • yandex.ru/maps • 88834924"`).

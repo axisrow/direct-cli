@@ -1717,8 +1717,8 @@ AGE_TO_CHOICES = (18, 25, 35, 45, 55, None)  # None = AgeUnlimited ("55+")
 # popup``/``...editor.listBox``) mixing keyword suggestions (each rendered as
 # an accessible-tree ``option`` whose testid follows the keyword_<text>
 # pattern above) and interest-category suggestions (each an ``option`` too,
-# but with a numeric-id testid) — confirmed live via
-# ``mcp__claude-in-chrome__find`` locating the "Спорт" suggestion as
+# but with a numeric-id testid) — confirmed live in a read-only real-Chrome
+# recon pass, which located the "Спорт" suggestion as
 # ``option "Спорт" (interest_suggestion)``. Because the interest testid is
 # unpredictable, THIS MODULE MATCHES BOTH KINDS BY THE SUGGESTION ROW'S
 # VISIBLE ACCESSIBLE NAME (Playwright ``get_by_role("option", name=...,
@@ -1943,7 +1943,8 @@ _METRIKA_COUNTER_SUGGEST_TIMEOUT_MS = _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS
 # "Быстрые ссылки" (sitelinks) section, issue #648 Этап C. Confirmed live
 # 2026-08-06 against campaign 713277109 (an ACTIVE campaign on a real ad
 # account — see this module's own recon notes below for what was and was
-# NOT verified) via two READ-ONLY Playwright/claude-in-chrome recon passes.
+# NOT verified) via two READ-ONLY recon passes (the module's own Playwright
+# driver plus a real-Chrome DevTools pass).
 #
 # Recon #1 (Playwright, before opening any card): the section container, the
 # "Добавить" button that creates a new card, and per-card testids — but the
@@ -1960,7 +1961,7 @@ _METRIKA_COUNTER_SUGGEST_TIMEOUT_MS = _AUDIENCE_TAG_SUGGEST_TIMEOUT_MS
 # ``_SITELINK_REMOVE_TESTID``'s docstring for why removal in particular
 # differs from ``_AUDIENCE_TAG_CLOSE_TESTID_TEMPLATE``).
 #
-# Recon #2 (claude-in-chrome, after clicking the FIRST card's ``Sitelink.
+# Recon #2 (real-Chrome DevTools, after clicking the FIRST card's ``Sitelink.
 # overlay``): clicking a card mounts an INLINE edit form directly in the
 # card (not a modal) with its own three ``SitelinkRow.*`` field testids for
 # title/href/description. These are confirmed to belong to only the ONE
@@ -6293,8 +6294,8 @@ def _add_metrika_counter(page: "Page", text: str) -> None:
 
     ``text`` may be the counter's BARE NUMERIC ID — the spelling operators
     actually have — or the full suggestion line. LIVE-CONFIRMED (issue #846,
-    2026-08-14, campaign 74099856, ksamatadirect, via
-    ``mcp__claude-in-chrome``): the search runs SERVER-SIDE on partial input
+    2026-08-14, campaign 74099856, ksamatadirect, via a read-only
+    real-Chrome recon pass): the search runs SERVER-SIDE on partial input
     — typing ``"7211"`` surfaces ``"Ксамата Директ • gc.ksamata.ru •
     72112213"`` — and each option carries its own counter id in
     ``data-testid`` (``MetrikaCountersTagGroup.editor.listBox.72112213``),
