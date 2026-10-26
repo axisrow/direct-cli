@@ -34,7 +34,8 @@ SMOKE_MATRIX = {
         "adrestrictions",
         "audiencetargets.get",
         "auth.list",
-        "auth.status",
+        "auth.status.api",
+        "auth.status.browser",
         "bidmodifiers.get",
         "bids.get",
         "businesses.get",
@@ -219,8 +220,10 @@ SMOKE_MATRIX = {
         "agencyclients.add-passport-organization-member",
         "agencyclients.delete",
         "agencyclients.update",
-        "auth.login",
-        "auth.logout",
+        "auth.login.api",
+        "auth.login.browser",
+        "auth.logout.api",
+        "auth.logout.browser",
         "auth.use",
         # auth.write rewrites the cwd .env credential binding -- a local
         # credential-store mutation like auth.login/auth.use, not a read;

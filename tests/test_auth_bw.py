@@ -231,7 +231,7 @@ class TestCLIBwOptions:
         monkeypatch.setenv("YANDEX_DIRECT_BW_LOGIN_REF", "yandex-direct-item")
         runner = CliRunner()
 
-        result = runner.invoke(cli, ["auth", "status", "--format", "json"])
+        result = runner.invoke(cli, ["auth", "status", "api", "--format", "json"])
 
         assert result.exit_code == 0, result.output
         assert json.loads(result.output) == {

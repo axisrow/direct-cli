@@ -298,8 +298,10 @@ def login(
     """Browser login (deprecated); the printed warning names the replacement."""
     from .auth import browser_login, legacy_auth_warning
 
+    # --headful is accepted for script compatibility and is now a no-op:
+    # manual browser login is always visible (issue #924).
     legacy_auth_warning(HINT_LOGIN_BROWSER)
-    browser_login(profile_dir, timeout_seconds, allow_no_tty, headful=headful)
+    browser_login(profile_dir, timeout_seconds, allow_no_tty)
 
 
 @masters.command(hidden=True)
@@ -307,11 +309,11 @@ def login(
 def logout(profile_dir: Optional[str]) -> None:
     """Remove the persistent browser profile.
 
-    Use ``direct auth logout --method browser``.
+    Use ``direct auth logout browser``.
     """
     from .auth import browser_logout_persistent, legacy_auth_warning
 
-    legacy_auth_warning("direct auth logout --method browser")
+    legacy_auth_warning("direct auth logout browser")
     browser_logout_persistent(profile_dir)
 
 
@@ -321,10 +323,10 @@ def logout(profile_dir: Optional[str]) -> None:
 def status(
     profile_dir: Optional[str], output_format: str, output: Optional[str]
 ) -> None:
-    """Show saved browser authorization; use direct auth status --method browser."""
+    """Show saved browser authorization; use direct auth status browser."""
     from .auth import browser_status, legacy_auth_warning
 
-    legacy_auth_warning("direct auth status --method browser")
+    legacy_auth_warning("direct auth status browser")
     browser_status(profile_dir, output_format, output)
 
 
