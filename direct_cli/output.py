@@ -5,6 +5,7 @@ Output formatting module for Direct CLI
 import csv
 import functools
 import json
+import re
 import sys
 from io import StringIO
 from typing import Any, Iterator, List, Optional
@@ -245,24 +246,72 @@ def format_text(data: Any) -> str:
     return str(data)
 
 
+_PLAIN_DECIMAL_RE = re.compile(r"[+-]?\d+(?:\.\d+)?")
+
+
+def _table_cell(value: Any) -> str:
+    """Render a table cell to text without losing precision (#901).
+
+    API money/identifier values arrive as strings and pass through verbatim;
+    ``str()`` on anything else is the same shortest round-trip repr json
+    prints. ``None`` stays an empty cell (tabulate's missingval default).
+    """
+    if value is None:
+        return ""
+    return value if isinstance(value, str) else str(value)
+
+
+def _grid(matrix: List[List[str]], hdrs: List[str]) -> str:
+    """tabulate a text matrix with numeric parsing disabled (#901).
+
+    tabulate aligns typed numbers right; with all-text cells it would
+    left-align everything, so columns whose non-blank cells are all plain
+    decimals (the shape tabulate's numparse used to classify as numbers)
+    keep their right alignment via ``colalign``. Blank cells (missing keys,
+    ``None``) don't break a numeric column, matching numparse's treatment
+    of missing values.
+    """
+    if not tabulate:  # unreachable via format_table's own fallback
+        return format_json(matrix)
+    colalign = []
+    for i in range(len(matrix[0]) if matrix else 0):
+        numbers = [row[i] for row in matrix if i < len(row) and row[i]]
+        colalign.append(
+            "right"
+            if numbers and all(_PLAIN_DECIMAL_RE.fullmatch(cell) for cell in numbers)
+            else "left"
+        )
+    return tabulate(
+        matrix, headers=hdrs, tablefmt="grid", colalign=colalign, disable_numparse=True
+    )
+
+
 def format_table(data: Any, headers: Optional[List[str]] = None) -> str:
-    """Format data as table"""
+    """Format data as table.
+
+    Cells keep the exact API text (#901): tabulate's default numparse parses
+    numeric strings into floats and prints six significant digits
+    ("123456.78" -> 123457), so every cell is rendered to its exact text
+    before tabulate sees it and numparse is disabled.
+    """
     if not tabulate:
         return format_json(data)
 
     if isinstance(data, list) and len(data) > 0:
         if isinstance(data[0], dict):
-            return tabulate(data, headers="keys", tablefmt="grid")
+            keys = list(dict.fromkeys(key for row in data for key in row))
+            matrix = [[_table_cell(row.get(key)) for key in keys] for row in data]
+            return _grid(matrix, keys)
         elif isinstance(data[0], list):
-            return tabulate(data, headers=headers or [], tablefmt="grid")
+            return _grid([[_table_cell(v) for v in row] for row in data], headers or [])
         else:
             # list of scalars -> a single "Value" column
-            rows = [[item] for item in data]
-            return tabulate(rows, headers=headers or ["Value"], tablefmt="grid")
+            return _grid([[_table_cell(item)] for item in data], headers or ["Value"])
     elif isinstance(data, dict):
         # Convert dict to list of lists for table display
-        rows = [[k, v] for k, v in data.items()]
-        return tabulate(rows, headers=["Key", "Value"], tablefmt="grid")
+        return _grid(
+            [[str(k), _table_cell(v)] for k, v in data.items()], ["Key", "Value"]
+        )
 
     return str(data)
 
