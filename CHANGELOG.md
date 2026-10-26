@@ -122,7 +122,9 @@ replacement notices now point at the new subcommand surface.
   at the native paths — the canonical pointers in `direct_cli/_auth_hints.py`
   (`direct auth login browser`, `direct auth login browser --source chrome`,
   the `direct playwright login` deprecation notice) — and command behavior
-  is untouched.
+  is untouched. A repo-wide guard test
+  (`tests/test_no_external_browser_automation.py`) fails on any future
+  mention so it cannot quietly return.
 
 ### Fixed
 
