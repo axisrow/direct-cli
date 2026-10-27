@@ -846,7 +846,38 @@ direct campaigns get
 direct campaigns get --status ACTIVE
 direct campaigns get --ids 1,2,3 --format table
 direct campaigns get --fetch-all --format csv --output campaigns.csv
+```
 
+**Reading the weekly budget limit (`WeeklySpendLimit`).** `WeeklySpendLimit`
+is not a valid root `FieldNames` value (`CampaignFieldEnum` in the WSDL) —
+passing it via `--fields` fails with API err 8000 "An item in the FieldNames
+array contains an invalid enumeration value" (issue #946); it is
+intentionally absent from the CLI default fields for the same reason. The
+weekly limit lives in the type-specific strategy block: request
+`BiddingStrategy` for the campaign type and read
+`BiddingStrategy.Search/Network.<Strategy>.WeeklySpendLimit`:
+
+```bash
+direct campaigns get --ids 107707079 --fields Id,Name,Type --text-campaign-field-names BiddingStrategy
+```
+
+The same works via `--unified-campaign-field-names`,
+`--dynamic-text-campaign-field-names`, `--mobile-app-campaign-field-names`,
+`--cpm-banner-campaign-field-names` and `--smart-campaign-field-names`. That
+the live API populates the value inside `BiddingStrategy` is declared by the
+WSDL GET-side `Strategy*` structs but has not been live-verified. Мастер
+кампаний budgets are not exposed by `campaigns get` at all — use
+`masters list`.
+
+**Automatic ID batching.** `campaigns get` splits `--ids` lists longer than
+`CAMPAIGNS_GET_IDS_BATCH_LIMIT` (10; the cap observed through the
+yandex-direct-mcp wrapper, issue #946 — the Direct API itself accepted
+larger lists in a 2026-06-17 measurement) into chunks, sends them
+sequentially and concatenates the results in `--ids` order; the output
+format is unchanged. With `--dry-run` every chunk request is printed as a
+JSON array. `--limit` applies to the concatenated result, not per chunk.
+
+```bash
 # Create (use --dry-run to preview the request)
 direct campaigns add --name "My Campaign" --start-date 2024-02-01 --type TEXT_CAMPAIGN --budget 1000000000 --setting ADD_METRICA_TAG=YES --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run
 direct campaigns add --name "Dynamic Campaign" --start-date 2024-02-01 --type DYNAMIC_TEXT_CAMPAIGN --setting ADD_METRICA_TAG=NO --search-strategy HIGHEST_POSITION --network-strategy SERVING_OFF --dry-run

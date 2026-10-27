@@ -40,6 +40,23 @@ replacement notices now point at the new subcommand surface.
 
 ### Added
 
+- **`campaigns get`: automatic ID batching and an honest answer for the
+  weekly budget limit (#946).** Two gaps from the MCP-wrapper inventory
+  workflow: (1) `--ids` lists longer than
+  `CAMPAIGNS_GET_IDS_BATCH_LIMIT` (10 — the cap observed through the
+  yandex-direct-mcp wrapper; the Direct API itself accepted 100/1000 in a
+  2026-06-17 sandbox measurement, so the constant documents its source) are
+  split into chunks, sent sequentially and concatenated in `--ids` order —
+  output format unchanged, `--dry-run` prints every chunk request as a JSON
+  array, `--limit` applies to the concatenated result. (2) `WeeklySpendLimit`
+  is not a valid root `FieldNames` value (`CampaignFieldEnum`; live err 8000
+  in the issue) and stays out of the CLI default fields — instead of a
+  broken field, the README documents the working channel
+  (`--text-campaign-field-names BiddingStrategy`, the WSDL-declared GET-side
+  `Strategy*` structs) and offline guards in
+  `tests/test_campaigns_get_weekly_limit.py` pin the enum map so the
+  documented fail cannot silently drift. Not live-verified per the offline
+  workflow; live confirmation is a follow-up.
 - **Transport-layer guard: manifest of documented HTTP headers (#922).** The
   API-coverage model is blind to the transport layer — `Units` rode through
   the vendored client on every response for years while no CLI command showed
