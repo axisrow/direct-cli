@@ -775,6 +775,15 @@ PROMOTION_GOAL_CHOICES = {
     "max-clicks": "Максимум переходов",
 }
 
+# Inverse of PROMOTION_GOAL_CHOICES, for mapping a label read back off the
+# page (issue #911) onto the kebab key ``update --promotion-goal`` takes.
+# A label outside this map (markup drift, or a brand-new Yandex goal) is
+# passed through VERBATIM rather than dropped or re-keyed — same
+# "no invented enum mapping" rule as ``masters list``'s Strategy.
+PROMOTION_GOAL_LABEL_TO_KEY = {
+    label: key for key, label in PROMOTION_GOAL_CHOICES.items()
+}
+
 # Yandex's own internal enum values for each PROMOTION_GOAL_CHOICES key,
 # confirmed live 2026-08-04 (issue #696 recon) via each option row's
 # data-testid (``CampaignTargetSelect.TargetSelect.ListBox.<value>``). These
@@ -1433,6 +1442,15 @@ _GOAL_PRICE_INPUT_TESTID = '[data-testid="CampaignTargetSelect.PriceInput"]'
 # producing a false negative in _verify_saved right after a save that DID
 # succeed server-side.
 _GOAL_PRICE_WAIT_TIMEOUT_MS = 5_000
+
+# Read-only probe budget for the overview-page promotion-goal extractors
+# (issue #911). ``fetch_master`` reads the "Цель продвижения" block off the
+# page it has ALREADY opened — best-effort, like every other ``_extract_*`` —
+# so a page shape without the block (or still hydrating it) must pay a short
+# probe, not the readers' edit-page verify budgets (5s/30s): the same
+# ``timeout=1_000`` convention as ``_read_campaign_header_status_text``
+# (issue #848). An unreadable read simply omits the key.
+_OVERVIEW_PROMOTION_GOAL_READ_TIMEOUT_MS = 1_000
 
 # How long _verify_saved's _read_until_matches retries a field reader before
 # trusting its value (issue #706 live testing): _wait_for_edit_form only
@@ -2537,6 +2555,10 @@ def fetch_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     stat tiles, the header uses different testids. ``_fetch_draft_master``
     handles that case; every other status keeps using the stats-dashboard
     extractors below.
+
+    Both paths also pass through the page's "Цель продвижения" block
+    (``PromotionGoal``/``GoalPrice``, issue #911) — the field
+    ``masters targetactions get --help`` points at.
     """
     _goto_overview_page(page, campaign_id)
 
@@ -2549,6 +2571,7 @@ def fetch_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     _extract_status(page, result)
     _extract_landing_url(page, result)
     _extract_stat_tiles(page, result)
+    _extract_promotion_goal(page, result)
 
     return result
 
@@ -2633,6 +2656,11 @@ def _fetch_draft_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
     else:
         print_warning(f"Could not read landing URL for {campaign_id}.")
 
+    # The DRAFT overview IS the wizard form (issue #660), so the
+    # "Цель продвижения" block is guaranteed by committed recon here (issue
+    # #911) — an unreadable read is reported, not silently omitted.
+    _extract_promotion_goal(page, result, warn_on_missing=True)
+
     return result
 
 
@@ -2716,6 +2744,44 @@ def _extract_stat_tiles(page: "Page", result: Dict[str, Any]) -> None:
         print_warning(
             f"Could not read overview stat tiles for campaign {result['CampaignId']}."
         )
+
+
+def _extract_promotion_goal(
+    page: "Page", result: Dict[str, Any], *, warn_on_missing: bool = False
+) -> None:
+    """Read the "Цель продвижения" block off the ALREADY-OPEN overview page
+    into ``PromotionGoal``/``GoalPrice`` (issue #911).
+
+    No extra navigation by design: both overview page shapes the module
+    knows carry the block's markup — a DRAFT overview IS the wizard form
+    (issue #660), and the block's label/price readers are the edit page's
+    own confirmed-live ones — so this is a pure pass-through of data the
+    ``masters get`` page already holds, per the output-everything-you-
+    already-fetched principle (``masters list``'s, applied to ``get``).
+
+    ``PromotionGoal`` carries the kebab key ``update --promotion-goal``
+    takes (the module's established PascalCase output vocabulary —
+    ``update_master``'s own result row uses the same key/value shape); a
+    label outside ``PROMOTION_GOAL_LABEL_TO_KEY`` passes through verbatim.
+    ``GoalPrice`` is the price input's raw value, which the page renders
+    only under "max-clicks" + AVG_PRICE (see ``_GOAL_PRICE_INPUT_TESTID``).
+
+    Best-effort like every other extractor: an unreadable read omits the
+    key. ``warn_on_missing`` marks the page shapes where the block is
+    GUARANTEED by committed recon (the DRAFT form) — there a miss is drift
+    worth reporting; on the stats dashboard, whose goal markup no committed
+    recon pins down, silence keeps ordinary ``get`` runs noise-free.
+    """
+    label = _read_promotion_goal_label(
+        page, timeout_ms=_OVERVIEW_PROMOTION_GOAL_READ_TIMEOUT_MS
+    )
+    if label:
+        result["PromotionGoal"] = PROMOTION_GOAL_LABEL_TO_KEY.get(label, label)
+    price = _read_goal_price(page, timeout_ms=_OVERVIEW_PROMOTION_GOAL_READ_TIMEOUT_MS)
+    if price:
+        result["GoalPrice"] = price.strip()
+    if warn_on_missing and "PromotionGoal" not in result:
+        print_warning(f"Could not read promotion goal for {result['CampaignId']}.")
 
 
 def _log_timing(what: str, started: float, outcome: object) -> None:
@@ -7610,7 +7676,9 @@ def _read_directs_helps(page: "Page") -> Optional[bool]:
     return None
 
 
-def _read_promotion_goal_label(page: "Page") -> Optional[str]:
+def _read_promotion_goal_label(
+    page: "Page", timeout_ms: Optional[int] = None
+) -> Optional[str]:
     """Read the "Цель продвижения" dropdown trigger's current selection.
 
     The trigger's ``inner_text()`` is two lines — the static section label,
@@ -7619,17 +7687,22 @@ def _read_promotion_goal_label(page: "Page") -> Optional[str]:
     the raw two-line text, to compare directly against a bare
     ``PROMOTION_GOAL_CHOICES`` value. Returns ``None`` if the trigger can't
     be found/read (inconclusive).
+
+    ``timeout_ms`` caps the read's auto-wait (Playwright's default is ~30s);
+    save-verify callers keep that default via ``None``, while read-only
+    probes on pages the block may not render at all (issue #911) pass a
+    short budget instead.
     """
     trigger = page.locator(_PROMOTION_GOAL_BUTTON_XPATH).first
     try:
-        text = trigger.inner_text().strip()
+        text = trigger.inner_text(timeout=timeout_ms)
     except PlaywrightError:
         return None
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     return lines[-1] if lines else None
 
 
-def _read_goal_price(page: "Page") -> Optional[str]:
+def _read_goal_price(page: "Page", timeout_ms: Optional[int] = None) -> Optional[str]:
     """Read the "Цель продвижения" block's target-price input value.
 
     Returns ``None`` both when the field can't be found/read AND when it
@@ -7643,10 +7716,18 @@ def _read_goal_price(page: "Page") -> Optional[str]:
     page can still be hydrating right after ``_wait_for_edit_form``
     returns, and an immediate check can misread "not rendered yet" as
     "field doesn't exist for this goal".
+
+    ``timeout_ms`` overrides that wait budget (``None`` keeps the
+    edit-page-verify default) — the read-only overview extractor passes a
+    short probe, since a page without the field at all must not pay the
+    full verify wait on every read (issue #911).
     """
     field = page.locator(_GOAL_PRICE_INPUT_TESTID).first
     try:
-        field.wait_for(state="visible", timeout=_GOAL_PRICE_WAIT_TIMEOUT_MS)
+        field.wait_for(
+            state="visible",
+            timeout=_GOAL_PRICE_WAIT_TIMEOUT_MS if timeout_ms is None else timeout_ms,
+        )
         return field.input_value()
     except PlaywrightError:
         return None
