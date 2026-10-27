@@ -545,13 +545,15 @@ _STATUS_HYDRATION_TIMEOUT_MS = 60_000
 # duplicated launch is not reversible.
 _STATUS_CLICK_MAX_ATTEMPTS = 4
 
-# Overview page's header title, confirmed live (issue #683) as the earliest
-# stable marker of a rendered wizard overview page — present on BOTH a
-# DRAFT campaign's page (which has no "⋮" menu at all, see _MENU_TRIGGER_
-# SELECTOR below and issue #660) and every other status. Unlike the plain
-# `h1, [role=heading]` CSS selector `_extract_title` uses (which matches
-# nothing here — the real element is an `<h2 data-testid="CampaignHeader.
-# Title">` with no explicit `role` attribute), this selector is exact.
+# Overview page's header title, confirmed live (issue #683) — present on
+# BOTH a DRAFT campaign's page (which has no "⋮" menu at all, see
+# _MENU_TRIGGER_SELECTOR below and issue #660) and every other status.
+# Since #905 the render wait reads this element's TEXT (see
+# _read_overview_title_text) — a mounted-but-still-empty node is not ready.
+# Unlike the plain `h1, [role=heading]` CSS selector `_extract_title` uses
+# (which matches nothing here — the real element is an `<h2 data-testid=
+# "CampaignHeader.Title">` with no explicit `role` attribute), this
+# selector is exact.
 _OVERVIEW_TITLE_SELECTOR = '[data-testid="CampaignHeader.Title"]'
 
 # Overview page's landing-page link, confirmed live 2026-08-06 (issue #763).
@@ -574,10 +576,14 @@ _OVERVIEW_TITLE_SELECTOR = '[data-testid="CampaignHeader.Title"]'
 # exactly 1 match in both cases confirmed live above.
 _OVERVIEW_LANDING_LINK_SELECTOR = '[data-testid="CampaignHeader"] a[data-testid="Link"]'
 
-# How long to wait for `_OVERVIEW_TITLE_SELECTOR` to render after navigating
-# to WIZARD_OVERVIEW_URL (issue #683). Confirmed live: the overview page can
-# take several seconds after `wait_until="commit"` returns before its React
-# tree paints anything at all.
+# How long to wait for the overview header's hydrated markers
+# (_overview_sections_hydrated) after navigating to WIZARD_OVERVIEW_URL
+# (issue #683). Confirmed live: the overview page can take several seconds
+# after `wait_until="commit"` returns before its React tree paints anything
+# at all. #905's run-wide timeouts were NOT this budget being too small —
+# live recon (#907) showed those pages NEVER hydrate a header (the CLI had
+# opened another account's wizard) — so a bigger budget would only have
+# burned longer per ID; 30s stays.
 _OVERVIEW_LOAD_TIMEOUT_MS = 30_000
 
 # How long _extract_stat_tiles waits for _STAT_TILE_TESTID_PREFIX's marker
@@ -2456,6 +2462,50 @@ def fetch_masters_list(
     return masters
 
 
+def _read_overview_title_text(page: "Page") -> "Optional[str]":
+    """Return ``CampaignHeader.Title``'s trimmed text, or ``None``.
+
+    Mirrors ``_read_campaign_header_status_text``: an explicit short
+    ``timeout=`` (the module's 1s probe convention, issue #848 review) so an
+    absent title inside ``_goto_overview_page``'s poll loop never pays
+    Playwright's ~30s ``inner_text`` default — the poll's own deadline is
+    what bounds the wait.
+    """
+    try:
+        text = page.locator(_OVERVIEW_TITLE_SELECTOR).first.inner_text(timeout=1_000)
+    except PlaywrightError:
+        return None
+    text = (text or "").strip()
+    return text or None
+
+
+def _overview_sections_hydrated(page: "Page") -> bool:
+    """True once the overview page's header has actually HYDRATED, not just
+    mounted (issue #905).
+
+    A framework can mount an element before filling in its text — the same
+    mounted-≠-hydrated rule ``_is_draft_overview_page`` reads status text
+    by — so the wait must read actual section text, not count nodes. The
+    two live-confirmed overview shapes each get their own explicit ready
+    marker:
+
+    - a DRAFT campaign's overview IS the editable form (issue #660): its
+      header is hydrated once ``CampaignHeader.Status`` reads "Черновик" —
+      the exact criterion ``_is_draft_overview_page`` classifies the page
+      by, so the wait and the classifier can never disagree;
+    - every other status's stats dashboard: ``CampaignHeader.Title`` carries
+      non-empty text — the campaign name ``_extract_title`` reads straight
+      after the wait returns.
+
+    Status is deliberately NOT required on the dashboard arm: a shape whose
+    status node drifted away must degrade to ``_extract_status``'s warning,
+    not turn every read of the page into a render timeout.
+    """
+    if _read_campaign_header_status_text(page) == _DRAFT_STATUS_TEXT:
+        return True
+    return _read_overview_title_text(page) is not None
+
+
 def _goto_overview_page(page: "Page", campaign_id: int) -> None:
     """Navigate to a campaign's wizard overview page and block until it has
     actually rendered (issue #683).
@@ -2476,11 +2526,12 @@ def _goto_overview_page(page: "Page", campaign_id: int) -> None:
     headers arrive, before ANY DOM work) replaces ``domcontentloaded`` here
     so this function's own poll loop is what actually waits for content,
     rather than layering an unreliable implicit wait under an also-unreliable
-    explicit one. It polls for ``_OVERVIEW_TITLE_SELECTOR`` — confirmed live
-    to render on both a DRAFT campaign's overview page (which has no "⋮"
-    menu at all, see ``_MENU_TRIGGER_SELECTOR`` and issue #660) and every
-    other status, making it the earliest common marker every caller here can
-    rely on regardless of campaign status.
+    explicit one. It polls ``_overview_sections_hydrated`` — the two
+    live-confirmed overview shapes' own hydrated header markers (issue
+    #905) — rather than the title node's mere presence: React mounts
+    elements before filling their text, and a wizard URL whose campaign
+    does not exist under the session's account (issue #907's confirmed
+    root for #905's run-wide failures) never hydrates a header at all.
 
     ``assert_not_captcha``/``assert_authenticated`` run once immediately
     after navigation AND on every poll tick, so a captcha gate or an
@@ -2519,7 +2570,7 @@ def _goto_overview_page(page: "Page", campaign_id: int) -> None:
             return "captcha"
         except BrowserAuthError:
             return "auth"
-        if page.locator(_OVERVIEW_TITLE_SELECTOR).first.count() > 0:
+        if _overview_sections_hydrated(page):
             return "ready"
         return None
 
@@ -2531,12 +2582,23 @@ def _goto_overview_page(page: "Page", campaign_id: int) -> None:
     if state == "auth":
         assert_authenticated(page.content())  # re-raises BrowserAuthError
 
+    # Yandex itself appends ?ulogin=<session account> to the wizard URL, so
+    # the URL the browser actually ended on shows whose account was opened —
+    # the confirmed root of #905's run-wide failures was exactly a foreign
+    # account there (#907), where the campaign does not exist and no header
+    # ever hydrates. Name that check first; "markup drift" is the fallback
+    # explanation, not the lead (#905: the old message sent the user hunting
+    # for markup changes while the real fix was switching the profile back).
     raise BrowserSessionError(
         f"The wizard overview page for campaign {campaign_id} did not "
-        f"render within {_OVERVIEW_LOAD_TIMEOUT_MS / 1000:.0f}s (no "
-        f"{_OVERVIEW_TITLE_SELECTOR!r} appeared) — Yandex may have changed "
-        "the page's markup, or the page may still be loading. Re-run with "
-        "--headful to inspect the page."
+        f"render within {_OVERVIEW_LOAD_TIMEOUT_MS / 1000:.0f}s — its "
+        f"header never hydrated (no text in {_OVERVIEW_TITLE_SELECTOR!r}, "
+        f"no {_DRAFT_STATUS_TEXT!r} status either). The browser ended on "
+        f"{page.url!r}. If that URL's ulogin= names a different Yandex "
+        "account than the one owning this campaign, the campaign does not "
+        "exist there — switch the browser profile back and re-login (see "
+        "issue #907). Otherwise Yandex may have changed the page's markup "
+        "— re-run with --headful to inspect the page."
     )
 
 

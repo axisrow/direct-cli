@@ -712,14 +712,16 @@ class FakePage(_PageBase):
         # Armed by the url setter, committed by the url getter — see both.
         self._pending_locators = None
         # Every overview-page test implicitly exercises _goto_overview_page
-        # (issue #683), which polls for this exact testid before returning
-        # control to the caller — default it present so existing tests that
-        # don't care about the wait mechanics aren't all forced to register
-        # it explicitly. A test that DOES care (e.g. the DRAFT-shaped
-        # "marker never appears" timeout case) removes it from `locators`.
+        # (issue #683), which polls for the overview header's HYDRATED state
+        # before returning control to the caller — text-aware since #905 (a
+        # mounted-but-empty node is not ready). Default it to a hydrated
+        # header (non-empty title text) so existing tests that don't care
+        # about the wait mechanics aren't all forced to register it
+        # explicitly. A test that DOES care (e.g. the "marker never appears"
+        # timeout case) removes it from `locators`.
         self._locators.setdefault(
             browser_masters._OVERVIEW_TITLE_SELECTOR,
-            _FakeLocator([_FakeLocatorHandle()]),
+            _FakeLocator([_FakeLocatorHandle(text="Мастер кампаний")]),
         )
         self._body_text = body_text
         self._html = html
@@ -4248,29 +4250,22 @@ class TestFetchMaster(unittest.TestCase):
         self.assertGreaterEqual(page.tile_scan_count, 2)
 
     def test_partial_result_on_unrecognised_sections(self):
-        # A page whose title element IS present (so _goto_overview_page is
-        # satisfied the overview page is ready — see TestGotoOverviewPage
-        # for the "never renders at all" case) but whose text can't be read,
-        # and whose other sections weren't recognised, must not raise —
-        # every extractor degrades to omitting its field plus a warning, per
-        # the module's "best-effort" contract (see fetch_master docstring).
-        class _PresentButUnreadableTitle(_FakeLocatorHandle):
-            def count(self):
-                return 1  # matched -> _goto_overview_page's wait is satisfied
-
-            def inner_text(self):
-                raise PlaywrightError("element detached")
-
+        # A page whose header IS hydrated (so _goto_overview_page returns --
+        # see TestGotoOverviewPage) but whose other sections weren't
+        # recognised must not raise — every extractor degrades to omitting
+        # its field plus a warning, per the module's "best-effort" contract
+        # (see fetch_master's docstring). FakePage's default title locator
+        # (hydrated since #905) models the readable header; body text and
+        # the other sections are what Yandex allegedly changed.
         page = FakePage(locators={}, body_text="something Yandex changed the markup to")
-        page._locators[browser_masters._OVERVIEW_TITLE_SELECTOR] = _FakeLocator(
-            [_PresentButUnreadableTitle()]
-        )
 
         with patch("direct_cli.browser.masters.print_warning") as warn:
             result = browser_masters.fetch_master(page, 999)
 
-        self.assertEqual(result, {"CampaignId": 999})
-        self.assertGreaterEqual(warn.call_count, 3)  # name, status, landing, stats
+        self.assertEqual(result, {"CampaignId": 999, "Name": "Мастер кампаний"})
+        # status + stats warn; the landing link omits silently (its extractor
+        # only warns on a PlaywrightError, and a missing href is read as None)
+        self.assertGreaterEqual(warn.call_count, 2)
 
 
 class TestReadStatusText(unittest.TestCase):
@@ -15607,11 +15602,14 @@ class TestGotoOverviewPage(unittest.TestCase):
     domcontentloaded raced the overview page's client-rendered header --
     live-confirmed intermittent "Could not read campaign name" against
     campaign 72349978 while status/landing-URL/stats all read back fine.
-    wait_until="commit" plus an explicit poll for
-    _OVERVIEW_TITLE_SELECTOR (the "<h2 data-testid=CampaignHeader.Title>"
-    element, confirmed live present on BOTH DRAFT and non-DRAFT overview
-    pages, unlike _MENU_TRIGGER_SELECTOR which #660 found absent on DRAFT)
-    replaces it.
+    wait_until="commit" plus an explicit poll replaces it. Since #905 the
+    polled markers are the two live-confirmed overview shapes' HYDRATED
+    header state (_overview_sections_hydrated) -- the dashboard's
+    CampaignHeader.Title carrying text, or a DRAFT form's
+    CampaignHeader.Status reading "Черновик" -- not the title node's mere
+    presence: React mounts elements before filling their text, and a wizard
+    URL of a foreign account (issue #907's confirmed root for #905's
+    run-wide failures) never hydrates a header at all.
     """
 
     def test_every_overview_entry_point_uses_commit(self):
@@ -15664,33 +15662,61 @@ class TestGotoOverviewPage(unittest.TestCase):
             browser_masters.archive_master(page, 1)
         self.assertEqual(page.goto_wait_until, "commit")
 
-    def test_waits_for_title_marker_before_returning(self):
-        # A page whose header hasn't rendered yet on the first poll tick
-        # must not be treated as ready -- mirrors _wait_for_images_editor's
-        # own "stub state" guard (#670).
-        remaining = {"ticks": 2}
+    def test_waits_for_title_text_not_just_the_mounted_node(self):
+        # The #905 hydration race: a framework can MOUNT an element before
+        # filling in its text (the same rule _is_draft_overview_page reads
+        # status text by), so a presence-only wait calls the page ready
+        # while every section reader is still about to read empty strings.
+        # The wait must tick through the absent-node and mounted-but-empty
+        # states and only accept the page once the title carries text.
         title_selector = browser_masters._OVERVIEW_TITLE_SELECTOR
+        states = iter(
+            [
+                _FakeLocator([]),  # node absent
+                _FakeLocator([_FakeLocatorHandle(text="")]),  # mounted, not hydrated
+            ]
+        )
+        consumed_not_ready = []
 
-        class _SlowHeaderPage(FakePage):
+        class _HydratingHeaderPage(FakePage):
             def locator(self, selector):
                 if selector == title_selector:
-                    if remaining["ticks"] > 0:
-                        remaining["ticks"] -= 1
-                        return _FakeLocator([])
-                    return _FakeLocator([_FakeLocatorHandle()])
+                    state = next(states, None)
+                    if state is not None:
+                        consumed_not_ready.append(state)
+                        return state
                 return super().locator(selector)
 
-        page = _SlowHeaderPage(locators={})
+        page = _HydratingHeaderPage(locators={})
 
         browser_masters.fetch_master(page, 1)  # must not raise
 
-        self.assertEqual(remaining["ticks"], 0)
+        # The wait ticked through BOTH not-ready states (absent node, then
+        # mounted-but-empty) before the default hydrated title satisfied it
+        # -- a presence-only wait would have returned one tick earlier.
+        self.assertEqual(len(consumed_not_ready), 2)
+
+    def test_draft_status_marker_satisfies_the_wait_without_a_title(self):
+        # A DRAFT overview IS the editable wizard form (#660): its hydrated
+        # marker is CampaignHeader.Status reading "Черновик" — the exact
+        # criterion _is_draft_overview_page classifies the page by. The
+        # wait must accept this shape with the dashboard title absent —
+        # DRAFT readers read CampaignHeader.TitleName, not the title.
+        page = FakePage(
+            locators={
+                browser_masters._CAMPAIGN_HEADER_STATUS_SELECTOR: _FakeLocator(
+                    [_FakeLocatorHandle(text=browser_masters._DRAFT_STATUS_TEXT)]
+                ),
+            },
+        )
+        del page._locators[browser_masters._OVERVIEW_TITLE_SELECTOR]
+
+        browser_masters._goto_overview_page(page, 1)  # must not raise
 
     def test_raises_when_title_marker_never_appears(self):
-        # A DRAFT campaign's overview page has no _MENU_TRIGGER_SELECTOR
-        # (issue #660, not fixed here) -- archive_master/copy_master still
-        # fail on it, but as a clear bounded timeout, not an indefinite
-        # hang. Simulated here via a header that never renders at all.
+        # A page whose header never hydrates at all (e.g. #907's foreign
+        # account, where the campaign does not exist) must fail as a clear
+        # bounded timeout, not an indefinite hang.
         page = FakePage(locators={})
         del page._locators[browser_masters._OVERVIEW_TITLE_SELECTOR]
 
@@ -15700,6 +15726,32 @@ class TestGotoOverviewPage(unittest.TestCase):
 
         self.assertIn("did not render within", str(ctx.exception))
         self.assertIn("999", str(ctx.exception))
+
+    def test_timeout_error_names_the_landed_url_and_the_account(self):
+        # #905's confirmed root (#907): the CLI had opened ANOTHER Yandex
+        # account's wizard, where the campaign does not exist — and the old
+        # message sent the user hunting for markup changes. The timeout
+        # error must show the URL the browser actually ended on (Yandex
+        # appends ?ulogin=<session account>, so the wrong account is
+        # visible right there) and name the account check first.
+        class _ForeignAccountPage(FakePage):
+            def goto(self, url, wait_until=None):
+                super().goto(url, wait_until=wait_until)
+                # Model Yandex's own redirect to the session account's
+                # ?ulogin= form (fetch_master's docstring).
+                self.url = url + "?ulogin=engineeringprint-ru"
+
+        page = _ForeignAccountPage(locators={})
+        del page._locators[browser_masters._OVERVIEW_TITLE_SELECTOR]
+
+        with patch.object(browser_masters, "_OVERVIEW_LOAD_TIMEOUT_MS", 1):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters._goto_overview_page(page, 999)
+
+        message = str(ctx.exception)
+        self.assertIn("ulogin=engineeringprint-ru", message)
+        self.assertIn("account", message)
+        self.assertIn("--headful", message)
 
     def test_reports_captcha_immediately_without_waiting_out_the_timeout(self):
         # A captcha gate is reported via its own specific error as soon as
