@@ -59,6 +59,7 @@ from ._campaigns_base import (
     ATTRIBUTION_MODELS,
     BLOCKED_IPS_MAX_ITEMS,
     CAMPAIGNS_GET_CRITERIA_LIMITS,
+    CAMPAIGNS_GET_IDS_BATCH_LIMIT,
     CLIENT_INFO_MAX_LENGTH,
     EXCLUDED_SITE_MAX_LENGTH,
     EXCLUDED_SITES_MAX_ITEMS,
@@ -85,6 +86,7 @@ from ._campaigns_base import (
     _text_search_strategy_options_update,
     _validate_max_length,
 )
+from ._batch import chunked
 from ._campaigns_dynamic import build_add_block as _build_dynamic_add_block
 from ._campaigns_text import build_add_block
 from ._execute import execute_request
@@ -109,6 +111,18 @@ def campaigns():
     """Manage campaigns"""
 
 
+def _order_chunk_results(items: list, id_order: list) -> list:
+    """Re-order concatenated chunk results into the ``--ids`` input order.
+
+    Chunk requests return each campaign in whatever order the API chose, so
+    the concatenated output would jumble the input order run to run. Sorting
+    is stable: campaigns whose Id is absent from the input (or missing)
+    keep their encounter order at the tail.
+    """
+    position = {campaign_id: idx for idx, campaign_id in enumerate(id_order)}
+    return sorted(items, key=lambda item: position.get(item.get("Id"), len(position)))
+
+
 @campaigns.command()
 @click.option("--ids", help="Comma-separated campaign IDs")
 @click.option("--status", help="Filter by status (ACTIVE, SUSPENDED, etc.)")
@@ -126,7 +140,13 @@ def campaigns():
 )
 @click.option("--output", help="Output file")
 @click.option(
-    "--fields", help="Comma-separated field names (default: all common fields)"
+    "--fields",
+    help=(
+        "Comma-separated field names (default: all common fields). "
+        "Strategy limits such as WeeklySpendLimit are NOT valid here "
+        "(API err 8000) — request them via --text-campaign-field-names "
+        "BiddingStrategy (README: Reading the weekly budget limit)."
+    ),
 )
 @click.option(
     "--text-campaign-field-names",
@@ -261,7 +281,8 @@ def get(
     )
 
     # Build selection criteria
-    criteria = build_selection_criteria(ids=parse_ids(ids), status=status, types=types)
+    campaign_ids = parse_ids(ids)
+    criteria = build_selection_criteria(ids=campaign_ids, status=status, types=types)
     if criteria is None:
         criteria = {}
     add_criteria_csv(criteria, "Statuses", statuses, upper=True)
@@ -272,10 +293,6 @@ def get(
         criteria, CAMPAIGNS_GET_CRITERIA_LIMITS, command_name="campaigns get"
     )
 
-    # Build params
-    params = build_common_params(
-        criteria=criteria, field_names=field_names, limit=limit
-    )
     selector_options = {
         "TextCampaignFieldNames": (
             "--text-campaign-field-names",
@@ -318,29 +335,55 @@ def get(
             unified_campaign_package_bidding_strategy_platforms_field_names,
         ),
     }
+    selector_params = {}
     for request_key, (option_name, value) in selector_options.items():
         parsed = _parse_csv_option(option_name, value)
         if parsed:
-            params[request_key] = parsed
+            selector_params[request_key] = parsed
 
-    body = {"method": "get", "params": params}
+    # campaigns.get rejects long Ids lists upstream (issue #946) — split into
+    # chunks and concatenate the per-chunk results in --ids order.
+    if campaign_ids:
+        id_chunks = list(chunked(campaign_ids, CAMPAIGNS_GET_IDS_BATCH_LIMIT))
+    else:
+        id_chunks = [None]
+    chunked_ids = len(id_chunks) > 1
+
+    bodies = []
+    for chunk_ids in id_chunks:
+        chunk_criteria = dict(criteria)
+        if chunk_ids is not None:
+            chunk_criteria["Ids"] = chunk_ids
+        params = build_common_params(
+            criteria=chunk_criteria,
+            field_names=field_names,
+            # Page.Limit caps each individual request; with chunking it would
+            # cap every chunk instead of the overall result, so it is applied
+            # client-side to the concatenated output instead.
+            limit=None if chunked_ids else limit,
+        )
+        params.update(selector_params)
+        bodies.append({"method": "get", "params": params})
 
     if dry_run:
-        format_output(body, "json", None)
+        format_output(bodies[0] if len(bodies) == 1 else bodies, "json", None)
         return
 
     client = client_from_ctx(ctx, create_client)
-    result = client.campaigns().post(data=body)
+    results = []
+    for body in bodies:
+        result = client.campaigns().post(data=body)
+        if fetch_all:
+            results.extend(result().iter_items())
+        else:
+            results.extend(result().extract())
 
-    if fetch_all:
-        # Get all pages
-        items = []
-        for item in result().iter_items():
-            items.append(item)
-        format_output(items, output_format, output)
-    else:
-        data = result().extract()
-        format_output(data, output_format, output)
+    if chunked_ids:
+        results = _order_chunk_results(results, campaign_ids or [])
+        if limit:
+            results = results[:limit]
+
+    format_output(results, output_format, output)
 
 
 @campaigns.command()

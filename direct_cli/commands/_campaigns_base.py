@@ -35,6 +35,16 @@ from .._bidding_strategy import BUDGET_TYPES
 # SelectionCriteria.Ids" (N=10/100/1000 accepted).
 CAMPAIGNS_GET_CRITERIA_LIMITS = {"Ids": 1000}
 
+# `campaigns get` splits `--ids` lists into chunks of this size and
+# concatenates the per-chunk results (issue #946). Source of the value 10: the
+# yandex-direct-mcp wrapper (campaigns_get) rejects >10 IDs per request with a
+# batch_limit error ("Maximum 10 IDs per request"), and the issue's inventory
+# use-case (40+ campaigns) needs transparent splitting. Caveat: the Direct API
+# itself accepted N=10/100/1000 in the 2026-06-17 measurement recorded above —
+# 10 is the wrapper-observed cap kept for parity with the issue, not a
+# measured API limit.
+CAMPAIGNS_GET_IDS_BATCH_LIMIT = 10
+
 SMS_EVENTS = {"MONITORING", "MODERATION", "MONEY_IN", "MONEY_OUT", "FINISHED"}
 YES_NO = ["YES", "NO"]
 ATTRIBUTION_MODELS = ["FC", "LC", "LSC", "LYDC", "FCCD", "LSCCD", "LYDCCD", "AUTO"]
