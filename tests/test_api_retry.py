@@ -90,18 +90,37 @@ def test_exhaustion_raises_honest_final_error():
     resource = _FakeResource([_client_error(56) for _ in range(10)])
     sleeps = []
 
-    with pytest.raises(click.ClickException) as excinfo:
-        post_with_retry(resource, data={}, sleep=sleeps.append)
+    with patch("direct_cli.api.random.uniform", return_value=0):
+        with pytest.raises(click.ClickException) as excinfo:
+            post_with_retry(resource, data={}, sleep=sleeps.append)
 
     message = str(excinfo.value)
     assert f"persisted after {ERROR_56_ATTEMPTS} attempts" in message
     # The hint from the issue: another client may be holding the method quota.
     assert "same Yandex Direct account" in message
+    # "wait N sec" (#920): the advice names the next backoff step the client
+    # would have waited — 10 * 2**4 = 160s with jitter zeroed above.
+    assert "Wait at least 160s before the next attempt" in message
+    # Live evidence from #920: a 56 that outlasts minutes of waiting with no
+    # concurrent client is a stuck server-side limit, not local contention.
+    assert "stuck on the API side" in message
     # The original error stays in the final text (request_id, codes).
     assert "error_code=56" in message
     assert "test-request-id" in message
     assert resource.calls == ERROR_56_ATTEMPTS
     assert len(sleeps) == ERROR_56_ATTEMPTS - 1
+
+
+def test_exhaustion_wait_advice_tracks_base_delay():
+    """The advised N scales with the backoff base, not a literal constant."""
+
+    resource = _FakeResource([_client_error(56) for _ in range(10)])
+
+    with patch("direct_cli.api.random.uniform", return_value=0):
+        with pytest.raises(click.ClickException) as excinfo:
+            post_with_retry(resource, data={}, sleep=lambda _: None, base_delay=1.0)
+
+    assert "Wait at least 16s before the next attempt" in str(excinfo.value)
 
 
 @pytest.mark.parametrize("code", [53, 152, 400, 506, 9000])
@@ -187,3 +206,4 @@ def test_reports_get_cli_gives_up_after_exhaustion(monkeypatch):
         assert f"attempt {attempt}/5" in stderr
     assert "persisted after 5 attempts" in stderr
     assert "same Yandex Direct account" in stderr
+    assert "Wait at least" in stderr

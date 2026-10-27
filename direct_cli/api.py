@@ -278,11 +278,20 @@ def post_with_retry(
             if getattr(exc, "error_code", None) != 56:
                 raise
             if attempt >= attempts:
+                # The next backoff step is what this client would have waited,
+                # so it is the honest "wait N sec" advice (#920). Live evidence
+                # from #920: a persistent 56 can outlast minutes-long waits
+                # with no other client running — a stuck server-side limit —
+                # so the message says so instead of blaming the account only.
+                next_wait = round(_error_56_delay(attempts, base_delay))
                 raise click.ClickException(
                     "API error 56 persisted after {} attempts: this method "
                     "allows only 1 request per 10 seconds, and another client "
                     "or session working with the same Yandex Direct account is "
-                    "likely consuming that limit. Last error: {}".format(attempts, exc)
+                    "likely consuming that limit. Wait at least {}s before the "
+                    "next attempt; if no other client is running and the error "
+                    "still persists, the limit is stuck on the API side — "
+                    "retry later. Last error: {}".format(attempts, next_wait, exc)
                 ) from exc
             delay = _error_56_delay(attempt, base_delay)
             print_warning_stderr(

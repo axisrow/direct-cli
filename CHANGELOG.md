@@ -163,6 +163,18 @@ replacement notices now point at the new subcommand surface.
 
 ### Fixed
 
+- **The error-56 exhaustion message says how long to wait and stops blaming
+  only local contention (#920).** After the transport gives up retrying a
+  persistent reports 56 (the per-method 1-request-per-10-seconds quota), the
+  final error now names the next backoff step — "Wait at least 160s before
+  the next attempt" — instead of leaving the user to guess the interval, and
+  adds the honest branch: when no other client or session is working with the
+  account and the error still persists, the limit is stuck on the API side —
+  live evidence from #920 shows a stuck 56 outlasting minutes-long waits
+  (seven refusals across ~1 hour with pauses up to 300s) while the same
+  report serves fine through REST. Retry spacing itself is unchanged: the
+  first retry already waits the documented 10s window before re-requesting.
+
 - **`masters get`'s overview render wait is hydration-aware and its timeout
   names the real suspect (#905).** The wait behind every wizard-overview
   command (`get`/`suspend`/`resume`/`archive`/`copy`) accepted the page once
