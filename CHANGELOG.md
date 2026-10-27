@@ -146,6 +146,23 @@ replacement notices now point at the new subcommand surface.
 
 ### Fixed
 
+- **`masters get`'s overview render wait is hydration-aware and its timeout
+  names the real suspect (#905).** The wait behind every wizard-overview
+  command (`get`/`suspend`/`resume`/`archive`/`copy`) accepted the page once
+  the `CampaignHeader.Title` node existed — but a React element mounts
+  before its text is filled, and a wizard URL whose campaign does not exist
+  under the session's account (#907's confirmed root for #905's run-wide
+  "did not render within 30s" failures) never hydrates a header at all. The
+  wait now polls explicit section-readiness markers: a DRAFT form's
+  `CampaignHeader.Status` reading "Черновик" (the same criterion the DRAFT
+  classifier uses), or the dashboard title carrying non-empty text. When the
+  wait still times out, the error no longer leads with "Yandex may have
+  changed the page's markup": it shows the URL the browser actually ended on
+  (Yandex appends `?ulogin=<session account>`, so a foreign account is
+  visible right there) and names the account check first. The 30s budget is
+  unchanged — those failing pages never render, so a bigger timeout would
+  only have burned longer per campaign.
+
 - **Browser commands refuse a saved session that belongs to another account
   (#907).** After the user switched Yandex profiles in their real browser,
   every `masters`/`history` command silently worked on the wrong account and
