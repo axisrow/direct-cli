@@ -103,9 +103,9 @@ def _assert_session_owner(status: Dict[str, Any]) -> None:
     if not owner:
         print_warning_stderr(
             t(
-                "The saved browser session carries no owner stamp (saved by "
-                "an older direct-cli), so the account it belongs to cannot "
-                "be verified. Run: {hint}"
+                "The saved browser session carries no owner stamp (the "
+                "identity cookie that stores it is missing), so the account "
+                "it belongs to cannot be verified. Run: {hint}"
             ).format(hint=HINT_LOGIN_BROWSER)
         )
         return

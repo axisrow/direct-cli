@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Browser sessions send a real Chrome user-agent (#950).** Yandex met the
+  default Playwright UA (`HeadlessChrome` in headless) with
+  `showcaptchafast` / the login page even on a valid cookie jar; every
+  context this CLI creates (Chrome import, saved session, manual persistent
+  login) now sends the Chrome/155 UA validated in the issue. Override:
+  `DIRECT_BROWSER_UA` env. A persistent profile whose session was issued
+  under the old UA may be re-challenged once — re-run
+  `direct auth login browser` if that happens.
+- **The missing-owner-stamp warning no longer blames "an older direct-cli"
+  (#916).** An unstamped session means the identity cookie is absent, not
+  that the save predates the stamp — wording fixed in both languages.
+
 ## 0.5.5 — 2026-10-27
 
 ### BREAKING CHANGES

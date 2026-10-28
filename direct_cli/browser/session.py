@@ -453,6 +453,22 @@ def _is_yandex_ru_domain(domain: str) -> bool:
 # absent cookie means an unstamped session, the soft fallback.
 _OWNER_LOGIN_COOKIE_NAME = "yandex_login"
 
+#: UA sent by every browser context this module creates. The default
+#: Playwright UA (``HeadlessChrome`` in headless) makes Yandex answer a
+#: valid cookie jar with ``showcaptchafast`` / the login page — the session
+#: cookies are issued to real Chrome, and a foreign UA reads as a bot
+#: (#950: the same jar plus a Chrome/155 UA loaded Direct with HTTP 200,
+#: the default UA got a captcha). Bump when Yandex tightens its checks.
+DEFAULT_BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
+)
+
+
+def _resolve_user_agent(explicit: Optional[str]) -> str:
+    """Explicit argument > ``DIRECT_BROWSER_UA`` env > the Chrome default."""
+    return explicit or os.environ.get("DIRECT_BROWSER_UA") or DEFAULT_BROWSER_UA
+
 
 def _owner_login_from_cookies(
     cookies: Sequence[Dict[str, Any]],
@@ -631,7 +647,11 @@ def _resolve_profile_dir(profile_dir: Optional[Path]) -> Path:
 
 @contextlib.contextmanager
 def _launch_context(
-    sync_playwright, *, headless: bool, storage_state: Optional[Dict[str, Any]] = None
+    sync_playwright,
+    *,
+    headless: bool,
+    storage_state: Optional[Dict[str, Any]] = None,
+    user_agent: Optional[str] = None,
 ) -> Generator[Tuple["Browser", Any], None, None]:
     """Shared launch/teardown body for both session flavours.
 
@@ -642,7 +662,11 @@ def _launch_context(
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=headless)
         try:
-            context = browser.new_context(locale="ru-RU", storage_state=storage_state)
+            context = browser.new_context(
+                locale="ru-RU",
+                storage_state=storage_state,
+                user_agent=_resolve_user_agent(user_agent),
+            )
             try:
                 yield browser, context
             finally:
@@ -820,7 +844,7 @@ def _clear_stale_singleton_lock(profile_dir: Path) -> bool:
 
 @contextlib.contextmanager
 def _launch_persistent_context(
-    sync_playwright, profile_dir: Path, *, headless: bool
+    sync_playwright, profile_dir: Path, *, headless: bool, user_agent: Optional[str] = None
 ) -> Generator[Any, None, None]:
     """Shared launch/teardown for the CLI's own persistent Chromium profile.
 
@@ -861,7 +885,10 @@ def _launch_persistent_context(
     with sync_playwright() as playwright:
         try:
             context = playwright.chromium.launch_persistent_context(
-                str(profile_dir), headless=headless, locale="ru-RU"
+                str(profile_dir),
+                headless=headless,
+                locale="ru-RU",
+                user_agent=_resolve_user_agent(user_agent),
             )
         except PlaywrightError as exc:
             # Issue #870 п.4: two CLI browser operations back-to-back race
@@ -882,7 +909,10 @@ def _launch_persistent_context(
                 ) from exc
             try:
                 context = playwright.chromium.launch_persistent_context(
-                    str(profile_dir), headless=headless, locale="ru-RU"
+                    str(profile_dir),
+                    headless=headless,
+                    locale="ru-RU",
+                    user_agent=_resolve_user_agent(user_agent),
                 )
             except PlaywrightError as retry_exc:
                 # The clear-then-retry window can lose a race: another

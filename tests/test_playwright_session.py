@@ -917,6 +917,9 @@ class TestAssertSessionOwner(unittest.TestCase):
                 browser_auth._assert_session_owner(self._status("2", None))
         warn.assert_called_once()
         self.assertIn("direct auth login browser", str(warn.call_args))
+        # #916 wording: an unstamped session is about a missing identity
+        # cookie, not about the CLI version that saved it.
+        self.assertNotIn("older direct-cli", str(warn.call_args))
 
     def test_matching_owner_is_silent(self):
         from direct_cli.browser import auth as browser_auth
@@ -947,6 +950,120 @@ class TestAssertSessionOwner(unittest.TestCase):
                 browser_auth._assert_session_owner(self._status(None, None))
         anchor.assert_not_called()
         warn.assert_not_called()
+
+
+class TestBrowserUA(unittest.TestCase):
+    """Every context this module creates sends a real Chrome UA (#950):
+    Yandex meets the default Playwright UA with ``showcaptchafast`` even on
+    a valid cookie jar."""
+
+    DEFAULT_UA = (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
+    )
+
+    def _recording_chromium(self):
+        class _Chromium:
+            def __init__(self):
+                self.launch_kwargs: Any = {}
+                self.context_kwargs: Any = {}
+
+            def launch(self, **kwargs):
+                self.launch_kwargs = kwargs
+                return self
+
+            def close(self):
+                pass
+
+            def new_context(self, **kwargs):
+                self.context_kwargs = kwargs
+                return Mock()
+
+        return _Chromium()
+
+    def _recording_persistent_chromium(self):
+        class _Chromium:
+            def __init__(self):
+                self.launch_kwargs: Any = {}
+
+            def launch_persistent_context(self, user_data_dir, **kwargs):
+                self.launch_kwargs = kwargs
+                return Mock()
+
+        return _Chromium()
+
+    def _fake_playwright(self, chromium_obj):
+        class _Playwright:
+            chromium: Any
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                return False
+
+        playwright = _Playwright()
+        playwright.chromium = chromium_obj
+        return playwright
+
+    def test_default_ua_reaches_new_context(self):
+        from direct_cli.browser import session as session_module
+
+        chromium = self._recording_chromium()
+        with patch.dict("os.environ", {}, clear=True):
+            with session_module._launch_context(
+                lambda: self._fake_playwright(chromium), headless=True
+            ) as _:
+                pass
+        self.assertEqual(chromium.context_kwargs["user_agent"], self.DEFAULT_UA)
+
+    def test_default_ua_reaches_launch_persistent_context(self):
+        from direct_cli.browser import session as session_module
+
+        chromium = self._recording_persistent_chromium()
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = Path(tmp) / "profile"
+            with patch.dict("os.environ", {}, clear=True):
+                with session_module._launch_persistent_context(
+                    lambda: self._fake_playwright(chromium), profile, headless=True
+                ) as _:
+                    pass
+        self.assertEqual(chromium.launch_kwargs["user_agent"], self.DEFAULT_UA)
+
+    def test_direct_browser_ua_env_overrides_default(self):
+        from direct_cli.browser import session as session_module
+
+        chromium = self._recording_chromium()
+        with patch.dict("os.environ", {"DIRECT_BROWSER_UA": "TestUA/1.0"}):
+            with session_module._launch_context(
+                lambda: self._fake_playwright(chromium), headless=True
+            ) as _:
+                pass
+        self.assertEqual(chromium.context_kwargs["user_agent"], "TestUA/1.0")
+
+    def test_explicit_parameter_beats_env(self):
+        from direct_cli.browser import session as session_module
+
+        chromium = self._recording_chromium()
+        with patch.dict("os.environ", {"DIRECT_BROWSER_UA": "TestUA/1.0"}):
+            with session_module._launch_context(
+                lambda: self._fake_playwright(chromium),
+                headless=True,
+                user_agent="Explicit/2.0",
+            ) as _:
+                pass
+        self.assertEqual(chromium.context_kwargs["user_agent"], "Explicit/2.0")
+
+    def test_empty_env_value_keeps_default(self):
+        from direct_cli.browser import session as session_module
+
+        chromium = self._recording_chromium()
+        with patch.dict("os.environ", {"DIRECT_BROWSER_UA": ""}):
+            with session_module._launch_context(
+                lambda: self._fake_playwright(chromium), headless=True
+            ) as _:
+                pass
+        self.assertEqual(chromium.context_kwargs["user_agent"], self.DEFAULT_UA)
 
 
 class TestExpectedSessionLogin(unittest.TestCase):
