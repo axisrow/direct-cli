@@ -14,18 +14,11 @@ from . import session, store
 if TYPE_CHECKING:
     from playwright.sync_api import Page
 
-
-def _marker_owner(profile_dir: Path) -> Optional[str]:
-    """Owner login stamped into the profile marker (issue #916), if any.
-
-    ``None`` for a marker saved before the stamp existed — soft fallback.
-    """
-    try:
-        return (profile_dir / session.PROFILE_MARKER_NAME).read_text(
-            encoding="utf-8"
-        ).strip() or None
-    except OSError:
-        return None
+# One-time cleanup target: the pre-refactor persistent Chromium profile (the
+# old `direct masters login` store). Best-effort removal in 0.5.x so an
+# upgrade does not leave a dead cookie jar on disk; drop in 0.6.x.
+_LEGACY_PROFILE_DIR = Path.home() / ".direct-cli" / "chrome-profile"
+_LEGACY_PROFILE_MARKER = ".direct-cli-profile"  # ponytail: temp, remove in 0.6.x
 
 
 def _comparable_login(login: Any) -> Optional[str]:
@@ -93,19 +86,15 @@ def _assert_session_owner(status: Dict[str, Any]) -> None:
     nothing to compare against. The warning is safety output: it goes
     through ``print_warning_stderr`` and is never silenced by DIRECT_QUIET.
     """
-    tier = status.get("active_tier")
-    if tier is None:
+    if not status.get("exists"):
         return  # nothing is about to open; the missing-session error reports that
-    if tier == "1.5":
-        owner = status["persistent_profile"].get("owner")
-    else:
-        owner = status["saved_session"].get("owner_login")
+    owner = status.get("owner_login")
     if not owner:
         print_warning_stderr(
             t(
-                "The saved browser session carries no owner stamp (saved by "
-                "an older direct-cli), so the account it belongs to cannot "
-                "be verified. Run: {hint}"
+                "The saved browser session carries no owner stamp (the "
+                "identity cookie that stores it is missing), so the account "
+                "it belongs to cannot be verified. Run: {hint}"
             ).format(hint=HINT_LOGIN_BROWSER)
         )
         return
@@ -121,54 +110,57 @@ def _assert_session_owner(status: Dict[str, Any]) -> None:
     )
 
 
-def session_status(profile_dir: Optional[Path] = None) -> Dict[str, Any]:
-    """Inspect saved authorization without launching a browser or decrypting cookies."""
-    persistent_dir = profile_dir or session.configured_persistent_profile_dir()
-    usable = session.persistent_profile_is_usable(persistent_dir)
-    saved = store.session_status()
-    tier, source = None, None
-    if usable:
-        tier, source = "1.5", "masters login"
-    elif saved["exists"] and not saved["error"] and saved["expired"] is not True:
-        tier, source = "2", "playwright login"
-    return {
-        "active_tier": tier,
-        "active_source": source,
-        "persistent_profile": {
-            "path": str(persistent_dir),
-            "usable": usable,
-            "owner": _marker_owner(persistent_dir),
-        },
-        "saved_session": saved,
-    }
+def session_status() -> Dict[str, Any]:
+    """Inspect saved authorization without launching a browser or decrypting cookies.
+
+    The flat saved-session report (``exists``, ``owner_login``, ``expired``,
+    ``cookie_count``, ``path``, ``error``) — the single browser session this
+    CLI keeps. The pre-refactor ``active_tier``/``persistent_profile`` keys
+    are gone (BREAKING): there is exactly one store.
+    """
+    return store.session_status()
 
 
 @contextlib.contextmanager
-def open_session(
-    *, headless: bool = True, profile_dir: Optional[Path] = None
-) -> Generator["Page", None, None]:
-    """Use saved credentials once; never import Chrome cookies or retry an operation."""
-    # Every tier below launches a browser, so a missing playwright must
+def open_session(*, headless: bool = True) -> Generator["Page", None, None]:
+    """Open the single saved session; auto-import from Chrome when unusable.
+
+    Auto-import is the contract now (#950 review): when the saved session is
+    missing, corrupt or expired, the live session is copied from the user's
+    Chrome headlessly — no window opens for that (Keychain may be asked once
+    for the cookie-decryption key). A failed import raises
+    :class:`session.BrowserSessionMissingError` with the login hint;
+    the explicit manual-login command (:func:`session.login_manual_session`)
+    remains the only path that opens a window.
+    """
+    # The import below launches a browser, so a missing playwright must
     # surface as the install hint even when no saved session exists — the
     # session-state report would otherwise preempt the actionable error.
     session._import_sync_playwright()
-    status = session_status(profile_dir)
+    saved = session_status()
+    if not (
+        saved.get("exists") and not saved.get("error") and saved.get("expired") is not True
+    ):
+        try:
+            storage_state, source_meta = session.capture_storage_state(headless=True)
+        except session.BrowserSessionError as exc:
+            raise session.BrowserSessionMissingError(
+                t(
+                    "No usable saved browser session and the automatic import "
+                    "from Chrome failed: {error}. Run: {hint}"
+                ).format(error=exc, hint=HINT_LOGIN_BROWSER)
+            ) from exc
+        store.save_session(
+            storage_state,
+            owner_login=source_meta.get("owner_login"),
+            source=source_meta,
+        )
+        saved = session_status()
     # Before any launch: a stamped session owned by another account fails
     # here, loudly, instead of navigating the wrong account's pages (#907).
-    _assert_session_owner(status)
-    if status["active_tier"] == "1.5":
-        opener = session.open_persistent_session(
-            headless=headless,
-            profile_dir=Path(status["persistent_profile"]["path"]),
-        )
-    elif status["active_tier"] == "2":
-        opener = session.open_saved_session(headless=headless)
-    else:
-        raise session.BrowserSessionMissingError(
-            t("No saved browser session. Run: {hint}").format(hint=HINT_LOGIN_BROWSER)
-        )
+    _assert_session_owner(saved)
     try:
-        with opener as page:
+        with session.open_saved_session(headless=headless) as page:
             yield page
     except session.BrowserAuthError as exc:
         raise session.BrowserAuthError(
@@ -176,54 +168,29 @@ def open_session(
         ) from exc
 
 
-def validate_persistent_profile(profile_dir: Path) -> None:
-    """Refuse to remove directories not owned by the CLI, including symlinks."""
-    if profile_dir.is_symlink():
-        raise session.BrowserSessionError(
-            f"Refusing to delete {profile_dir}: it is a symlink, not a "
-            "profile directory created by `direct masters login`."
-        )
-    if not profile_dir.exists():
-        return
-    if not profile_dir.is_dir():
-        raise session.BrowserSessionError(
-            f"Refusing to delete {profile_dir}: not a directory."
-        )
-    if not (profile_dir / session.PROFILE_MARKER_NAME).is_file():
-        raise session.BrowserSessionError(
-            f"Refusing to delete {profile_dir}: it has no "
-            f"{session.PROFILE_MARKER_NAME} marker, so it was not created by "
-            "`direct masters login`. Delete it by hand if you are sure."
-        )
+def _cleanup_legacy_chrome_profile() -> None:
+    """Best-effort removal of the pre-refactor persistent Chromium profile.
 
-
-def logout_persistent_profile(profile_dir: Optional[Path] = None) -> bool:
-    """Delete only a CLI-owned profile and the pointer referring to that profile."""
-    target = profile_dir or session.configured_persistent_profile_dir()
-    validate_persistent_profile(target)
+    Only a directory carrying the old CLI-ownership marker is removed; a
+    path that does not match (symlink, foreign directory, anything odd) is
+    left for the user to delete by hand. A one-time cleanup must never fail
+    the logout.
+    """
+    profile_dir = _LEGACY_PROFILE_DIR
     try:
-        pointer_target = session.PROFILE_POINTER_PATH.read_text(
-            encoding="utf-8"
-        ).strip()
+        if profile_dir.is_symlink() or not profile_dir.is_dir():
+            return
+        if not (profile_dir / _LEGACY_PROFILE_MARKER).is_file():
+            return
+        shutil.rmtree(profile_dir)
     except OSError:
-        pointer_target = None
-    existed = target.exists()
-    if existed:
-        shutil.rmtree(target)
-    if pointer_target and Path(pointer_target) == target.resolve():
-        session.PROFILE_POINTER_PATH.unlink(missing_ok=True)
-    return existed
+        pass  # ponytail: one-time cleanup, remove with the constants in 0.6.x
 
 
 def logout() -> None:
-    """Forget both CLI browser sessions, leaving the user's real Chrome untouched."""
-    target = session.configured_persistent_profile_dir()
-    targets = {target, session.DEFAULT_PERSISTENT_PROFILE_DIR}
-    for profile_dir in targets:
-        validate_persistent_profile(profile_dir)
+    """Forget the saved browser session, leaving the user's real Chrome untouched."""
     saved_path = store.PLAYWRIGHT_SESSION_PATH
     if saved_path.is_dir() and not saved_path.is_symlink():
         raise session.BrowserSessionError(f"Not a session file: {saved_path}")
-    for profile_dir in targets:
-        logout_persistent_profile(profile_dir)
     saved_path.unlink(missing_ok=True)
+    _cleanup_legacy_chrome_profile()

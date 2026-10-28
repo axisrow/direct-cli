@@ -14,7 +14,6 @@ from .session import (
     BrowserCaptchaError,
     BrowserSessionError,
     ChromeCookieError,
-    open_chrome_session,
 )
 
 __all__ = [
@@ -22,5 +21,4 @@ __all__ = [
     "BrowserCaptchaError",
     "BrowserSessionError",
     "ChromeCookieError",
-    "open_chrome_session",
 ]

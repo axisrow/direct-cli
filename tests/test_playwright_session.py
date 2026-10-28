@@ -37,13 +37,6 @@ def _isolated_session_path(tmp_path, monkeypatch):
     """
     target = tmp_path / "playwright" / "session.json"
     monkeypatch.setattr(store, "PLAYWRIGHT_SESSION_PATH", target)
-    monkeypatch.setattr(
-        "direct_cli.browser.session.DEFAULT_PERSISTENT_PROFILE_DIR",
-        tmp_path / "browser",
-    )
-    monkeypatch.setattr(
-        "direct_cli.browser.session.PROFILE_POINTER_PATH", tmp_path / "browser-path"
-    )
     yield target
 
 
@@ -304,334 +297,6 @@ class TestDiagnosticsNeverReadSecrets(unittest.TestCase):
             self.assertIn("explicit login", check.detail)
 
 
-class TestSingletonLockRecovery(unittest.TestCase):
-    """Issue #870 п.4: two CLI browser operations back to back race the
-    profile's ProcessSingleton. A DEAD owner's lock trio is cleared and the
-    launch retried once; a LIVE holder is reported by PID and its lock is
-    never deleted."""
-
-    def _make_profile(self, tmp_path):
-        from direct_cli.browser import session as session_module
-
-        profile = tmp_path / "profile"
-        profile.mkdir(parents=True)
-        (profile / session_module.PROFILE_MARKER_NAME).touch()
-        return profile
-
-    def _raising_then_ok_chromium(self, profile, lock_target="host.example-4242"):
-        """First launch plants the racing lock (the "previous" process's
-        leftover) and dies on ProcessSingleton; the second succeeds."""
-        from direct_cli.browser import session as session_module
-
-        calls = []
-
-        class _Chromium:
-            def launch_persistent_context(self, user_data_dir, **kwargs):
-                calls.append(user_data_dir)
-                if len(calls) == 1:
-                    lock = Path(user_data_dir) / "SingletonLock"
-                    lock.symlink_to(lock_target)
-                    # PlaywrightError itself, not a plain Exception: the
-                    # recovery path catches exactly that class (a real
-                    # playwright install must classify this the same way).
-                    raise session_module.PlaywrightError(
-                        "BrowserType.launch_persistent_context: Failed to "
-                        "create a ProcessSingleton for your profile "
-                        "directory ... SingletonLock: File exists (17)"
-                    )
-                return Mock()
-
-        return _Chromium(), calls
-
-    def _fake_playwright(self, chromium_obj):
-        class _Playwright:
-            chromium: Any
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *exc_info):
-                return False
-
-        playwright = _Playwright()
-        playwright.chromium = chromium_obj
-        return playwright
-
-    def test_dead_owner_lock_is_cleared_and_launch_retried(self):
-        import os
-
-        from direct_cli.browser import session as session_module
-
-        with tempfile.TemporaryDirectory() as tmp:
-            profile = self._make_profile(Path(tmp))
-            chromium, calls = self._raising_then_ok_chromium(profile)
-            playwright = self._fake_playwright(chromium)
-
-            with patch.object(session_module, "_process_alive", return_value=False):
-                with session_module._launch_persistent_context(
-                    lambda: playwright, profile, headless=True
-                ) as context:
-                    self.assertIsNotNone(context)
-
-            # Inside the tmp dir's lifetime: an assertion after cleanup
-            # would pass vacuously (the whole tree is already gone).
-            self.assertEqual(
-                len(calls),
-                2,
-                "the launch must be retried once after clearing the stale lock",
-            )
-            self.assertFalse(
-                os.path.lexists(profile / "SingletonLock"),
-                "stale lock must be removed",
-            )
-
-    def test_live_holder_is_reported_and_its_lock_kept(self):
-        import os
-
-        from direct_cli.browser import session as session_module
-
-        with tempfile.TemporaryDirectory() as tmp:
-            profile = self._make_profile(Path(tmp))
-            # The racing predecessor's lock is planted by the fake's FIRST
-            # launch attempt (see _raising_then_ok_chromium).
-            lock = profile / "SingletonLock"
-            chromium, calls = self._raising_then_ok_chromium(profile)
-            playwright = self._fake_playwright(chromium)
-
-            with patch.object(session_module, "_process_alive", return_value=True):
-                with self.assertRaises(session_module.BrowserSessionError) as ctx:
-                    with session_module._launch_persistent_context(
-                        lambda: playwright, profile, headless=True
-                    ):
-                        pass
-
-            # Inside the tmp dir's lifetime (see the dead-owner test).
-            self.assertIn("4242", str(ctx.exception))
-            self.assertIn("locked by another process", str(ctx.exception))
-            self.assertEqual(
-                len(calls),
-                1,
-                "a live holder's lock must never be deleted for a retry",
-            )
-            # lexists, not exists: the lock is a symlink to a path that
-            # does not exist in the test filesystem, and exists() follows
-            # links.
-            self.assertTrue(os.path.lexists(lock), "a live lock must survive the error")
-
-    def test_singleton_lock_pid_parses_hostname_pid_symlinks(self):
-        from direct_cli.browser import session as session_module
-
-        with tempfile.TemporaryDirectory() as tmp:
-            profile = self._make_profile(Path(tmp))
-            self.assertIsNone(
-                session_module._singleton_lock_pid(profile),
-                "no lock at all must read as an unknown holder, not PID 0",
-            )
-            (profile / "SingletonLock").symlink_to("myhost-123456")
-            self.assertEqual(session_module._singleton_lock_pid(profile), 123456)
-            (profile / "SingletonLock").unlink()
-            (profile / "SingletonLock").symlink_to("garbage-without-pid")
-            self.assertIsNone(session_module._singleton_lock_pid(profile))
-
-    def test_process_alive_probe_semantics(self):
-        """The probe's fail-safe direction is the safety-critical invariant:
-        an inconclusive answer (EPERM — process owned by another user) counts
-        as ALIVE, so a lock we cannot probe is never deleted."""
-        import os
-
-        from direct_cli.browser import session as session_module
-
-        self.assertTrue(
-            session_module._process_alive(os.getpid()),
-            "a live PID answers signal-0 with silence",
-        )
-        with patch.object(session_module.os, "kill", side_effect=ProcessLookupError()):
-            self.assertFalse(
-                session_module._process_alive(1),
-                "ProcessLookupError is the one conclusive dead answer",
-            )
-        with patch.object(session_module.os, "kill", side_effect=PermissionError()):
-            self.assertTrue(
-                session_module._process_alive(1),
-                "an unprobeable process must count as alive (never delete)",
-            )
-
-    def test_absent_lock_means_launch_is_safe(self):
-        """Absence is not unreadability: a SingletonLock that vanished between
-        the failed launch and the recovery check means nothing holds the
-        profile — a plain relaunch is safe, not a hard 'PID unknown' error."""
-        import os
-
-        from direct_cli.browser import session as session_module
-
-        with tempfile.TemporaryDirectory() as tmp:
-            profile = self._make_profile(Path(tmp))
-            self.assertTrue(session_module._clear_stale_singleton_lock(profile))
-            self.assertFalse(os.path.lexists(profile / "SingletonLock"))
-
-    def test_lock_repointed_between_probe_and_unlink_is_not_deleted(self):
-        """TOCTOU guard: between the liveness probe and the unlink another
-        Chromium may have cleared the stale lock and installed its own live
-        one. If the symlink no longer names the probed owner at unlink time,
-        the lock must survive."""
-        import os
-
-        from direct_cli.browser import session as session_module
-
-        with tempfile.TemporaryDirectory() as tmp:
-            profile = self._make_profile(Path(tmp))
-            (profile / "SingletonLock").symlink_to("myhost-4242")
-            with patch.object(
-                session_module.os,
-                "readlink",
-                side_effect=["myhost-4242", "myhost-4242", "myhost-9999"],
-            ):
-                with patch.object(session_module, "_process_alive", return_value=False):
-                    self.assertFalse(
-                        session_module._clear_stale_singleton_lock(profile),
-                        "a lock that changed owner between probe and unlink "
-                        "must not be deleted",
-                    )
-            self.assertTrue(
-                os.path.lexists(profile / "SingletonLock"),
-                "the (now foreign) lock must survive",
-            )
-
-    def test_generic_launch_failure_propagates_and_keeps_the_lock(self):
-        """Only ProcessSingleton/SingletonLock failures route to the recovery:
-        a generic PlaywrightError (browser download failed, ...) must propagate
-        raw and must never touch the profile's lock."""
-        import os
-
-        from direct_cli.browser import session as session_module
-
-        with tempfile.TemporaryDirectory() as tmp:
-            profile = self._make_profile(Path(tmp))
-            (profile / "SingletonLock").symlink_to("myhost-4242")
-
-            class _FailingChromium:
-                def __init__(self):
-                    self.calls = 0
-
-                def launch_persistent_context(self, user_data_dir, **kwargs):
-                    self.calls += 1
-                    raise session_module.PlaywrightError("browser download failed")
-
-            chromium = _FailingChromium()
-
-            with self.assertRaises(session_module.PlaywrightError):
-                with session_module._launch_persistent_context(
-                    lambda: self._fake_playwright(chromium), profile, headless=True
-                ):
-                    pass
-
-            self.assertEqual(chromium.calls, 1, "no retry on an unrelated failure")
-            self.assertTrue(
-                os.path.lexists(profile / "SingletonLock"),
-                "an unrelated launch failure must not delete the lock",
-            )
-
-    def test_unparseable_lock_is_reported_as_unknown_holder(self):
-        """A SingletonLock whose symlink target has no '-PID' tail must give
-        the classified 'PID unknown' error — not a raw traceback, and never a
-        deletion."""
-        import os
-
-        from direct_cli.browser import session as session_module
-
-        with tempfile.TemporaryDirectory() as tmp:
-            profile = self._make_profile(Path(tmp))
-            chromium, calls = self._raising_then_ok_chromium(
-                profile, lock_target="garbage-without-pid"
-            )
-            playwright = self._fake_playwright(chromium)
-
-            with self.assertRaises(session_module.BrowserSessionError) as ctx:
-                with session_module._launch_persistent_context(
-                    lambda: playwright, profile, headless=True
-                ):
-                    pass
-
-            self.assertIn("unknown", str(ctx.exception))
-            self.assertEqual(len(calls), 1, "no retry without a readable holder")
-            self.assertTrue(
-                os.path.lexists(profile / "SingletonLock"),
-                "an unparseable lock must survive (fail closed)",
-            )
-
-    def test_whole_lock_trio_is_removed(self):
-        """The recovery removes all three ProcessSingleton files, not just the
-        SingletonLock that carries the PID — planting the full trio and
-        asserting none remains is what pins that."""
-        import os
-
-        from direct_cli.browser import session as session_module
-
-        with tempfile.TemporaryDirectory() as tmp:
-            profile = self._make_profile(Path(tmp))
-
-            calls = []
-
-            class _Chromium:
-                def launch_persistent_context(self, user_data_dir, **kwargs):
-                    calls.append(user_data_dir)
-                    if len(calls) == 1:
-                        for name in session_module._SINGLETON_LOCK_FILES:
-                            (Path(user_data_dir) / name).symlink_to("myhost-4242")
-                        raise session_module.PlaywrightError(
-                            "BrowserType.launch_persistent_context: Failed to "
-                            "create a ProcessSingleton for your profile "
-                            "directory ... SingletonLock: File exists (17)"
-                        )
-                    return Mock()
-
-            playwright = self._fake_playwright(_Chromium())
-
-            with patch.object(session_module, "_process_alive", return_value=False):
-                with session_module._launch_persistent_context(
-                    lambda: playwright, profile, headless=True
-                ):
-                    pass
-
-            self.assertEqual(len(calls), 2)
-            for name in session_module._SINGLETON_LOCK_FILES:
-                self.assertFalse(
-                    os.path.lexists(profile / name),
-                    f"{name} must be removed along with the stale SingletonLock",
-                )
-
-    def test_retry_losing_the_race_is_classified_not_raw(self):
-        """If another launcher re-creates a live lock between the stale-lock
-        clear and the retry launch, the second failure must come back as the
-        classified BrowserSessionError, not a raw PlaywrightError."""
-        from direct_cli.browser import session as session_module
-
-        with tempfile.TemporaryDirectory() as tmp:
-            profile = self._make_profile(Path(tmp))
-            calls = []
-
-            class _AlwaysContendedChromium:
-                def launch_persistent_context(self, user_data_dir, **kwargs):
-                    calls.append(user_data_dir)
-                    raise session_module.PlaywrightError(
-                        "BrowserType.launch_persistent_context: Failed to "
-                        "create a ProcessSingleton for your profile "
-                        "directory ... SingletonLock: File exists (17)"
-                    )
-
-            playwright = self._fake_playwright(_AlwaysContendedChromium())
-
-            with patch.object(session_module, "_process_alive", return_value=False):
-                with self.assertRaises(session_module.BrowserSessionError) as ctx:
-                    with session_module._launch_persistent_context(
-                        lambda: playwright, profile, headless=True
-                    ):
-                        pass
-
-            self.assertEqual(len(calls), 2, "one clear + one retry, then give up")
-            self.assertIn("locked again", str(ctx.exception))
-
-
 class TestPlaywrightLoginCommand(unittest.TestCase):
     """``direct playwright login``'s ``verified`` output contract (issue #870
     п.3): a script must be able to tell a verified session from a merely
@@ -873,12 +538,8 @@ class TestAssertSessionOwner(unittest.TestCase):
         self.addCleanup(env.stop)
 
     @staticmethod
-    def _status(tier, owner):
-        return {
-            "active_tier": tier,
-            "persistent_profile": {"owner": owner if tier == "1.5" else None},
-            "saved_session": {"owner_login": owner if tier == "2" else None},
-        }
+    def _status(owner):
+        return {"exists": True, "owner_login": owner}
 
     def test_mismatched_stamp_raises_loudly_with_both_logins(self):
         from direct_cli.browser import auth as browser_auth
@@ -889,23 +550,13 @@ class TestAssertSessionOwner(unittest.TestCase):
         ):
             with self.assertRaises(BrowserAuthError) as cm:
                 browser_auth._assert_session_owner(
-                    self._status("2", "engineeringprint-ru")
+                    self._status("engineeringprint-ru")
                 )
         message = str(cm.exception)
         self.assertIn("engineeringprint-ru", message)
         self.assertIn("ksamatadirect", message)
         # The hint must be the canonical _auth_hints pointer, not a variant.
         self.assertIn("direct auth login browser", message)
-
-    def test_mismatched_persistent_profile_marker_raises_too(self):
-        from direct_cli.browser import auth as browser_auth
-        from direct_cli.browser.session import BrowserAuthError
-
-        with patch.object(
-            browser_auth, "_expected_session_login", return_value="expected"
-        ):
-            with self.assertRaises(BrowserAuthError):
-                browser_auth._assert_session_owner(self._status("1.5", "other"))
 
     def test_unstamped_session_warns_but_opens(self):
         from direct_cli.browser import auth as browser_auth
@@ -914,9 +565,12 @@ class TestAssertSessionOwner(unittest.TestCase):
             browser_auth, "_expected_session_login", return_value="expected"
         ):
             with patch.object(browser_auth, "print_warning_stderr") as warn:
-                browser_auth._assert_session_owner(self._status("2", None))
+                browser_auth._assert_session_owner(self._status(None))
         warn.assert_called_once()
         self.assertIn("direct auth login browser", str(warn.call_args))
+        # #916 wording: an unstamped session is about a missing identity
+        # cookie, not about the CLI version that saved it.
+        self.assertNotIn("older direct-cli", str(warn.call_args))
 
     def test_matching_owner_is_silent(self):
         from direct_cli.browser import auth as browser_auth
@@ -925,7 +579,7 @@ class TestAssertSessionOwner(unittest.TestCase):
             browser_auth, "_expected_session_login", return_value="Owner"
         ):
             with patch.object(browser_auth, "print_warning_stderr") as warn:
-                browser_auth._assert_session_owner(self._status("2", "owner"))
+                browser_auth._assert_session_owner(self._status("owner"))
         warn.assert_not_called()
 
     def test_no_anchor_means_no_opinion(self):
@@ -933,10 +587,10 @@ class TestAssertSessionOwner(unittest.TestCase):
 
         with patch.object(browser_auth, "_expected_session_login", return_value=None):
             with patch.object(browser_auth, "print_warning_stderr") as warn:
-                browser_auth._assert_session_owner(self._status("2", "anyone"))
+                browser_auth._assert_session_owner(self._status("anyone"))
         warn.assert_not_called()
 
-    def test_no_session_tier_is_a_noop(self):
+    def test_missing_session_is_a_noop(self):
         """Nothing is about to open — the missing-session error reports it."""
         from direct_cli.browser import auth as browser_auth
 
@@ -944,9 +598,125 @@ class TestAssertSessionOwner(unittest.TestCase):
             browser_auth, "_expected_session_login", return_value="expected"
         ) as anchor:
             with patch.object(browser_auth, "print_warning_stderr") as warn:
-                browser_auth._assert_session_owner(self._status(None, None))
+                browser_auth._assert_session_owner({"exists": False, "owner_login": None})
         anchor.assert_not_called()
         warn.assert_not_called()
+
+
+class TestBrowserUA(unittest.TestCase):
+    """Every context this module creates sends a real Chrome UA (#950):
+    Yandex meets the default Playwright UA with ``showcaptchafast`` even on
+    a valid cookie jar."""
+
+    def _recording_chromium(self):
+        class _Chromium:
+            def __init__(self):
+                self.launch_kwargs: Any = {}
+                self.context_kwargs: Any = {}
+
+            def launch(self, **kwargs):
+                self.launch_kwargs = kwargs
+                return self
+
+            def close(self):
+                pass
+
+            def new_context(self, **kwargs):
+                self.context_kwargs = kwargs
+                return Mock()
+
+        return _Chromium()
+
+    def _fake_playwright(self, chromium_obj):
+        class _Playwright:
+            chromium: Any
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                return False
+
+        playwright = _Playwright()
+        playwright.chromium = chromium_obj
+        return playwright
+
+    def test_default_ua_reaches_new_context(self):
+        from direct_cli.browser import session as session_module
+
+        chromium = self._recording_chromium()
+        with patch.dict("os.environ", {}, clear=True):
+            with session_module._launch_context(
+                lambda: self._fake_playwright(chromium), headless=True
+            ) as _:
+                pass
+        self.assertEqual(
+            chromium.context_kwargs["user_agent"], session_module.DEFAULT_BROWSER_UA
+        )
+
+    def test_direct_browser_ua_env_overrides_default(self):
+        from direct_cli.browser import session as session_module
+
+        chromium = self._recording_chromium()
+        with patch.dict("os.environ", {"DIRECT_BROWSER_UA": "TestUA/1.0"}):
+            with session_module._launch_context(
+                lambda: self._fake_playwright(chromium), headless=True
+            ) as _:
+                pass
+        self.assertEqual(chromium.context_kwargs["user_agent"], "TestUA/1.0")
+
+    def test_explicit_parameter_beats_env(self):
+        from direct_cli.browser import session as session_module
+
+        chromium = self._recording_chromium()
+        with patch.dict("os.environ", {"DIRECT_BROWSER_UA": "TestUA/1.0"}):
+            with session_module._launch_context(
+                lambda: self._fake_playwright(chromium),
+                headless=True,
+                user_agent="Explicit/2.0",
+            ) as _:
+                pass
+        self.assertEqual(chromium.context_kwargs["user_agent"], "Explicit/2.0")
+
+    def test_empty_env_value_keeps_default(self):
+        from direct_cli.browser import session as session_module
+
+        chromium = self._recording_chromium()
+        with patch.dict("os.environ", {"DIRECT_BROWSER_UA": ""}):
+            with session_module._launch_context(
+                lambda: self._fake_playwright(chromium), headless=True
+            ) as _:
+                pass
+        self.assertEqual(
+            chromium.context_kwargs["user_agent"], session_module.DEFAULT_BROWSER_UA
+        )
+
+    def test_platform_token_follows_host_os(self):
+        # Playwright's user_agent overrides only the UA string —
+        # navigator.platform and sec-ch-ua-platform keep reporting the real
+        # host OS, so a Macintosh UA over Linux/Windows hints is itself a
+        # fingerprint mismatch. Darwin's token is the #950-validated one.
+        from direct_cli.browser import session as session_module
+
+        expected = {
+            "Darwin": "Macintosh; Intel Mac OS X 10_15_7",
+            "Windows": "Windows NT 10.0; Win64; x64",
+            "Linux": "X11; Linux x86_64",
+            "SunOS": "X11; Linux x86_64",  # unknown host: X11 fallback
+        }
+        for system, token in expected.items():
+            with self.subTest(system=system):
+                with patch("platform.system", return_value=system):
+                    self.assertEqual(session_module._chrome_platform_token(), token)
+
+    def test_default_ua_shape(self):
+        from direct_cli.browser import session as session_module
+
+        self.assertRegex(
+            session_module.DEFAULT_BROWSER_UA,
+            r"^Mozilla/5\.0 \(.+\) AppleWebKit/537\.36 "
+            r"\(KHTML, like Gecko\) Chrome/\d[\d.]* Safari/537\.36$",
+        )
 
 
 class TestExpectedSessionLogin(unittest.TestCase):
@@ -1086,151 +856,27 @@ def test_capture_storage_state_resolves_owner_login(tmp_path, monkeypatch):
     assert source_meta["verified"] is True
 
 
-def test_persistent_login_stamps_marker_with_owner(tmp_path):
-    from direct_cli.browser import session as session_module
-
-    profile = tmp_path / "profile"
-    profile.mkdir(parents=True)
-    (profile / session_module.PROFILE_MARKER_NAME).touch()
-    cookies = [
-        {"name": "Session_id", "value": "s", "domain": ".yandex.ru"},
-        {"name": "yandex_login", "value": "marker-owner", "domain": ".yandex.ru"},
-    ]
-
-    class _Context:
-        def cookies(self):
-            return cookies
-
-        def new_page(self):
-            page = Mock()
-            page.locator.return_value.first.count.return_value = 1
-            page.content.return_value = "<html><body>grid</body></html>"
-            return page
-
-    @contextlib.contextmanager
-    def fake_launch(sync_playwright, profile_dir, *, headless):
-        yield _Context()
-
-    with (
-        patch.object(session_module, "_import_sync_playwright", return_value=object()),
-        patch.object(session_module, "_launch_persistent_context", fake_launch),
-        patch.object(session_module, "_goto_with_network_retry"),
-    ):
-        session_module.login_persistent_session(profile_dir=profile)
-
-    assert (profile / session_module.PROFILE_MARKER_NAME).read_text(
-        encoding="utf-8"
-    ) == "marker-owner\n"
-    assert session_module.PROFILE_POINTER_PATH.exists()
-
-
-def test_persistent_login_warns_when_replacing_a_different_owner(tmp_path):
-    from direct_cli.browser import session as session_module
-
-    profile = tmp_path / "profile"
-    profile.mkdir(parents=True)
-    (profile / session_module.PROFILE_MARKER_NAME).write_text("old-owner\n")
-    cookies = [
-        {"name": "Session_id", "value": "s", "domain": ".yandex.ru"},
-        {"name": "yandex_login", "value": "new-owner", "domain": ".yandex.ru"},
-    ]
-
-    class _Context:
-        def cookies(self):
-            return cookies
-
-        def new_page(self):
-            page = Mock()
-            page.locator.return_value.first.count.return_value = 1
-            page.content.return_value = "<html><body>grid</body></html>"
-            return page
-
-    @contextlib.contextmanager
-    def fake_launch(sync_playwright, profile_dir, *, headless):
-        yield _Context()
-
-    with (
-        patch.object(session_module, "_import_sync_playwright", return_value=object()),
-        patch.object(session_module, "_launch_persistent_context", fake_launch),
-        patch.object(session_module, "_goto_with_network_retry"),
-        patch.object(session_module, "print_warning_stderr") as warn,
-    ):
-        session_module.login_persistent_session(profile_dir=profile)
-
-    warned = " ".join(str(call) for call in warn.call_args_list)
-    assert "old-owner" in warned and "new-owner" in warned
-
-
-def test_persistent_login_without_identity_cookie_leaves_marker_unstamped(tmp_path):
-    """No identity cookie in the jar → no stamp (soft fallback), no warning."""
-    from direct_cli.browser import session as session_module
-
-    profile = tmp_path / "profile"
-    profile.mkdir(parents=True)
-    (profile / session_module.PROFILE_MARKER_NAME).touch()
-    cookies = [{"name": "Session_id", "value": "s", "domain": ".yandex.ru"}]
-
-    class _Context:
-        def cookies(self):
-            return cookies
-
-        def new_page(self):
-            page = Mock()
-            page.locator.return_value.first.count.return_value = 1
-            page.content.return_value = "<html><body>grid</body></html>"
-            return page
-
-    @contextlib.contextmanager
-    def fake_launch(sync_playwright, profile_dir, *, headless):
-        yield _Context()
-
-    with (
-        patch.object(session_module, "_import_sync_playwright", return_value=object()),
-        patch.object(session_module, "_launch_persistent_context", fake_launch),
-        patch.object(session_module, "_goto_with_network_retry"),
-        patch.object(session_module, "print_warning_stderr") as warn,
-    ):
-        session_module.login_persistent_session(profile_dir=profile)
-
-    warn.assert_not_called()
-    assert (profile / session_module.PROFILE_MARKER_NAME).read_text(
-        encoding="utf-8"
-    ) == ""
-
-
-def test_browser_session_status_reports_both_owners(tmp_path):
+def test_browser_session_status_reports_owner():
     from direct_cli.browser import auth as browser_auth
-    from direct_cli.browser import session as session_module
 
-    profile = tmp_path / "browser"
-    (profile / "Default").mkdir(parents=True)
-    (profile / session_module.PROFILE_MARKER_NAME).write_text("marker-owner\n")
-    (profile / "Default" / "Cookies").touch()
     store.save_session({"cookies": [], "origins": []}, owner_login="saved-owner")
 
     payload = browser_auth.session_status()
 
-    assert payload["persistent_profile"]["owner"] == "marker-owner"
-    assert payload["saved_session"]["owner_login"] == "saved-owner"
-    assert payload["active_tier"] == "1.5"
+    assert payload["owner_login"] == "saved-owner"
+    assert payload["exists"] is True
 
 
-def test_auth_status_text_shows_owners(tmp_path):
+def test_auth_status_text_shows_owner():
     from click.testing import CliRunner
 
-    from direct_cli.browser import session as session_module
     from direct_cli.cli import cli
 
-    profile = tmp_path / "browser"
-    (profile / "Default").mkdir(parents=True)
-    (profile / session_module.PROFILE_MARKER_NAME).write_text("marker-owner\n")
-    (profile / "Default" / "Cookies").touch()
     store.save_session({"cookies": [], "origins": []}, owner_login="saved-owner")
 
     result = CliRunner().invoke(cli, ["auth", "status", "browser"])
 
     assert result.exit_code == 0, result.output
-    assert "owner=marker-owner" in result.output
     assert "owner=saved-owner" in result.output
 
 

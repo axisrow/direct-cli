@@ -609,7 +609,7 @@ def login_api(
 @click.option(
     "--profile-dir",
     type=click.Path(file_okay=False),
-    help="Browser profile directory (manual) or Chrome user-data-dir (chrome)",
+    help="Chrome user-data-dir to import from (--source chrome)",
 )
 @click.option(
     "--chrome-profile",
@@ -692,9 +692,10 @@ def login_browser(
         if (
             no_verify
             or ctx.get_parameter_source("chrome_profile") is ParameterSource.COMMANDLINE
+            or ctx.get_parameter_source("profile_dir") is ParameterSource.COMMANDLINE
         ):
             raise click.UsageError(t("Chrome import options require --source chrome."))
-        browser_login(profile_dir, timeout_seconds, allow_no_tty, output_format)
+        browser_login(timeout_seconds, allow_no_tty, output_format)
 
 
 @auth.command(name="list")
@@ -771,11 +772,6 @@ def write(profile: str, copy_token: bool) -> None:
 )
 @click.option("--profile", help="Profile name (otherwise show effective credentials)")
 @click.option(
-    "--profile-dir",
-    type=click.Path(file_okay=False),
-    help="Saved browser profile directory",
-)
-@click.option(
     "--format",
     "output_format",
     type=click.Choice(["text", "json"]),
@@ -786,7 +782,6 @@ def write(profile: str, copy_token: bool) -> None:
 def status(
     method: Any,
     profile: Optional[str],
-    profile_dir: Optional[str],
     output_format: str,
 ) -> None:
     """Show API and browser authorization (both domains by default)."""
@@ -800,7 +795,6 @@ def status(
             flag
             for flag, name in (
                 ("--profile", "profile"),
-                ("--profile-dir", "profile_dir"),
                 ("--format", "output_format"),
             )
             if ctx.get_parameter_source(name) is ParameterSource.COMMANDLINE
@@ -818,7 +812,7 @@ def status(
 
     # Owner decision (issue #924): bare status reports both domains, as the
     # old `--method all` did; the old default was API-only.
-    browser = session_status(Path(profile_dir) if profile_dir else None)
+    browser = session_status()
     if output_format == "json":
         payload = {"api": api_status(ctx, profile), "browser": browser}
         click.echo(json.dumps(payload, ensure_ascii=False))
@@ -851,11 +845,6 @@ def status_api(ctx: click.Context, profile: Optional[str], output_format: str) -
 
 @status.command(name="browser")
 @click.option(
-    "--profile-dir",
-    type=click.Path(file_okay=False),
-    help="Saved browser profile directory",
-)
-@click.option(
     "--profile",
     default=None,
     help="Accepted for uniform syntax; browser sessions are shared, so the "
@@ -872,7 +861,6 @@ def status_api(ctx: click.Context, profile: Optional[str], output_format: str) -
 @click.pass_context
 def status_browser(
     ctx: click.Context,
-    profile_dir: Optional[str],
     profile: Optional[str],
     output_format: str,
 ) -> None:
@@ -880,7 +868,7 @@ def status_browser(
     from ..browser.auth import session_status
 
     _warn_profile_ignored_in_browser_domain(ctx)
-    browser = session_status(Path(profile_dir) if profile_dir else None)
+    browser = session_status()
     if output_format == "json":
         click.echo(json.dumps(browser, ensure_ascii=False))
     else:
@@ -1205,15 +1193,17 @@ def legacy_auth_warning(replacement: str) -> None:
 
 
 def browser_login(
-    profile_dir: Optional[str],
     timeout_seconds: int,
     allow_no_tty: bool,
     output_format: str = "text",
 ) -> None:
     """Run the manual login in a visible window (the browser-domain default).
 
-    Headless headful flags are gone (issue #924): manual login is visible by
-    definition, and scripts pass --allow-no-tty explicitly.
+    Saves the single session envelope directly (no persistent profile):
+    ``login_manual_session`` opens the window, waits for the Passport login
+    and stores the resulting storage state. Headless/headful flags are gone
+    (issue #924): manual login is visible by definition, and scripts pass
+    --allow-no-tty explicitly.
     """
     if not _stdin_is_interactive() and not allow_no_tty:
         raise click.ClickException(
@@ -1223,7 +1213,7 @@ def browser_login(
             ).format(hint=HINT_LOGIN_BROWSER)
         )
     try:
-        from ..browser.session import BrowserSessionError, login_persistent_session
+        from ..browser.session import BrowserSessionError, login_manual_session
     except ImportError as exc:
         raise click.UsageError(
             t("playwright is required for browser login. Run: {install}").format(
@@ -1231,11 +1221,7 @@ def browser_login(
             )
         ) from exc
     try:
-        login_persistent_session(
-            profile_dir=Path(profile_dir) if profile_dir else None,
-            timeout_ms=timeout_seconds * 1000,
-            headless=False,
-        )
+        login_manual_session(timeout_ms=timeout_seconds * 1000)
     except (BrowserSessionError, OSError) as exc:
         raise click.ClickException(str(exc)) from exc
     if output_format == "json":
@@ -1244,53 +1230,23 @@ def browser_login(
         print_info(t("Login confirmed. Browser commands will now reuse this session."))
 
 
-def browser_logout_persistent(profile_dir: Optional[str]) -> None:
-    """Compatibility exit: forget only the persistent Chromium profile."""
-    from ..browser.auth import logout_persistent_profile
-    from ..browser.session import BrowserSessionError, configured_persistent_profile_dir
-
-    target = Path(profile_dir) if profile_dir else configured_persistent_profile_dir()
-    try:
-        removed = logout_persistent_profile(target)
-    except (BrowserSessionError, OSError) as exc:
-        raise click.ClickException(str(exc)) from exc
-    if removed:
-        print_info(
-            t("Deleted persistent browser profile at {path}").format(path=target)
-        )
-    else:
-        print_warning(
-            t("No persistent browser profile found at {path}").format(path=target)
-        )
-
-
 def _print_browser_status(payload: Dict[str, Any]) -> None:
-    """Keep the existing browser status text format."""
-    persistent = payload["persistent_profile"]
-    saved = payload["saved_session"]
-    click.echo(f"active_tier={payload['active_tier']} ({payload['active_source']})")
-    owner = persistent.get("owner")
+    """Keep the existing browser status text format (flat, single session)."""
+    owner = payload.get("owner_login")
     click.echo(
-        f"persistent_profile: path={persistent['path']} usable={persistent['usable']}"
+        f"saved_session: exists={payload['exists']} expired={payload['expired']} "
+        f"cookie_count={payload['cookie_count']} path={payload['path']}"
         + (f" owner={owner}" if owner else "")
     )
-    saved_owner = saved.get("owner_login")
-    click.echo(
-        f"saved_session: exists={saved['exists']} expired={saved['expired']} "
-        f"cookie_count={saved['cookie_count']} path={saved['path']}"
-        + (f" owner={saved_owner}" if saved_owner else "")
-    )
-    if saved["error"]:
-        click.echo(f"  error: {saved['error']}")
+    if payload["error"]:
+        click.echo(f"  error: {payload['error']}")
 
 
-def browser_status(
-    profile_dir: Optional[str], output_format: str, output: Optional[str]
-) -> None:
+def browser_status(output_format: str, output: Optional[str]) -> None:
     """Render a saved browser status for legacy and canonical auth commands."""
     from ..browser.auth import session_status
 
-    payload = session_status(Path(profile_dir) if profile_dir else None)
+    payload = session_status()
     if output_format == "text":
         _print_browser_status(payload)
     else:
@@ -1506,7 +1462,7 @@ def logout_api(profile: Optional[str]) -> None:
 
 @logout.command(name="browser")
 def logout_browser() -> None:
-    """Forget both saved browser sessions (persistent profile and import)."""
+    """Forget the saved browser session (the single store)."""
     try:
         from ..browser.auth import logout as logout_browser_session
         from ..browser.session import BrowserSessionError

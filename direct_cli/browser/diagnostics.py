@@ -4,9 +4,9 @@ Read-only diagnostics for the browser-session pipeline (``direct playwright doct
 Invariant (enforced by tests in ``tests/test_playwright_session.py``): this
 module NEVER calls :func:`direct_cli.browser.session.capture_storage_state`,
 NEVER launches a real browser (``chromium.launch``), and NEVER writes
-anything to disk or reads Keychain. ``playwright login`` (in
-``direct_cli/commands/browser_session.py``) is the only command that logs in
-and persists a session — ``doctor`` only inspects and reports.
+anything to disk or reads Keychain. The explicit manual-login command is the
+only one that logs in and persists a session — ``doctor`` only inspects and
+reports (the auto-import lives in ``open_session``, not here).
 
 Each check runs in its own ``try/except`` so one failing check never aborts
 the rest of the report — a doctor that stops at the first problem defeats the
@@ -28,11 +28,7 @@ from ._chrome_crypto import (
     find_cookie_db,
     platform_iterations,
 )
-from .session import (
-    configured_persistent_profile_dir,
-    default_chrome_profile_dir,
-    persistent_profile_is_usable,
-)
+from .session import default_chrome_profile_dir
 
 
 @dataclass
@@ -203,13 +199,6 @@ def run_diagnostics(
     from being produced.
     """
     checks: List[Check] = []
-    persistent_dir = configured_persistent_profile_dir()
-    use_persistent = (
-        profile_dir is None
-        and chrome_profile == "Default"
-        and session_path is None
-        and persistent_profile_is_usable(persistent_dir)
-    )
 
     def _run(fn, *args) -> Check:
         try:
@@ -217,28 +206,15 @@ def run_diagnostics(
         except Exception as exc:  # noqa: PIE786 - one check must never abort the rest
             return Check(fn.__name__.lstrip("_"), False, f"unexpected error: {exc}")
 
-    platform_check = (
-        Check("platform_supported", True, platform.system())
-        if use_persistent
-        else _run(_check_platform_supported)
-    )
-    checks.append(platform_check)
+    checks.append(_run(_check_platform_supported))
 
     playwright_check = _run(_check_module_installed, "playwright", "playwright")
     checks.append(playwright_check)
 
-    checks.append(
-        Check("cryptography_installed", None, "not needed for persistent browser login")
-        if use_persistent
-        else _run(_check_module_installed, "cryptography", "cryptography")
-    )
+    checks.append(_run(_check_module_installed, "cryptography", "cryptography"))
     checks.append(_run(_check_chromium_downloaded))
-    if use_persistent:
-        for name in ("chrome_profile_dir", "cookie_db_found"):
-            checks.append(Check(name, None, "not needed for persistent browser login"))
-    else:
-        checks.append(_run(_check_chrome_profile_dir, profile_dir))
-        checks.append(_run(_check_cookie_db_found, profile_dir, chrome_profile))
+    checks.append(_run(_check_chrome_profile_dir, profile_dir))
+    checks.append(_run(_check_cookie_db_found, profile_dir, chrome_profile))
 
     for name in ("keychain_key", "yandex_cookies_decrypt"):
         checks.append(
@@ -250,19 +226,7 @@ def run_diagnostics(
             )
         )
 
-    if use_persistent:
-        checks.append(
-            Check("saved_session", True, f"persistent profile: {persistent_dir}")
-        )
-        checks.append(
-            Check(
-                "saved_session_fresh",
-                None,
-                "persistent profile saved; server-side validity is unknown",
-            )
-        )
-    else:
-        checks.append(_run(_check_saved_session, session_path))
-        checks.append(_run(_check_saved_session_fresh, session_path))
+    checks.append(_run(_check_saved_session, session_path))
+    checks.append(_run(_check_saved_session_fresh, session_path))
 
     return checks

@@ -41,7 +41,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional
 import click
 from click.core import ParameterSource
 
-from .._auth_hints import HINT_LOGIN_BROWSER, HINT_LOGIN_BROWSER_CHROME
+from .._auth_hints import HINT_LOGIN_BROWSER_CHROME
 from ..api import create_client
 from ..browser.masters import _BATCH_UPDATE_PACING_MS as _BATCH_UPDATE_PACING_MS_DEFAULT
 from ..browser.masters import AGE_FROM_CHOICES as _AGE_FROM_CHOICES
@@ -74,25 +74,22 @@ def _reject_chrome_import(
     return value
 
 
-def _configured_persistent_profile_dir() -> Path:
-    """Resolve the existing CLI-owned profile pointer."""
-    from ..browser.session import configured_persistent_profile_dir
-
-    return configured_persistent_profile_dir()
-
-
 @contextlib.contextmanager
 def _open_session(
     ctx: click.Context, headful: bool, profile_dir: Optional[str], chrome_profile: str
 ) -> Iterator[Any]:
-    """Adapt the shared saved-session opener to the existing command interface."""
+    """Adapt the shared saved-session opener to the existing command interface.
+
+    ``profile_dir``/``chrome_profile`` arrive only from the hidden migration
+    rejectors (old scripts fail there before reaching this); the session
+    itself comes from the single store, auto-importing from Chrome when it
+    is missing or expired.
+    """
     from ..browser.auth import open_session
     from ..browser.session import BrowserSessionError
 
     try:
-        with open_session(
-            headless=not headful, profile_dir=_configured_persistent_profile_dir()
-        ) as page:
+        with open_session(headless=not headful) as page:
             yield page
     except (BrowserSessionError, OSError) as exc:
         raise click.ClickException(str(exc)) from exc
@@ -273,61 +270,14 @@ def _stdin_is_interactive() -> bool:
     return sys.stdin.isatty()
 
 
-@masters.command(hidden=True)
-@click.option("--headful", is_flag=True, help="Show the browser window explicitly")
-@click.option("--profile-dir", help="CLI-owned persistent browser profile directory")
-@click.option(
-    "--timeout",
-    "timeout_seconds",
-    type=click.IntRange(min=1),
-    default=300,
-    show_default=True,
-    help="Seconds to wait for manual login to complete",
-)
-@click.option(
-    "--allow-no-tty",
-    is_flag=True,
-    help="Allow explicitly requested browser UI without a terminal",
-)
-def login(
-    profile_dir: Optional[str],
-    timeout_seconds: int,
-    allow_no_tty: bool,
-    headful: bool,
-) -> None:
-    """Browser login (deprecated); the printed warning names the replacement."""
-    from .auth import browser_login, legacy_auth_warning
-
-    # --headful is accepted for script compatibility and is now a no-op:
-    # manual browser login is always visible (issue #924).
-    legacy_auth_warning(HINT_LOGIN_BROWSER)
-    browser_login(profile_dir, timeout_seconds, allow_no_tty)
-
-
-@masters.command(hidden=True)
-@click.option("--profile-dir", help="CLI-owned persistent browser profile directory")
-def logout(profile_dir: Optional[str]) -> None:
-    """Remove the persistent browser profile.
-
-    Use ``direct auth logout browser``.
-    """
-    from .auth import browser_logout_persistent, legacy_auth_warning
-
-    legacy_auth_warning("direct auth logout browser")
-    browser_logout_persistent(profile_dir)
-
-
 @masters.command(name="status", hidden=True)
-@click.option("--profile-dir", help="Saved browser profile directory")
 @reference_output_options
-def status(
-    profile_dir: Optional[str], output_format: str, output: Optional[str]
-) -> None:
+def status(output_format: str, output: Optional[str]) -> None:
     """Show saved browser authorization; use direct auth status browser."""
     from .auth import browser_status, legacy_auth_warning
 
     legacy_auth_warning("direct auth status browser")
-    browser_status(profile_dir, output_format, output)
+    browser_status(output_format, output)
 
 
 _STATUS_CHOICES = ("not-archived", "active", "stopped", "archived", "all")
