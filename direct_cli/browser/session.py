@@ -49,6 +49,7 @@ from typing import (
 )
 
 from . import _clock
+from . import store
 from .._auth_hints import HINT_LOGIN_BROWSER_CHROME
 from .._captcha import find_captcha_marker, find_marker
 from ..i18n import t
@@ -1084,6 +1085,83 @@ def login_persistent_session(
             f"Timed out after {timeout_ms // 1000}s waiting for login to "
             f"{_PASSPORT_LOGIN_URL} to complete. Run `direct masters login` "
             "again and finish signing in within the time limit."
+        )
+
+
+def login_manual_session(*, timeout_ms: int = _LOGIN_WAIT_TIMEOUT_MS) -> Dict[str, Any]:
+    """One manual login in a visible window; saves the single session envelope.
+
+    The context is a fresh throwaway (:func:`_launch_context` — the same
+    factory the read commands use, so the session is issued to and later
+    replayed under the same user-agent, #950). The wait mechanics are the
+    former persistent-profile login's: poll the context cookie jar for the
+    SSO cookies, verify once via a short-lived probe tab, fail fast when the
+    window dies (issue #858 poll, #692 fail-closed). On success the resulting
+    ``storage_state`` is saved as the only browser session this CLI keeps —
+    owner-stamped from the same jar — and nothing else is written to disk:
+    no persistent profile, no pointer, no marker.
+
+    Returns ``{"owner_login": Optional[str], "verified": True}``. Raises
+    :class:`BrowserAuthError` on timeout, :class:`BrowserSessionError` when
+    the window dies before the login completes.
+    """
+    sync_playwright = _import_sync_playwright()
+
+    with _launch_context(sync_playwright, headless=False) as (_, context):
+        page = context.new_page()
+        _goto_with_network_retry(page, _PASSPORT_LOGIN_URL)
+        if not _wait_for_marker(page, _PASSPORT_PAGE_MARKERS):
+            # Fail closed (issue #692): an unrendered shell must not sail
+            # through as a rendered login page.
+            raise BrowserSessionError(
+                f"Timed out waiting for {_PASSPORT_LOGIN_URL} to render. "
+                "Retry `direct auth login browser`."
+            )
+
+        deadline = _clock.now() + timeout_ms / 1000
+        rejected_signature: Optional[Tuple[Tuple[str, str], ...]] = None
+        try:
+            while _clock.now() < deadline:
+                signature = _session_cookie_signature(context.cookies())
+                if signature is not None and signature != rejected_signature:
+                    probe = context.new_page()
+                    try:
+                        verdict = _grid_shows_authenticated_session(probe)
+                    except PlaywrightError as exc:
+                        if not _is_network_navigation_error(exc):
+                            raise
+                        # Inconclusive verification: the same signature is
+                        # retried on the next tick.
+                        verdict = None
+                    finally:
+                        with contextlib.suppress(PlaywrightError):
+                            probe.close()
+                    if verdict:
+                        cookies = context.cookies()
+                        owner_login = _owner_login_from_cookies(cookies)
+                        store.save_session(
+                            context.storage_state(),
+                            owner_login=owner_login,
+                            source={"kind": "manual", "verified": True},
+                        )
+                        return {"owner_login": owner_login, "verified": True}
+                    if verdict is False:
+                        # Conclusive "no valid session": wait for Passport to
+                        # issue different cookies instead of re-probing this
+                        # jar every tick.
+                        rejected_signature = signature
+                page.wait_for_timeout(_LOGIN_POLL_INTERVAL_MS)
+        except PlaywrightError as exc:
+            raise BrowserSessionError(
+                "The browser window was closed (or crashed) while waiting "
+                "for you to log in — there is nothing left to wait for. Run "
+                "`direct auth login browser` again."
+            ) from exc
+
+        raise BrowserAuthError(
+            f"Timed out after {timeout_ms // 1000}s waiting for login to "
+            f"{_PASSPORT_LOGIN_URL} to complete. Run `direct auth login "
+            "browser` again and finish signing in within the time limit."
         )
 
 

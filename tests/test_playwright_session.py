@@ -1343,6 +1343,155 @@ def test_persistent_login_without_identity_cookie_leaves_marker_unstamped(tmp_pa
     ) == ""
 
 
+def test_manual_login_saves_envelope_with_owner(tmp_path):
+    """Manual login writes session.json and NOTHING else (one-store contract)."""
+    from direct_cli.browser import session as session_module
+
+    cookies = [
+        {"name": "Session_id", "value": "s", "domain": ".yandex.ru"},
+        {"name": "yandex_login", "value": "manual-owner", "domain": ".yandex.ru"},
+    ]
+
+    class _Context:
+        def cookies(self):
+            return cookies
+
+        def storage_state(self):
+            return {"cookies": cookies, "origins": []}
+
+        def new_page(self):
+            page = Mock()
+            page.locator.return_value.first.count.return_value = 1
+            page.content.return_value = "<html><body>grid</body></html>"
+            return page
+
+    @contextlib.contextmanager
+    def fake_launch(sync_playwright, *, headless):
+        assert headless is False  # the login window is always visible
+        yield Mock(), _Context()
+
+    with (
+        patch.object(session_module, "_import_sync_playwright", return_value=object()),
+        patch.object(session_module, "_launch_context", fake_launch),
+        patch.object(session_module, "_goto_with_network_retry"),
+        patch.object(
+            session_module, "_grid_shows_authenticated_session", return_value=True
+        ),
+    ):
+        result = session_module.login_manual_session()
+
+    assert result == {"owner_login": "manual-owner", "verified": True}
+    envelope = store.read_session_envelope()
+    assert envelope is not None
+    assert envelope["owner_login"] == "manual-owner"
+    assert envelope["source"] == {"kind": "manual", "verified": True}
+    written = sorted(
+        p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file()
+    )
+    assert written == ["playwright/session.json"]
+
+
+def test_manual_login_without_identity_cookie_saves_unstamped_envelope():
+    """No identity cookie in the jar → unstamped envelope, no warning."""
+    from direct_cli.browser import session as session_module
+
+    cookies = [{"name": "Session_id", "value": "s", "domain": ".yandex.ru"}]
+
+    class _Context:
+        def cookies(self):
+            return cookies
+
+        def storage_state(self):
+            return {"cookies": cookies, "origins": []}
+
+        def new_page(self):
+            page = Mock()
+            page.locator.return_value.first.count.return_value = 1
+            page.content.return_value = "<html><body>grid</body></html>"
+            return page
+
+    @contextlib.contextmanager
+    def fake_launch(sync_playwright, *, headless):
+        yield Mock(), _Context()
+
+    with (
+        patch.object(session_module, "_import_sync_playwright", return_value=object()),
+        patch.object(session_module, "_launch_context", fake_launch),
+        patch.object(session_module, "_goto_with_network_retry"),
+        patch.object(
+            session_module, "_grid_shows_authenticated_session", return_value=True
+        ),
+        patch.object(session_module, "print_warning_stderr") as warn,
+    ):
+        result = session_module.login_manual_session()
+
+    assert result["owner_login"] is None
+    envelope = store.read_session_envelope()
+    assert envelope is not None
+    assert envelope["owner_login"] is None
+    warn.assert_not_called()
+
+
+def test_manual_login_timeout_raises_auth_error():
+    from direct_cli.browser import session as session_module
+
+    class _Context:
+        def cookies(self):
+            return []  # the SSO cookies never appear
+
+        def new_page(self):
+            page = Mock()
+            page.locator.return_value.first.count.return_value = 1
+            page.content.return_value = "<html><body>grid</body></html>"
+            return page
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    @contextlib.contextmanager
+    def fake_launch(sync_playwright, *, headless):
+        yield Mock(), _Context()
+
+    with (
+        patch.object(session_module, "_import_sync_playwright", return_value=object()),
+        patch.object(session_module, "_launch_context", fake_launch),
+        patch.object(session_module, "_goto_with_network_retry"),
+        patch.object(session_module, "_clock") as clock,
+    ):
+        ticks = iter([0, 0, 0])  # marker deadline+check, login deadline
+        clock.now.side_effect = lambda: next(ticks, 10**12)  # past every deadline
+        with pytest.raises(session_module.BrowserAuthError):
+            session_module.login_manual_session(timeout_ms=1000)
+
+
+def test_manual_login_dead_window_raises_session_error():
+    from direct_cli.browser import session as session_module
+
+    class _Context:
+        def cookies(self):
+            # Talks only to the local browser over CDP: an escape means the
+            # window itself is gone — fatal, not retryable (#858 reasoning).
+            raise session_module.PlaywrightError("Target closed")
+
+        def new_page(self):
+            page = Mock()
+            page.locator.return_value.first.count.return_value = 1
+            page.content.return_value = "<html><body>grid</body></html>"
+            return page
+
+    @contextlib.contextmanager
+    def fake_launch(sync_playwright, *, headless):
+        yield Mock(), _Context()
+
+    with (
+        patch.object(session_module, "_import_sync_playwright", return_value=object()),
+        patch.object(session_module, "_launch_context", fake_launch),
+        patch.object(session_module, "_goto_with_network_retry"),
+    ):
+        with pytest.raises(session_module.BrowserSessionError):
+            session_module.login_manual_session()
+
+
 def test_browser_session_status_reports_both_owners(tmp_path):
     from direct_cli.browser import auth as browser_auth
     from direct_cli.browser import session as session_module
