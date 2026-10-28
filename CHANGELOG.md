@@ -8,10 +8,12 @@
   default Playwright UA (`HeadlessChrome` in headless) with
   `showcaptchafast` / the login page even on a valid cookie jar; every
   context this CLI creates (Chrome import, saved session, manual persistent
-  login) now sends the Chrome/155 UA validated in the issue. Override:
-  `DIRECT_BROWSER_UA` env. A persistent profile whose session was issued
-  under the old UA may be re-challenged once — re-run
-  `direct auth login browser` if that happens.
+  login) now sends the Chrome/155 UA validated in the issue. The UA's
+  platform token follows the host OS (`navigator.platform` /
+  `sec-ch-ua-platform` keep reporting the real one); on macOS it is the
+  exact token validated in the issue. Override: `DIRECT_BROWSER_UA` env.
+  A persistent profile whose session was issued under the old UA may be
+  re-challenged once — re-run `direct auth login browser` if that happens.
 - **The missing-owner-stamp warning no longer blames "an older direct-cli"
   (#916).** An unstamped session means the identity cookie is absent, not
   that the save predates the stamp — wording fixed in both languages.

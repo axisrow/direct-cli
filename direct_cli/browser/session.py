@@ -453,6 +453,23 @@ def _is_yandex_ru_domain(domain: str) -> bool:
 # absent cookie means an unstamped session, the soft fallback.
 _OWNER_LOGIN_COOKIE_NAME = "yandex_login"
 
+#: UA platform token per host OS. Playwright's ``user_agent`` overrides
+#: only the UA string — ``navigator.platform`` and ``sec-ch-ua-platform``
+#: keep reporting the real host, so a Macintosh UA over Linux/Windows
+#: platform hints is itself a fingerprint mismatch. Darwin's token is the
+#: exact string validated live in #950.
+_PLATFORM_TOKENS = {
+    "Darwin": "Macintosh; Intel Mac OS X 10_15_7",
+    "Windows": "Windows NT 10.0; Win64; x64",
+    "Linux": "X11; Linux x86_64",
+}
+
+
+def _chrome_platform_token() -> str:
+    """The host OS's Chrome UA token; unknown hosts take the X11 fallback."""
+    return _PLATFORM_TOKENS.get(platform.system(), "X11; Linux x86_64")
+
+
 #: UA sent by every browser context this module creates. The default
 #: Playwright UA (``HeadlessChrome`` in headless) makes Yandex answer a
 #: valid cookie jar with ``showcaptchafast`` / the login page — the session
@@ -460,7 +477,7 @@ _OWNER_LOGIN_COOKIE_NAME = "yandex_login"
 #: (#950: the same jar plus a Chrome/155 UA loaded Direct with HTTP 200,
 #: the default UA got a captcha). Bump when Yandex tightens its checks.
 DEFAULT_BROWSER_UA = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    f"Mozilla/5.0 ({_chrome_platform_token()}) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
 )
 
@@ -844,7 +861,11 @@ def _clear_stale_singleton_lock(profile_dir: Path) -> bool:
 
 @contextlib.contextmanager
 def _launch_persistent_context(
-    sync_playwright, profile_dir: Path, *, headless: bool, user_agent: Optional[str] = None
+    sync_playwright,
+    profile_dir: Path,
+    *,
+    headless: bool,
+    user_agent: Optional[str] = None,
 ) -> Generator[Any, None, None]:
     """Shared launch/teardown for the CLI's own persistent Chromium profile.
 

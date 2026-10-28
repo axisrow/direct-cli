@@ -957,11 +957,6 @@ class TestBrowserUA(unittest.TestCase):
     Yandex meets the default Playwright UA with ``showcaptchafast`` even on
     a valid cookie jar."""
 
-    DEFAULT_UA = (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
-    )
-
     def _recording_chromium(self):
         class _Chromium:
             def __init__(self):
@@ -1015,7 +1010,9 @@ class TestBrowserUA(unittest.TestCase):
                 lambda: self._fake_playwright(chromium), headless=True
             ) as _:
                 pass
-        self.assertEqual(chromium.context_kwargs["user_agent"], self.DEFAULT_UA)
+        self.assertEqual(
+            chromium.context_kwargs["user_agent"], session_module.DEFAULT_BROWSER_UA
+        )
 
     def test_default_ua_reaches_launch_persistent_context(self):
         from direct_cli.browser import session as session_module
@@ -1028,7 +1025,9 @@ class TestBrowserUA(unittest.TestCase):
                     lambda: self._fake_playwright(chromium), profile, headless=True
                 ) as _:
                     pass
-        self.assertEqual(chromium.launch_kwargs["user_agent"], self.DEFAULT_UA)
+        self.assertEqual(
+            chromium.launch_kwargs["user_agent"], session_module.DEFAULT_BROWSER_UA
+        )
 
     def test_direct_browser_ua_env_overrides_default(self):
         from direct_cli.browser import session as session_module
@@ -1063,7 +1062,36 @@ class TestBrowserUA(unittest.TestCase):
                 lambda: self._fake_playwright(chromium), headless=True
             ) as _:
                 pass
-        self.assertEqual(chromium.context_kwargs["user_agent"], self.DEFAULT_UA)
+        self.assertEqual(
+            chromium.context_kwargs["user_agent"], session_module.DEFAULT_BROWSER_UA
+        )
+
+    def test_platform_token_follows_host_os(self):
+        # Playwright's user_agent overrides only the UA string —
+        # navigator.platform and sec-ch-ua-platform keep reporting the real
+        # host OS, so a Macintosh UA over Linux/Windows hints is itself a
+        # fingerprint mismatch. Darwin's token is the #950-validated one.
+        from direct_cli.browser import session as session_module
+
+        expected = {
+            "Darwin": "Macintosh; Intel Mac OS X 10_15_7",
+            "Windows": "Windows NT 10.0; Win64; x64",
+            "Linux": "X11; Linux x86_64",
+            "SunOS": "X11; Linux x86_64",  # unknown host: X11 fallback
+        }
+        for system, token in expected.items():
+            with self.subTest(system=system):
+                with patch("platform.system", return_value=system):
+                    self.assertEqual(session_module._chrome_platform_token(), token)
+
+    def test_default_ua_shape(self):
+        from direct_cli.browser import session as session_module
+
+        self.assertRegex(
+            session_module.DEFAULT_BROWSER_UA,
+            r"^Mozilla/5\.0 \(.+\) AppleWebKit/537\.36 "
+            r"\(KHTML, like Gecko\) Chrome/\d[\d.]* Safari/537\.36$",
+        )
 
 
 class TestExpectedSessionLogin(unittest.TestCase):
