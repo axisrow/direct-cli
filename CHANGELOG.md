@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### BREAKING CHANGES
+
+**One browser session: `~/.direct-cli/playwright/session.json`.**
+
+The CLI-owned persistent Chromium profile (`~/.direct-cli/chrome-profile/`,
+the old `direct masters login` flow) is removed. Browser commands read the
+single saved session envelope and, when it is missing, corrupt or expired,
+first copy the live session from the user's Chrome — automatically and
+headlessly; no window opens for the copy, and Keychain may be asked once for
+the cookie-decryption key. `direct auth login browser` remains the only
+command that opens a window: it saves `session.json` directly instead of
+creating a persistent profile.
+
+Removed without aliases:
+
+- `direct masters login` / `direct masters logout` (deprecated compatibility
+  commands; use `direct auth login browser` / `direct auth logout browser`).
+- `--profile-dir` on `auth status` / `auth status browser` and on
+  `auth login browser --source manual` (kept for `--source chrome`, where it
+  selects the Chrome user-data-dir to import from).
+- `auth status browser` JSON keys `active_tier`, `active_source` and
+  `persistent_profile` — the browser block is now the flat saved-session
+  report (`exists`, `owner_login`, `expired`, `cookie_count`, `path`).
+  NOTE: the yandex-direct MCP plugin parses this JSON and needs a matching
+  follow-up release.
+
+Migration: an existing `session.json` keeps working unchanged. Users who
+only had the persistent profile do nothing — the next browser command
+auto-imports from Chrome; `direct auth logout browser` additionally cleans
+up a leftover `~/.direct-cli/chrome-profile/`. The #950 user-agent fix is
+preserved: the manual login runs through the same context factory, so login
+and reuse share one browser fingerprint.
+
 ### Fixed
 
 - **Browser sessions send a real Chrome user-agent (#950).** Yandex met the

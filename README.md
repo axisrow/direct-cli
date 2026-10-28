@@ -283,25 +283,29 @@ running it twice creates a SECOND copy, not an update to the first. By
 default the copy is saved as a draft (`--draft`); pass `--launch` to launch
 it immediately in production instead. Same no-`--sandbox` caveat as `add`.
 
-**Browser authorization:** `direct auth login browser` opens the
-CLI's persistent Chromium profile (`~/.direct-cli/chrome-profile/`) and waits
-up to `--timeout` seconds (default 300) for manual login. It requires a
-terminal unless `--allow-no-tty` is explicitly supplied.
+**Browser authorization:** one session file —
+`~/.direct-cli/playwright/session.json` (`0600`). `direct auth login browser`
+opens a visible window once and waits up to `--timeout` seconds (default 300)
+for the manual login; it requires a terminal unless `--allow-no-tty` is
+explicitly supplied. The resulting session is saved straight into that file —
+no persistent profile is created.
 
-Alternatively, `direct auth login browser --source chrome` imports
-Chrome cookies into `~/.direct-cli/playwright/session.json` (`0600`). Only
-this explicit import may request Keychain access. `--profile-dir` selects the
-source directory and `--chrome-profile` the Chrome profile subdirectory.
+Any browser command copies the live Chrome session into that file
+automatically when it is missing, corrupt or expired — headlessly, with no
+window opened for the copy (Keychain may be asked once for the
+cookie-decryption key). `--profile-dir` selects the source Chrome
+user-data-dir and `--chrome-profile` the Chrome profile subdirectory; both
+require `--source chrome`.
 
-Commands prefer an existing persistent Chromium session over an imported
-session. `direct auth status browser` inspects both without opening
+`direct auth status browser` inspects the saved session without opening
 a browser; it reports saved state, not proof of current server-side validity.
 `direct auth doctor` diagnoses dependencies and saved session metadata;
-cookie decryption checks are skipped. Missing or rejected sessions produce
-a login hint; commands never start login or import cookies automatically.
+cookie decryption checks are skipped. A missing or failed import produces
+a login hint.
 
-`direct auth logout browser` removes both CLI-owned browser sessions.
-It does not touch the original Chrome profile. Old browser-auth commands
+`direct auth logout browser` deletes the session file and any leftover
+`~/.direct-cli/chrome-profile/` from older versions. It does not touch the
+original Chrome profile. Old browser-auth commands
 remain deprecated compatibility aliases; their stdout formats are preserved.
 
 ### История изменений (change history) — browser-only
