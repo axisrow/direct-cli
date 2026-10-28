@@ -31,8 +31,6 @@ def auth_env(monkeypatch, tmp_path):
     monkeypatch.setenv("YANDEX_DIRECT_CLI_LOCALE", "en")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("direct_cli.auth.AUTH_STORE_PATH", tmp_path / "auth.json")
-    monkeypatch.setattr(session, "DEFAULT_PERSISTENT_PROFILE_DIR", tmp_path / "browser")
-    monkeypatch.setattr(session, "PROFILE_POINTER_PATH", tmp_path / "browser-path")
     monkeypatch.setattr(store, "PLAYWRIGHT_SESSION_PATH", tmp_path / "session.json")
     yield tmp_path
     # A bind re-exports the fresh link/token into os.environ; strip the
@@ -590,15 +588,18 @@ def test_invalid_saved_session_does_not_repeat_operation(auth_env, monkeypatch):
         yield object()
 
     monkeypatch.setattr(session, "open_saved_session", saved)
-    fresh = Mock()
-    monkeypatch.setattr(session, "open_chrome_session", fresh)
+    capture = Mock()
+    monkeypatch.setattr(session, "capture_storage_state", capture)
+    login_window = Mock()
+    monkeypatch.setattr(session, "login_manual_session", login_window)
     operation = Mock(side_effect=session.BrowserAuthError("expired server-side"))
     monkeypatch.setattr("direct_cli.browser.masters.fetch_masters_list", operation)
     result = CliRunner().invoke(cli, ["masters", "list"])
     assert result.exit_code != 0
     assert "direct auth login browser" in result.output
     operation.assert_called_once()
-    fresh.assert_not_called()
+    capture.assert_not_called()
+    login_window.assert_not_called()
 
 
 @pytest.mark.parametrize(

@@ -1,37 +1,30 @@
 """
 Playwright session management for browser-backed commands (``direct masters``).
 
-Reuses the user's own Chrome cookies so ``direct masters`` can read Мастер
-кампаний (Campaign Wizard) pages without a separate login flow — this data has
-no API surface at all (see module docstring in ``direct_cli/browser/__init__.py``).
+Browser-backed commands read Мастер кампаний (Campaign Wizard) pages, which
+have no API surface at all (see module docstring in
+``direct_cli/browser/__init__.py``). This module never launches the user's
+real Chrome — the profile directory is locked to its own process. Instead
+there is exactly ONE saved session: a Playwright ``storage_state`` envelope
+at ``~/.direct-cli/playwright/session.json`` (:func:`store.save_session`,
+``direct_cli/browser/store.py``), and every command replays it into a fresh,
+bundled Chromium context (:func:`open_saved_session`).
 
-Playwright cannot attach to a Chrome profile that is currently open (the
-profile directory is locked), so this module does not launch Chrome on the
-user's real profile at all. Instead it decrypts the user's Yandex Direct
-cookies itself (see ``direct_cli/browser/_chrome_crypto.py`` — on macOS the
-cookie AES key lives only in the login Keychain, never in ``Local State``,
-which is why an earlier version of this module that merely *copied*
-``Cookies``/``Local State`` into a temp profile did not work, see #634) and
-injects the decrypted cookies into a fresh, bundled Chromium context via
-``BrowserContext.add_cookies()``. The user's own Chrome window is never
-touched and does not need to be closed.
+Filling that one file:
 
-Explicit Chrome import (`auth login browser --source chrome`)
-persists a Playwright ``storage_state`` file (``direct_cli/browser/store.py``).
-Browser-backed commands reuse this via :func:`open_saved_session` or the
-persistent CLI profile; they never call :func:`open_chrome_session` as an
-automatic login fallback. The deprecated command paths remain adapters.
+- Chrome import (:func:`capture_storage_state`, ``auth login browser
+  --source chrome``): decrypts the user's live Yandex cookies from Chrome
+  itself (macOS: the AES key lives in the login Keychain, never in ``Local
+  State`` — see ``direct_cli/browser/_chrome_crypto.py`` and #634) and saves
+  them as the envelope. The user's own Chrome window is never touched.
+- Manual login (:func:`login_manual_session`, ``auth login browser``): a
+  visible window on a fresh context; the login is detected from the cookie
+  jar and the envelope is saved from the same context (#950: one
+  user-agent for both issuing and replaying a session).
 
-``direct masters login`` (issue #635) is a third, independent path that does
-not touch the user's real Chrome profile or the macOS Keychain at all:
-:func:`open_persistent_session` launches a bundled Chromium against its own
-persistent profile directory (``~/.direct-cli/chrome-profile/`` by default),
-and the user logs in by hand once via ``passport.yandex.ru``. Cookies then
-persist on disk the same way a real Chrome profile would (Chromium manages
-its own on-disk cookie store for a persistent context — no ``storage_state``
-capture/injection dance needed). This works identically on macOS/Linux/
-Windows and needs no Keychain access, at the cost of a one-time manual login
-instead of a transparent cookie copy.
+``open_session`` (``direct_cli/browser/auth.py``) auto-imports from Chrome
+when the envelope is missing or expired; the former persistent Chromium
+profile machinery was removed in this release.
 """
 
 import contextlib
@@ -50,9 +43,8 @@ from typing import (
 
 from . import _clock
 from . import store
-from .._auth_hints import HINT_LOGIN_BROWSER_CHROME
+from .._auth_hints import HINT_LOGIN_BROWSER, HINT_LOGIN_BROWSER_CHROME
 from .._captcha import find_captcha_marker, find_marker
-from ..i18n import t
 from ..output import print_warning_stderr
 
 if TYPE_CHECKING:
@@ -78,19 +70,6 @@ except ImportError:  # pragma: no cover - exercised only when playwright is abse
 _BROWSER_INSTALL_HINT = (
     'pip install "direct-cli[browser]" && playwright install chromium'
 )
-
-# Sibling of direct_cli/browser/store.py's PLAYWRIGHT_SESSION_PATH and
-# direct_cli/auth.py's AUTH_STORE_PATH under ~/.direct-cli/ — a dedicated
-# subdirectory so this profile's own Chromium lock files/caches never mix
-# with either of those.
-DEFAULT_PERSISTENT_PROFILE_DIR = Path.home() / ".direct-cli" / "chrome-profile"
-
-#: Marker file written into every profile directory the CLI creates. It is the
-#: sole proof of ownership `masters logout` accepts before deleting a tree — an
-#: arbitrary ``--profile-dir`` (a typo, a shell-expanded ``.``) has no marker and
-#: is refused rather than recursively removed.
-PROFILE_MARKER_NAME = ".direct-cli-profile"
-
 _PASSPORT_LOGIN_URL = "https://passport.yandex.ru/auth"
 
 # How long `direct masters login` waits for the user to finish logging in by
@@ -100,7 +79,7 @@ _LOGIN_POLL_INTERVAL_MS = 1_000
 
 # Yandex Passport's authenticated-session cookies — the SSO pair shared by
 # every *.yandex.ru host. Their presence in the context's cookie jar is what
-# ``login_persistent_session`` polls for as the "the human finished signing
+# the manual login polls for as the "the human finished signing
 # in" signal (issue #858): the same jar is what ``_chrome_crypto`` copies out
 # of Chrome to authenticate a fresh context, so these cookies *are* the
 # Direct session. Deliberately excludes the pre-authentication cookies
@@ -334,7 +313,7 @@ def _wait_for_marker(
     Accepts multiple selectors (matched as "any of") rather than one,
     because a single ``goto`` can legitimately land on either page: an
     unfinished (or stale) login redirects the grid URL right back to
-    Passport — ``login_persistent_session``'s one-shot verification probe and
+    Passport — the manual login's one-shot verification probe and
     ``capture_storage_state``'s verify path can both be sent to the grid in
     that state, and waiting on the grid's marker alone would burn
     ``timeout_ms`` on every such attempt until the user finishes logging in.
@@ -510,38 +489,6 @@ def _owner_login_from_cookies(
     return None
 
 
-def _stamp_profile_owner(profile_dir: Path, owner_login: Optional[str]) -> None:
-    """Write the owner login into the profile marker (issue #916).
-
-    The marker stays the sole ownership proof ``masters logout`` accepts —
-    its *existence*, not its content, authorizes the delete; the login is
-    metadata on top. A ``None`` owner leaves the marker untouched (old
-    sessions stay unstamped). Overwriting a marker that names a *different*
-    owner warns on stderr (Data-Safety class B replacement report) without
-    blocking the login. The stamp is diagnostic: a write failure must never
-    turn a verified login into an error.
-    """
-    marker = profile_dir / PROFILE_MARKER_NAME
-    try:
-        previous = marker.read_text(encoding="utf-8").strip() or None
-    except OSError:
-        previous = None
-    if previous and owner_login and previous != owner_login:
-        print_warning_stderr(
-            t(
-                "Replacing the browser profile at {path}: it belonged to "
-                "{old}, the new session belongs to {new}."
-            ).format(path=profile_dir, old=previous, new=owner_login)
-        )
-    if not owner_login:
-        return
-    try:
-        marker.write_text(owner_login + "\n", encoding="utf-8")
-        os.chmod(marker, 0o600)
-    except OSError:
-        pass  # ponytail: diagnostic stamp — a failed write is not a failed login
-
-
 def _session_cookie_signature(
     cookies: Sequence[Dict[str, Any]],
 ) -> Optional[Tuple[Tuple[str, str], ...]]:
@@ -550,7 +497,7 @@ def _session_cookie_signature(
     Returns the sorted ``(name, value)`` pairs of the authenticated-session
     cookies (:data:`_AUTH_SESSION_COOKIE_NAMES`) on a :func:`_is_yandex_ru_domain`
     domain, or ``None`` when the jar holds none — i.e. "no session yet" vs.
-    "some session". ``login_persistent_session`` re-runs its grid
+    "some session". The manual login re-runs its grid
     verification exactly when this signature *changes*, so a rejected
     session stays rejected until Passport actually issues different cookies
     (a stale ``Session_id`` sitting in a reused profile does not re-trigger
@@ -569,7 +516,7 @@ def _session_cookie_signature(
 def _grid_shows_authenticated_session(page: "Page") -> Optional[bool]:
     """One-shot "is the session real?" check: navigate ``page`` to the grid once.
 
-    Extracted from ``login_persistent_session``'s poll loop (issue #858) so
+    Extracted from the manual-login poll loop (issue #858) so
     the loop can poll the cookie jar for free and only pay for a navigation
     when there is a session to verify. The checks are exactly the triad the
     old per-second loop ran — ``wait_until="commit"`` navigation (issue
@@ -674,8 +621,8 @@ def _launch_context(
     """Shared launch/teardown body for both session flavours.
 
     Yields ``(browser, context)`` so callers add cookies or pass
-    ``storage_state`` before creating a page; teardown mirrors the nested
-    ``finally`` structure the original ``open_chrome_session`` used.
+    ``storage_state`` before creating a page; teardown closes the context
+    and then the browser.
     """
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=headless)
@@ -693,408 +640,13 @@ def _launch_context(
             browser.close()
 
 
-@contextlib.contextmanager
-def open_chrome_session(
-    *,
-    profile_dir: Optional[Path] = None,
-    chrome_profile: str = "Default",
-    headless: bool = True,
-) -> Generator["Page", None, None]:
-    """Launch a bundled Chromium with the user's decrypted Yandex cookies injected.
-
-    Yields a ready-to-use Playwright ``Page``. Import of ``playwright`` is
-    deferred to this function so the rest of the CLI has no hard dependency on
-    it — see ``direct_cli/commands/masters.py`` for the ``UsageError`` shown
-    when the optional extra isn't installed.
-
-    Decrypts from Chrome on every call — nothing is persisted. See
-    :func:`open_saved_session` for the persisted-session alternative that
-    ``playwright login`` sets up.
-    """
-    sync_playwright = _import_sync_playwright()
-    source_root = _resolve_profile_dir(profile_dir)
-
-    # Deferred import: this pulls in _chrome_crypto (and, transitively, the
-    # optional `cryptography` package) only once we actually know playwright
-    # and the profile directory are usable.
-    from . import _chrome_crypto
-
-    cookies = _chrome_crypto.load_yandex_cookies(source_root, chrome_profile)
-
-    with _launch_context(sync_playwright, headless=headless) as (_browser, context):
-        context.add_cookies(cookies)
-        page = context.new_page()
-        yield page
-
-
-def _resolve_persistent_profile_dir(profile_dir: Optional[Path]) -> Path:
-    return profile_dir or DEFAULT_PERSISTENT_PROFILE_DIR
-
-
-#: Records the profile directory the last `masters login` used, so read
-#: commands can find a session saved outside the default location. Without
-#: it `--profile-dir` would be accepted by `login` and silently ignored by
-#: everything else.
-PROFILE_POINTER_PATH = Path.home() / ".direct-cli" / "chrome-profile-path"
-
-
-def remember_persistent_profile_dir(profile_dir: Path) -> None:
-    """Record which profile directory `masters login` populated.
-
-    Stored absolute: a relative path would be re-resolved against whatever
-    directory a later command happened to run from, so `masters logout`
-    would act on a different profile depending on where the user stood.
-    """
-    PROFILE_POINTER_PATH.parent.mkdir(parents=True, exist_ok=True)
-    PROFILE_POINTER_PATH.write_text(str(profile_dir.resolve()), encoding="utf-8")
-    os.chmod(PROFILE_POINTER_PATH, 0o600)
-
-
-def configured_persistent_profile_dir() -> Path:
-    """Return the profile directory `masters` commands should read from.
-
-    The one recorded by the last `masters login --profile-dir`, else the
-    default location.
-    """
-    try:
-        recorded = PROFILE_POINTER_PATH.read_text(encoding="utf-8").strip()
-    except OSError:
-        return DEFAULT_PERSISTENT_PROFILE_DIR
-    # A hand-edited or truncated record must not silently resolve against the
-    # caller's cwd — only an absolute path is trustworthy here.
-    if not recorded or not Path(recorded).is_absolute():
-        return DEFAULT_PERSISTENT_PROFILE_DIR
-    return Path(recorded)
-
-
-def persistent_profile_is_usable(profile_dir: Optional[Path] = None) -> bool:
-    """Return whether a persistent profile holds an actual browser session.
-
-    Mere directory existence is not enough: ``_launch_persistent_context``
-    creates the directory (and its marker) before Chromium starts, so a login
-    the user aborted leaves an empty profile behind. Routing ``masters``
-    commands through it would launch a browser, fail auth, and fall back on
-    every single call. Chromium writes its cookie store only once it has
-    actually run, so that file is the honest signal.
-    """
-    resolved = _resolve_persistent_profile_dir(profile_dir)
-    return (resolved / "Default" / "Cookies").exists()
-
-
-#: Chromium's ProcessSingleton lock trio inside a profile directory. All
-#: three are symlinks (or files, on some platforms) named with the owner's
-#: hostname-PID; ``SingletonLock`` is the one carrying the PID.
-_SINGLETON_LOCK_FILES = ("SingletonLock", "SingletonCookie", "SingletonSocket")
-
-
-def _singleton_lock_target(profile_dir: Path) -> Optional[str]:
-    """Raw ``hostname-PID`` symlink target of ``SingletonLock``, if readable."""
-    try:
-        return os.readlink(profile_dir / "SingletonLock")
-    except OSError:
-        return None
-
-
-def _singleton_lock_pid(profile_dir: Path) -> Optional[int]:
-    """PID of the Chromium instance holding ``profile_dir``'s lock, if readable.
-
-    Chromium's ``SingletonLock`` is a ``hostname-PID`` symlink. Absent,
-    unreadable, or unparseable locks return ``None`` — the caller treats
-    that as "unknown holder", never as "no lock".
-    """
-    target = _singleton_lock_target(profile_dir)
-    if target is None:
-        return None
-    _, _, pid_part = target.rpartition("-")
-    try:
-        return int(pid_part)
-    except ValueError:
-        return None
-
-
-def _process_alive(pid: int) -> bool:
-    """Signal-0 liveness probe; inconclusive answers count as alive."""
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except OSError:
-        return True  # probe unsupported / owned by another user — assume alive
-    return True
-
-
-def _clear_stale_singleton_lock(profile_dir: Path) -> bool:
-    """Remove Chromium's lock trio if the owning process is already dead.
-
-    Issue #870 п.4: the live repro was two CLI browser operations back to
-    back — the first process had exited, but its ``SingletonLock`` symlink
-    was still on disk, so the second launch died on ``SingletonLock: File
-    exists (17)``. A dead owner's PID answers ``os.kill(pid, 0)`` with
-    ``ProcessLookupError``; that lock is stale by definition and safe to
-    remove. Returns ``True`` when launching is safe (stale lock cleared, or
-    no lock at all — absence means the previous owner already cleaned up,
-    not that the lock is unreadable), ``False`` when the lock is live, its
-    holder cannot be determined, or it cannot be removed (caller must NOT
-    delete a live lock).
-    """
-    if not os.path.lexists(profile_dir / "SingletonLock"):
-        return True
-    target = _singleton_lock_target(profile_dir)
-    pid = _singleton_lock_pid(profile_dir)
-    if pid is None or _process_alive(pid):
-        return False
-    # Compare-and-delete: between the liveness probe and the unlink another
-    # Chromium may have cleared the stale lock and installed its own live
-    # one — deleting that would put two browsers on one profile. Re-read
-    # the symlink and delete only if it still names the dead owner.
-    if _singleton_lock_target(profile_dir) != target:
-        return False
-    try:
-        for name in _SINGLETON_LOCK_FILES:
-            (profile_dir / name).unlink(missing_ok=True)
-    except OSError:
-        # A lock we cannot remove (another user, permissions) must not
-        # escape as a raw OSError from inside the launch handler; False
-        # routes to the caller's "profile is locked" BrowserSessionError.
-        return False
-    return True
-
-
-@contextlib.contextmanager
-def _launch_persistent_context(
-    sync_playwright,
-    profile_dir: Path,
-    *,
-    headless: bool,
-    user_agent: Optional[str] = None,
-) -> Generator[Any, None, None]:
-    """Shared launch/teardown for the CLI's own persistent Chromium profile.
-
-    Unlike :func:`_launch_context` (a fresh, throwaway context every call),
-    ``launch_persistent_context`` both launches the browser *and* returns the
-    context in one call — there is no separate ``Browser`` object to close,
-    Playwright owns that lifecycle internally for persistent contexts.
-
-    The profile directory holds a live Yandex session (cookies readable in
-    plaintext by the owning process) — chmod 0700 on every launch, the same
-    treatment ``direct_cli/browser/store.py`` and ``direct_cli/auth.py`` give
-    their own on-disk session files (issue #635 risk: "Хранение живой сессии
-    Яндекса на диске").
-
-    The ownership marker is only ever written into a directory this function
-    *created*. An existing directory must already carry the marker to be
-    reused; otherwise it belongs to someone else and is refused. Without that
-    asymmetry ``--profile-dir ~`` would mark the user's home directory as
-    CLI-owned, and ``masters logout`` would then accept that marker as
-    authorization to ``shutil.rmtree`` it.
-    """
-    marker = profile_dir / PROFILE_MARKER_NAME
-    try:
-        profile_dir.mkdir(parents=True, exist_ok=False)
-    except FileExistsError:
-        if not marker.is_file():
-            raise BrowserSessionError(
-                f"Refusing to use {profile_dir} as a browser profile: the "
-                "directory already exists and was not created by `direct "
-                f"masters login` (no {PROFILE_MARKER_NAME} marker). Pick a "
-                "path that does not exist yet, or delete that directory by "
-                "hand if you are sure."
-            ) from None
-    else:
-        marker.touch()
-
-    os.chmod(profile_dir, 0o700)
-    with sync_playwright() as playwright:
-        try:
-            context = playwright.chromium.launch_persistent_context(
-                str(profile_dir),
-                headless=headless,
-                locale="ru-RU",
-                user_agent=_resolve_user_agent(user_agent),
-            )
-        except PlaywrightError as exc:
-            # Issue #870 п.4: two CLI browser operations back-to-back race
-            # the profile's ProcessSingleton — the previous instance may
-            # have already exited while its hostname-PID lock symlink is
-            # still on disk. Clear a DEAD owner's lock and retry once; a
-            # LIVE holder gets a message naming it instead of a raw
-            # Playwright traceback.
-            if "ProcessSingleton" not in str(exc) and "SingletonLock" not in str(exc):
-                raise
-            if not _clear_stale_singleton_lock(profile_dir):
-                holder = _singleton_lock_pid(profile_dir)
-                raise BrowserSessionError(
-                    "The browser profile is locked by another process "
-                    f"(PID {holder if holder is not None else 'unknown'}) "
-                    "— a previous browser instance is still using it. "
-                    "Wait for that process to exit (or kill it) and retry."
-                ) from exc
-            try:
-                context = playwright.chromium.launch_persistent_context(
-                    str(profile_dir),
-                    headless=headless,
-                    locale="ru-RU",
-                    user_agent=_resolve_user_agent(user_agent),
-                )
-            except PlaywrightError as retry_exc:
-                # The clear-then-retry window can lose a race: another
-                # launcher re-created a live lock between the stale-lock
-                # removal and this launch. That must come back as the same
-                # classified "profile is locked" error, not a raw
-                # PlaywrightError.
-                raise BrowserSessionError(
-                    "The browser profile became locked again right after a "
-                    "stale lock was cleared — another browser instance "
-                    "grabbed it first. Wait for that process to exit and "
-                    "retry."
-                ) from retry_exc
-        try:
-            yield context
-        finally:
-            context.close()
-
-
-def login_persistent_session(
-    *,
-    profile_dir: Optional[Path] = None,
-    headless: bool = True,
-    timeout_ms: int = _LOGIN_WAIT_TIMEOUT_MS,
-) -> None:
-    """Open the CLI's own persistent Chromium profile for a one-time manual login.
-
-    Navigates to Yandex Passport's login page and waits (up to ``timeout_ms``)
-    for the user to finish logging in by hand in the visible window.
-    Readiness is detected from the shared cookie jar: ``context.cookies()`` is
-    polled every :data:`_LOGIN_POLL_INTERVAL_MS` for Yandex's SSO session
-    cookies (:data:`_AUTH_SESSION_COOKIE_NAMES`) — no navigation and no second
-    browser tab while the user is still typing (issue #858: the previous
-    implementation kept a visible probe tab next to the login form and
-    reloaded the Direct grid on it once a second). Only when a session-cookie
-    signature appears (or changes after a rejected attempt) is a short-lived
-    probe tab opened for a single verification navigation
-    (:func:`_grid_shows_authenticated_session`), then closed immediately; the
-    page the human is typing into is never navigated away from under them.
-    Raises :class:`BrowserAuthError` if ``timeout_ms`` elapses first.
-    Navigation failures keep their #865 classification: a network-layer abort
-    (unstable VPN/proxy, issue #857) is retried by
-    :func:`_goto_with_network_retry`, and a connection that stays dead fails
-    as :class:`BrowserNetworkError` — never mistaken for an auth problem —
-    while a browser window that dies mid-wait fails fast with a clean
-    :class:`BrowserSessionError`.
-
-    Defaults to headless. CLI callers must explicitly request browser UI
-    before passing ``headless=False`` for a manual login.
-    """
-    sync_playwright = _import_sync_playwright()
-    resolved_dir = _resolve_persistent_profile_dir(profile_dir)
-
-    with _launch_persistent_context(
-        sync_playwright, resolved_dir, headless=headless
-    ) as context:
-        page = context.new_page()
-        _goto_with_network_retry(page, _PASSPORT_LOGIN_URL)
-        if not _wait_for_marker(page, _PASSPORT_PAGE_MARKERS):
-            # Fail closed: a timed-out marker means the page never rendered
-            # far enough to trust `page.content()` — an in-progress/blank
-            # shell may contain neither the login-page nor captcha markers
-            # `assert_authenticated`/`assert_not_captcha` scan for, which
-            # would otherwise let an unrendered page sail through as if it
-            # were a real one (issue #692 cycle-review).
-            raise BrowserSessionError(
-                f"Timed out waiting for {_PASSPORT_LOGIN_URL} to render. "
-                f"Retry `direct masters login`. {_stale_marker_hint()}"
-            )
-
-        # Poll the cookie jar, not a page (issue #858). `context.cookies()`
-        # reads the persistent context's jar directly — zero rendering, zero
-        # navigation, invisible to the user — and both pages share that jar,
-        # so a login completed on `page` is visible here immediately. The
-        # human keeps typing into `page` undisturbed for the whole wait: the
-        # verification probe below is a separate tab that exists only for
-        # the duration of one check. That also scopes #857's network
-        # failures to the verification navigation alone — while the user is
-        # still typing, nothing navigates, so a flaky VPN cannot strike.
-        #
-        # A dead context mid-wait is deliberately fatal, not retried: every
-        # PlaywrightError that can escape the verification guard below
-        # (`context.cookies()`, `context.new_page()`, `probe.close()`,
-        # `page.wait_for_timeout()`) comes from a call that talks only to
-        # the local browser over CDP — no Yandex network involved — so an
-        # exception from one of them means the browser process itself is
-        # gone (crashed, or the user closed the window to abort the login).
-        # Retrying that until `timeout_ms` can never succeed, so it is
-        # converted to a clean :class:`BrowserSessionError` instead of a
-        # raw PlaywrightError traceback. The network layer is the opposite
-        # case and stays retryable — see the guard below.
-        deadline = _clock.now() + timeout_ms / 1000
-        rejected_signature: Optional[Tuple[Tuple[str, str], ...]] = None
-        try:
-            while _clock.now() < deadline:
-                signature = _session_cookie_signature(context.cookies())
-                if signature is not None and signature != rejected_signature:
-                    probe = context.new_page()
-                    try:
-                        verdict = _grid_shows_authenticated_session(probe)
-                    except PlaywrightError as exc:
-                        if not _is_network_navigation_error(exc):
-                            # Not the network layer: the browser/context
-                            # itself is gone — let the outer guard turn it
-                            # into the clean fatal error.
-                            raise
-                        # Defensive: `_goto_with_network_retry` inside the
-                        # verification already retries transient aborts and
-                        # converts persistent ones to `BrowserNetworkError`,
-                        # so a network-classified PlaywrightError can only
-                        # escape from outside the goto itself. Treat it as
-                        # inconclusive — the same signature is retried on
-                        # the next tick.
-                        verdict = None
-                    finally:
-                        # Teardown: a browser that died at the very end of a
-                        # *successful* verification must not turn that
-                        # success into a fatal error.
-                        with contextlib.suppress(PlaywrightError):
-                            probe.close()
-                    if verdict:
-                        # Only once the session is real: read commands
-                        # resolve the profile through this pointer, so
-                        # recording an unfinished login would point them at
-                        # an empty profile.
-                        remember_persistent_profile_dir(resolved_dir)
-                        # Issue #916: the same verified jar names the owner —
-                        # stamp it into the profile marker.
-                        _stamp_profile_owner(
-                            resolved_dir, _owner_login_from_cookies(context.cookies())
-                        )
-                        return
-                    if verdict is False:
-                        # Conclusive "no valid session": don't re-probe this
-                        # jar every second — wait for Passport to issue
-                        # different cookies. `None` (unrendered/transient)
-                        # stays retryable.
-                        rejected_signature = signature
-                page.wait_for_timeout(_LOGIN_POLL_INTERVAL_MS)
-        except PlaywrightError as exc:
-            raise BrowserSessionError(
-                "The browser window was closed (or crashed) while waiting "
-                "for you to log in — there is nothing left to wait for. Run "
-                "`direct masters login` again."
-            ) from exc
-
-        raise BrowserAuthError(
-            f"Timed out after {timeout_ms // 1000}s waiting for login to "
-            f"{_PASSPORT_LOGIN_URL} to complete. Run `direct masters login` "
-            "again and finish signing in within the time limit."
-        )
-
-
 def login_manual_session(*, timeout_ms: int = _LOGIN_WAIT_TIMEOUT_MS) -> Dict[str, Any]:
     """One manual login in a visible window; saves the single session envelope.
 
     The context is a fresh throwaway (:func:`_launch_context` — the same
     factory the read commands use, so the session is issued to and later
-    replayed under the same user-agent, #950). The wait mechanics are the
-    former persistent-profile login's: poll the context cookie jar for the
+    replayed under the same user-agent, #950). The wait mechanics: poll the
+    context cookie jar for the
     SSO cookies, verify once via a short-lived probe tab, fail fast when the
     window dies (issue #858 poll, #692 fail-closed). On success the resulting
     ``storage_state`` is saved as the only browser session this CLI keeps —
@@ -1115,7 +667,7 @@ def login_manual_session(*, timeout_ms: int = _LOGIN_WAIT_TIMEOUT_MS) -> Dict[st
             # through as a rendered login page.
             raise BrowserSessionError(
                 f"Timed out waiting for {_PASSPORT_LOGIN_URL} to render. "
-                "Retry `direct auth login browser`."
+                f"Retry {HINT_LOGIN_BROWSER}."
             )
 
         deadline = _clock.now() + timeout_ms / 1000
@@ -1155,42 +707,14 @@ def login_manual_session(*, timeout_ms: int = _LOGIN_WAIT_TIMEOUT_MS) -> Dict[st
             raise BrowserSessionError(
                 "The browser window was closed (or crashed) while waiting "
                 "for you to log in — there is nothing left to wait for. Run "
-                "`direct auth login browser` again."
+                f"{HINT_LOGIN_BROWSER} again."
             ) from exc
 
         raise BrowserAuthError(
             f"Timed out after {timeout_ms // 1000}s waiting for login to "
-            f"{_PASSPORT_LOGIN_URL} to complete. Run `direct auth login "
-            "browser` again and finish signing in within the time limit."
+            f"{_PASSPORT_LOGIN_URL} to complete. Run {HINT_LOGIN_BROWSER} "
+            "again and finish signing in within the time limit."
         )
-
-
-@contextlib.contextmanager
-def open_persistent_session(
-    *,
-    profile_dir: Optional[Path] = None,
-    headless: bool = True,
-) -> Generator["Page", None, None]:
-    """Launch the CLI's own persistent Chromium profile for regular use.
-
-    Raises :class:`BrowserSessionMissingError` if the profile directory
-    doesn't exist yet or Yandex serves its login page — the fix in both
-    cases is ``direct masters login``.
-    """
-    sync_playwright = _import_sync_playwright()
-    resolved_dir = _resolve_persistent_profile_dir(profile_dir)
-
-    if not resolved_dir.exists():
-        raise BrowserSessionMissingError(
-            f"No persistent browser profile found at {resolved_dir}. "
-            "Run: direct masters login"
-        )
-
-    with _launch_persistent_context(
-        sync_playwright, resolved_dir, headless=headless
-    ) as context:
-        page = context.new_page()
-        yield page
 
 
 def capture_storage_state(

@@ -361,12 +361,12 @@ def main() -> int:
             print("aborted")
             return 1
 
-    from direct_cli.browser.session import open_chrome_session
+    from direct_cli.browser.session import open_saved_session
 
-    # open_chrome_session (fresh Keychain decrypt), not open_saved_session:
-    # the saved envelope goes stale within weeks and this recon must not
-    # depend on a fresh `playwright login` (live run 2026-10-07).
-    with open_chrome_session(headless=False) as page:
+    # open_saved_session replays the single saved envelope; since #950 the
+    # context carries the Chrome user-agent, so a freshly imported envelope
+    # authenticates just like the live browser session it was copied from.
+    with open_saved_session(headless=False) as page:
         if args.stage == "recon":
             stage_recon(page, args.campaign_id)
         elif args.stage == "upload":
