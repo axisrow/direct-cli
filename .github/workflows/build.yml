@@ -1,0 +1,57 @@
+name: Build
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    env:
+      # Windows redirected output defaults to cp1252; CLI help includes Cyrillic.
+      PYTHONUTF8: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: python -m pip install --upgrade build twine
+
+      - name: Build wheel and source distribution
+        run: python -m build
+
+      - name: Check distribution metadata
+        run: python -m twine check --strict dist/*
+
+      - name: Install built wheel
+        # Resolve the wheel in Python: wildcard expansion differs in PowerShell.
+        run: python -c "import pathlib, subprocess, sys; wheel, = pathlib.Path('dist').glob('*.whl'); subprocess.check_call([sys.executable, '-m', 'pip', 'install', str(wheel)])"
+
+      - name: Smoke test installed CLI
+        # Run outside the checkout so local sources cannot hide packaging errors.
+        working-directory: ${{ runner.temp }}
+        run: |
+          direct --help
+          direct campaigns --help
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-cli-${{ matrix.os }}
+          path: dist/*
+          if-no-files-found: error
