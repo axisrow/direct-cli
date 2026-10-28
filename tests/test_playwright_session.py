@@ -873,12 +873,8 @@ class TestAssertSessionOwner(unittest.TestCase):
         self.addCleanup(env.stop)
 
     @staticmethod
-    def _status(tier, owner):
-        return {
-            "active_tier": tier,
-            "persistent_profile": {"owner": owner if tier == "1.5" else None},
-            "saved_session": {"owner_login": owner if tier == "2" else None},
-        }
+    def _status(owner):
+        return {"exists": True, "owner_login": owner}
 
     def test_mismatched_stamp_raises_loudly_with_both_logins(self):
         from direct_cli.browser import auth as browser_auth
@@ -889,23 +885,13 @@ class TestAssertSessionOwner(unittest.TestCase):
         ):
             with self.assertRaises(BrowserAuthError) as cm:
                 browser_auth._assert_session_owner(
-                    self._status("2", "engineeringprint-ru")
+                    self._status("engineeringprint-ru")
                 )
         message = str(cm.exception)
         self.assertIn("engineeringprint-ru", message)
         self.assertIn("ksamatadirect", message)
         # The hint must be the canonical _auth_hints pointer, not a variant.
         self.assertIn("direct auth login browser", message)
-
-    def test_mismatched_persistent_profile_marker_raises_too(self):
-        from direct_cli.browser import auth as browser_auth
-        from direct_cli.browser.session import BrowserAuthError
-
-        with patch.object(
-            browser_auth, "_expected_session_login", return_value="expected"
-        ):
-            with self.assertRaises(BrowserAuthError):
-                browser_auth._assert_session_owner(self._status("1.5", "other"))
 
     def test_unstamped_session_warns_but_opens(self):
         from direct_cli.browser import auth as browser_auth
@@ -914,7 +900,7 @@ class TestAssertSessionOwner(unittest.TestCase):
             browser_auth, "_expected_session_login", return_value="expected"
         ):
             with patch.object(browser_auth, "print_warning_stderr") as warn:
-                browser_auth._assert_session_owner(self._status("2", None))
+                browser_auth._assert_session_owner(self._status(None))
         warn.assert_called_once()
         self.assertIn("direct auth login browser", str(warn.call_args))
         # #916 wording: an unstamped session is about a missing identity
@@ -928,7 +914,7 @@ class TestAssertSessionOwner(unittest.TestCase):
             browser_auth, "_expected_session_login", return_value="Owner"
         ):
             with patch.object(browser_auth, "print_warning_stderr") as warn:
-                browser_auth._assert_session_owner(self._status("2", "owner"))
+                browser_auth._assert_session_owner(self._status("owner"))
         warn.assert_not_called()
 
     def test_no_anchor_means_no_opinion(self):
@@ -936,10 +922,10 @@ class TestAssertSessionOwner(unittest.TestCase):
 
         with patch.object(browser_auth, "_expected_session_login", return_value=None):
             with patch.object(browser_auth, "print_warning_stderr") as warn:
-                browser_auth._assert_session_owner(self._status("2", "anyone"))
+                browser_auth._assert_session_owner(self._status("anyone"))
         warn.assert_not_called()
 
-    def test_no_session_tier_is_a_noop(self):
+    def test_missing_session_is_a_noop(self):
         """Nothing is about to open — the missing-session error reports it."""
         from direct_cli.browser import auth as browser_auth
 
@@ -947,7 +933,7 @@ class TestAssertSessionOwner(unittest.TestCase):
             browser_auth, "_expected_session_login", return_value="expected"
         ) as anchor:
             with patch.object(browser_auth, "print_warning_stderr") as warn:
-                browser_auth._assert_session_owner(self._status(None, None))
+                browser_auth._assert_session_owner({"exists": False, "owner_login": None})
         anchor.assert_not_called()
         warn.assert_not_called()
 
@@ -1492,39 +1478,27 @@ def test_manual_login_dead_window_raises_session_error():
             session_module.login_manual_session()
 
 
-def test_browser_session_status_reports_both_owners(tmp_path):
+def test_browser_session_status_reports_owner():
     from direct_cli.browser import auth as browser_auth
-    from direct_cli.browser import session as session_module
 
-    profile = tmp_path / "browser"
-    (profile / "Default").mkdir(parents=True)
-    (profile / session_module.PROFILE_MARKER_NAME).write_text("marker-owner\n")
-    (profile / "Default" / "Cookies").touch()
     store.save_session({"cookies": [], "origins": []}, owner_login="saved-owner")
 
     payload = browser_auth.session_status()
 
-    assert payload["persistent_profile"]["owner"] == "marker-owner"
-    assert payload["saved_session"]["owner_login"] == "saved-owner"
-    assert payload["active_tier"] == "1.5"
+    assert payload["owner_login"] == "saved-owner"
+    assert payload["exists"] is True
 
 
-def test_auth_status_text_shows_owners(tmp_path):
+def test_auth_status_text_shows_owner():
     from click.testing import CliRunner
 
-    from direct_cli.browser import session as session_module
     from direct_cli.cli import cli
 
-    profile = tmp_path / "browser"
-    (profile / "Default").mkdir(parents=True)
-    (profile / session_module.PROFILE_MARKER_NAME).write_text("marker-owner\n")
-    (profile / "Default" / "Cookies").touch()
     store.save_session({"cookies": [], "origins": []}, owner_login="saved-owner")
 
     result = CliRunner().invoke(cli, ["auth", "status", "browser"])
 
     assert result.exit_code == 0, result.output
-    assert "owner=marker-owner" in result.output
     assert "owner=saved-owner" in result.output
 
 

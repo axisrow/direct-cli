@@ -368,14 +368,14 @@ def test_json_api_start_never_prompts_even_in_terminal(
     interactive.assert_not_called()
 
 
-def test_manual_browser_login_opens_the_persistent_window(
+def test_manual_browser_login_opens_the_login_window_and_saves_envelope(
     auth_env, interactive, monkeypatch
 ):
     login = Mock()
-    monkeypatch.setattr(session, "login_persistent_session", login)
+    monkeypatch.setattr(session, "login_manual_session", login)
     result = CliRunner().invoke(cli, ["auth", "login", "browser"])
     assert result.exit_code == 0, result.output
-    login.assert_called_once_with(profile_dir=None, timeout_ms=300_000, headless=False)
+    login.assert_called_once_with(timeout_ms=300_000)
     assert not (auth_env / ".env").exists()
     assert not (auth_env / "auth.json").exists()
 
@@ -383,7 +383,7 @@ def test_manual_browser_login_opens_the_persistent_window(
 def test_browser_login_without_tty_fails_without_launching(auth_env, monkeypatch):
     monkeypatch.setattr("direct_cli.commands.auth._stdin_is_interactive", lambda: False)
     login = Mock()
-    monkeypatch.setattr(session, "login_persistent_session", login)
+    monkeypatch.setattr(session, "login_manual_session", login)
     result = CliRunner().invoke(cli, ["auth", "login", "browser"])
     assert result.exit_code != 0
     assert "interactive terminal" in result.output
@@ -396,6 +396,7 @@ def test_browser_login_without_tty_fails_without_launching(auth_env, monkeypatch
     [
         ["browser", "--chrome-profile", "Profile 1"],
         ["browser", "--no-verify"],
+        ["browser", "--profile-dir", "/unused"],
         ["browser", "--source", "chrome", "--timeout", "5"],
         ["browser", "--source", "chrome", "--allow-no-tty"],
         ["api", "--source", "chrome"],
@@ -407,7 +408,7 @@ def test_incompatible_login_options_fail_before_login(
 ):
     login = Mock()
     exchange = Mock()
-    monkeypatch.setattr(session, "login_persistent_session", login)
+    monkeypatch.setattr(session, "login_manual_session", login)
     monkeypatch.setattr("direct_cli.commands.auth.exchange_oauth_code", exchange)
     result = CliRunner().invoke(cli, ["auth", "login", *arguments])
     assert result.exit_code == 2, result.output
@@ -442,7 +443,6 @@ def test_removed_method_flag_names_the_exact_replacement(
     [
         ["--profile", "agency1", "api"],
         ["--format", "json", "browser"],
-        ["--profile-dir", "/unused", "browser"],
     ],
 )
 def test_status_flags_before_the_subcommand_are_rejected(auth_env, arguments):
@@ -530,23 +530,56 @@ def test_chrome_import_is_explicit_and_keeps_legacy_json(auth_env, monkeypatch):
     assert "Deprecated" in legacy.stderr
 
 
+def test_browser_commands_auto_import_missing_session_from_chrome(auth_env, monkeypatch):
+    """No usable session → the command copies the live Chrome session itself.
+
+    The copy is headless and silent; the manual-login window is never opened
+    by a read command, and a second run replays the just-saved session
+    (exactly one import).
+    """
+    state = {"cookies": [{"name": "Session_id", "domain": ".yandex.ru"}], "origins": []}
+    capture = Mock(
+        return_value=(state, {"verified": True, "owner_login": "chrome-owner"})
+    )
+    login_window = Mock()
+    monkeypatch.setattr(session, "capture_storage_state", capture)
+    monkeypatch.setattr(session, "login_manual_session", login_window)
+
+    @contextlib.contextmanager
+    def saved(**kwargs):
+        yield object()
+
+    monkeypatch.setattr(session, "open_saved_session", saved)
+    operation = Mock(return_value=[])
+    monkeypatch.setattr("direct_cli.browser.masters.fetch_masters_list", operation)
+    result = CliRunner().invoke(cli, ["masters", "list"])
+    assert result.exit_code == 0, result.output
+    capture.assert_called_once()
+    login_window.assert_not_called()
+    envelope = store.read_session_envelope()
+    assert envelope is not None
+    assert envelope["owner_login"] == "chrome-owner"
+
+    capture.reset_mock()
+    result = CliRunner().invoke(cli, ["masters", "list"])
+    assert result.exit_code == 0, result.output
+    capture.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "argv", [["masters", "list"], ["history", "get"], ["adrestrictions", "123"]]
 )
-@pytest.mark.parametrize("expired", [None, True])
-def test_browser_commands_never_import_or_log_in(auth_env, monkeypatch, argv, expired):
-    if expired:
-        store.save_session({"cookies": [{"expires": 1}], "origins": []})
-    import_cookies, login, decrypt, opener = Mock(), Mock(), Mock(), Mock()
-    monkeypatch.setattr(session, "capture_storage_state", import_cookies)
-    monkeypatch.setattr(session, "login_persistent_session", login)
-    monkeypatch.setattr(session, "open_chrome_session", opener)
-    monkeypatch.setattr("direct_cli.browser._chrome_crypto.get_encryption_key", decrypt)
+def test_browser_command_fails_with_login_hint_when_import_fails(
+    auth_env, monkeypatch, argv
+):
+    capture = Mock(side_effect=session.ChromeCookieError("Keychain denied"))
+    login_window = Mock()
+    monkeypatch.setattr(session, "capture_storage_state", capture)
+    monkeypatch.setattr(session, "login_manual_session", login_window)
     result = CliRunner().invoke(cli, argv)
     assert result.exit_code != 0
     assert "direct auth login browser" in result.output, result.output
-    for operation in (import_cookies, login, decrypt, opener):
-        operation.assert_not_called()
+    login_window.assert_not_called()  # a failed copy never opens a window
 
 
 def test_invalid_saved_session_does_not_repeat_operation(auth_env, monkeypatch):
@@ -596,7 +629,7 @@ def test_status_defaults_to_both_domains(auth_env):
         "api": json.loads(api.stdout),
         "browser": json.loads(browser.stdout),
     }
-    assert json.loads(browser.stdout)["active_source"] is None
+    assert json.loads(browser.stdout)["owner_login"] is None
 
 
 def test_api_logout_removes_only_a_link_that_names_the_removed_profile(auth_env):
@@ -672,37 +705,6 @@ def test_failed_dotenv_write_keeps_original_file(auth_env, monkeypatch):
     assert not list(auth_env.glob(".direct-env-*"))
 
 
-def test_doctor_understands_persistent_session_without_chrome_import(
-    auth_env, monkeypatch
-):
-    from direct_cli.browser import diagnostics
-
-    profile = session.DEFAULT_PERSISTENT_PROFILE_DIR
-    (profile / "Default").mkdir(parents=True)
-    (profile / "Default" / "Cookies").touch()
-    monkeypatch.setattr(
-        diagnostics,
-        "_check_chromium_downloaded",
-        lambda: diagnostics.Check("chromium_downloaded", True, "installed"),
-    )
-    monkeypatch.setattr(
-        diagnostics,
-        "_check_module_installed",
-        lambda name, label: diagnostics.Check(f"{name}_installed", True, "installed"),
-    )
-    key = Mock()
-    monkeypatch.setattr("direct_cli.browser._chrome_crypto.get_encryption_key", key)
-    result = CliRunner().invoke(cli, ["auth", "doctor", "--format", "json"])
-    assert result.exit_code == 0, result.output
-    report = json.loads(result.stdout)
-    assert report["ok"] is True
-    saved = next(
-        check for check in report["checks"] if check["name"] == "saved_session"
-    )
-    assert saved["ok"] is True and str(profile) in saved["detail"]
-    key.assert_not_called()
-
-
 def test_api_logout_requires_explicit_profile(auth_env):
     save_profile()
     result = CliRunner().invoke(cli, ["auth", "logout", "api"])
@@ -721,44 +723,16 @@ def test_api_logout_rejects_symlinked_dotenv_before_removing_profile(auth_env):
     assert target.read_text() == "YANDEX_DIRECT_BIND_PROFILE=account\n"
 
 
-def test_browser_logout_forgets_both_cli_sessions(auth_env):
-    profile = session.DEFAULT_PERSISTENT_PROFILE_DIR
-    profile.mkdir()
-    (profile / session.PROFILE_MARKER_NAME).touch()
-    session.remember_persistent_profile_dir(profile)
+def test_browser_logout_forgets_saved_session_and_legacy_profile(auth_env, monkeypatch):
+    legacy = auth_env / "chrome-profile"
+    legacy.mkdir()
+    (legacy / ".direct-cli-profile").touch()
     store.save_session({"cookies": [], "origins": []})
+    monkeypatch.setattr("direct_cli.browser.auth._LEGACY_PROFILE_DIR", legacy)
     result = CliRunner().invoke(cli, ["auth", "logout", "browser"])
     assert result.exit_code == 0, result.output
-    assert not profile.exists()
-    assert not session.PROFILE_POINTER_PATH.exists()
+    assert not legacy.exists()
     assert not store.PLAYWRIGHT_SESSION_PATH.exists()
-
-
-def test_browser_logout_cannot_fall_back_to_old_default_profile(auth_env):
-    default = session.DEFAULT_PERSISTENT_PROFILE_DIR
-    custom = auth_env / "custom-browser"
-    for profile in (default, custom):
-        (profile / "Default").mkdir(parents=True)
-        (profile / session.PROFILE_MARKER_NAME).touch()
-        (profile / "Default" / "Cookies").touch()
-    session.remember_persistent_profile_dir(custom)
-    result = CliRunner().invoke(cli, ["auth", "logout", "browser"])
-    assert result.exit_code == 0, result.output
-    assert not default.exists() and not custom.exists()
-    status = CliRunner().invoke(cli, ["auth", "status", "browser", "--format", "json"])
-    assert json.loads(status.stdout)["active_source"] is None
-
-
-def test_browser_logout_refuses_unowned_profile_without_deleting_saved_session(
-    auth_env,
-):
-    session.DEFAULT_PERSISTENT_PROFILE_DIR.mkdir()
-    store.save_session({"cookies": [], "origins": []})
-    result = CliRunner().invoke(cli, ["auth", "logout", "browser"])
-    assert result.exit_code != 0
-    assert "marker" in result.output
-    assert session.DEFAULT_PERSISTENT_PROFILE_DIR.exists()
-    assert store.PLAYWRIGHT_SESSION_PATH.exists()
 
 
 # Issue #924: every auth error and deprecation notice must advise exactly one
