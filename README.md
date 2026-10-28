@@ -12,6 +12,16 @@ Command-line interface for the Yandex Direct API.
 pip install direct-cli
 ```
 
+### CI builds
+
+The GitHub Actions `Build` workflow builds and checks wheel and source
+distributions on Ubuntu, Windows, and macOS with Python 3.11. It runs on pushes
+to `main`, pull requests, and manually via **Actions → Build → Run workflow**.
+Each job installs the wheel and checks CLI help outside the source tree.
+Download packages from the run's **Artifacts** section (`direct-cli-<os>`).
+These are Python packages requiring Python 3.10+, not standalone executables.
+The separate `Quality` workflow runs lint, type checks, and offline tests.
+
 ### Мастер кампаний (Campaign Wizard) — browser-only
 
 Мастер кампаний has **no Yandex Direct API surface at all** — it only exists
