@@ -3811,10 +3811,18 @@ class TestSuspendResumeMaster(unittest.TestCase):
         attempts. The dialog's accept control is what actually suspends the
         campaign, so the retry loop must find and click it.
         """
-        state = {"status": "Кампания активна", "stop_clicks": 0, "accept_clicks": 0}
+        state = {
+            "status": "Кампания активна",
+            "stop_clicks": 0,
+            "radio_clicks": 0,
+            "accept_clicks": 0,
+        }
 
         def _stop():
             state["stop_clicks"] += 1
+
+        def _radio():
+            state["radio_clicks"] += 1
 
         def _accept():
             state["accept_clicks"] += 1
@@ -3828,6 +3836,9 @@ class TestSuspendResumeMaster(unittest.TestCase):
             },
             locators={
                 "#test-dialog": _FakeLocator([_FakeLocatorHandle(visible=True)]),
+                "#test-radio": _FakeLocator(
+                    [_FakeLocatorHandle(visible=True, on_click=_radio)]
+                ),
                 "#test-accept": _FakeLocator(
                     [_FakeLocatorHandle(visible=True, on_click=_accept)]
                 ),
@@ -3838,12 +3849,15 @@ class TestSuspendResumeMaster(unittest.TestCase):
         with patch.object(
             browser_masters, "_SUSPEND_CONFIRM_DIALOG_SELECTOR", "#test-dialog"
         ), patch.object(
+            browser_masters, "_SUSPEND_CONFIRM_RADIO_SELECTOR", "#test-radio"
+        ), patch.object(
             browser_masters, "_SUSPEND_CONFIRM_ACCEPT_SELECTOR", "#test-accept"
         ):
             result = browser_masters.suspend_master(page, 42)
 
         self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
         self.assertEqual(state["stop_clicks"], 1)
+        self.assertEqual(state["radio_clicks"], 1)
         self.assertEqual(state["accept_clicks"], 1)
 
     def test_suspend_reports_a_dialog_it_cannot_dismiss(self):
@@ -3865,6 +3879,9 @@ class TestSuspendResumeMaster(unittest.TestCase):
             },
             locators={
                 "#test-dialog": _FakeLocator([_FakeLocatorHandle(visible=True)]),
+                "#test-radio": _FakeLocator(
+                    [_FakeLocatorHandle(visible=True, on_click=lambda: None)]
+                ),
                 "#test-accept": _FakeLocator([_FakeLocatorHandle(raises=True)]),
             },
         )
@@ -3872,6 +3889,8 @@ class TestSuspendResumeMaster(unittest.TestCase):
 
         with patch.object(
             browser_masters, "_SUSPEND_CONFIRM_DIALOG_SELECTOR", "#test-dialog"
+        ), patch.object(
+            browser_masters, "_SUSPEND_CONFIRM_RADIO_SELECTOR", "#test-radio"
         ), patch.object(
             browser_masters, "_SUSPEND_CONFIRM_ACCEPT_SELECTOR", "#test-accept"
         ):
