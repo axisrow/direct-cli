@@ -505,8 +505,18 @@ _SUSPEND_CONFIRM_DIALOG_SELECTOR = '[data-testid="PauseCampaignModal.Wrapper"]'
 _SUSPEND_CONFIRM_ACCEPT_SELECTOR = (
     '[data-testid="PauseCampaignModal.Buttons.ActionButton"]'
 )
+# The modal's SUSPEND radio LOOKS pre-checked in the DOM, but unless its
+# label is clicked the accept control closes the modal as a silent no-op:
+# the overview header flips optimistically while the campaign stays ACTIVE
+# server-side (live-reconed 2026-10-29: a batch of three "SUSPENDED" results
+# held for 713234064 only after the radio-label click was added — 713234071
+# and 72456752 stayed ACTIVE on fresh reloads until re-suspended with it).
+_SUSPEND_CONFIRM_RADIO_SELECTOR = (
+    '[data-testid="PauseCampaignModal.RadioButton.SUSPEND"]'
+)
 _RESUME_CONFIRM_DIALOG_SELECTOR: Optional[str] = None
 _RESUME_CONFIRM_ACCEPT_SELECTOR: Optional[str] = None
+_RESUME_CONFIRM_RADIO_SELECTOR: Optional[str] = None
 
 # The modal's accept control only renders after the skeleton settles;
 # Playwright's actionability auto-wait covers that gap, but bounded
@@ -3228,7 +3238,10 @@ def _describe_dialog_outcome(
 
 
 def _dismiss_pending_dialog(
-    page: "Page", dialog_selector: Optional[str], accept_selector: Optional[str]
+    page: "Page",
+    dialog_selector: Optional[str],
+    radio_selector: Optional[str],
+    accept_selector: Optional[str],
 ) -> Optional[str]:
     """If the overview page is showing a confirmation dialog for the action
     button that was just clicked (issue #953), click its accept control.
@@ -3245,7 +3258,11 @@ def _dismiss_pending_dialog(
 
     The accept control renders ~1s after the modal skeleton; the click's
     actionability auto-wait (bounded by ``_CONFIRM_DIALOG_ACCEPT_TIMEOUT_MS``)
-    covers that gap.
+    covers that gap. When ``radio_selector`` is set, its label is clicked
+    first: the modal's radio may LOOK pre-checked, but without the explicit
+    label click the accept is a silent no-op server-side — the header flips
+    optimistically while the campaign stays ACTIVE (live-reconed 2026-10-29,
+    see the ``_SUSPEND_CONFIRM_RADIO_SELECTOR`` comment).
     """
     if not dialog_selector or not accept_selector:
         return None
@@ -3255,7 +3272,31 @@ def _dismiss_pending_dialog(
     except PlaywrightError:
         return None
 
+    # Wait for the accept control to RENDER before clicking the radio: both
+    # appear in the same content batch after the skeleton, and a radio click
+    # that lands on the skeleton is silently swallowed (its handler is not
+    # attached yet) — the accept then closes the dialog without a registered
+    # choice and the action never reaches the server (live: 2 of 3 campaigns
+    # stayed ACTIVE through the first radio-aware attempt for exactly this
+    # reason). A radio click that RAISES is the opposite failure and must be
+    # loud: returning "stuck" leaves the dialog open for the terminal error
+    # to name, instead of an accept click without a registered choice. The
+    # explicit timeout matches the sibling clicks — a bare click() would pay
+    # Playwright's ~30s default inside the 8s poll loop (#779/#848).
     accept = page.locator(accept_selector).first
+    try:
+        accept.wait_for(state="visible", timeout=_CONFIRM_DIALOG_ACCEPT_TIMEOUT_MS)
+    except PlaywrightError:
+        return "stuck"
+
+    if radio_selector:
+        try:
+            page.locator(radio_selector).first.click(
+                timeout=_CONFIRM_DIALOG_ACCEPT_TIMEOUT_MS
+            )
+        except PlaywrightError:
+            return "stuck"
+
     try:
         accept.click(timeout=_CONFIRM_DIALOG_ACCEPT_TIMEOUT_MS)
     except PlaywrightError:
@@ -3273,6 +3314,7 @@ def _click_and_wait_for_status_change(
     selector: Optional[str] = None,
     action_description: str,
     confirm_dialog_selector: Optional[str] = None,
+    confirm_radio_selector: Optional[str] = None,
     confirm_accept_selector: Optional[str] = None,
 ) -> str:
     """Click the action button and confirm the status really changed,
@@ -3339,7 +3381,10 @@ def _click_and_wait_for_status_change(
         # dismissal alone let the action through.
         dialog_outcome = (
             _dismiss_pending_dialog(
-                page, confirm_dialog_selector, confirm_accept_selector
+                page,
+                confirm_dialog_selector,
+                confirm_radio_selector,
+                confirm_accept_selector,
             )
             or dialog_outcome
         )
@@ -3575,6 +3620,7 @@ def _suspend_or_resume(
     button_texts: Tuple[str, ...],
     button_selector: Optional[str] = None,
     confirm_dialog_selector: Optional[str] = None,
+    confirm_radio_selector: Optional[str] = None,
     confirm_accept_selector: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Shared body for ``suspend_master``/``resume_master``.
@@ -3642,6 +3688,7 @@ def _suspend_or_resume(
         selector=button_selector,
         action_description="Clicked the action button",
         confirm_dialog_selector=confirm_dialog_selector,
+        confirm_radio_selector=confirm_radio_selector,
         confirm_accept_selector=confirm_accept_selector,
     )
 
@@ -3663,6 +3710,7 @@ def suspend_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         button_texts=_SUSPEND_BUTTON_TEXTS,
         button_selector=_SUSPEND_BUTTON_SELECTOR,
         confirm_dialog_selector=_SUSPEND_CONFIRM_DIALOG_SELECTOR,
+        confirm_radio_selector=_SUSPEND_CONFIRM_RADIO_SELECTOR,
         confirm_accept_selector=_SUSPEND_CONFIRM_ACCEPT_SELECTOR,
     )
 

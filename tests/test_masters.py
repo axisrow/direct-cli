@@ -3811,7 +3811,13 @@ class TestSuspendResumeMaster(unittest.TestCase):
         attempts. The dialog's accept control is what actually suspends the
         campaign, so the retry loop must find and click it.
         """
-        state = {"status": "Кампания активна", "stop_clicks": 0, "accept_clicks": 0}
+        state = {
+            "status": "Кампания активна",
+            "stop_clicks": 0,
+            "radio_clicks": 0,
+            "radio_after_accept_wait": False,
+            "accept_clicks": 0,
+        }
 
         def _stop():
             state["stop_clicks"] += 1
@@ -3819,6 +3825,21 @@ class TestSuspendResumeMaster(unittest.TestCase):
         def _accept():
             state["accept_clicks"] += 1
             state["status"] = "Кампания остановлена"
+
+        accept_handle = _FakeLocatorHandle(visible=True, on_click=_accept)
+
+        def _radio():
+            state["radio_clicks"] += 1
+            # Ordering pin: the radio may only be clicked AFTER the accept
+            # control's render wait fired — a radio click landing on the
+            # modal skeleton is silently swallowed (its handler is not
+            # attached yet), which is the failure mode that lost 2 of 3
+            # campaigns on the first radio-aware live attempt.
+            state["radio_after_accept_wait"] = bool(
+                accept_handle.wait_for_timeouts
+            )
+
+        radio_handle = _FakeLocatorHandle(visible=True, on_click=_radio)
 
         page = FakePage(
             text_buttons={
@@ -3828,9 +3849,8 @@ class TestSuspendResumeMaster(unittest.TestCase):
             },
             locators={
                 "#test-dialog": _FakeLocator([_FakeLocatorHandle(visible=True)]),
-                "#test-accept": _FakeLocator(
-                    [_FakeLocatorHandle(visible=True, on_click=_accept)]
-                ),
+                "#test-radio": _FakeLocator([radio_handle]),
+                "#test-accept": _FakeLocator([accept_handle]),
             },
         )
         page.inner_text = lambda selector=None: state["status"]
@@ -3838,12 +3858,20 @@ class TestSuspendResumeMaster(unittest.TestCase):
         with patch.object(
             browser_masters, "_SUSPEND_CONFIRM_DIALOG_SELECTOR", "#test-dialog"
         ), patch.object(
+            browser_masters, "_SUSPEND_CONFIRM_RADIO_SELECTOR", "#test-radio"
+        ), patch.object(
             browser_masters, "_SUSPEND_CONFIRM_ACCEPT_SELECTOR", "#test-accept"
         ):
             result = browser_masters.suspend_master(page, 42)
 
         self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
         self.assertEqual(state["stop_clicks"], 1)
+        self.assertEqual(state["radio_clicks"], 1)
+        self.assertTrue(state["radio_after_accept_wait"])
+        # The radio click pays the bounded confirm timeout like its sibling
+        # clicks — a bare click() would risk Playwright's ~30s default inside
+        # the 8s poll loop (issue #779/#848 review convention).
+        self.assertEqual(radio_handle.click_timeouts, [10_000])
         self.assertEqual(state["accept_clicks"], 1)
 
     def test_suspend_reports_a_dialog_it_cannot_dismiss(self):
@@ -3865,6 +3893,9 @@ class TestSuspendResumeMaster(unittest.TestCase):
             },
             locators={
                 "#test-dialog": _FakeLocator([_FakeLocatorHandle(visible=True)]),
+                "#test-radio": _FakeLocator(
+                    [_FakeLocatorHandle(visible=True, on_click=lambda: None)]
+                ),
                 "#test-accept": _FakeLocator([_FakeLocatorHandle(raises=True)]),
             },
         )
@@ -3872,6 +3903,8 @@ class TestSuspendResumeMaster(unittest.TestCase):
 
         with patch.object(
             browser_masters, "_SUSPEND_CONFIRM_DIALOG_SELECTOR", "#test-dialog"
+        ), patch.object(
+            browser_masters, "_SUSPEND_CONFIRM_RADIO_SELECTOR", "#test-radio"
         ), patch.object(
             browser_masters, "_SUSPEND_CONFIRM_ACCEPT_SELECTOR", "#test-accept"
         ):
