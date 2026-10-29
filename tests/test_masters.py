@@ -3670,11 +3670,12 @@ class TestSuspendResumeMaster(unittest.TestCase):
 
         self.assertEqual(result, {"CampaignId": 42, "Status": "ACTIVE"})
         # resume_master now navigates once itself (issue #758, to check for
-        # ARCHIVED) and _suspend_or_resume navigates again -- a harmless
-        # repeat visit to the same idempotent overview page, not a regression.
+        # ARCHIVED) and _suspend_or_resume navigates twice more -- the action
+        # read and the hold-check re-read (_STATUS_HOLD_DELAY_MS) -- harmless
+        # repeat visits to the same idempotent overview page, not a regression.
         self.assertEqual(
             page.navigated_to,
-            [browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=42)] * 2,
+            [browser_masters.WIZARD_OVERVIEW_URL.format(campaign_id=42)] * 3,
         )
 
     def test_suspend_clicks_candidate_button_and_verifies(self):
@@ -3802,6 +3803,67 @@ class TestSuspendResumeMaster(unittest.TestCase):
         result = browser_masters.suspend_master(page, 42)
 
         self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+        self.assertEqual(state["clicks"], 1)
+
+    def test_suspend_reports_when_the_flip_does_not_hold(self):
+        """Live 2026-10-29 (campaigns 713234071 / 72456752): the server
+        accepted ``SuspendCampaigns`` (``success`` + updatedCampaigns) and
+        the overview page showed SUSPENDED — then a fresh re-read ~30s later
+        showed ACTIVE again, in headless and headful browsers alike, while
+        713234064 from the same batch held. The flip can be optimistic, so a
+        suspend that does not hold must be reported as a failure, not as a
+        silent success.
+        """
+        state = {"status": "Кампания активна", "clicks": 0}
+
+        def _click():
+            state["clicks"] += 1
+            state["status"] = "Кампания остановлена"
+
+        page = FakePage(
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_click)]
+                )
+            },
+        )
+        # The bounce: once the hold-check re-render lands (second goto), the
+        # status reads ACTIVE again.
+        page.inner_text = lambda selector=None: (
+            "Кампания активна" if len(page.navigated_to) >= 2 else state["status"]
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.suspend_master(page, 42)
+
+        self.assertIn("did not hold", str(ctx.exception))
+        self.assertIn("NOT applied", str(ctx.exception))
+        # The bounce is not a click failure: no re-click after the flip.
+        self.assertEqual(state["clicks"], 1)
+
+    def test_suspend_success_when_the_flip_holds(self):
+        """The hold-check re-read confirms SUSPENDED — plain success, with
+        the extra fresh-render navigation on top of the action one.
+        """
+        state = {"status": "Кампания активна", "clicks": 0}
+
+        def _click():
+            state["clicks"] += 1
+            state["status"] = "Кампания остановлена"
+
+        page = FakePage(
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_click)]
+                )
+            },
+        )
+        page.inner_text = lambda selector=None: state["status"]
+
+        result = browser_masters.suspend_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+        self.assertEqual(len(page.navigated_to), 2)
         self.assertEqual(state["clicks"], 1)
 
     def test_suspend_clicks_the_confirm_dialog_accept_control(self):

@@ -572,6 +572,15 @@ _STATUS_HYDRATION_TIMEOUT_MS = 60_000
 # duplicated launch is not reversible.
 _STATUS_CLICK_MAX_ATTEMPTS = 4
 
+#: How long to let the flip settle before re-reading the status from a fresh
+#: render. The flip can be optimistic: live 2026-10-29, campaigns 713234071
+#: and 72456752 accepted ``SuspendCampaigns`` (``success`` + updatedCampaigns)
+#: and the overview page showed SUSPENDED — then a fresh re-read ~30s later
+#: showed ACTIVE again, in both headless and headful browsers, while
+#: 713234064 from the same batch held. Reporting success without this
+#: re-read reports a stop that silently never happened.
+_STATUS_HOLD_DELAY_MS = 30_000
+
 # Overview page's header title, confirmed live (issue #683) — present on
 # BOTH a DRAFT campaign's page (which has no "⋮" menu at all, see
 # _MENU_TRIGGER_SELECTOR below and issue #660) and every other status.
@@ -3644,6 +3653,26 @@ def _suspend_or_resume(
         confirm_dialog_selector=confirm_dialog_selector,
         confirm_accept_selector=confirm_accept_selector,
     )
+
+    # The flip can be optimistic (_STATUS_HOLD_DELAY_MS): verify it held with
+    # one fresh-render re-read before reporting success. An in-page re-read
+    # would not do — the live 2026-10-29 bounce happened while the already
+    # rendered page kept showing the flipped status.
+    page.wait_for_timeout(_STATUS_HOLD_DELAY_MS)
+    _goto_overview_page(page, campaign_id)
+    held_status = _wait_for_recognised_status(page)
+    if held_status not in target_statuses:
+        action = "suspend" if "SUSPENDED" in target_statuses else "resume"
+        raise BrowserSessionError(
+            f"The {action} of campaign {campaign_id} did not hold: the status "
+            f"flipped to {new_status}, but a fresh re-read "
+            f"{_STATUS_HOLD_DELAY_MS / 1000:.0f}s later shows {held_status!r}. "
+            "The server accepted the change and then it was reverted from "
+            "Yandex's side (live 2026-10-29: individual campaigns bounce back "
+            "to ACTIVE within ~30s in any browser, while others from the same "
+            "batch hold). The action is NOT applied — check this campaign's "
+            "own settings in the UI before retrying."
+        )
 
     return {"CampaignId": campaign_id, "Status": new_status}
 
