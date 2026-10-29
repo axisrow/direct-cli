@@ -3208,6 +3208,11 @@ def _describe_dialog_outcome(
     outcome: Optional[str], accept_selector: Optional[str]
 ) -> str:
     """One-sentence #953 diagnosis for the final "never changed" error."""
+    if accept_selector is None:
+        # resume passes no selectors, so no dialog was ever searched for —
+        # "not detected" would be an unverified claim and would contradict
+        # a resume modal that may well be visible on screen.
+        return "A confirmation dialog was not searched for on this action (#953). "
     if outcome == "dismissed":
         return (
             "A confirmation dialog was found and its accept control was "

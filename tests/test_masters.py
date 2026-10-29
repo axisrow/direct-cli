@@ -3727,6 +3727,23 @@ class TestSuspendResumeMaster(unittest.TestCase):
             browser_masters.suspend_master(page, 42)
         self.assertIn("never changed", str(ctx.exception))
 
+    def test_resume_never_changed_error_says_dialog_was_not_searched(self):
+        """Issue #953 review: resume passes no confirmation selectors, so its
+        dialog handling never runs — the final error must not claim "No
+        confirmation dialog was detected", an unverified claim that would
+        also contradict a resume modal visible on screen.
+        """
+        page = self._page_with_button(
+            "Кампания остановлена",
+            "Возобновить кампанию",
+            next_status_text="Кампания остановлена",  # unchanged after "click"
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.resume_master(page, 42)
+        self.assertIn("not searched for", str(ctx.exception))
+        self.assertNotIn("No confirmation dialog was detected", str(ctx.exception))
+
     def test_suspend_retries_click_when_first_one_is_a_no_op(self):
         """Issue #766: the first click on a freshly rendered overview page
         is frequently a silent no-op — Playwright's actionability checks all

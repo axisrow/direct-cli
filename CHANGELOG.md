@@ -37,6 +37,12 @@ and reuse share one browser fingerprint.
 
 ### Fixed
 
+- **`masters suspend` dismisses its confirmation modal (#953).** The stop
+  click now opens a confirmation dialog whose accept control is what
+  actually suspends; the retry loop finds and clicks it, and a dialog it
+  cannot dismiss is named in the final error. Resume has no modal — its
+  errors say the dialog "was not searched for" instead of claiming it was
+  not detected.
 - **Browser sessions send a real Chrome user-agent (#950).** Yandex met the
   default Playwright UA (`HeadlessChrome` in headless) with
   `showcaptchafast` / the login page even on a valid cookie jar; every
