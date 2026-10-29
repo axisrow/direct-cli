@@ -3274,10 +3274,15 @@ def _dismiss_pending_dialog(
 
     # Wait for the accept control to RENDER before clicking the radio: both
     # appear in the same content batch after the skeleton, and a radio click
-    # that lands on the skeleton is silently swallowed (suppressed here) —
-    # the accept then closes the dialog without a registered choice and the
-    # action never reaches the server (live: 2 of 3 campaigns stayed ACTIVE
-    # through the first radio-aware attempt for exactly this reason).
+    # that lands on the skeleton is silently swallowed (its handler is not
+    # attached yet) — the accept then closes the dialog without a registered
+    # choice and the action never reaches the server (live: 2 of 3 campaigns
+    # stayed ACTIVE through the first radio-aware attempt for exactly this
+    # reason). A radio click that RAISES is the opposite failure and must be
+    # loud: returning "stuck" leaves the dialog open for the terminal error
+    # to name, instead of an accept click without a registered choice. The
+    # explicit timeout matches the sibling clicks — a bare click() would pay
+    # Playwright's ~30s default inside the 8s poll loop (#779/#848).
     accept = page.locator(accept_selector).first
     try:
         accept.wait_for(state="visible", timeout=_CONFIRM_DIALOG_ACCEPT_TIMEOUT_MS)
@@ -3285,8 +3290,12 @@ def _dismiss_pending_dialog(
         return "stuck"
 
     if radio_selector:
-        with contextlib.suppress(PlaywrightError):
-            page.locator(radio_selector).first.click()
+        try:
+            page.locator(radio_selector).first.click(
+                timeout=_CONFIRM_DIALOG_ACCEPT_TIMEOUT_MS
+            )
+        except PlaywrightError:
+            return "stuck"
 
     try:
         accept.click(timeout=_CONFIRM_DIALOG_ACCEPT_TIMEOUT_MS)
