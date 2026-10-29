@@ -4774,14 +4774,13 @@ def copy_master(
     # just this specific subclass (issue #797, same "any BrowserSessionError
     # is transient, not just BrowserAuthError" fix as archive_master; the
     # previous version here only caught BrowserAuthError, so a plain
-    # transient HTTP 5xx/captcha still propagated raw). Letting any such
-    # error propagate unguarded would make _with_session
-    # (direct_cli/commands/masters.py) retry this ENTIRE function under a
-    # fresh session, silently duplicating the campaign — so a timeout while
-    # every poll errored still raises a plain BrowserSessionError (never a
-    # BrowserAuthError) so that retry does not trigger, and names new_id so
-    # the caller can check the clone that already exists instead of losing
-    # track of it.
+    # transient HTTP 5xx/captcha still propagated raw). Letting a
+    # BrowserAuthError propagate raw would abort a whole `--from-file`
+    # batch (commands/masters.py stops the remaining rows on a
+    # BrowserAuthError) and silently lose track of the clone that already
+    # exists — so a timeout while every poll errored still raises a plain
+    # BrowserSessionError (never a BrowserAuthError) naming new_id, so the
+    # caller can check the clone instead of duplicating it or losing it.
     updated, verify_exc = _poll_master_row_tolerant(
         page,
         new_id,
@@ -9368,9 +9367,11 @@ def update_master(
             # markup error) would otherwise surface alone, discarding the
             # context that the first attempt's save already failed to
             # verify (cycle-review PR #883). BrowserAuthError deliberately
-            # stays masked as a plain error here: after the first Save
-            # click the whole-op _with_session retry must NOT fire (see
-            # _update_master_once's own post-click guard).
+            # stays masked as a plain error here: a raw re-raise would abort
+            # a whole `--from-file` batch (commands/masters.py stops the
+            # remaining rows on a BrowserAuthError) over an error that is
+            # the tail of an already-retried, already-failed save, not a
+            # fresh session problem worth stopping for.
             raise BrowserSessionError(
                 f"{other} (the first attempt's save had already failed "
                 "verification; this error came from the automatic retry "
@@ -9477,8 +9478,8 @@ def _update_master_once(
     that doesn't visibly change the saved state is reported as a hard error,
     not a silent success, mirroring ``_suspend_or_resume``. Renaming is
     idempotent (re-applying the same name is harmless), so unlike
-    ``copy_master`` this function needs no extra guard against
-    ``_with_session``'s whole-operation retry on ``BrowserAuthError``.
+    ``copy_master`` this function needs no post-click guard translating a
+    mid-verification session expiry into a "do NOT retry" error.
 
     ``images`` (issue #670, Этап D) maps a 0-based POSITION (not a content
     ID — content IDs are Yandex-assigned and unknown to callers ahead of
@@ -10304,11 +10305,15 @@ def _update_master_once(
     # already-mutated set and replace DIFFERENT images than the ones the
     # caller named; see _set_image's docstring). If the saved session is
     # invalidated in exactly this window, _verify_saved's own
-    # assert_authenticated raises BrowserAuthError; letting that propagate
-    # as-is would make _with_session (direct_cli/commands/masters.py) retry
-    # this ENTIRE update_master call under a fresh session. Re-raise as a
-    # plain BrowserSessionError so that retry does not trigger — mirrors
-    # copy_master's identical guard around its own post-click verification.
+    # assert_authenticated raises BrowserAuthError. Letting it propagate raw
+    # would abort a whole `--from-file` batch (commands/masters.py stops the
+    # remaining rows on a BrowserAuthError) and read as "no session,
+    # nothing happened" although the click already landed. update_master's
+    # auto-retry fires on SaveNotVerifiedError only, so no retry can
+    # re-click anything here regardless — the wrapper below re-raises a
+    # plain BrowserSessionError carrying the honest "likely already
+    # applied; check manually" text. Mirrors copy_master's identical guard
+    # around its own post-click verification.
     # Merged into a single ``requested`` map for ``_verify_repeating_value_
     # mismatches`` — a cleared slot must re-read as ``""``, exactly the
     # expected value that map's plain equality check already compares
@@ -10458,10 +10463,13 @@ def _update_master_once(
         # This trip is just as irreversible/non-idempotent as the click
         # itself (see the guard above _verify_saved): if the session is
         # invalidated in this window, letting BrowserAuthError propagate
-        # bare would make _with_session retry the ENTIRE update_master call
-        # under a fresh session, re-mutating any --image replacements a
-        # second time (found via adversarial review, cycle-review round 1
-        # of PR #727).
+        # bare would abort a whole `--from-file` batch
+        # (commands/masters.py stops the remaining rows on a
+        # BrowserAuthError) and read as "no session, nothing happened"
+        # although the launch click already landed — so the wrapper below
+        # re-raises a plain BrowserSessionError with the honest "likely
+        # already applied and launched; check manually" text (found via
+        # adversarial review, cycle-review round 1 of PR #727).
         try:
             _goto_overview_page(page, campaign_id)
             _verify_launched_to_moderation(page, campaign_id)
@@ -13390,9 +13398,14 @@ def _save_and_verify_images(
     The whole post-``_apply_image_operations`` tail shared by
     ``add_master_images``/``delete_master_images``/``set_master_images``:
     resolve the draft-aware button label, click it, verify, and translate a
-    mid-verification session expiry into a "do NOT retry" error (these
-    commands are not idempotent, so ``_with_session``'s auto-retry must not
-    re-run them — same reasoning as ``update_master``'s own wrapper).
+    mid-verification session expiry into a plain ``BrowserSessionError``
+    with a "do NOT retry" text — these commands are not idempotent, the
+    terminal click has already landed, and a raw ``BrowserAuthError`` would
+    abort a whole ``--from-file`` batch (commands/masters.py stops the
+    remaining rows on it) instead of surfacing as this row's error. Same
+    reasoning as ``update_master``'s own post-click wrapper; the one-shot
+    auto-retry there fires on ``SaveNotVerifiedError`` only, so nothing here
+    can be re-clicked regardless.
     ``not_idempotent_noun`` is the phrase naming what was already applied
     ("image uploads", "image deletions", ...).
 
