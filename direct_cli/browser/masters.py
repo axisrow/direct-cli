@@ -487,6 +487,33 @@ _SUSPEND_BUTTON_SELECTOR = '[data-testid="CampaignHeader.ActionButton.stop"]'
 _RESUME_BUTTON_TEXTS = ("Возобновить кампанию", "Возобновить")
 _SUSPEND_BUTTON_TEXTS = ("Остановить кампанию", "Приостановить кампанию", "Остановить")
 
+# Issue #953: since late September 2026 the stop button no longer acts
+# directly — it opens a confirmation modal ("Остановка кампании") whose
+# content loads asynchronously (~1-2s of dc-Stub skeletons, incl. the
+# buttons themselves) and whose accept control is
+# ``PauseCampaignModal.Buttons.ActionButton`` ("Остановить"). The SUSPEND
+# radio is checked by default, so accepting the dialog confirms a full
+# suspend, not a timed pause. Live-reconed 2026-10-29 against campaign
+# 713234071: the modal appears only once the click's hydration race is won
+# (2nd-3rd click in live runs), and 100% of pre-fix ``masters suspend``
+# attempts died because nobody ever confirmed the modal.
+# The resume-side modal is NOT yet reconed — its selectors stay unset, so
+# resume keeps the bare retry loop until then (#953 follow-up). ``None`` is
+# deliberate: an absent handler must degrade to the old behaviour, not guess
+# selectors.
+_SUSPEND_CONFIRM_DIALOG_SELECTOR = '[data-testid="PauseCampaignModal.Wrapper"]'
+_SUSPEND_CONFIRM_ACCEPT_SELECTOR = (
+    '[data-testid="PauseCampaignModal.Buttons.ActionButton"]'
+)
+_RESUME_CONFIRM_DIALOG_SELECTOR: Optional[str] = None
+_RESUME_CONFIRM_ACCEPT_SELECTOR: Optional[str] = None
+
+# The modal's accept control only renders after the skeleton settles;
+# Playwright's actionability auto-wait covers that gap, but bounded
+# explicitly so a never-rendering dialog costs seconds, not the 30s locator
+# default.
+_CONFIRM_DIALOG_ACCEPT_TIMEOUT_MS = 10_000
+
 # How long to wait, after an action-button click, for the status text to
 # actually change before treating that click as a no-op and retrying.
 #
@@ -3054,6 +3081,27 @@ def _describe_page_buttons(page: "Page") -> str:
         )
     status = _read_status_text(page)
     parts.append(f"page status reads as {status!r}")
+    # Issue #953: a confirmation dialog blocking the action button renders
+    # OUTSIDE the header, so the button inventory alone can look perfectly
+    # normal ("enabled") while every click lands in the dialog's overlay.
+    # Listing visible dialogs/modals turns that case into a one-glance
+    # diagnosis too.
+    with contextlib.suppress(PlaywrightError):
+        dialogs = page.locator(
+            '[role="dialog"], [data-testid*="Modal" i], [data-testid*="Popup" i]'
+        )
+        found = []
+        for i in range(dialogs.count()):
+            handle = dialogs.nth(i)
+            with contextlib.suppress(PlaywrightError):
+                if not handle.is_visible():
+                    continue
+                testid = handle.get_attribute("data-testid")
+                label = (handle.inner_text() or "").strip().replace("\n", " ")[:80]
+                found.append(f"{testid!r} ({label!r})")
+        parts.append(
+            "visible dialogs/modals: " + (", ".join(found) if found else "none")
+        )
     return "; ".join(parts)
 
 
@@ -3156,6 +3204,60 @@ def _click_action_button(
     )
 
 
+def _describe_dialog_outcome(
+    outcome: Optional[str], accept_selector: Optional[str]
+) -> str:
+    """One-sentence #953 diagnosis for the final "never changed" error."""
+    if outcome == "dismissed":
+        return (
+            "A confirmation dialog was found and its accept control was "
+            "clicked, but the status still did not change (#953). "
+        )
+    if outcome == "stuck":
+        return (
+            "A confirmation dialog IS visible and is blocking the action, "
+            f"but its accept control ({accept_selector!r}) "
+            "could not be clicked (#953). "
+        )
+    return "No confirmation dialog was detected on the page (#953). "
+
+
+def _dismiss_pending_dialog(
+    page: "Page", dialog_selector: Optional[str], accept_selector: Optional[str]
+) -> Optional[str]:
+    """If the overview page is showing a confirmation dialog for the action
+    button that was just clicked (issue #953), click its accept control.
+
+    Returns ``"dismissed"`` when the dialog was visible and its accept
+    control was clicked, ``"stuck"`` when the dialog is visible but the
+    accept click itself failed, and ``None`` when there is nothing to
+    dismiss — the pre-2026-09 UI, and every selector-miss failure mode.
+    Never raises: the caller's retry loop and status poll remain the source
+    of truth about whether the action actually took effect, exactly as the
+    ``#766`` docstring requires. The selectors come from the caller (suspend
+    and resume have different modals); when either is unset the helper is a
+    no-op and that action behaves as before #953.
+
+    The accept control renders ~1s after the modal skeleton; the click's
+    actionability auto-wait (bounded by ``_CONFIRM_DIALOG_ACCEPT_TIMEOUT_MS``)
+    covers that gap.
+    """
+    if not dialog_selector or not accept_selector:
+        return None
+    dialog = page.locator(dialog_selector).first
+    try:
+        dialog.wait_for(state="visible", timeout=1_500)
+    except PlaywrightError:
+        return None
+
+    accept = page.locator(accept_selector).first
+    try:
+        accept.click(timeout=_CONFIRM_DIALOG_ACCEPT_TIMEOUT_MS)
+    except PlaywrightError:
+        return "stuck"
+    return "dismissed"
+
+
 def _click_and_wait_for_status_change(
     page: "Page",
     campaign_id: int,
@@ -3165,6 +3267,8 @@ def _click_and_wait_for_status_change(
     button_texts: Tuple[str, ...],
     selector: Optional[str] = None,
     action_description: str,
+    confirm_dialog_selector: Optional[str] = None,
+    confirm_accept_selector: Optional[str] = None,
 ) -> str:
     """Click the action button and confirm the status really changed,
     re-clicking if it did not (issue #766).
@@ -3190,6 +3294,7 @@ def _click_and_wait_for_status_change(
     succeeded. Reading first turns both cases into a plain success.
     """
     last_seen: Optional[str] = current_status
+    dialog_outcome: Optional[str] = None
     started = _clock.now()
     for attempt in range(1, _STATUS_CLICK_MAX_ATTEMPTS + 1):
         if attempt > 1:
@@ -3223,13 +3328,25 @@ def _click_and_wait_for_status_change(
             _log_timing(f"action-button click x{attempt}", started, last_seen)
             return last_seen  # type: ignore[return-value]
 
+        # Issue #953: the click may have opened a confirmation dialog instead
+        # of acting. Dismiss it before the next attempt — the following
+        # iteration's pre-click re-read picks the status up if the
+        # dismissal alone let the action through.
+        dialog_outcome = (
+            _dismiss_pending_dialog(
+                page, confirm_dialog_selector, confirm_accept_selector
+            )
+            or dialog_outcome
+        )
+
     raise BrowserSessionError(
         f"{action_description} for campaign {campaign_id} "
         f"{_STATUS_CLICK_MAX_ATTEMPTS} times, but its status never changed to "
         f"any of {target_statuses!r} (still {last_seen!r}) — each click was "
         f"given {_STATUS_CHANGE_TIMEOUT_MS / 1000:.0f}s to take effect. The "
-        f"page reports: {_describe_page_buttons(page)}. Verify manually "
-        "before retrying."
+        f"page reports: {_describe_page_buttons(page)}. "
+        + _describe_dialog_outcome(dialog_outcome, confirm_accept_selector)
+        + " Verify manually before retrying."
     )
 
 
@@ -3452,6 +3569,8 @@ def _suspend_or_resume(
     target_statuses: Tuple[str, ...],
     button_texts: Tuple[str, ...],
     button_selector: Optional[str] = None,
+    confirm_dialog_selector: Optional[str] = None,
+    confirm_accept_selector: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Shared body for ``suspend_master``/``resume_master``.
 
@@ -3517,6 +3636,8 @@ def _suspend_or_resume(
         button_texts=button_texts,
         selector=button_selector,
         action_description="Clicked the action button",
+        confirm_dialog_selector=confirm_dialog_selector,
+        confirm_accept_selector=confirm_accept_selector,
     )
 
     return {"CampaignId": campaign_id, "Status": new_status}
@@ -3536,6 +3657,8 @@ def suspend_master(page: "Page", campaign_id: int) -> Dict[str, Any]:
         target_statuses=("SUSPENDED",),
         button_texts=_SUSPEND_BUTTON_TEXTS,
         button_selector=_SUSPEND_BUTTON_SELECTOR,
+        confirm_dialog_selector=_SUSPEND_CONFIRM_DIALOG_SELECTOR,
+        confirm_accept_selector=_SUSPEND_CONFIRM_ACCEPT_SELECTOR,
     )
 
 
