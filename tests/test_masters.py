@@ -1914,6 +1914,11 @@ class TestOpenSessionAutoImport(unittest.TestCase):
                 patch("direct_cli.browser.session.capture_storage_state", capture_mock),
                 patch("direct_cli.browser.session.login_manual_session", login_window),
                 patch("direct_cli.browser.session.open_saved_session", fake_saved),
+                # The auto-import path calls store.save_session — without this
+                # patch a test run wrote its chrome-owner fixture envelope into
+                # the REAL ~/.direct-cli/playwright/session.json and killed the
+                # operator's live session (2026-10-29, see #954).
+                patch("direct_cli.browser.store.save_session"),
             ):
                 with _open_session(
                     ctx, headful=False, profile_dir=None, chrome_profile="Default"
@@ -3722,6 +3727,23 @@ class TestSuspendResumeMaster(unittest.TestCase):
             browser_masters.suspend_master(page, 42)
         self.assertIn("never changed", str(ctx.exception))
 
+    def test_resume_never_changed_error_says_dialog_was_not_searched(self):
+        """Issue #953 review: resume passes no confirmation selectors, so its
+        dialog handling never runs — the final error must not claim "No
+        confirmation dialog was detected", an unverified claim that would
+        also contradict a resume modal visible on screen.
+        """
+        page = self._page_with_button(
+            "Кампания остановлена",
+            "Возобновить кампанию",
+            next_status_text="Кампания остановлена",  # unchanged after "click"
+        )
+
+        with self.assertRaises(BrowserSessionError) as ctx:
+            browser_masters.resume_master(page, 42)
+        self.assertIn("not searched for", str(ctx.exception))
+        self.assertNotIn("No confirmation dialog was detected", str(ctx.exception))
+
     def test_suspend_retries_click_when_first_one_is_a_no_op(self):
         """Issue #766: the first click on a freshly rendered overview page
         is frequently a silent no-op — Playwright's actionability checks all
@@ -3781,6 +3803,84 @@ class TestSuspendResumeMaster(unittest.TestCase):
 
         self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
         self.assertEqual(state["clicks"], 1)
+
+    def test_suspend_clicks_the_confirm_dialog_accept_control(self):
+        """Issue #953: since late September 2026 the stop click opens a
+        confirmation dialog instead of acting — the click lands, the status
+        never changes, and the pre-#953 retry loop failed 100% of live
+        attempts. The dialog's accept control is what actually suspends the
+        campaign, so the retry loop must find and click it.
+        """
+        state = {"status": "Кампания активна", "stop_clicks": 0, "accept_clicks": 0}
+
+        def _stop():
+            state["stop_clicks"] += 1
+
+        def _accept():
+            state["accept_clicks"] += 1
+            state["status"] = "Кампания остановлена"
+
+        page = FakePage(
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_stop)]
+                )
+            },
+            locators={
+                "#test-dialog": _FakeLocator([_FakeLocatorHandle(visible=True)]),
+                "#test-accept": _FakeLocator(
+                    [_FakeLocatorHandle(visible=True, on_click=_accept)]
+                ),
+            },
+        )
+        page.inner_text = lambda selector=None: state["status"]
+
+        with patch.object(
+            browser_masters, "_SUSPEND_CONFIRM_DIALOG_SELECTOR", "#test-dialog"
+        ), patch.object(
+            browser_masters, "_SUSPEND_CONFIRM_ACCEPT_SELECTOR", "#test-accept"
+        ):
+            result = browser_masters.suspend_master(page, 42)
+
+        self.assertEqual(result, {"CampaignId": 42, "Status": "SUSPENDED"})
+        self.assertEqual(state["stop_clicks"], 1)
+        self.assertEqual(state["accept_clicks"], 1)
+
+    def test_suspend_reports_a_dialog_it_cannot_dismiss(self):
+        """Issue #953: a visible dialog whose accept control cannot be
+        clicked must be named in the final error, not swallowed into the
+        generic "never changed" text — the reader then knows the blocker is
+        the dialog, not the button.
+        """
+        state = {"status": "Кампания активна", "stop_clicks": 0}
+
+        def _stop():
+            state["stop_clicks"] += 1
+
+        page = FakePage(
+            text_buttons={
+                "Остановить кампанию": _FakeGetByTextLocator(
+                    [_FakeTextLocatorHandle(visible=True, on_click=_stop)]
+                )
+            },
+            locators={
+                "#test-dialog": _FakeLocator([_FakeLocatorHandle(visible=True)]),
+                "#test-accept": _FakeLocator([_FakeLocatorHandle(raises=True)]),
+            },
+        )
+        page.inner_text = lambda selector=None: state["status"]
+
+        with patch.object(
+            browser_masters, "_SUSPEND_CONFIRM_DIALOG_SELECTOR", "#test-dialog"
+        ), patch.object(
+            browser_masters, "_SUSPEND_CONFIRM_ACCEPT_SELECTOR", "#test-accept"
+        ):
+            with self.assertRaises(BrowserSessionError) as ctx:
+                browser_masters.suspend_master(page, 42)
+
+        self.assertIn("never changed", str(ctx.exception))
+        self.assertIn("dialog IS visible", str(ctx.exception))
+        self.assertEqual(state["stop_clicks"], 4)
 
     def test_no_second_click_when_the_first_lands_after_the_poll_deadline(self):
         """A click whose status update arrives only after the poll gave up
