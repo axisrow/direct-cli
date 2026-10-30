@@ -118,6 +118,28 @@ def _isolate_global_auth_store(request, monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _pin_sso_probe_offline(request, monkeypatch):
+    """Pin the #954 cookie-only SSO probe to its inconclusive verdict offline.
+
+    ``auth status`` and the Chrome-import auth-failure paths run a real
+    cookie-bearing GET to direct.yandex.ru when the machine carries a live
+    saved session — the offline tier must never depend on that round-trip
+    (same failure class as ``_block_login_resolve_network``: a test suite
+    whose outcome depends on the developer machine's live Yandex state).
+    Tests that exercise the probe patch ``urllib.request.build_opener`` or
+    ``probe_sso_session`` themselves and override this per-test. Live tiers
+    keep the real probe (same carve-out as ``_isolate_global_auth_store``).
+    """
+    for marker in _LIVE_MARKERS:
+        if request.node.get_closest_marker(marker):
+            return
+    monkeypatch.setattr(
+        "direct_cli.browser.session.probe_sso_session",
+        lambda *_args, **_kwargs: "unknown",
+    )
+
+
+@pytest.fixture(autouse=True)
 def _opt_in_global_profile_inheritance(monkeypatch):
     """Run offline tests under the #904 inheritance opt-in.
 

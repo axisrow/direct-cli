@@ -28,6 +28,11 @@ import pytest
 from direct_cli.browser import diagnostics, store
 from direct_cli.browser._chrome_crypto import ChromeCookieError
 
+# The real probe function, captured at import time: the conftest-wide offline
+# pin (_pin_sso_probe_offline) replaces the module attribute for every test,
+# and TestSsoProbe unit-tests the probe itself.
+from direct_cli.browser.session import probe_sso_session as _real_probe_sso_session
+
 
 @pytest.fixture(autouse=True)
 def _isolated_session_path(tmp_path, monkeypatch):
@@ -964,49 +969,53 @@ class TestSsoProbe(unittest.TestCase):
             yield recorded
 
     def test_http_200_reads_as_alive_and_sends_the_whole_jar(self):
-        from direct_cli.browser import session as browser_session
-
         with self._opener(status=200) as seen:
-            verdict = browser_session.probe_sso_session(self.JAR)
+            verdict = _real_probe_sso_session(self.JAR)
         self.assertEqual(verdict, "alive")
         self.assertIn("Session_id=sess", seen["cookie"])
         self.assertIn("yandexuid=uid", seen["cookie"])
         self.assertTrue(seen["user_agent"].startswith("Mozilla/5.0"))
 
     def test_redirect_to_passport_reads_as_revoked(self):
-        from direct_cli.browser import session as browser_session
-
         error = self._http_error(302, "https://passport.yandex.ru/auth?retpath=x")
         with self._opener(exc=error):
-            self.assertEqual(browser_session.probe_sso_session(self.JAR), "revoked")
+            self.assertEqual(_real_probe_sso_session(self.JAR), "revoked")
+
+    def test_redirect_to_passport_locales_reads_as_revoked(self):
+        """Passport's non-.ru login locales count too — by exact host name,
+        so a look-alike domain (passport.yandex.evil.ru) stays unknown."""
+
+        for host in ("passport.yandex.com", "passport.yandex.com.tr"):
+            with self.subTest(host=host):
+                error = self._http_error(302, f"https://{host}/auth")
+                with self._opener(exc=error):
+                    self.assertEqual(_real_probe_sso_session(self.JAR), "revoked")
+
+    def test_look_alike_passport_domain_is_not_a_revocation(self):
+        error = self._http_error(302, "https://passport.yandex.evil.ru/auth")
+        with self._opener(exc=error):
+            self.assertEqual(_real_probe_sso_session(self.JAR), "unknown")
 
     def test_redirect_elsewhere_is_not_a_revocation(self):
-        from direct_cli.browser import session as browser_session
-
         error = self._http_error(302, "https://yandex.ru/somewhere")
         with self._opener(exc=error):
-            self.assertEqual(browser_session.probe_sso_session(self.JAR), "unknown")
+            self.assertEqual(_real_probe_sso_session(self.JAR), "unknown")
 
     def test_non_redirect_statuses_are_inconclusive(self):
-        from direct_cli.browser import session as browser_session
-
         with self._opener(status=403):
-            self.assertEqual(browser_session.probe_sso_session(self.JAR), "unknown")
+            self.assertEqual(_real_probe_sso_session(self.JAR), "unknown")
 
     def test_network_failure_is_inconclusive_never_revoked(self):
-        from direct_cli.browser import session as browser_session
-
         with self._opener(exc=urllib.error.URLError("connection refused")):
-            self.assertEqual(browser_session.probe_sso_session(self.JAR), "unknown")
+            self.assertEqual(_real_probe_sso_session(self.JAR), "unknown")
 
     def test_jar_without_sso_cookies_is_probed_without_a_request(self):
         """No Session_id/sessionid2 → no session for the server to recognize
         or revoke; the request would be pure network noise."""
-        from direct_cli.browser import session as browser_session
 
         tracker_only = [{"name": "yandexuid", "value": "u", "domain": ".yandex.ru"}]
         with self._opener(status=200) as seen:
-            verdict = browser_session.probe_sso_session(tracker_only)
+            verdict = _real_probe_sso_session(tracker_only)
         self.assertEqual(verdict, "unknown")
         self.assertNotIn("cookie", seen, "no request must be opened at all")
 

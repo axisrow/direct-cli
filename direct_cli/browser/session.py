@@ -580,6 +580,13 @@ def _grid_shows_authenticated_session(page: "Page") -> Optional[bool]:
 #: never a reason to block the caller.
 _SSO_PROBE_TIMEOUT_SECONDS = 10.0
 
+#: Hosts Yandex's Passport serves the login redirect from. Exact names (see
+#: the verdict check below): the .ru host is the one live-confirmed by #954,
+#: the .com/.com.tr siblings are Passport's other login locales.
+_PASSPORT_LOGIN_HOSTS = frozenset(
+    {"passport.yandex.ru", "passport.yandex.com", "passport.yandex.com.tr"}
+)
+
 
 def revoked_sso_session_message() -> str:
     """The issue #954 diagnostic for a server-revoked SSO session.
@@ -671,7 +678,10 @@ def probe_sso_session(
     except urllib.error.HTTPError as error:
         if 300 <= error.code < 400:
             location = urllib.parse.urlsplit(error.headers.get("Location", ""))
-            if location.hostname == "passport.yandex.ru":
+            # Exact hosts, not a prefix match: "passport.yandex." would also
+            # cover Passport's non-.ru locales, but a prefix can't tell them
+            # from a look-alike domain (passport.yandex.evil.ru).
+            if location.hostname in _PASSPORT_LOGIN_HOSTS:
                 return "revoked"
         return "unknown"
     except (urllib.error.URLError, OSError):
