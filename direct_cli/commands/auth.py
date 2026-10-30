@@ -808,11 +808,13 @@ def status(
                 ).format(flags=" ".join(misplaced))
             )
         return
-    from ..browser.auth import session_status
+    from ..browser.auth import session_status_with_probe
 
     # Owner decision (issue #924): bare status reports both domains, as the
-    # old `--method all` did; the old default was API-only.
-    browser = session_status()
+    # old `--method all` did; the old default was API-only. The probe-bearing
+    # report (#954) is what makes "the session is dead" visible here without
+    # a manual curl.
+    browser = session_status_with_probe()
     if output_format == "json":
         payload = {"api": api_status(ctx, profile), "browser": browser}
         click.echo(json.dumps(payload, ensure_ascii=False))
@@ -865,10 +867,10 @@ def status_browser(
     output_format: str,
 ) -> None:
     """Show saved browser session metadata."""
-    from ..browser.auth import session_status
+    from ..browser.auth import session_status_with_probe
 
     _warn_profile_ignored_in_browser_domain(ctx)
-    browser = session_status()
+    browser = session_status_with_probe()
     if output_format == "json":
         click.echo(json.dumps(browser, ensure_ascii=False))
     else:
@@ -1231,22 +1233,46 @@ def browser_login(
 
 
 def _print_browser_status(payload: Dict[str, Any]) -> None:
-    """Keep the existing browser status text format (flat, single session)."""
+    """Keep the existing browser status text format (flat, single session).
+
+    The issue #954 facts (``created_at``, ``sso_cookies``, ``probe``) print
+    only when the payload carries them — every ``auth status`` path renders
+    the probe-bearing report; a plain network-free report (e.g. the internal
+    auto-import check) simply shows the original lines.
+    """
     owner = payload.get("owner_login")
     click.echo(
         f"saved_session: exists={payload['exists']} expired={payload['expired']} "
         f"cookie_count={payload['cookie_count']} path={payload['path']}"
         + (f" owner={owner}" if owner else "")
     )
+    created_at = payload.get("created_at")
+    if isinstance(created_at, (int, float)):
+        created = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(created_at))
+        click.echo(f"  created_at: {created}")
+    names = payload.get("sso_cookie_names")
+    if names is not None:
+        shown = f" ({', '.join(names)})" if names else ""
+        click.echo(f"  sso_cookies: {len(names)}{shown}")
+    probe = payload.get("probe")
+    if probe:
+        click.echo(f"  probe: {probe}")
+        if probe == "revoked":
+            from ..browser.session import revoked_sso_session_message
+
+            click.echo(f"  {revoked_sso_session_message()}")
     if payload["error"]:
         click.echo(f"  error: {payload['error']}")
 
 
 def browser_status(output_format: str, output: Optional[str]) -> None:
     """Render a saved browser status for legacy and canonical auth commands."""
-    from ..browser.auth import session_status
+    from ..browser.auth import session_status_with_probe
 
-    payload = session_status()
+    # The probe-bearing report (#954): the hidden legacy aliases must render
+    # the exact same browser payload `auth status` does — the JSON contract
+    # test (bare status == api + browser subcommands) pins that equality.
+    payload = session_status_with_probe()
     if output_format == "text":
         _print_browser_status(payload)
     else:

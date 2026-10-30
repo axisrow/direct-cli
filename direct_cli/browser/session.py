@@ -30,12 +30,16 @@ profile machinery was removed in this release.
 import contextlib
 import os
 import platform
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
     Generator,
+    List,
     Optional,
     Sequence,
     Tuple,
@@ -45,6 +49,7 @@ from . import _clock
 from . import store
 from .._auth_hints import HINT_LOGIN_BROWSER, HINT_LOGIN_BROWSER_CHROME
 from .._captcha import find_captcha_marker, find_marker
+from ..i18n import t
 from ..output import print_warning_stderr
 
 if TYPE_CHECKING:
@@ -433,6 +438,13 @@ def _is_yandex_ru_domain(domain: str) -> bool:
 # absent cookie means an unstamped session, the soft fallback.
 _OWNER_LOGIN_COOKIE_NAME = "yandex_login"
 
+#: The cookie names whose presence (and server recognition) *is* the SSO
+#: session — the auth pair plus the identity cookie. ``auth status`` reports
+#: how many of these the saved jar carries (issue #954): a jar missing them
+#: was never a session, while a jar carrying them can still have been
+#: revoked server-side — what :func:`probe_sso_session` is for.
+SSO_COOKIE_NAMES = _AUTH_SESSION_COOKIE_NAMES | {_OWNER_LOGIN_COOKIE_NAME}
+
 #: UA platform token per host OS. Playwright's ``user_agent`` overrides
 #: only the UA string — ``navigator.platform`` and ``sec-ch-ua-platform``
 #: keep reporting the real host, so a Macintosh UA over Linux/Windows
@@ -561,6 +573,144 @@ def _grid_shows_authenticated_session(page: "Page") -> Optional[bool]:
     except BrowserAuthError:
         return False
     return True
+
+
+#: Per-request budget of :func:`probe_sso_session`. A single GET, no retries:
+#: a probe that cannot answer quickly is an inconclusive probe ("unknown"),
+#: never a reason to block the caller.
+_SSO_PROBE_TIMEOUT_SECONDS = 10.0
+
+
+def revoked_sso_session_message() -> str:
+    """The issue #954 diagnostic for a server-revoked SSO session.
+
+    Shared verbatim by every revoked verdict site (``--no-verify`` import,
+    the verify-failure path and a saved-session command failing mid-flight,
+    plus ``auth status``'s revoked line), so the advice cannot drift between
+    them: the fix is always re-login in Chrome and re-import.
+    """
+    return t(
+        "Yandex's server no longer recognizes this browser session (the "
+        "cookie-only check was redirected to passport.yandex.ru). Log in to "
+        "https://direct.yandex.ru in Chrome, then run: {hint}"
+    ).format(hint=HINT_LOGIN_BROWSER_CHROME)
+
+
+def revoked_sso_session_error() -> "BrowserAuthError":
+    """:class:`BrowserAuthError` carrying :func:`revoked_sso_session_message`."""
+    return BrowserAuthError(revoked_sso_session_message())
+
+
+def probe_sso_session(
+    cookies: Sequence[Dict[str, Any]],
+    *,
+    timeout_seconds: float = _SSO_PROBE_TIMEOUT_SECONDS,
+) -> str:
+    """One cookie-only ``GET`` to the campaigns grid — no browser (issue #954).
+
+    A server-side session revocation is invisible on disk: the cookies stay
+    formally unexpired, every browser flow reads as the #870 login-page/bot-
+    challenge ambiguity, and only a bare HTTP request settles it — the exact
+    manual curl the #954 reporter had to run. This probe is that curl: the
+    jar is sent as one ``Cookie`` header to ``GRID_URL`` and the *status line*
+    is the whole verdict —
+
+    - ``"alive"`` — HTTP 200: the server still recognizes this jar;
+    - ``"revoked"`` — a 3xx redirect to ``passport.yandex.ru``: the server
+      bounces this jar to the login page. The session was revoked
+      server-side; no browser/fingerprint diagnosis applies;
+    - ``"unknown"`` — everything else: network failure, timeout, a non-redirect
+      status, a redirect somewhere else. Inconclusive, and deliberately
+      non-fatal at every call site: an unknown probe must never block a flow
+      that worked without it.
+
+    A jar carrying none of :data:`_AUTH_SESSION_COOKIE_NAMES` is probed
+    without a request — with no SSO cookie there is no session for the
+    server to either recognize or revoke, so ``"unknown"`` is the honest
+    verdict (the caller's own no-session error already covers it).
+    """
+    # Deferred import: GRID_URL's canonical source is masters.py (CLAUDE.md
+    # "No URL literals outside the registry"); deferred like the other GRID_URL
+    # uses in this module to keep the session.py <-> masters.py cycle broken.
+    from .masters import GRID_URL
+
+    has_sso_cookie = any(
+        cookie.get("name") in _AUTH_SESSION_COOKIE_NAMES
+        and _is_yandex_ru_domain(str(cookie.get("domain", "")))
+        for cookie in cookies
+    )
+    if not has_sso_cookie:
+        return "unknown"
+    # The full jar, like the manual curl diagnosis: all hosts' cookies share
+    # the request, duplicates resolve to the last occurrence — the SSO pair
+    # itself lives only on .yandex.ru and does not collide.
+    header = "; ".join(
+        f"{cookie['name']}={cookie['value']}"
+        for cookie in cookies
+        if cookie.get("name") and cookie.get("value") is not None
+    )
+    request = urllib.request.Request(
+        GRID_URL,
+        headers={
+            "Cookie": header,
+            # The jar was issued to Chrome; the #950 UA is what keeps Yandex
+            # from answering even a valid jar with a captcha interstitial.
+            "User-Agent": _resolve_user_agent(None),
+        },
+        method="GET",
+    )
+
+    class _NoRedirects(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None  # surfaces the 3xx itself as an HTTPError
+
+    opener = urllib.request.build_opener(_NoRedirects)
+    try:
+        with opener.open(request, timeout=timeout_seconds) as response:
+            return "alive" if response.status == 200 else "unknown"
+    except urllib.error.HTTPError as error:
+        if 300 <= error.code < 400:
+            location = urllib.parse.urlsplit(error.headers.get("Location", ""))
+            if location.hostname == "passport.yandex.ru":
+                return "revoked"
+        return "unknown"
+    except (urllib.error.URLError, OSError):
+        # URLError covers DNS/refused/timeout; OSError the raw socket errors.
+        # Connectivity says nothing about the session (#857's lesson).
+        return "unknown"
+
+
+def probe_saved_session(path: Optional[Path] = None) -> str:
+    """:func:`probe_sso_session` over the saved envelope's jar (issue #954).
+
+    Best-effort by design: a missing, corrupt or cookie-less envelope probes
+    as ``"unknown"`` without touching the network — ``auth status`` and the
+    open-session failure path must stay informative on a machine that simply
+    has no session yet.
+    """
+    envelope = store.read_session_envelope(path)
+    storage_state = envelope.get("storage_state") if envelope else None
+    cookies = storage_state.get("cookies") if isinstance(storage_state, dict) else None
+    if not isinstance(cookies, list):
+        return "unknown"
+    return probe_sso_session(cookies)
+
+
+def sso_cookie_names(cookies: Sequence[Dict[str, Any]]) -> List[str]:
+    """Which of :data:`SSO_COOKIE_NAMES` a jar carries, sorted (issue #954).
+
+    Only ``*.yandex.ru``-domain cookies count — the same scoping
+    :func:`_owner_login_from_cookies` uses, so a foreign-domain look-alike
+    cannot inflate the inventory.
+    """
+    return sorted(
+        {
+            cookie["name"]
+            for cookie in cookies
+            if cookie.get("name") in SSO_COOKIE_NAMES
+            and _is_yandex_ru_domain(str(cookie.get("domain", "")))
+        }
+    )
 
 
 def default_chrome_profile_dir() -> Optional[Path]:
@@ -738,8 +888,11 @@ def capture_storage_state(
     When ``verify`` is true (the default), navigates to the campaigns grid and
     runs the same captcha/auth checks ``direct masters`` uses, so a bad cookie
     jar is caught here rather than surfacing later as a confusing masters
-    error. ``verify=False`` skips navigation entirely — for a captcha-gated
-    network where the cookies are known-good but a live check isn't possible.
+    error. ``verify=False`` skips the browser navigation — for a captcha-gated
+    network where the cookies are known-good but a live check isn't possible —
+    but still runs the cookie-only probe (:func:`probe_sso_session`): a jar
+    Yandex no longer recognizes is refused even when the browser check is
+    skipped (issue #954).
 
     Returns ``(storage_state, source_meta)`` — ``source_meta`` is diagnostic
     provenance (``profile_dir``, ``chrome_profile``) for the saved envelope,
@@ -751,6 +904,14 @@ def capture_storage_state(
     from . import _chrome_crypto
 
     cookies = _chrome_crypto.load_yandex_cookies(source_root, chrome_profile)
+
+    # Issue #954: --no-verify skips the browser check, but a jar the server
+    # has already stopped recognizing must not be saved under a fresh-looking
+    # envelope — that is exactly what masked the revoked session in the #954
+    # report. The probe is cookie-only, so this refusal happens before any
+    # browser is launched.
+    if not verify and probe_sso_session(cookies) == "revoked":
+        raise revoked_sso_session_error()
 
     def _capture(*, headless: bool) -> Tuple[Dict[str, Any], bool]:
         """Launch one context, inject the cookies, optionally verify.
@@ -823,6 +984,12 @@ def capture_storage_state(
     try:
         storage_state, verified = _capture(headless=headless)
     except BrowserAuthError as auth_error:
+        # Issue #954: a server-side revocation is invisible to the browser
+        # check — it reads as the same login page a bot challenge produces.
+        # One cookie-only GET settles which story is true before any of the
+        # expiry-based messages below is chosen.
+        if probe_sso_session(cookies) == "revoked":
+            raise revoked_sso_session_error() from auth_error
         # Issue #870 п.2: judge the cookies by expires_utc before saying
         # anything about expiry. A failed headless verification never upgrades
         # itself to a visible browser; the caller must opt in explicitly.
