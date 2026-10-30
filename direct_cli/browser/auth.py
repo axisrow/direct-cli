@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Generator, Optional
 
-from .._auth_hints import HINT_LOGIN_BROWSER
+from .._auth_hints import HINT_LOGIN_BROWSER, HINT_LOGIN_BROWSER_MANUAL
 from ..i18n import t
 from ..output import print_warning_stderr
 from . import session, store
@@ -148,7 +148,7 @@ def open_session(*, headless: bool = True) -> Generator["Page", None, None]:
                 t(
                     "No usable saved browser session and the automatic import "
                     "from Chrome failed: {error}. Run: {hint}"
-                ).format(error=exc, hint=HINT_LOGIN_BROWSER)
+                ).format(error=exc, hint=HINT_LOGIN_BROWSER_MANUAL)
             ) from exc
         store.save_session(
             storage_state,

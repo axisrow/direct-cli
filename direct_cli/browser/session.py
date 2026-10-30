@@ -12,15 +12,18 @@ bundled Chromium context (:func:`open_saved_session`).
 
 Filling that one file:
 
-- Chrome import (:func:`capture_storage_state`, ``auth login browser
-  --source chrome``): decrypts the user's live Yandex cookies from Chrome
-  itself (macOS: the AES key lives in the login Keychain, never in ``Local
-  State`` — see ``direct_cli/browser/_chrome_crypto.py`` and #634) and saves
-  them as the envelope. The user's own Chrome window is never touched.
-- Manual login (:func:`login_manual_session`, ``auth login browser``): a
-  visible window on a fresh context; the login is detected from the cookie
-  jar and the envelope is saved from the same context (#950: one
-  user-agent for both issuing and replaying a session).
+- Chrome import (:func:`capture_storage_state`, ``auth login browser``, i.e.
+  ``--source chrome``, the headless default): decrypts the user's live Yandex
+  cookies from Chrome itself (macOS: the AES key lives in the login Keychain,
+  never in ``Local State`` — see ``direct_cli/browser/_chrome_crypto.py`` and
+  #634) and saves them as the envelope. The user's own Chrome window is never
+  touched.
+- Manual login (:func:`login_manual_session`, ``auth login browser --source
+  manual``): the explicit opt-in to a visible window on a fresh context; the
+  login is detected from the cookie jar and the envelope is saved from the
+  same context (#950: one user-agent for both issuing and replaying a
+  session). Nothing opens this window implicitly (headless contract,
+  ``AGENTS.md``).
 
 ``open_session`` (``direct_cli/browser/auth.py``) auto-imports from Chrome
 when the envelope is missing or expired; the former persistent Chromium
@@ -43,7 +46,7 @@ from typing import (
 
 from . import _clock
 from . import store
-from .._auth_hints import HINT_LOGIN_BROWSER, HINT_LOGIN_BROWSER_CHROME
+from .._auth_hints import HINT_LOGIN_BROWSER_CHROME, HINT_LOGIN_BROWSER_MANUAL
 from .._captcha import find_captcha_marker, find_marker
 from ..output import print_warning_stderr
 
@@ -667,7 +670,7 @@ def login_manual_session(*, timeout_ms: int = _LOGIN_WAIT_TIMEOUT_MS) -> Dict[st
             # through as a rendered login page.
             raise BrowserSessionError(
                 f"Timed out waiting for {_PASSPORT_LOGIN_URL} to render. "
-                f"Retry {HINT_LOGIN_BROWSER}."
+                f"Retry {HINT_LOGIN_BROWSER_MANUAL}."
             )
 
         deadline = _clock.now() + timeout_ms / 1000
@@ -707,12 +710,12 @@ def login_manual_session(*, timeout_ms: int = _LOGIN_WAIT_TIMEOUT_MS) -> Dict[st
             raise BrowserSessionError(
                 "The browser window was closed (or crashed) while waiting "
                 "for you to log in — there is nothing left to wait for. Run "
-                f"{HINT_LOGIN_BROWSER} again."
+                f"{HINT_LOGIN_BROWSER_MANUAL} again."
             ) from exc
 
         raise BrowserAuthError(
             f"Timed out after {timeout_ms // 1000}s waiting for login to "
-            f"{_PASSPORT_LOGIN_URL} to complete. Run {HINT_LOGIN_BROWSER} "
+            f"{_PASSPORT_LOGIN_URL} to complete. Run {HINT_LOGIN_BROWSER_MANUAL} "
             "again and finish signing in within the time limit."
         )
 
@@ -848,7 +851,8 @@ def capture_storage_state(
             "cookies do not show an expired session. The session may have been "
             "invalidated server-side or rejected by a bot challenge. "
             "No visible browser was opened. Retry with: "
-            f"{HINT_LOGIN_BROWSER_CHROME}."
+            f"{HINT_LOGIN_BROWSER_CHROME}, or log in by hand in a window "
+            f"(explicit opt-in): {HINT_LOGIN_BROWSER_MANUAL}."
         ) from auth_error
 
     source_meta = {

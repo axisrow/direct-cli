@@ -11,7 +11,7 @@ import click
 from click.core import ParameterSource
 
 from . import __version__
-from ._auth_hints import HINT_LOGIN_API
+from ._auth_hints import HINT_LOGIN_API_INTERACTIVE
 from .auth import (
     BIND_PROFILE_ENV,
     INHERIT_GLOBAL_ENV,
@@ -143,11 +143,11 @@ def _bind_hints() -> str:
         "No credentials bound to this folder. Run `{hint}` or "
         "`direct auth write --profile <name>` to bind one, "
         "pass --profile, or set {env}=1 to use the global active profile."
-    ).format(hint=HINT_LOGIN_API, env=INHERIT_GLOBAL_ENV)
+    ).format(hint=HINT_LOGIN_API_INTERACTIVE, env=INHERIT_GLOBAL_ENV)
 
 
 def _ensure_credentials_bound(ctx: click.Context) -> None:
-    """Fail without credentials; only auth login may start an interactive login."""
+    """Fail without credentials; an ordinary command never starts a login."""
     if (
         inherit_globally_enabled()
         # A folder link names its profile explicitly (issue #917) — bound.
