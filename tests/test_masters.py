@@ -37,6 +37,7 @@ from click.testing import CliRunner
 
 from direct_cli.browser import _clock
 from direct_cli.browser import masters as browser_masters
+from direct_cli.browser import session as browser_session
 from direct_cli.browser.masters import PlaywrightError
 from direct_cli.browser.session import (
     BrowserAuthError,
@@ -56,6 +57,10 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 # for the whole module — otherwise every empty-image-set test (there are
 # many, across several classes) would pay the real production grace period.
 _images_ghost_grace_patch = patch.object(browser_masters, "_IMAGES_GHOST_GRACE_S", 0.0)
+
+# Module-wide patches started in setUpModule; their stop callbacks live here
+# so tearDownModule can undo them in start order.
+_module_teardowns: List[Any] = []
 
 # Issue #767: every poll loop in `direct_cli/browser/` has two time sources —
 # the deadline (`_clock.now()`) and the tick (`page.wait_for_timeout`, a real
@@ -90,11 +95,24 @@ def _advance_fake_clock(timeout_ms):
 
 def setUpModule():
     _images_ghost_grace_patch.start()
+    # Issue #954: the auth-failure paths now run a cookie-only network probe;
+    # this module's fixtures stand in for a live session, so the probe is
+    # pinned to its inconclusive "unknown" verdict — the legacy messages the
+    # existing assertions expect — and never touches the network.
+    _sso_probe_patches = [
+        patch.object(browser_session, "probe_sso_session", return_value="unknown"),
+        patch.object(browser_session, "probe_saved_session", return_value="unknown"),
+    ]
+    for _patch in _sso_probe_patches:
+        _patch.start()
+        _module_teardowns.append(_patch.stop)
     _clock.set_clock(_fake_now)
 
 
 def tearDownModule():
     _clock.set_clock(time.monotonic)
+    for _stop in _module_teardowns:
+        _stop()
     _images_ghost_grace_patch.stop()
 
 

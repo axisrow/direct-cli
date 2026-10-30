@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### Added
+
+- **Cookie-only SSO probe: server-revoked sessions are named, not guessed (#954).**
+  When Yandex revokes the SSO session server-side, every browser flow used to
+  read as the #870 "login page instead of Direct" ambiguity while the cookies
+  stayed formally fresh. A single cookie-only `GET` to the campaigns grid (no
+  browser, `urllib`) now settles it: a 3xx redirect to `passport.yandex.ru`
+  means the session was revoked server-side, HTTP 200 leaves the existing
+  bot-challenge/expiry diagnosis in place, anything else is inconclusive and
+  never blocks.
+  - The probe runs on every auth failure: in the Chrome-import verify path
+    and when a saved-session command fails mid-flight, a revoked verdict
+    replaces the ambiguous error with an explicit "log in to Direct in Chrome
+    and re-import" message.
+  - `auth login browser --source chrome --no-verify` runs the same probe and
+    refuses to save a jar the server no longer recognizes (that save was
+    masking dead sessions under fresh-looking envelopes).
+  - `auth status` (and `auth status browser`) report the probe verdict
+    (`probe`: `alive`/`revoked`/`unknown`), the SSO cookie inventory
+    (`sso_cookies`, `sso_cookie_names`: `Session_id`/`sessionid2`/
+    `yandex_login`) and the envelope's `created_at`. `probe` and the SSO keys
+    are new JSON keys; `masters status` renders the same payload.
+
 ### BREAKING CHANGES
 
 **One browser session: `~/.direct-cli/playwright/session.json`.**
