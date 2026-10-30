@@ -178,6 +178,54 @@ class TestSessionStatus(unittest.TestCase):
         status = store.session_status(now=5000.0)
         self.assertTrue(status["expired"])
 
+    def test_short_lived_tracking_cookie_does_not_expire_a_live_session(self):
+        # `_ym_isad` (Metrica) lives ~2 days; the SSO pair lives a year. Judging
+        # by the earliest cookie flagged every session expired every other day,
+        # and open_session then re-imported from Chrome — which fails wherever
+        # Chrome's cookie database is unreadable.
+        store.save_session(
+            {
+                "cookies": [
+                    {"name": "_ym_isad", "value": "1", "expires": 1000.0},
+                    {"name": "Session_id", "value": "2", "expires": 9000.0},
+                    {"name": "sessionid2", "value": "3", "expires": 8000.0},
+                ],
+                "origins": [],
+            }
+        )
+        status = store.session_status(now=2000.0)
+        self.assertEqual(status["expires_at"], 8000.0)
+        self.assertFalse(status["expired"])
+
+    def test_expired_sso_cookie_expires_the_session_despite_fresh_tracking(self):
+        store.save_session(
+            {
+                "cookies": [
+                    {"name": "yandexuid", "value": "1", "expires": 9000.0},
+                    {"name": "Session_id", "value": "2", "expires": 1000.0},
+                    {"name": "sessionid2", "value": "3", "expires": 9000.0},
+                ],
+                "origins": [],
+            }
+        )
+        status = store.session_status(now=2000.0)
+        self.assertEqual(status["expires_at"], 1000.0)
+        self.assertTrue(status["expired"])
+
+    def test_session_only_sso_cookies_leave_expiry_unknown_not_expired(self):
+        store.save_session(
+            {
+                "cookies": [
+                    {"name": "_ym_isad", "value": "1", "expires": 1000.0},
+                    {"name": "Session_id", "value": "2", "expires": -1},
+                ],
+                "origins": [],
+            }
+        )
+        status = store.session_status(now=2000.0)
+        self.assertIsNone(status["expires_at"])
+        self.assertIsNone(status["expired"])
+
     def test_age_seconds_computed_from_created_at(self):
         store.save_session({"cookies": [], "origins": []})
         envelope = store.read_session_envelope()
@@ -549,9 +597,7 @@ class TestAssertSessionOwner(unittest.TestCase):
             browser_auth, "_expected_session_login", return_value="ksamatadirect"
         ):
             with self.assertRaises(BrowserAuthError) as cm:
-                browser_auth._assert_session_owner(
-                    self._status("engineeringprint-ru")
-                )
+                browser_auth._assert_session_owner(self._status("engineeringprint-ru"))
         message = str(cm.exception)
         self.assertIn("engineeringprint-ru", message)
         self.assertIn("ksamatadirect", message)
@@ -598,7 +644,9 @@ class TestAssertSessionOwner(unittest.TestCase):
             browser_auth, "_expected_session_login", return_value="expected"
         ) as anchor:
             with patch.object(browser_auth, "print_warning_stderr") as warn:
-                browser_auth._assert_session_owner({"exists": False, "owner_login": None})
+                browser_auth._assert_session_owner(
+                    {"exists": False, "owner_login": None}
+                )
         anchor.assert_not_called()
         warn.assert_not_called()
 

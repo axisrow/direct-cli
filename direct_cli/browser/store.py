@@ -38,6 +38,11 @@ SESSION_FORMAT_VERSION = 1
 
 PLAYWRIGHT_SESSION_PATH = Path.home() / ".direct-cli" / "playwright" / "session.json"
 
+# Yandex Passport's authenticated-session cookies: the SSO pair shared by every
+# *.yandex.ru host. Lives here, not in session.py, because this module must stay
+# import-clean and session.py already imports it.
+AUTH_SESSION_COOKIE_NAMES = frozenset({"Session_id", "sessionid2"})
+
 
 class SessionStoreError(RuntimeError):
     """Raised when a saved session cannot be read, is missing, or is corrupt."""
@@ -231,10 +236,18 @@ def session_status(
     # Playwright uses -1 (or omits the field) for session-only cookies with
     # no expiry; only positive values are real expiry timestamps. The
     # earliest-expiring auth cookie is what actually kills the session, so
-    # take the minimum across positive expiries.
+    # judge the SSO pair alone: the jar always carries short-lived tracking
+    # cookies (Metrica's `_ym_isad` lives ~2 days) that would flag a healthy
+    # session expired every other day. A jar with no SSO cookie at all (renamed
+    # by Yandex, or synthetic) keeps the older rule: the earliest dated cookie.
+    sso = [
+        c
+        for c in cookies
+        if isinstance(c, dict) and c.get("name") in AUTH_SESSION_COOKIE_NAMES
+    ]
     positive_expiries = [
         c["expires"]
-        for c in cookies
+        for c in (sso or cookies)
         if isinstance(c, dict)
         and isinstance(c.get("expires"), (int, float))
         and c["expires"] > 0
@@ -243,8 +256,8 @@ def session_status(
         expires_at = min(positive_expiries)
         status["expires_at"] = expires_at
         status["expired"] = expires_at <= current
-    # else: every cookie is session-only (or there are no cookies) -- expiry
-    # is genuinely unknown, leave expires_at/expired as None rather than
+    # else: every judged cookie is session-only (or there are no cookies) --
+    # expiry is genuinely unknown, leave expires_at/expired as None rather than
     # guessing.
 
     return status
