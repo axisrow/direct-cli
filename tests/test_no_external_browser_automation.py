@@ -11,8 +11,12 @@ cassettes, Yandex WSDL/Reports snapshots) — everything else, including the
 vendor tree, docs and CHANGELOG, is in scope.
 """
 
+import os
 import re
 from pathlib import Path
+from typing import Iterator
+
+import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -23,6 +27,7 @@ _SKIP_PARTS = {
     ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
+    ".venv",
     "__pycache__",
     "node_modules",
     "htmlcov",
@@ -53,18 +58,24 @@ _EXTERNAL_AUTOMATION_RE = re.compile(
 )
 
 
+def _scan_files(root: Path) -> Iterator[Path]:
+    """Prune excluded trees before descending, including installed dependencies."""
+    for directory, subdirs, files in os.walk(root):
+        subdirs[:] = sorted(name for name in subdirs if name not in _SKIP_PARTS)
+        for name in sorted(files):
+            path = Path(directory) / name
+            if name not in _SKIP_PARTS and path.suffix.lower() not in _BINARY_SUFFIXES:
+                yield path
+
+
 def test_no_external_browser_automation_named():
     # This file must name the tools to ban them — never scan itself.
     guard_path = Path(__file__).resolve()
     hits = []
-    for path in sorted(_REPO_ROOT.rglob("*")):
+    for path in _scan_files(_REPO_ROOT):
         if path.resolve() == guard_path:
             continue
         if not path.is_file():
-            continue
-        if any(part in _SKIP_PARTS for part in path.parts):
-            continue
-        if path.suffix.lower() in _BINARY_SUFFIXES:
             continue
         try:
             text = path.read_text(encoding="utf-8")
@@ -80,3 +91,28 @@ def test_no_external_browser_automation_named():
         "mention neutrally, the native paths are direct_cli/_auth_hints.py:\n"
         + "\n".join(hits)
     )
+
+
+def test_scan_includes_owned_text_and_vendor_but_prunes_excluded_trees(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    included = {"README.md", "docs/nested/guide.md", "direct_cli/_vendor/client.py"}
+    excluded = {f"{part}/nested/file.txt" for part in _SKIP_PARTS}
+    for name in included | excluded | {"docs/image.PNG"}:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("fixture", encoding="utf-8")
+
+    visited = []
+    original_walk = os.walk
+
+    def recording_walk(root: Path) -> Iterator[tuple[str, list[str], list[str]]]:
+        for directory, subdirs, files in original_walk(root):
+            visited.append(Path(directory).relative_to(root))
+            yield directory, subdirs, files
+
+    monkeypatch.setattr(os, "walk", recording_walk)
+    assert {
+        path.relative_to(tmp_path).as_posix() for path in _scan_files(tmp_path)
+    } == included
+    assert all(not (_SKIP_PARTS & set(path.parts)) for path in visited)
