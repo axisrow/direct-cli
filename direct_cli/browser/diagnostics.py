@@ -4,9 +4,12 @@ Read-only diagnostics for the browser-session pipeline (``direct playwright doct
 Invariant (enforced by tests in ``tests/test_playwright_session.py``): this
 module NEVER calls :func:`direct_cli.browser.session.capture_storage_state`,
 NEVER launches a real browser (``chromium.launch``), and NEVER writes
-anything to disk or reads Keychain. The explicit manual-login command is the
-only one that logs in and persists a session — ``doctor`` only inspects and
-reports (the auto-import lives in ``open_session``, not here).
+anything to disk or reads Keychain. The one deliberate network call is the
+cookie-only server-side probe (``probe_saved_session``, issue #954) — a
+read-only urllib GET, no browser, no login. The explicit manual-login
+command is the only one that logs in and persists a session — ``doctor``
+only inspects and reports (the auto-import lives in ``open_session``, not
+here).
 
 Each check runs in its own ``try/except`` so one failing check never aborts
 the rest of the report — a doctor that stops at the first problem defeats the
@@ -28,7 +31,7 @@ from ._chrome_crypto import (
     find_cookie_db,
     platform_iterations,
 )
-from .session import default_chrome_profile_dir
+from .session import default_chrome_profile_dir, probe_saved_session
 
 
 @dataclass
@@ -186,6 +189,37 @@ def _check_saved_session_fresh(session_path: Optional[Path]) -> Check:
     )
 
 
+def _check_saved_session_server_side(session_path: Optional[Path]) -> Check:
+    """Ask the server whether it still accepts the saved jar (#954).
+
+    Closes the gap `_check_saved_session_fresh` names explicitly: cookie
+    expiry says nothing about a server-side revocation. The probe is a
+    single read-only urllib GET — no browser, no login (module invariant).
+    """
+    status = store.session_status(session_path)
+    if not status["exists"] or status["error"]:
+        return Check("saved_session_server_side", None, "skipped — no saved session")
+    verdict = probe_saved_session(session_path)
+    if verdict == "revoked":
+        return Check(
+            "saved_session_server_side",
+            False,
+            "server rejects the saved cookies (redirected to passport.yandex.ru)",
+            hint=f"Run: {HINT_LOGIN_BROWSER_CHROME}",
+        )
+    if verdict == "alive":
+        return Check(
+            "saved_session_server_side",
+            True,
+            "server accepts the saved cookies (HTTP 200 on the campaigns grid)",
+        )
+    return Check(
+        "saved_session_server_side",
+        None,
+        f"inconclusive ({verdict}) — the cookie-only check could not decide",
+    )
+
+
 def run_diagnostics(
     *,
     profile_dir: Optional[Path] = None,
@@ -228,5 +262,6 @@ def run_diagnostics(
 
     checks.append(_run(_check_saved_session, session_path))
     checks.append(_run(_check_saved_session_fresh, session_path))
+    checks.append(_run(_check_saved_session_server_side, session_path))
 
     return checks

@@ -206,7 +206,7 @@ class TestSessionStatus(unittest.TestCase):
 
 
 class TestRunDiagnosticsSurvivesFailures(unittest.TestCase):
-    """run_diagnostics must return all 10 checks even when everything fails."""
+    """run_diagnostics must return all 11 checks even when everything fails."""
 
     def test_every_check_present_when_every_dependency_fails(self):
         with (
@@ -239,6 +239,7 @@ class TestRunDiagnosticsSurvivesFailures(unittest.TestCase):
                 "yandex_cookies_decrypt",
                 "saved_session",
                 "saved_session_fresh",
+                "saved_session_server_side",
             ],
         )
         self.assertTrue(all(c.ok is not True for c in checks))
@@ -920,8 +921,9 @@ def test_import_browser_session_stamps_owner(tmp_path):
 
 class TestSsoProbe(unittest.TestCase):
     """The cookie-only probe behind issue #954: one GET to the grid, verdict
-    by status line alone — a server-revoked SSO session must be nameable
-    without a browser (the #954 reporter diagnosed it with a manual curl)."""
+    by status line (a 200 body is only glanced at for captcha markers) — a
+    server-revoked SSO session must be nameable without a browser (the #954
+    reporter diagnosed it with a manual curl)."""
 
     JAR = [
         {"name": "Session_id", "value": "sess", "domain": ".yandex.ru"},
@@ -942,7 +944,7 @@ class TestSsoProbe(unittest.TestCase):
         )
 
     @contextlib.contextmanager
-    def _opener(self, *, status=200, exc=None):
+    def _opener(self, *, status=200, exc=None, body=b""):
         recorded = {}
 
         class _Response:
@@ -953,6 +955,9 @@ class TestSsoProbe(unittest.TestCase):
 
             def __exit__(self, *exc_info):
                 return False
+
+            def read(self, size=-1):
+                return body
 
         _Response.status = status
 
@@ -975,6 +980,17 @@ class TestSsoProbe(unittest.TestCase):
         self.assertIn("Session_id=sess", seen["cookie"])
         self.assertIn("yandexuid=uid", seen["cookie"])
         self.assertTrue(seen["user_agent"].startswith("Mozilla/5.0"))
+
+    def test_captcha_gate_on_200_is_inconclusive_not_alive(self):
+        """A SmartCaptcha gate says nothing about the jar — the same IP can
+        be captcha-gated with a perfectly valid session (#426) — so it must
+        never read as "alive" (the #959 captcha split)."""
+
+        with self._opener(status=200, body=b"<html>showcaptcha</html>") as seen:
+            verdict = _real_probe_sso_session(self.JAR)
+
+        self.assertEqual(verdict, "unknown")
+        self.assertIn("Session_id=sess", seen["cookie"])
 
     def test_redirect_to_passport_reads_as_revoked(self):
         error = self._http_error(302, "https://passport.yandex.ru/auth?retpath=x")
@@ -1054,6 +1070,15 @@ class TestSsoProbe(unittest.TestCase):
             self.assertEqual(browser_session.probe_saved_session(), "unknown")
         opener.assert_not_called()
 
+    def test_corrupt_envelope_probes_unknown_without_a_request(self):
+        from direct_cli.browser import session as browser_session
+
+        store.PLAYWRIGHT_SESSION_PATH.parent.mkdir(parents=True)
+        store.PLAYWRIGHT_SESSION_PATH.write_text("{not json")
+        with patch("urllib.request.build_opener") as opener:
+            self.assertEqual(browser_session.probe_saved_session(), "unknown")
+        opener.assert_not_called()
+
 
 class TestNoVerifyImportProbesTheJar(unittest.TestCase):
     """``--no-verify`` must not save a jar the server no longer recognizes
@@ -1115,6 +1140,27 @@ class TestNoVerifyImportProbesTheJar(unittest.TestCase):
         message = str(cm.exception)
         self.assertIn("passport.yandex.ru", message)
         self.assertIn("direct auth login browser --source chrome", message)
+        self.assertIsNone(store.read_session_envelope(), "a revoked jar is not saved")
+
+    def test_cli_no_verify_revoked_jar_fails_cleanly_and_saves_nothing(self):
+        """The command layer (#959's CLI-level contract): the capture refusal
+        (a BrowserAuthError) surfaces as a clean ClickException — not a
+        traceback — and no envelope is written."""
+        pytest.importorskip("playwright")
+        from click.testing import CliRunner
+
+        from direct_cli.cli import cli
+
+        with contextlib.ExitStack() as stack:
+            for ctx in self._patched_capture("revoked"):
+                stack.enter_context(ctx)
+            result = CliRunner().invoke(
+                cli,
+                ["auth", "login", "browser", "--source", "chrome", "--no-verify"],
+            )
+
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("passport.yandex.ru", result.output)
         self.assertIsNone(store.read_session_envelope(), "a revoked jar is not saved")
 
     def test_alive_verdict_saves_the_session_unverified(self):
@@ -1321,6 +1367,56 @@ class TestAuthStatusBrowserProbePayload(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn("probe: unknown", result.output)
         opener.assert_not_called()
+
+
+class TestDoctorServerSideCheck(unittest.TestCase):
+    """The doctor's saved_session_server_side check (issue #954, from the
+    parallel #959 implementation): cookie expiry says nothing about a
+    server-side revocation, so the doctor asks the probe."""
+
+    JAR = [{"name": "Session_id", "value": "x", "domain": ".yandex.ru"}]
+
+    def _check(self, probe_verdict):
+        from direct_cli.browser import session as browser_session
+
+        store.save_session({"cookies": self.JAR, "origins": []})
+        with patch.object(
+            browser_session, "probe_sso_session", return_value=probe_verdict
+        ):
+            return diagnostics._check_saved_session_server_side(None)
+
+    def test_no_session_is_skipped(self):
+        check = diagnostics._check_saved_session_server_side(None)
+
+        self.assertIsNone(check.ok)
+        self.assertIn("skipped", check.detail)
+
+    def test_revoked_fails_with_relogin_hint(self):
+        check = self._check("revoked")
+
+        self.assertIs(check.ok, False)
+        self.assertIn("direct auth login browser", check.hint or "")
+
+    def test_alive_passes(self):
+        check = self._check("alive")
+
+        self.assertIs(check.ok, True)
+
+    def test_unknown_is_inconclusive(self):
+        check = self._check("unknown")
+
+        self.assertIsNone(check.ok)
+
+    def test_run_diagnostics_includes_the_check_without_network(self):
+        """With a saved session present, run_diagnostics must probe — through
+        the (patched) probe, never a real request."""
+        from direct_cli.browser import session as browser_session
+
+        store.save_session({"cookies": self.JAR, "origins": []})
+        with patch.object(browser_session, "probe_sso_session", return_value="alive"):
+            checks = {c.name: c for c in diagnostics.run_diagnostics()}
+
+        self.assertIs(checks["saved_session_server_side"].ok, True)
 
 
 if __name__ == "__main__":

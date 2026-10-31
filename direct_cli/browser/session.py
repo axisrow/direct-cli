@@ -587,6 +587,10 @@ _PASSPORT_LOGIN_HOSTS = frozenset(
     {"passport.yandex.ru", "passport.yandex.com", "passport.yandex.com.tr"}
 )
 
+#: Login/captcha markers sit in the first screenful of markup; the grid's own
+#: body is never needed past this prefix.
+_SSO_PROBE_BODY_BYTES = 262_144
+
 
 def revoked_sso_session_message() -> str:
     """The issue #954 diagnostic for a server-revoked SSO session.
@@ -620,14 +624,19 @@ def probe_sso_session(
     challenge ambiguity, and only a bare HTTP request settles it — the exact
     manual curl the #954 reporter had to run. This probe is that curl: the
     jar is sent as one ``Cookie`` header to ``GRID_URL`` and the *status line*
-    is the whole verdict —
+    is the whole verdict (a 200 answer is only glanced at for captcha
+    markers) —
 
-    - ``"alive"`` — HTTP 200: the server still recognizes this jar;
+    - ``"alive"`` — HTTP 200 without a captcha marker: the server still
+      recognizes this jar;
     - ``"revoked"`` — a 3xx redirect to ``passport.yandex.ru``: the server
       bounces this jar to the login page. The session was revoked
       server-side; no browser/fingerprint diagnosis applies;
     - ``"unknown"`` — everything else: network failure, timeout, a non-redirect
-      status, a redirect somewhere else. Inconclusive, and deliberately
+      status, a redirect somewhere else, or a SmartCaptcha gate — the same IP
+      can be captcha-gated with a perfectly valid jar (#426), so a captcha
+      answer says nothing about the session and must not read as "alive".
+      Inconclusive, and deliberately
       non-fatal at every call site: an unknown probe must never block a flow
       that worked without it.
 
@@ -674,7 +683,15 @@ def probe_sso_session(
     opener = urllib.request.build_opener(_NoRedirects)
     try:
         with opener.open(request, timeout=timeout_seconds) as response:
-            return "alive" if response.status == 200 else "unknown"
+            if response.status != 200:
+                return "unknown"
+            # A captcha gate is not a liveness answer (#959's split, on the
+            # #426 lesson): the same IP can be captcha-gated with a perfectly
+            # valid jar, so "alive" needs a marker-free body.
+            body = response.read(_SSO_PROBE_BODY_BYTES).decode("utf-8", "replace")
+            if find_captcha_marker(body) is not None:
+                return "unknown"
+            return "alive"
     except urllib.error.HTTPError as error:
         if 300 <= error.code < 400:
             location = urllib.parse.urlsplit(error.headers.get("Location", ""))
