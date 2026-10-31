@@ -42,7 +42,11 @@ from ..auth import (
     set_active_profile,
     validate_oauth_profile,
 )
-from .._auth_hints import HINT_LOGIN_API, HINT_LOGIN_BROWSER
+from .._auth_hints import (
+    HINT_LOGIN_API,
+    HINT_LOGIN_BROWSER,
+    HINT_LOGIN_BROWSER_MANUAL,
+)
 from ..i18n import t
 from ..output import (
     format_output,
@@ -61,7 +65,8 @@ def _prompt_authorize_code(
 
     Returns ``(auth_code, code_verifier)``; the caller performs the token
     exchange so pending/remembered-PKCE paths can substitute their own
-    client settings. Shared by `auth login` and the bind menu.
+    client settings. Interactive only: reached solely through
+    ``auth login api --interactive`` — the headless flow never prompts.
     """
     auth_url, code_verifier = _build_interactive_authorize_url(
         client_id=client_id,
@@ -195,24 +200,6 @@ def _reject_removed_login_flag(flag: str, hint: str) -> Callable[..., Any]:
     return callback
 
 
-def _reject_domainless_ui_flag(
-    ctx: click.Context, param: click.Parameter, value: Any
-) -> Any:
-    """Stub for --interactive/--headful given without an api|browser domain."""
-    if value:
-        raise click.UsageError(
-            t(
-                "{flag} was removed; {api} is interactive in a terminal, "
-                "and {browser} opens the login window itself."
-            ).format(
-                flag=param.opts[0],
-                api=HINT_LOGIN_API,
-                browser=HINT_LOGIN_BROWSER,
-            )
-        )
-    return value
-
-
 def _reject_login_method(ctx: click.Context, param: click.Parameter, value: Any) -> Any:
     """Stub for the deleted --method on `auth login`: name the subcommand."""
     if value is None:
@@ -292,20 +279,17 @@ class _DefaultApiLoginGroup(click.Group):
     help="Removed: use the api|browser subcommand.",
 )
 @click.option(
-    "--interactive",
-    "interactive_login",
-    is_flag=True,
-    callback=_reject_domainless_ui_flag,
-    help="Removed: the api subcommand is interactive in a terminal.",
-)
-@click.option(
     "--headful",
     is_flag=True,
-    callback=_reject_domainless_ui_flag,
-    help="Removed: the browser subcommand opens the login window itself.",
+    callback=_reject_removed_login_flag("--headful", HINT_LOGIN_BROWSER_MANUAL),
+    help="Removed: the login window is the browser subcommand with --source manual.",
 )
-def login(method: Any, interactive_login: bool, headful: bool) -> None:
-    """Log in: an API OAuth token, or a browser session for browser commands."""
+def login(method: Any, headful: bool) -> None:
+    """Log in: an API OAuth token, or a browser session for browser commands.
+
+    Headless by default, even in a terminal: nothing prompts or opens a window
+    unless asked to (api --interactive, browser --source manual).
+    """
     if click.get_current_context().invoked_subcommand is None:
         # Owner decision (issue #924): bare login is the API login; the old
         # method-choice menu is gone.
@@ -318,9 +302,8 @@ def login(method: Any, interactive_login: bool, headful: bool) -> None:
     "--interactive",
     "interactive_login",
     is_flag=True,
-    hidden=True,
-    callback=_reject_removed_login_flag("--interactive", HINT_LOGIN_API),
-    help="Removed: this command is interactive in a terminal.",
+    help="Explicit opt-in to terminal dialogs: profile menu, authorize URL "
+    "opened in the browser, code prompt, and a .env link for this folder",
 )
 @click.option(
     "--headful",
@@ -381,10 +364,10 @@ def login_api(
 ) -> None:
     """Log in to the Yandex Direct API (OAuth token saved in an auth profile).
 
-    Used by API and v4 commands (campaigns, ads, reports, ...). In a
-    terminal this opens the authorize flow and binds the credentials to
-    this folder; without a terminal it prints the authorize URL for
-    unattended completion.
+    Used by API and v4 commands (campaigns, ads, reports, ...). Headless by
+    default, in a terminal too: prints the authorize URL for unattended
+    completion (--code or --code -); bind a folder with auth write. Pass
+    --interactive to be walked through the login in a terminal instead.
     """
     api_options = (
         "profile",
@@ -401,9 +384,16 @@ def login_api(
         ctx.get_parameter_source(name) is ParameterSource.COMMANDLINE
         for name in api_options
     )
-    # Owner decision (issue #924): a terminal is the interactive default;
-    # machine-readable or scripted inputs stay headless.
-    interactive = _stdin_is_interactive() and output_format == "text"
+    # Headless contract (AGENTS.md, "Authorization Execution Mode"): a
+    # terminal never turns the dialogs on by itself — only the explicit flag
+    # does. tests/test_headless_auth_contract.py pins this shape.
+    interactive = interactive_login
+    if interactive:
+        _require_interactive_login_possible(
+            start_pkce=start_pkce,
+            code_stdin=code_stdin or code == "-",
+            output_format=output_format,
+        )
     if code or code_stdin or oauth_token or (interactive and explicit_api):
         # A one-time code must not be spent on a run that will refuse to save.
         # interactive + explicit_api prompts for the code and saves into
@@ -425,7 +415,6 @@ def login_api(
                 bind_profile_to_dotenv(chosen, copy_token=_ask_copy_token(chosen))
                 return
     chosen_client_id = client_id or DEFAULT_OAUTH_CLIENT_ID
-    code_from_stdin = False
 
     if code_stdin:
         if code or oauth_token or start_pkce:
@@ -443,7 +432,6 @@ def login_api(
         code = sys.stdin.read().strip()
         if not code:
             raise click.ClickException("--code - requires a code on stdin.")
-        code_from_stdin = True
 
     if start_pkce:
         if code or oauth_token or client_secret:
@@ -572,7 +560,7 @@ def login_api(
         overwrite=True,
     )
     remove_pending_pkce(profile)
-    if interactive and not code_from_stdin:
+    if interactive:
         bind_credentials_to_dotenv(profile, access_token, login)
     if auto_profile:
         print_success(t("Profile '{profile}' is saved.").format(profile=profile))
@@ -588,23 +576,23 @@ def login_api(
     "interactive_login",
     is_flag=True,
     hidden=True,
-    callback=_reject_removed_login_flag("--interactive", HINT_LOGIN_BROWSER),
-    help="Removed: manual login opens the window itself.",
+    callback=_reject_removed_login_flag("--interactive", HINT_LOGIN_BROWSER_MANUAL),
+    help="Removed: the login window is --source manual.",
 )
 @click.option(
     "--headful",
     is_flag=True,
     hidden=True,
-    callback=_reject_removed_login_flag("--headful", HINT_LOGIN_BROWSER),
-    help="Removed: manual login is always visible.",
+    callback=_reject_removed_login_flag("--headful", HINT_LOGIN_BROWSER_MANUAL),
+    help="Removed: the login window is --source manual.",
 )
 @click.option(
     "--source",
     type=click.Choice(["manual", "chrome"]),
-    default="manual",
+    default="chrome",
     show_default=True,
-    help="manual: log in by hand in the opened window; chrome: decrypt an "
-    "existing Chrome session without opening a window",
+    help="chrome: import the logged-in Chrome session headlessly, no window; "
+    "manual: log in by hand in a visible window (explicit opt-in)",
 )
 @click.option(
     "--profile-dir",
@@ -661,11 +649,12 @@ def login_browser(
     profile: Optional[str],
     output_format: str,
 ) -> None:
-    """Log in by hand in a visible browser window.
+    """Import the Chrome browser session (headless), or log in by hand.
 
     Saves the browser session used by browser commands (masters, history,
-    ...). With --source chrome, decrypts an already-logged-in Chrome session
-    instead of opening a window.
+    ...). By default the already-logged-in Chrome session is decrypted
+    without opening a window. --source manual opens a visible login window
+    instead.
     """
     _warn_profile_ignored_in_browser_domain(ctx)
     if source == "chrome":
@@ -1074,8 +1063,42 @@ def _format_duration(seconds: int) -> str:
 
 
 def _stdin_is_interactive() -> bool:
-    """Return whether both streams belong to the terminal for a login dialog."""
+    """Return whether both streams belong to a terminal.
+
+    Headless contract (AGENTS.md): this may only ever *refuse*. Callers use
+    it negated, to reject an explicit --interactive / --source manual request
+    that has no terminal; a terminal never turns a dialog or a window on by
+    itself. tests/test_headless_auth_contract.py enforces that shape.
+    """
     return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _require_interactive_login_possible(
+    start_pkce: bool, code_stdin: bool, output_format: str
+) -> None:
+    """Reject an unusable --interactive before any prompt, write or network call."""
+    scripted = [
+        flag
+        for flag, given in (
+            ("--start-pkce", start_pkce),
+            ("--code - / --code-stdin", code_stdin),
+            ("--format json", output_format == "json"),
+        )
+        if given
+    ]
+    if scripted:
+        raise click.UsageError(
+            t("--interactive cannot be combined with {flags}.").format(
+                flags=", ".join(scripted)
+            )
+        )
+    if not _stdin_is_interactive():
+        raise click.UsageError(
+            t(
+                "--interactive needs an interactive terminal. Without one, run "
+                "{headless} and finish with --code -."
+            ).format(headless=HINT_LOGIN_API)
+        )
 
 
 def _build_interactive_authorize_url(
@@ -1199,20 +1222,20 @@ def browser_login(
     allow_no_tty: bool,
     output_format: str = "text",
 ) -> None:
-    """Run the manual login in a visible window (the browser-domain default).
+    """Run the manual login in a visible window (``--source manual`` only).
 
     Saves the single session envelope directly (no persistent profile):
     ``login_manual_session`` opens the window, waits for the Passport login
-    and stores the resulting storage state. Headless/headful flags are gone
-    (issue #924): manual login is visible by definition, and scripts pass
-    --allow-no-tty explicitly.
+    and stores the resulting storage state. The window is an explicit opt-in
+    (headless contract, AGENTS.md): nothing reaches this function without
+    ``--source manual``, and scripts pass --allow-no-tty explicitly.
     """
     if not _stdin_is_interactive() and not allow_no_tty:
         raise click.ClickException(
             t(
                 "Manual browser login needs an interactive terminal. Run "
                 "`{hint}` in a terminal (override: --allow-no-tty)."
-            ).format(hint=HINT_LOGIN_BROWSER)
+            ).format(hint=HINT_LOGIN_BROWSER_MANUAL)
         )
     try:
         from ..browser.session import BrowserSessionError, login_manual_session

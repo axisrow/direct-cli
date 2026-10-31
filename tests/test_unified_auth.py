@@ -69,9 +69,33 @@ def test_login_without_a_terminal_starts_headless(auth_env, monkeypatch, argv):
     browser.assert_not_called()
 
 
-def test_login_in_a_terminal_is_interactive_by_default(
-    auth_env, interactive, monkeypatch
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["login"],
+        ["login", "api"],
+        ["login", "--profile", "fresh"],
+        ["login", "api", "--client-id", "cid"],
+        ["login", "--format", "json"],
+    ],
+)
+def test_login_in_a_terminal_stays_headless_without_the_flag(
+    auth_env, interactive, monkeypatch, argv
 ):
+    """AGENTS.md: a terminal never turns the dialogs on — only --interactive."""
+    prompt, confirm = Mock(), Mock()
+    monkeypatch.setattr("click.prompt", prompt)
+    monkeypatch.setattr("click.confirm", confirm)
+    result = CliRunner().invoke(cli, ["auth", *argv])
+    assert result.exit_code == 0, result.output
+    assert "oauth.yandex.ru/authorize" in result.stdout
+    assert not (auth_env / ".env").exists()
+    prompt.assert_not_called()
+    confirm.assert_not_called()
+    interactive.assert_not_called()  # webbrowser.open
+
+
+def test_interactive_flag_prompts_and_binds_dotenv(auth_env, interactive, monkeypatch):
     prompt = Mock(return_value="code")
     monkeypatch.setattr("click.prompt", prompt)
     exchange = Mock(
@@ -85,7 +109,9 @@ def test_login_in_a_terminal_is_interactive_by_default(
     monkeypatch.setattr(
         "direct_cli.commands.auth.resolve_account_login", lambda _: "account"
     )
-    result = CliRunner().invoke(cli, ["auth", "login", "api"], input="code\n")
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "api", "--interactive"], input="code\n"
+    )
     assert result.exit_code == 0, result.output
     prompt.assert_called_once()
     interactive.assert_called_once()
@@ -227,7 +253,9 @@ def test_interactive_explicit_profile_refuses_to_overwrite_without_force(
         ),
     )
     result = CliRunner().invoke(
-        cli, ["auth", "login", "api", "--profile", "agency1"], input="code\n"
+        cli,
+        ["auth", "login", "api", "--interactive", "--profile", "agency1"],
+        input="code\n",
     )
     assert result.exit_code == 2, result.output
     assert "already exists" in result.output
@@ -253,7 +281,9 @@ def test_api_menu_reuses_profile_and_binds_without_confirmation(
     (auth_env / ".env").write_text("OTHER=keep\n")
     confirm = Mock()
     monkeypatch.setattr("click.confirm", confirm)
-    result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\n\n")
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "api", "--interactive"], input="1\n\n"
+    )
     assert result.exit_code == 0, result.output
     assert "1) account" in result.output
     assert "1) API" not in result.output  # the method-choice menu is gone
@@ -270,7 +300,9 @@ def test_api_menu_reuses_profile_and_binds_without_confirmation(
 def test_api_menu_copy_choice_stores_the_raw_token(auth_env, interactive, monkeypatch):
     save_profile()
     (auth_env / ".env").write_text("OTHER=keep\n")
-    result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\ncopy\n")
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "api", "--interactive"], input="1\ncopy\n"
+    )
     assert result.exit_code == 0, result.output
     dotenv = (auth_env / ".env").read_text()
     assert "OTHER=keep" in dotenv
@@ -298,7 +330,7 @@ def test_new_api_profile_is_named_without_overwriting_an_existing_profile(
     )
     result = CliRunner().invoke(
         cli,
-        ["auth", "login", "api"],
+        ["auth", "login", "api", "--interactive"],
         input=("0\n" if existing else "") + "secret-code\n",
     )
     assert result.exit_code == 0, result.output
@@ -324,7 +356,9 @@ def test_failed_api_login_preserves_binding(auth_env, interactive, monkeypatch):
         "direct_cli.commands.auth.exchange_oauth_code",
         Mock(side_effect=RuntimeError("invalid code")),
     )
-    result = CliRunner().invoke(cli, ["auth", "login", "api"], input="code\n")
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "api", "--interactive"], input="code\n"
+    )
     assert result.exit_code != 0
     assert "invalid code" in result.output
     assert env.read_text() == "OTHER=keep\nYANDEX_DIRECT_TOKEN=previous\n"
@@ -333,7 +367,9 @@ def test_failed_api_login_preserves_binding(auth_env, interactive, monkeypatch):
 
 def test_cancelled_profile_menu_does_not_write_credentials(auth_env, interactive):
     save_profile()
-    result = CliRunner().invoke(cli, ["auth", "login", "api"], input="")
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "api", "--interactive"], input=""
+    )
     assert result.exit_code != 0
     assert not (auth_env / ".env").exists()
     stored = get_oauth_profile("account")
@@ -347,7 +383,9 @@ def test_api_profile_selection_needs_no_browser_dependencies(
     save_profile()
     monkeypatch.setitem(sys.modules, "playwright", None)
     monkeypatch.setitem(sys.modules, "playwright.sync_api", None)
-    result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\n\n")
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "api", "--interactive"], input="1\n\n"
+    )
     assert result.exit_code == 0, result.output
     dotenv = (auth_env / ".env").read_text()
     assert "YANDEX_DIRECT_BIND_PROFILE=account" in dotenv
@@ -370,31 +408,66 @@ def test_manual_browser_login_opens_the_login_window_and_saves_envelope(
     auth_env, interactive, monkeypatch
 ):
     login = Mock()
+    capture = Mock()
+    monkeypatch.setattr(session, "login_manual_session", login)
+    monkeypatch.setattr(session, "capture_storage_state", capture)
+    result = CliRunner().invoke(cli, ["auth", "login", "browser", "--source", "manual"])
+    assert result.exit_code == 0, result.output
+    login.assert_called_once_with(timeout_ms=300_000)
+    capture.assert_not_called()
+    assert not (auth_env / ".env").exists()
+    assert not (auth_env / "auth.json").exists()
+
+
+def test_browser_login_defaults_to_the_headless_chrome_import(
+    auth_env, interactive, monkeypatch
+):
+    """A terminal does not open the login window: the default is the Chrome import."""
+    state = {"cookies": [{"domain": ".yandex.ru", "value": "secret"}], "origins": []}
+    capture = Mock(return_value=(state, {"verified": True}))
+    login = Mock()
+    monkeypatch.setattr(session, "capture_storage_state", capture)
     monkeypatch.setattr(session, "login_manual_session", login)
     result = CliRunner().invoke(cli, ["auth", "login", "browser"])
     assert result.exit_code == 0, result.output
-    login.assert_called_once_with(timeout_ms=300_000)
-    assert not (auth_env / ".env").exists()
-    assert not (auth_env / "auth.json").exists()
+    capture.assert_called_once()
+    assert capture.call_args.kwargs["headless"] is True
+    login.assert_not_called()
+    interactive.assert_not_called()  # webbrowser.open
 
 
 def test_browser_login_without_tty_fails_without_launching(auth_env, monkeypatch):
     monkeypatch.setattr("direct_cli.commands.auth._stdin_is_interactive", lambda: False)
     login = Mock()
     monkeypatch.setattr(session, "login_manual_session", login)
-    result = CliRunner().invoke(cli, ["auth", "login", "browser"])
+    result = CliRunner().invoke(cli, ["auth", "login", "browser", "--source", "manual"])
     assert result.exit_code != 0
     assert "interactive terminal" in result.output
-    assert "direct auth login browser" in result.output
+    assert "direct auth login browser --source manual" in result.output
     login.assert_not_called()
+
+
+def test_allow_no_tty_opens_the_window_only_for_the_manual_source(
+    auth_env, monkeypatch
+):
+    monkeypatch.setattr("direct_cli.commands.auth._stdin_is_interactive", lambda: False)
+    login = Mock()
+    monkeypatch.setattr(session, "login_manual_session", login)
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "browser", "--source", "manual", "--allow-no-tty"]
+    )
+    assert result.exit_code == 0, result.output
+    login.assert_called_once_with(timeout_ms=300_000)
 
 
 @pytest.mark.parametrize(
     "arguments",
     [
-        ["browser", "--chrome-profile", "Profile 1"],
-        ["browser", "--no-verify"],
-        ["browser", "--profile-dir", "/unused"],
+        ["browser", "--source", "manual", "--chrome-profile", "Profile 1"],
+        ["browser", "--source", "manual", "--no-verify"],
+        ["browser", "--source", "manual", "--profile-dir", "/unused"],
+        ["browser", "--timeout", "5"],
+        ["browser", "--allow-no-tty"],
         ["browser", "--source", "chrome", "--timeout", "5"],
         ["browser", "--source", "chrome", "--allow-no-tty"],
         ["api", "--source", "chrome"],
@@ -405,12 +478,15 @@ def test_incompatible_login_options_fail_before_login(
     auth_env, interactive, monkeypatch, arguments
 ):
     login = Mock()
+    capture = Mock()
     exchange = Mock()
     monkeypatch.setattr(session, "login_manual_session", login)
+    monkeypatch.setattr(session, "capture_storage_state", capture)
     monkeypatch.setattr("direct_cli.commands.auth.exchange_oauth_code", exchange)
     result = CliRunner().invoke(cli, ["auth", "login", *arguments])
     assert result.exit_code == 2, result.output
     login.assert_not_called()
+    capture.assert_not_called()
     exchange.assert_not_called()
     interactive.assert_not_called()
 
@@ -449,27 +525,64 @@ def test_status_flags_before_the_subcommand_are_rejected(auth_env, arguments):
     assert "after the domain subcommand" in result.output
 
 
-@pytest.mark.parametrize("arguments", [["--interactive"], ["--headful"]])
-def test_removed_ui_flags_without_a_domain_name_both_commands(auth_env, arguments):
+@pytest.mark.parametrize(
+    "arguments,replacement",
+    [
+        (["--headful"], "direct auth login browser --source manual"),
+        (["browser", "--headful"], "direct auth login browser --source manual"),
+        (["browser", "--interactive"], "direct auth login browser --source manual"),
+        (["api", "--headful"], "direct auth login api"),
+    ],
+)
+def test_removed_ui_flags_name_the_exact_replacement(auth_env, arguments, replacement):
     result = CliRunner().invoke(cli, ["auth", "login", *arguments])
     assert result.exit_code == 2, result.output
-    assert "direct auth login api" in result.output
-    assert "direct auth login browser" in result.output
+    assert "was removed" in result.output
+    assert replacement in result.output
 
 
 @pytest.mark.parametrize(
-    "domain,arguments",
-    [
-        ("api", ["api", "--interactive"]),
-        ("api", ["api", "--headful"]),
-        ("browser", ["browser", "--interactive"]),
-        ("browser", ["browser", "--headful"]),
-    ],
+    "argv", [["login", "--interactive"], ["login", "api", "--interactive"]]
 )
-def test_removed_ui_flags_on_a_domain_advise_that_domain(auth_env, domain, arguments):
-    result = CliRunner().invoke(cli, ["auth", "login", *arguments])
+def test_interactive_without_a_terminal_is_refused_before_any_work(
+    auth_env, monkeypatch, argv
+):
+    monkeypatch.setattr("direct_cli.commands.auth._stdin_is_interactive", lambda: False)
+    prompt, browser, exchange = Mock(), Mock(), Mock()
+    monkeypatch.setattr("click.prompt", prompt)
+    monkeypatch.setattr("direct_cli.commands.auth.webbrowser.open", browser)
+    monkeypatch.setattr("direct_cli.commands.auth.exchange_oauth_code", exchange)
+    result = CliRunner().invoke(cli, ["auth", *argv])
     assert result.exit_code == 2, result.output
-    assert f"direct auth login {domain}" in result.output
+    assert "--interactive needs an interactive terminal" in result.output
+    assert "direct auth login api" in result.output  # names the headless route
+    prompt.assert_not_called()
+    browser.assert_not_called()
+    exchange.assert_not_called()
+    assert not (auth_env / ".env").exists()
+    assert not (auth_env / "auth.json").exists()
+
+
+@pytest.mark.parametrize(
+    "scripted",
+    [["--format", "json"], ["--start-pkce"], ["--code", "-"], ["--code-stdin"]],
+)
+def test_interactive_cannot_be_combined_with_scripted_inputs(
+    auth_env, interactive, monkeypatch, scripted
+):
+    prompt, exchange = Mock(), Mock()
+    monkeypatch.setattr("click.prompt", prompt)
+    monkeypatch.setattr("direct_cli.commands.auth.exchange_oauth_code", exchange)
+    result = CliRunner().invoke(
+        cli, ["auth", "login", "api", "--interactive", *scripted], input="code\n"
+    )
+    assert result.exit_code == 2, result.output
+    assert "--interactive cannot be combined with" in result.output
+    prompt.assert_not_called()
+    exchange.assert_not_called()
+    interactive.assert_not_called()  # webbrowser.open
+    assert not (auth_env / ".env").exists()
+    assert not (auth_env / "auth.json").exists()
 
 
 def test_profile_flag_is_ignored_with_a_note_in_the_browser_domain(auth_env):
@@ -576,7 +689,8 @@ def test_browser_command_fails_with_login_hint_when_import_fails(
     monkeypatch.setattr(session, "login_manual_session", login_window)
     result = CliRunner().invoke(cli, argv)
     assert result.exit_code != 0
-    assert "direct auth login browser" in result.output, result.output
+    # The headless import just failed: the hint names the explicit window.
+    assert "direct auth login browser --source manual" in result.output, result.output
     login_window.assert_not_called()  # a failed copy never opens a window
 
 

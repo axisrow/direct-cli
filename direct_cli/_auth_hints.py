@@ -9,13 +9,20 @@ used to print four contradictory suggestions). The AST guard in
 ``direct playwright login`` strings anywhere else in the package, so a new
 hint source fails CI instead of quietly disagreeing with these.
 
-These name the part-2 canonical surface (issue #924): the
-``auth login api|browser`` subcommands go live with the command
-restructuring that lands separately; until then ``auth login`` still
-takes ``--method``. Flipping nothing here — part 2 makes these exact
-strings executable.
+These name the canonical ``auth login api|browser`` surface (issue #924) and
+carry the headless contract (``AGENTS.md``, "Authorization Execution Mode"),
+which ``tests/test_headless_auth_contract.py`` pins:
+
+- ``HINT_LOGIN_API`` and ``HINT_LOGIN_BROWSER`` / ``HINT_LOGIN_BROWSER_CHROME``
+  are headless: the API login prints the authorize URL, the browser login
+  imports the Chrome session — neither prompts nor opens a window.
+- ``HINT_LOGIN_API_INTERACTIVE`` and ``HINT_LOGIN_BROWSER_MANUAL`` are the two
+  explicit opt-ins (terminal dialogs, a visible login window). A terminal never
+  selects them on its own.
 """
 
 HINT_LOGIN_API = "direct auth login api"
+HINT_LOGIN_API_INTERACTIVE = "direct auth login api --interactive"
 HINT_LOGIN_BROWSER = "direct auth login browser"
 HINT_LOGIN_BROWSER_CHROME = "direct auth login browser --source chrome"
+HINT_LOGIN_BROWSER_MANUAL = "direct auth login browser --source manual"

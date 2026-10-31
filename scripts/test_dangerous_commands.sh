@@ -65,9 +65,11 @@ non-critical campaign, confirming before/after state in the web UI):
     update. Verify with --draft first, then delete/archive the test copy
     by hand after checking it in the web UI.)
 
-Interactive human-in-the-loop login (opens a visible browser window and
-blocks waiting for a person to sign in -- cannot run unattended):
-  - direct auth login browser
+Interactive human-in-the-loop login (prompts, or opens a visible browser
+window and blocks waiting for a person to sign in -- cannot run unattended;
+both are explicit opt-ins, plain `direct auth login ...` is headless):
+  - direct auth login api --interactive
+  - direct auth login browser --source manual
 
 Production commands that are only allowed in automated smoke tests with --sandbox:
   - direct bids set ...

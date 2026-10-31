@@ -419,6 +419,7 @@ class TestAuthOAuth:
                     "auth",
                     "login",
                     "api",
+                    "--interactive",
                     "--profile",
                     "agency1",
                     "--code",
@@ -1349,7 +1350,7 @@ class TestAuthOAuth:
             with patch("direct_cli.commands.auth.webbrowser.open"):
                 result = runner.invoke(
                     cli,
-                    ["auth", "login", "--profile", "agency1"],
+                    ["auth", "login", "--interactive", "--profile", "agency1"],
                     input="abc123\n",
                 )
         assert result.exit_code == 0

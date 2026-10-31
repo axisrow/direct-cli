@@ -29,9 +29,11 @@ in the web interface, and must not be confused with `UNIFIED_CAMPAIGN` (an
 unrelated v5 API campaign type already supported by `campaigns add/get --type
 unified_campaign`). Browser-backed commands use a saved browser session,
 independent of the API token. Set it up explicitly with
-`direct auth login browser`. This opens a CLI-owned Chromium window
-and works on macOS/Linux/Windows without reading Chrome or Keychain.
-Requires the optional `browser` extra:
+`direct auth login browser`, which imports your live Chrome session
+headlessly (no window opens; macOS may ask for Keychain access once). To log
+in by hand instead, run `direct auth login browser --source manual`: it opens
+a CLI-owned Chromium window and works on macOS/Linux/Windows without
+reading Chrome or Keychain. Requires the optional `browser` extra:
 
 ```bash
 pip install "direct-cli[browser]"
@@ -213,7 +215,7 @@ statuses after its save (a snapshot — moderation usually has not run yet at
 that point, so a rejection can still appear later), and `--dry-run` prints
 what would be applied without opening a browser.
 
-To import an existing Chrome session instead, run
+To import a Chrome profile other than `Default`, run
 `direct auth login browser --source chrome --chrome-profile "Profile 1"`.
 Chrome profile flags belong to explicit login, not resource commands.
 
@@ -295,17 +297,23 @@ it immediately in production instead. Same no-`--sandbox` caveat as `add`.
 
 **Browser authorization:** one session file —
 `~/.direct-cli/playwright/session.json` (`0600`). `direct auth login browser`
-opens a visible window once and waits up to `--timeout` seconds (default 300)
-for the manual login; it requires a terminal unless `--allow-no-tty` is
-explicitly supplied. The resulting session is saved straight into that file —
-no persistent profile is created.
-
-Any browser command copies the live Chrome session into that file
-automatically when it is missing, corrupt or expired — headlessly, with no
-window opened for the copy (Keychain may be asked once for the
-cookie-decryption key). `--profile-dir` selects the source Chrome
+copies the live Chrome session into that file headlessly (`--source chrome`,
+the default): no window opens, and the Keychain may be asked once for the
+cookie-decryption key. `--profile-dir` selects the source Chrome
 user-data-dir and `--chrome-profile` the Chrome profile subdirectory; both
 require `--source chrome`.
+
+To log in by hand, run `direct auth login browser --source manual`: it opens
+a visible CLI-owned Chromium window once and waits up to `--timeout` seconds
+(default 300) for the manual login; it requires a terminal unless
+`--allow-no-tty` is explicitly supplied (`--timeout` and `--allow-no-tty`
+belong to `--source manual`). The resulting session is saved straight into the
+same file — no persistent profile is created. The window opens only for this
+explicit request, never as a side effect of another command.
+
+Any browser command also copies the live Chrome session into that file
+automatically when it is missing, corrupt or expired — headlessly, with no
+window opened for the copy.
 
 `direct auth status browser` inspects the saved session without opening
 a browser; it reports saved state, not proof of current server-side validity.
@@ -362,15 +370,30 @@ token for API/v4 commands, saved in an auth profile) and
 `direct auth login browser` (a browser session for browser commands:
 `masters`, `history`, ...). Bare `direct auth login` is the API login.
 
-In a terminal the API login is interactive by default: it prints the
-authorize URL, opens the browser, reads the code, and binds this folder to
-the profile via a `.env` link (`YANDEX_DIRECT_BIND_PROFILE=<name>` — no
-token is copied to disk). In a non-interactive shell it prints the API
-authorization URL without opening a browser or asking questions. Complete
-the two-step flow with `--code` or `--code -` and bind a saved profile with
-`direct auth write --profile NAME`; pass `--copy-token` there (or pick
-"copy" in the bind menu) to store the raw token in `.env` instead — an
-explicit choice, since a raw copy has no profile identity (issue #917).
+**Login is headless by default, even in a terminal.** Nothing prompts, opens a
+browser or a window, or writes this folder's `.env` unless you ask for it with
+an explicit flag:
+
+- `direct auth login api` prints the API authorization URL (and saves the
+  pending PKCE state) without opening a browser or asking questions. Complete
+  the two-step flow with `--code` or `--code -`, then bind a saved profile to
+  the folder with `direct auth write --profile NAME`; pass `--copy-token`
+  there to store the raw token in `.env` instead — an explicit choice, since
+  a raw copy has no profile identity (issue #917).
+- `direct auth login api --interactive` is the opt-in for a person at a
+  terminal: it offers to reuse a saved profile, prints the authorize URL,
+  opens the browser, reads the code, and binds this folder to the profile via
+  a `.env` link (`YANDEX_DIRECT_BIND_PROFILE=<name>` — no token is copied to
+  disk; the bind menu has an explicit "copy" choice for the raw token). It
+  needs a terminal and cannot be combined with `--format json`,
+  `--start-pkce`, `--code -` or `--code-stdin`.
+- `direct auth login browser` copies the live Chrome session into the saved
+  browser session headlessly; no window opens, and a failed headless check is
+  never retried in a visible browser.
+- `direct auth login browser --source manual` is the opt-in for the visible
+  login window; `--allow-no-tty` only overrides the terminal check for scripts
+  that open the window on purpose.
+
 Saving into an existing profile
 (including the default `default`) requires explicit `--force`; without it
 the save refuses to overwrite stored credentials. The CLI never replaces
@@ -378,17 +401,16 @@ stored credentials, profiles or browser sessions silently: a replacement is
 either the command's declared purpose (and it reports what was replaced) or
 requires explicit `--force`.
 
-The API login in a terminal first offers to reuse a saved profile (linked
-to this folder on the spot); otherwise a new profile name comes from
-the account login and gets a numeric suffix when the name is taken.
-API credentials and browser cookies stay separate and may belong to
-different accounts.
+A new profile name comes from the account login and gets a numeric suffix when
+the name is taken. API credentials and browser cookies stay separate and may
+belong to different accounts.
 
 ```bash
-direct auth login                     # = direct auth login api
+direct auth login                     # = direct auth login api, headless
 direct auth login api
-direct auth login browser             # manual login in a visible window
-direct auth login browser --source chrome
+direct auth login api --interactive   # menu, code prompt, browser open, .env link
+direct auth login browser             # headless import from Chrome
+direct auth login browser --source manual   # visible login window
 direct auth status                    # both domains
 direct auth status api
 direct auth status browser
@@ -397,11 +419,8 @@ direct auth logout api --profile agency1
 direct auth logout browser
 ```
 
-Manual browser login is visible by definition; `--allow-no-tty` only
-overrides the terminal check for scripts that open the window on purpose.
-Chrome import stays headless, including when verification fails: there is no
-automatic headful retry. All resource commands fail with
-a helpful error when authorization is missing, including in a terminal.
+All resource commands fail with a helpful error when authorization is
+missing, including in a terminal: an ordinary command never starts a login.
 `direct` without arguments still shows help. API logout removes the named
 local profile and this folder's API binding, preserving other `.env` settings.
 The binding includes local token/login values, secret-manager references and
@@ -413,8 +432,9 @@ secret managers. Browser logout removes both saved CLI sessions.
 combined JSON has `api` and `browser` sections. `auth status api` and
 `auth status browser` select one domain. Existing API flags and two-step
 PKCE/stdin login remain supported in unattended workflows. The old
-`--method`/`--interactive`/`--headful` flags were removed without aliases:
-each old form fails with the exact replacement command.
+`--method` and `--headful` flags stay removed without aliases (`--interactive`
+is the explicit opt-in of `login api`): each old form fails with the exact
+replacement command.
 
 ### Configuration
 
@@ -460,16 +480,16 @@ Notes:
 - `--login` remains Direct client login.
 - Authorization is performed via `direct auth login`.
 - OAuth profiles store refresh tokens and refresh access tokens automatically.
-- In a non-interactive shell, run `direct auth login --profile NAME` first, then finish with `direct auth login --code - --profile NAME` and pass the browser code on stdin.
+- Run `direct auth login --profile NAME` first (headless, in a terminal too), then finish with `direct auth login --code - --profile NAME` and pass the browser code on stdin.
 - `direct auth login --code CODE --profile NAME` remains supported for compatibility, but automation should use `--code -` to avoid exposing the code in process arguments.
 - If the first non-interactive step includes `--client-secret`, the secret is remembered for the matching completion step.
 - If a profile already stores a confidential OAuth client, `direct auth login --code CODE --profile NAME` reuses the saved `client_id` and `client_secret`. Re-logging into an existing profile requires `--force`.
 - `direct auth login --oauth-token TOKEN` is a manual access-token import and does not auto-refresh.
-- In a terminal, the interactive API login links the current folder to the
+- `direct auth login api --interactive` links the current folder to the
   selected API profile (a `YANDEX_DIRECT_BIND_PROFILE` line in the folder's
-  `.env`; the menu offers an explicit "copy the raw token" choice). Headless
-  flows never ask questions; use `direct auth write --profile NAME` to bind
-  the folder without prompts.
+  `.env`; the menu offers an explicit "copy the raw token" choice). The
+  default headless flow never asks questions and never writes `.env`; use
+  `direct auth write --profile NAME` to bind the folder without prompts.
 - Alias `auth_login` is not supported.
 
 Credential resolution priority:
@@ -510,7 +530,7 @@ no `.env` — the CLI no longer inherits them silently:
   A: a link to another profile, a raw token copy and the inherit flag are
   kept and reported (issue #917).
 - Terminal sessions follow the same rule: an ordinary command never opens a
-  login dialog. Run `direct auth login api` to choose or
+  login dialog. Run `direct auth login api --interactive` to choose or
   authorize a profile and bind it to this folder. A profile created through
   the menu does not change the global active profile.
 - `direct auth status` in an unbound folder reports

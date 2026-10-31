@@ -44,9 +44,9 @@ the old `direct masters login` flow) is removed. Browser commands read the
 single saved session envelope and, when it is missing, corrupt or expired,
 first copy the live session from the user's Chrome — automatically and
 headlessly; no window opens for the copy, and Keychain may be asked once for
-the cookie-decryption key. `direct auth login browser` remains the only
-command that opens a window: it saves `session.json` directly instead of
-creating a persistent profile.
+the cookie-decryption key. `direct auth login browser --source manual`
+remains the only command that opens a window: it saves `session.json`
+directly instead of creating a persistent profile.
 
 Removed without aliases:
 
@@ -67,6 +67,42 @@ auto-imports from Chrome; `direct auth logout browser` additionally cleans
 up a leftover `~/.direct-cli/chrome-profile/`. The #950 user-agent fix is
 preserved: the manual login runs through the same context factory, so login
 and reuse share one browser fingerprint.
+
+**Authorization is headless and non-interactive by default again (restores the
+0.5.4 contract of AGENTS.md, "Authorization Execution Mode").**
+
+0.5.5 (#932) let a terminal switch dialogs on: `direct auth login api`
+prompted, opened a browser and wrote the folder's `.env` whenever stdin and
+stdout were terminals, and `direct auth login browser` always opened a window,
+while AGENTS.md kept promising headless login. A terminal now never enables
+anything by itself:
+
+- `direct auth login` / `direct auth login api` always print the
+  authorization URL and exit, in a terminal too; finish with `--code` /
+  `--code -` and bind the folder with `direct auth write --profile NAME`.
+  They no longer write the folder's `.env`.
+- `direct auth login api --interactive` (new, explicit) is the former
+  terminal flow: profile menu, code prompt, browser open, `.env` link. It
+  needs a terminal and refuses `--format json`, `--start-pkce`, `--code -` and
+  `--code-stdin`.
+- `direct auth login browser` now imports the live Chrome session headlessly
+  (`--source chrome` is the default). The visible login window is
+  `direct auth login browser --source manual`; `--timeout` and
+  `--allow-no-tty` belong to it. Hints that used to send users to
+  `direct auth login browser` for a window now name `--source manual`.
+- `--method` and `--headful` stay removed; `--headful` and
+  `login browser --interactive` refuse naming
+  `direct auth login browser --source manual`.
+
+Migration: scripts that relied on a terminal-driven `auth login` add
+`--interactive` (`direct auth login api --interactive`); scripts that opened
+the login window with `direct auth login browser` add `--source manual`.
+
+The contract is pinned by `tests/test_headless_auth_contract.py`, run by CI as
+its own `Headless auth contract` step: Click defaults, runs in a faked and in
+a real pseudo-terminal, an AST guard that terminal detection may only refuse,
+a registry of every prompt and browser-opening call site, and the docs
+(AGENTS.md, README, README_ru, CLAUDE.md).
 
 ### Fixed
 
