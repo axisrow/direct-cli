@@ -99,6 +99,11 @@ SMOKE_MATRIX = {
         "sitelinks.get",
         "smartadtargets.get",
         "strategies.get",
+        # Read-only: opens the support chat (Yandex Messenger) and scrolls its
+        # history to read the conversations (issue #897) -- never types or
+        # sends anything. support.send below is the mutation.
+        "support.get",
+        "support.list",
         "turbopages.get",
         "v4adimage.get",
         "v4events.get-events-log",
@@ -281,6 +286,17 @@ SMOKE_MATRIX = {
         # idempotent (a second run creates a second copy, not an update).
         # Manual-only, per scripts/test_dangerous_commands.sh.
         "masters.copy",
+        # Presses 1-5 in the support bot's rating request (issue #897) -- the
+        # rating reaches the support team and cannot be changed afterwards. No
+        # API surface, so no sandbox. Manual-only, per
+        # scripts/test_dangerous_commands.sh.
+        "support.rate",
+        # Sends a real message to Yandex Direct support through the chat
+        # (issue #897) -- it reaches the support team, cannot be recalled, and
+        # is NOT idempotent (a second run is a second message). No API
+        # surface, so no sandbox. Manual-only, per
+        # scripts/test_dangerous_commands.sh.
+        "support.send",
         "v4adimage.set",
         "v4finance.create-invoice",
         "v4finance.pay-campaigns",

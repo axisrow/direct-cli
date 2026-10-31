@@ -68,8 +68,37 @@ up a leftover `~/.direct-cli/chrome-profile/`. The #950 user-agent fix is
 preserved: the manual login runs through the same context factory, so login
 and reuse share one browser fingerprint.
 
+### Added
+
+- **`direct support list|get|send|rate` — correspondence with Yandex Direct
+  support (#897).** The API has no support surface; the chat in the UI is a
+  Yandex Messenger widget, so the new browser-backed group reads and writes
+  that same private chat through the saved browser session (no `--login`).
+  The chat is one continuous thread without ticket numbers, so conversations
+  are inferred (a rating or the bot's auto-close ends one, a low rating does
+  not, two days of support silence start a new one) and identified by the
+  sequence number of their first message. `send` has no conversation id (there
+  is one chat), asks for confirmation (`--yes` in scripts), supports
+  `--dry-run`, is never retried, and presses Enter only after reading the
+  input field back and finding exactly the message (a leftover draft stops
+  it). `rate <1-5>` presses that button in the bot's «Оцените нашу работу»
+  request — only while it is the newest message — with the same safeguards;
+  `get` shows a bot message's answer options as `buttons`.
+  `DIRECT_SUPPORT_CHAT_URL` overrides the chat URL.
+
 ### Fixed
 
+- **A live browser session is no longer reported expired because of a
+  short-lived tracking cookie (#951 follow-up).** The saved-session
+  `expired` flag — the gate that sends `open_session` to a Chrome import —
+  took the earliest expiry across *all* cookies, so Metrica's `_ym_isad`
+  (~2 days) flagged every session expired every other day although
+  `Session_id`/`sessionid2` were good for a year. In any shell that cannot
+  read Chrome's cookie database (macOS blocks it for apps without Full Disk
+  Access) every browser command then failed with "no usable saved session".
+  Freshness is now judged by the SSO pair alone; a jar without those cookies
+  keeps the earliest-cookie rule, and session-only SSO cookies leave the
+  expiry unknown instead of expired.
 - **`masters suspend` dismisses its confirmation modal (#953).** The stop
   click now opens a confirmation dialog whose accept control is what
   actually suspends; the retry loop finds and clicks it, and a dialog it

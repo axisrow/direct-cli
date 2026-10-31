@@ -65,6 +65,20 @@ non-critical campaign, confirming before/after state in the web UI):
     update. Verify with --draft first, then delete/archive the test copy
     by hand after checking it in the web UI.)
 
+Browser-driven support chat (no API surface, no --sandbox equivalent -- the
+text really reaches the Yandex Direct support team):
+  - direct support send --message "..."
+    (issue #897: sends a real message and may open a support request -- it
+    cannot be recalled and is NOT idempotent, a second run is a second
+    message. The CLI asks for confirmation, or pass --yes. Use --dry-run to
+    preview; verify the result in the chat itself.)
+  - direct support rate <1-5>
+    (issue #897: presses a rating button in the support bot's "rate our work"
+    request -- the rating reaches the support team and cannot be changed. It
+    only works while that request is the newest message in the chat. The CLI
+    asks for confirmation, or pass --yes. Use --dry-run to preview; verify the
+    result in the chat itself.)
+
 Interactive human-in-the-loop login (opens a visible browser window and
 blocks waiting for a person to sign in -- cannot run unattended):
   - direct auth login browser
