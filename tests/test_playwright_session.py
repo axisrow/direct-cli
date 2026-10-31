@@ -992,6 +992,32 @@ class TestSsoProbe(unittest.TestCase):
         self.assertEqual(verdict, "unknown")
         self.assertIn("Session_id=sess", seen["cookie"])
 
+    def test_truncated_chunked_body_is_inconclusive_not_a_crash(self):
+        """http.client.IncompleteRead (a chunked answer cut off mid-stream
+        while the probe reads its body glance) folds into "unknown" like
+        every other network failure — no network fault may escape the probe
+        to the unwrapped call sites (review finding on the #959 delta)."""
+        import http.client
+
+        class _TruncatedResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                return False
+
+            def read(self, size=-1):
+                raise http.client.IncompleteRead(b"partial")
+
+        class _Opener:
+            def open(self, request, timeout=None):  # noqa: A003 - OpenerDirector API
+                return _TruncatedResponse()
+
+        with patch("urllib.request.build_opener", return_value=_Opener()):
+            self.assertEqual(_real_probe_sso_session(self.JAR), "unknown")
+
     def test_redirect_to_passport_reads_as_revoked(self):
         error = self._http_error(302, "https://passport.yandex.ru/auth?retpath=x")
         with self._opener(exc=error):

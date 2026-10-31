@@ -28,6 +28,7 @@ profile machinery was removed in this release.
 """
 
 import contextlib
+import http.client
 import os
 import platform
 import urllib.error
@@ -701,9 +702,11 @@ def probe_sso_session(
             if location.hostname in _PASSPORT_LOGIN_HOSTS:
                 return "revoked"
         return "unknown"
-    except (urllib.error.URLError, OSError):
-        # URLError covers DNS/refused/timeout; OSError the raw socket errors.
-        # Connectivity says nothing about the session (#857's lesson).
+    except (urllib.error.URLError, OSError, http.client.HTTPException):
+        # URLError covers DNS/refused/timeout; OSError the raw socket errors;
+        # HTTPException (e.g. IncompleteRead) a body read cut off mid-stream —
+        # the body glance added it to this try block. Connectivity says
+        # nothing about the session (#857's lesson).
         return "unknown"
 
 
