@@ -9,9 +9,9 @@
   read as the #870 "login page instead of Direct" ambiguity while the cookies
   stayed formally fresh. A single cookie-only `GET` to the campaigns grid (no
   browser, `urllib`) now settles it: a 3xx redirect to `passport.yandex.ru`
-  means the session was revoked server-side, HTTP 200 leaves the existing
-  bot-challenge/expiry diagnosis in place, anything else is inconclusive and
-  never blocks.
+  means the session was revoked server-side, HTTP 200 without a captcha
+  marker leaves the existing bot-challenge/expiry diagnosis in place,
+  anything else is inconclusive and never blocks.
   - The probe runs on every auth failure: in the Chrome-import verify path
     and when a saved-session command fails mid-flight, a revoked verdict
     replaces the ambiguous error with an explicit "log in to Direct in Chrome
@@ -24,6 +24,16 @@
     (`sso_cookies`, `sso_cookie_names`: `Session_id`/`sessionid2`/
     `yandex_login`) and the envelope's `created_at`. `probe` and the SSO keys
     are new JSON keys; `masters status` renders the same payload.
+- **`auth doctor` checks the saved session server-side; a captcha gate never
+  reads as "alive" (#954).** The new `saved_session_server_side` check closes
+  the gap `saved_session_fresh` names explicitly ("cookie expiry only —
+  server-side validity is not checked"): it runs the same cookie-only probe
+  and reports whether the server still accepts the saved jar. The probe
+  itself now glances at a 200 answer for captcha markers — a SmartCaptcha
+  gate (#426) is inconclusive, not "alive". Offline `tests/test_masters.py`
+  redirects `PLAYWRIGHT_SESSION_PATH` to tmp_path module-wide, so a test
+  fixture can no longer overwrite the real
+  `~/.direct-cli/playwright/session.json` (the 2026-10-29 accident).
 
 ### BREAKING CHANGES
 
