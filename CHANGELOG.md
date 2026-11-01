@@ -30,9 +30,9 @@
   server-side validity is not checked"): it runs the same cookie-only probe
   and reports whether the server still accepts the saved jar. The probe
   itself now glances at a 200 answer for captcha markers — a SmartCaptcha
-  gate (#426) is inconclusive, not "alive". Offline `tests/test_masters.py`
-  redirects `PLAYWRIGHT_SESSION_PATH` to tmp_path module-wide, so a test
-  fixture can no longer overwrite the real
+  gate (#426) is inconclusive, not "alive". Offline tests redirect
+  `PLAYWRIGHT_SESSION_PATH` to a per-test tmp_path via an autouse conftest
+  fixture (#964), so a test fixture can no longer overwrite the real
   `~/.direct-cli/playwright/session.json` (the 2026-10-29 accident).
 
 ### BREAKING CHANGES

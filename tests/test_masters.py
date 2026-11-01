@@ -50,22 +50,6 @@ from direct_cli.cli import cli
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
-@pytest.fixture(autouse=True)
-def _isolated_playwright_session_path(tmp_path, monkeypatch):
-    """Keep every test here off the real ~/.direct-cli/playwright/session.json.
-
-    The auto-import path calls store.save_session — one forgotten patch let a
-    test fixture overwrite the operator's real saved session (2026-10-29,
-    issue #954/#964). Redirecting the path module-wide makes that class of
-    accident impossible instead of trusting each test to patch save_session
-    itself; the point patches some tests carry stay harmlessly redundant.
-    """
-    monkeypatch.setattr(
-        "direct_cli.browser.store.PLAYWRIGHT_SESSION_PATH",
-        tmp_path / "playwright" / "session.json",
-    )
-
-
 # `_IMAGES_GHOST_GRACE_S` (issue #687) makes `_wait_for_images_editor` hold a
 # "no StubN, no ContentImage yet" reading for real wall-clock seconds before
 # trusting it as a genuinely empty image set, to survive a live ghost render
@@ -1949,11 +1933,6 @@ class TestOpenSessionAutoImport(unittest.TestCase):
                 patch("direct_cli.browser.session.capture_storage_state", capture_mock),
                 patch("direct_cli.browser.session.login_manual_session", login_window),
                 patch("direct_cli.browser.session.open_saved_session", fake_saved),
-                # The auto-import path calls store.save_session — without this
-                # patch a test run wrote its chrome-owner fixture envelope into
-                # the REAL ~/.direct-cli/playwright/session.json and killed the
-                # operator's live session (2026-10-29, see #954).
-                patch("direct_cli.browser.store.save_session"),
             ):
                 with _open_session(
                     ctx, headful=False, profile_dir=None, chrome_profile="Default"
@@ -14236,17 +14215,6 @@ class TestMastersStatusCommand(unittest.TestCase):
 
     def setUp(self):
         self.runner = CliRunner()
-        import tempfile
-
-        self._tmpdir = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmpdir.cleanup)
-        self.session_path = Path(self._tmpdir.name) / "session.json"
-
-        saved_path = patch(
-            "direct_cli.browser.store.PLAYWRIGHT_SESSION_PATH", self.session_path
-        )
-        saved_path.start()
-        self.addCleanup(saved_path.stop)
 
     def test_status_registered(self):
         result = self.runner.invoke(cli, ["masters", "status", "--help"])

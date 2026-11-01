@@ -31,7 +31,6 @@ def auth_env(monkeypatch, tmp_path):
     monkeypatch.setenv("YANDEX_DIRECT_CLI_LOCALE", "en")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("direct_cli.auth.AUTH_STORE_PATH", tmp_path / "auth.json")
-    monkeypatch.setattr(store, "PLAYWRIGHT_SESSION_PATH", tmp_path / "session.json")
     yield tmp_path
     # A bind re-exports the fresh link/token into os.environ; strip the
     # YANDEX_DIRECT_* values this test produced so later tests in the same
