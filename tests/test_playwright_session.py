@@ -34,16 +34,31 @@ from direct_cli.browser._chrome_crypto import ChromeCookieError
 from direct_cli.browser.session import probe_sso_session as _real_probe_sso_session
 
 
-@pytest.fixture(autouse=True)
-def _isolated_session_path(tmp_path, monkeypatch):
-    """Redirect PLAYWRIGHT_SESSION_PATH to a tmp_path for every test in this module.
+class TestSuiteWideStoreIsolation(unittest.TestCase):
+    """The conftest autouse fixture (issue #964), not per-module patches,
+    keeps offline tests off the real ``~/.direct-cli/playwright/session.json``.
 
-    Unconditional (autouse) so a forgotten monkeypatch in a new test can never
-    write to the developer's real ~/.direct-cli/playwright/ under xdist.
+    These tests carry no patch of their own: if the conftest isolation
+    regresses, the first assert fails *before* ``save_session`` runs, so the
+    check itself can never be the write that destroys a real session.
     """
-    target = tmp_path / "playwright" / "session.json"
-    monkeypatch.setattr(store, "PLAYWRIGHT_SESSION_PATH", target)
-    yield target
+
+    def test_offline_store_path_is_redirected_away_from_real_home(self):
+        default = Path.home() / ".direct-cli" / "playwright" / "session.json"
+        self.assertNotEqual(store.PLAYWRIGHT_SESSION_PATH, default)
+        written = store.save_session(
+            {"cookies": [{"name": "Session_id", "value": "synthetic"}]}
+        )
+        self.assertEqual(written, store.PLAYWRIGHT_SESSION_PATH)
+        self.assertTrue(written.exists())
+
+    def test_per_test_override_still_wins(self):
+        with tempfile.TemporaryDirectory() as td:
+            custom = Path(td) / "own-session.json"
+            with patch.object(store, "PLAYWRIGHT_SESSION_PATH", custom):
+                written = store.save_session({"cookies": []})
+            self.assertEqual(written, custom)
+            self.assertTrue(custom.exists())
 
 
 class TestSaveSession(unittest.TestCase):
