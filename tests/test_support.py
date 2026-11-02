@@ -986,7 +986,10 @@ def test_get_rejects_a_non_numeric_id(session_calls):
     assert session_calls == []
 
 
-def test_send_dry_run_shows_the_request_and_opens_no_session(session_calls):
+def test_send_dry_run_shows_the_request_and_opens_no_session(
+    monkeypatch, session_calls
+):
+    monkeypatch.delenv(support.CHAT_URL_ENV, raising=False)
     result = CliRunner().invoke(
         cli, ["support", "send", "--message", "  привет  ", "--dry-run"]
     )
@@ -1051,7 +1054,10 @@ def test_send_rejects_an_empty_message(session_calls):
     assert session_calls == []
 
 
-def test_rate_dry_run_shows_the_request_and_opens_no_session(session_calls):
+def test_rate_dry_run_shows_the_request_and_opens_no_session(
+    monkeypatch, session_calls
+):
+    monkeypatch.delenv(support.CHAT_URL_ENV, raising=False)
     result = CliRunner().invoke(cli, ["support", "rate", "5", "--dry-run"])
 
     assert result.exit_code == 0, result.output
