@@ -31,7 +31,6 @@ def auth_env(monkeypatch, tmp_path):
     monkeypatch.setenv("YANDEX_DIRECT_CLI_LOCALE", "en")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("direct_cli.auth.AUTH_STORE_PATH", tmp_path / "auth.json")
-    monkeypatch.setattr(store, "PLAYWRIGHT_SESSION_PATH", tmp_path / "session.json")
     yield tmp_path
     # A bind re-exports the fresh link/token into os.environ; strip the
     # YANDEX_DIRECT_* values this test produced so later tests in the same
@@ -641,7 +640,9 @@ def test_chrome_import_is_explicit_and_keeps_legacy_json(auth_env, monkeypatch):
     assert "Deprecated" in legacy.stderr
 
 
-def test_browser_commands_auto_import_missing_session_from_chrome(auth_env, monkeypatch):
+def test_browser_commands_auto_import_missing_session_from_chrome(
+    auth_env, monkeypatch
+):
     """No usable session → the command copies the live Chrome session itself.
 
     The copy is headless and silent; the manual-login window is never opened
@@ -678,7 +679,13 @@ def test_browser_commands_auto_import_missing_session_from_chrome(auth_env, monk
 
 
 @pytest.mark.parametrize(
-    "argv", [["masters", "list"], ["history", "get"], ["adrestrictions", "123"]]
+    "argv",
+    [
+        ["masters", "list"],
+        ["history", "get"],
+        ["adrestrictions", "123"],
+        ["support", "list"],
+    ],
 )
 def test_browser_command_fails_with_login_hint_when_import_fails(
     auth_env, monkeypatch, argv

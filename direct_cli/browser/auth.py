@@ -121,6 +121,34 @@ def session_status() -> Dict[str, Any]:
     return store.session_status()
 
 
+def session_status_with_probe() -> Dict[str, Any]:
+    """:func:`session_status` plus the issue #954 liveness facts for ``auth status``.
+
+    Adds three keys to the flat report:
+
+    - ``probe`` — the cookie-only verdict :func:`session.probe_saved_session`
+      produced (``"alive"``/``"revoked"``/``"unknown"``). This is the one
+      network-touching difference from :func:`session_status` (a single GET,
+      and only when the jar carries SSO cookies), which is why the two exist:
+      :func:`open_session`'s auto-import check keeps using the network-free
+      report, while ``auth status`` can afford the one request that makes
+      "the session is dead" visible without curl.
+    - ``sso_cookies`` / ``sso_cookie_names`` — how many of the SSO cookies
+      (:data:`session.SSO_COOKIE_NAMES`) the jar carries.
+    """
+    payload = session_status()
+    envelope = store.read_session_envelope()
+    storage_state = envelope.get("storage_state") if envelope else None
+    cookies = storage_state.get("cookies") if isinstance(storage_state, dict) else None
+    if not isinstance(cookies, list):
+        cookies = []
+    names = session.sso_cookie_names(cookies)
+    payload["sso_cookie_names"] = names
+    payload["sso_cookies"] = len(names)
+    payload["probe"] = session.probe_sso_session(cookies)
+    return payload
+
+
 @contextlib.contextmanager
 def open_session(*, headless: bool = True) -> Generator["Page", None, None]:
     """Open the single saved session; auto-import from Chrome when unusable.
@@ -163,6 +191,12 @@ def open_session(*, headless: bool = True) -> Generator["Page", None, None]:
         with session.open_saved_session(headless=headless) as page:
             yield page
     except session.BrowserAuthError as exc:
+        # Issue #954: a server-side revocation surfaces mid-command as the
+        # same #870 login-page error a bot challenge produces. One cookie-only
+        # GET with the saved jar tells the stories apart before the message
+        # is finalized; an unknown probe keeps the original error untouched.
+        if session.probe_saved_session() == "revoked":
+            raise session.revoked_sso_session_error() from exc
         raise session.BrowserAuthError(
             f"{exc}\n{t('Run: {hint}').format(hint=HINT_LOGIN_BROWSER)}"
         ) from exc

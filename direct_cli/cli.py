@@ -76,6 +76,7 @@ from .commands.v4keywords import v4keywords
 from .commands.v4adimage import v4adimage
 from .commands.masters import masters
 from .commands.history import history
+from .commands.support import support
 from .commands.ad_elements import ad_elements
 from .commands.browser_session import playwright_group
 
@@ -98,8 +99,17 @@ install_vendor_hook()
 # way (issue #837): «История изменений» has no API surface, and its data call
 # authorizes off the browser session, not off a token. So is `adrestrictions`
 # (issue #892): the banners grid's own data calls authorize off the browser
-# session too. None of these read ctx.obj["token"] or ctx.obj["login"].
-_NO_CREDENTIALS_GROUPS = ("auth", "playwright", "masters", "history", "adrestrictions")
+# session too. So is `support` (issue #897): the support chat is a Yandex
+# Messenger chat read through the browser session. None of these read
+# ctx.obj["token"] or ctx.obj["login"].
+_NO_CREDENTIALS_GROUPS = (
+    "auth",
+    "playwright",
+    "masters",
+    "history",
+    "adrestrictions",
+    "support",
+)
 
 
 CLI_EPILOG = """\b
@@ -591,6 +601,7 @@ for command in (
     auth,
     masters,
     history,
+    support,
     ad_elements,
     playwright_group,
 ):

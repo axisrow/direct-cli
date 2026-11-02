@@ -85,6 +85,22 @@ DRY_RUN_PAYLOAD_EXCLUSIONS = {
         "update plan, not an API request. Batch/plan validation is covered by "
         "tests/test_masters.py::TestMastersUpdateBatch."
     ),
+    "support.rate": (
+        "The support chat is a Yandex Messenger chat driven through the "
+        "browser and has no WSDL operation at all (see "
+        "direct_cli/browser/support.py) — its --dry-run previews the chat URL "
+        "and the rating to press, not an API request. Covered by "
+        "tests/test_support.py::"
+        "test_rate_dry_run_shows_the_request_and_opens_no_session."
+    ),
+    "support.send": (
+        "The support chat is a Yandex Messenger chat driven through the "
+        "browser and has no WSDL operation at all (see "
+        "direct_cli/browser/support.py) — its --dry-run previews the chat URL "
+        "and message text, not an API request. Covered by "
+        "tests/test_support.py::"
+        "test_send_dry_run_shows_the_request_and_opens_no_session."
+    ),
     "negativekeywordsharedsets.get": (
         "Read path omits optional SelectionCriteria when --ids is absent."
     ),

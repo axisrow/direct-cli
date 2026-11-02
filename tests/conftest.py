@@ -139,6 +139,52 @@ def _isolate_global_auth_store(request, monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_playwright_session_store(request, monkeypatch, tmp_path):
+    """Point ``PLAYWRIGHT_SESSION_PATH`` at a per-test file for offline tests.
+
+    The developer's real ``~/.direct-cli/playwright/session.json`` holds a
+    live Yandex browser session; an offline test that reached
+    ``store.save_session`` without its own patch once overwrote it and
+    killed the session (2026-10-29, issue #964). Structural isolation —
+    not per-test discipline — is the guarantee (same cure as
+    ``_isolate_global_auth_store`` for ``auth.json``, issues #489/#904).
+    Live tiers are carved out: their browser paths replay the developer's
+    real saved session on purpose. Tests that need a specific session file
+    still override per-test; monkeypatch applies the later assignment, so
+    fixture ordering keeps working.
+    """
+    for marker in _LIVE_MARKERS:
+        if request.node.get_closest_marker(marker):
+            return
+    monkeypatch.setattr(
+        "direct_cli.browser.store.PLAYWRIGHT_SESSION_PATH",
+        tmp_path / "playwright" / "session.json",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _pin_sso_probe_offline(request, monkeypatch):
+    """Pin the #954 cookie-only SSO probe to its inconclusive verdict offline.
+
+    ``auth status`` and the Chrome-import auth-failure paths run a real
+    cookie-bearing GET to direct.yandex.ru when the machine carries a live
+    saved session — the offline tier must never depend on that round-trip
+    (same failure class as ``_block_login_resolve_network``: a test suite
+    whose outcome depends on the developer machine's live Yandex state).
+    Tests that exercise the probe patch ``urllib.request.build_opener`` or
+    ``probe_sso_session`` themselves and override this per-test. Live tiers
+    keep the real probe (same carve-out as ``_isolate_global_auth_store``).
+    """
+    for marker in _LIVE_MARKERS:
+        if request.node.get_closest_marker(marker):
+            return
+    monkeypatch.setattr(
+        "direct_cli.browser.session.probe_sso_session",
+        lambda *_args, **_kwargs: "unknown",
+    )
+
+
+@pytest.fixture(autouse=True)
 def _opt_in_global_profile_inheritance(monkeypatch):
     """Run offline tests under the #904 inheritance opt-in.
 

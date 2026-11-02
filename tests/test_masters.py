@@ -37,6 +37,7 @@ from click.testing import CliRunner
 
 from direct_cli.browser import _clock
 from direct_cli.browser import masters as browser_masters
+from direct_cli.browser import session as browser_session
 from direct_cli.browser.masters import PlaywrightError
 from direct_cli.browser.session import (
     BrowserAuthError,
@@ -48,6 +49,7 @@ from direct_cli.cli import cli
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
+
 # `_IMAGES_GHOST_GRACE_S` (issue #687) makes `_wait_for_images_editor` hold a
 # "no StubN, no ContentImage yet" reading for real wall-clock seconds before
 # trusting it as a genuinely empty image set, to survive a live ghost render
@@ -56,6 +58,10 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 # for the whole module — otherwise every empty-image-set test (there are
 # many, across several classes) would pay the real production grace period.
 _images_ghost_grace_patch = patch.object(browser_masters, "_IMAGES_GHOST_GRACE_S", 0.0)
+
+# Module-wide patches started in setUpModule; their stop callbacks live here
+# so tearDownModule can undo them in start order.
+_module_teardowns: List[Any] = []
 
 # Issue #767: every poll loop in `direct_cli/browser/` has two time sources —
 # the deadline (`_clock.now()`) and the tick (`page.wait_for_timeout`, a real
@@ -90,11 +96,24 @@ def _advance_fake_clock(timeout_ms):
 
 def setUpModule():
     _images_ghost_grace_patch.start()
+    # Issue #954: the auth-failure paths now run a cookie-only network probe;
+    # this module's fixtures stand in for a live session, so the probe is
+    # pinned to its inconclusive "unknown" verdict — the legacy messages the
+    # existing assertions expect — and never touches the network.
+    _sso_probe_patches = [
+        patch.object(browser_session, "probe_sso_session", return_value="unknown"),
+        patch.object(browser_session, "probe_saved_session", return_value="unknown"),
+    ]
+    for _patch in _sso_probe_patches:
+        _patch.start()
+        _module_teardowns.append(_patch.stop)
     _clock.set_clock(_fake_now)
 
 
 def tearDownModule():
     _clock.set_clock(time.monotonic)
+    for _stop in _module_teardowns:
+        _stop()
     _images_ghost_grace_patch.stop()
 
 
@@ -1914,11 +1933,6 @@ class TestOpenSessionAutoImport(unittest.TestCase):
                 patch("direct_cli.browser.session.capture_storage_state", capture_mock),
                 patch("direct_cli.browser.session.login_manual_session", login_window),
                 patch("direct_cli.browser.session.open_saved_session", fake_saved),
-                # The auto-import path calls store.save_session — without this
-                # patch a test run wrote its chrome-owner fixture envelope into
-                # the REAL ~/.direct-cli/playwright/session.json and killed the
-                # operator's live session (2026-10-29, see #954).
-                patch("direct_cli.browser.store.save_session"),
             ):
                 with _open_session(
                     ctx, headful=False, profile_dir=None, chrome_profile="Default"
@@ -14201,17 +14215,6 @@ class TestMastersStatusCommand(unittest.TestCase):
 
     def setUp(self):
         self.runner = CliRunner()
-        import tempfile
-
-        self._tmpdir = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmpdir.cleanup)
-        self.session_path = Path(self._tmpdir.name) / "session.json"
-
-        saved_path = patch(
-            "direct_cli.browser.store.PLAYWRIGHT_SESSION_PATH", self.session_path
-        )
-        saved_path.start()
-        self.addCleanup(saved_path.stop)
 
     def test_status_registered(self):
         result = self.runner.invoke(cli, ["masters", "status", "--help"])

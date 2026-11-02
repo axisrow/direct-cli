@@ -439,6 +439,9 @@ DIALOG_SITES: Dict[Tuple[str, str], Set[str]] = {
     ("browser/session.py", "login_manual_session"): {"headless=False"},
     # `masters delete` confirms a destructive, irreversible click (--yes skips).
     ("commands/masters.py", "delete"): {"click.confirm"},
+    # `support send` / `support rate` confirm a message or a rating that reaches
+    # the support team and cannot be recalled (--yes skips).
+    ("commands/support.py", "_confirm_or_abort"): {"click.confirm"},
 }
 
 _DIALOG_CALLS = {

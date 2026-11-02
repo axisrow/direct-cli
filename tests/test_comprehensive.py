@@ -67,6 +67,7 @@ class TestCommandsRegistered(unittest.TestCase):
         "auth",
         "masters",
         "history",
+        "support",
         "adrestrictions",
         "playwright",
     ]

@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### Added
+
+- **Cookie-only SSO probe: server-revoked sessions are named, not guessed (#954).**
+  When Yandex revokes the SSO session server-side, every browser flow used to
+  read as the #870 "login page instead of Direct" ambiguity while the cookies
+  stayed formally fresh. A single cookie-only `GET` to the campaigns grid (no
+  browser, `urllib`) now settles it: a 3xx redirect to `passport.yandex.ru`
+  means the session was revoked server-side, HTTP 200 without a captcha
+  marker leaves the existing bot-challenge/expiry diagnosis in place,
+  anything else is inconclusive and never blocks.
+  - The probe runs on every auth failure: in the Chrome-import verify path
+    and when a saved-session command fails mid-flight, a revoked verdict
+    replaces the ambiguous error with an explicit "log in to Direct in Chrome
+    and re-import" message.
+  - `auth login browser --source chrome --no-verify` runs the same probe and
+    refuses to save a jar the server no longer recognizes (that save was
+    masking dead sessions under fresh-looking envelopes).
+  - `auth status` (and `auth status browser`) report the probe verdict
+    (`probe`: `alive`/`revoked`/`unknown`), the SSO cookie inventory
+    (`sso_cookies`, `sso_cookie_names`: `Session_id`/`sessionid2`/
+    `yandex_login`) and the envelope's `created_at`. `probe` and the SSO keys
+    are new JSON keys; `masters status` renders the same payload.
+- **`auth doctor` checks the saved session server-side; a captcha gate never
+  reads as "alive" (#954).** The new `saved_session_server_side` check closes
+  the gap `saved_session_fresh` names explicitly ("cookie expiry only —
+  server-side validity is not checked"): it runs the same cookie-only probe
+  and reports whether the server still accepts the saved jar. The probe
+  itself now glances at a 200 answer for captcha markers — a SmartCaptcha
+  gate (#426) is inconclusive, not "alive". Offline tests redirect
+  `PLAYWRIGHT_SESSION_PATH` to a per-test tmp_path via an autouse conftest
+  fixture (#964), so a test fixture can no longer overwrite the real
+  `~/.direct-cli/playwright/session.json` (the 2026-10-29 accident).
+
 ### BREAKING CHANGES
 
 **One browser session: `~/.direct-cli/playwright/session.json`.**
@@ -71,8 +104,37 @@ a real pseudo-terminal, an AST guard that terminal detection may only refuse,
 a registry of every prompt and browser-opening call site, and the docs
 (AGENTS.md, README, README_ru, CLAUDE.md).
 
+### Added
+
+- **`direct support list|get|send|rate` — correspondence with Yandex Direct
+  support (#897).** The API has no support surface; the chat in the UI is a
+  Yandex Messenger widget, so the new browser-backed group reads and writes
+  that same private chat through the saved browser session (no `--login`).
+  The chat is one continuous thread without ticket numbers, so conversations
+  are inferred (a rating or the bot's auto-close ends one, a low rating does
+  not, two days of support silence start a new one) and identified by the
+  sequence number of their first message. `send` has no conversation id (there
+  is one chat), asks for confirmation (`--yes` in scripts), supports
+  `--dry-run`, is never retried, and presses Enter only after reading the
+  input field back and finding exactly the message (a leftover draft stops
+  it). `rate <1-5>` presses that button in the bot's «Оцените нашу работу»
+  request — only while it is the newest message — with the same safeguards;
+  `get` shows a bot message's answer options as `buttons`.
+  `DIRECT_SUPPORT_CHAT_URL` overrides the chat URL.
+
 ### Fixed
 
+- **A live browser session is no longer reported expired because of a
+  short-lived tracking cookie (#951 follow-up).** The saved-session
+  `expired` flag — the gate that sends `open_session` to a Chrome import —
+  took the earliest expiry across *all* cookies, so Metrica's `_ym_isad`
+  (~2 days) flagged every session expired every other day although
+  `Session_id`/`sessionid2` were good for a year. In any shell that cannot
+  read Chrome's cookie database (macOS blocks it for apps without Full Disk
+  Access) every browser command then failed with "no usable saved session".
+  Freshness is now judged by the SSO pair alone; a jar without those cookies
+  keeps the earliest-cookie rule, and session-only SSO cookies leave the
+  expiry unknown instead of expired.
 - **`masters suspend` dismisses its confirmation modal (#953).** The stop
   click now opens a confirmation dialog whose accept control is what
   actually suspends; the retry loop finds and clicks it, and a dialog it
