@@ -92,7 +92,7 @@ _LOGIN_POLL_INTERVAL_MS = 1_000
 # Passport sets on the very first page load (``yandexuid``, ``gdpr``, csrf
 # tokens) — those appear long before the user has typed anything, so keying
 # the verification probe on them would fire it under the user's fingers.
-_AUTH_SESSION_COOKIE_NAMES = frozenset({"Session_id", "sessionid2"})
+_AUTH_SESSION_COOKIE_NAMES = store.AUTH_SESSION_COOKIE_NAMES
 
 
 class BrowserSessionError(RuntimeError):

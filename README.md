@@ -355,6 +355,56 @@ A bare `--date-from`/`--date-to` date covers the whole day; pass
 `YYYY-MM-DDTHH:MM:SS` for an exact window. Without them, the period the
 section itself defaults to is used.
 
+### Переписка со службой поддержки (support chat) — browser-only
+
+The API has no support surface either: the chat in the Direct UI is a Yandex
+Messenger widget, so `direct support` reads and writes that same private chat
+through the saved browser session (same `--headful` option and no-`--login`
+rule as `direct masters`):
+
+```bash
+direct support list
+direct support list --limit 20 --format table
+direct support get 1204
+direct support send --message "Здравствуйте! Подскажите, как подключить счётчик" --dry-run
+direct support rate 5 --dry-run
+```
+
+The chat is **one continuous thread without ticket numbers**, so conversations
+are inferred: one ends when you rate the support's work (the bot asks for a
+rating at the end of every request) or the bot closes it for lack of an answer
+(«Напишите нам, если вопрос ещё актуален»), and your next message starts the
+next one. A low rating is the exception — the bot then asks what went wrong and
+the dialog goes on in the same conversation. A request that was neither rated
+nor closed ends by silence: you writing again more than two days after the last
+support message starts a new conversation. A conversation's `id` is the
+sequence number of its first message. `support list` returns, newest first,
+`id`, `started`, `updated`, `status` (`open`/`closed`), `messages` and a
+`preview` of what you asked; `support get <id>` returns the messages (`id`,
+`from` = `me`/`support`, `date`, `time`, `text`, plus `media`/`links` for
+attachments and `buttons` for a bot's answer options). Promo mailings from the «Яндекс Директ» account are ordinary
+support messages and attach to the conversation they arrive in. Opening the
+chat to read it marks its messages as read.
+
+`support send` types the text into the chat and presses Enter, but only after
+reading the input field back and finding exactly that text — a leftover draft
+stops it: nothing is sent and the field is left for you to clear. The message
+reaches the support team and cannot be recalled, so the command asks for
+confirmation (`--yes` in scripts), never retries, and says so when it cannot
+confirm delivery; `--dry-run` only prints what would be sent. There is no
+conversation id to reply to — it is one chat, and writing after a closed
+conversation opens a new one. `DIRECT_SUPPORT_CHAT_URL` overrides the chat URL
+should Yandex serve a different support account.
+
+`support rate <1-5>` answers the bot's «Хотим убедиться, что помогли. Оцените,
+пожалуйста, нашу работу.» request by pressing that button in the chat. It only
+works while that request is the newest message in the chat (otherwise nothing
+is pressed and the command says why). A rating cannot be changed and ends the
+conversation; a low rating makes the bot ask what went wrong, and the dialog
+goes on — answer it with `support send`. Like `send`, it asks for confirmation
+(`--yes` in scripts), never retries, and `--dry-run` only prints what would be
+pressed.
+
 ### Authorization
 
 `auth login` has two explicit domains: `direct auth login api` (an OAuth
