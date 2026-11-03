@@ -34,6 +34,16 @@
   `PLAYWRIGHT_SESSION_PATH` to a per-test tmp_path via an autouse conftest
   fixture (#964), so a test fixture can no longer overwrite the real
   `~/.direct-cli/playwright/session.json` (the 2026-10-29 accident).
+- **MCP: `auth_setup` can now overwrite an existing profile via `force`
+  (#970).** The CLI contract itself is unchanged — `auth login api --force`
+  already refused nothing — but the MCP schema only exposed
+  `code`/`login`/`profile`, so a stale token in an existing profile could
+  not be replaced from MCP. The fix ships in the yandex-direct MCP plugin
+  (plugin PR #331): `auth_setup` gained a `force` parameter (forwarded as
+  the CLI's `--force`) and maps the CLI's overwrite refusal to a
+  machine-readable `profile_exists` error with a `force=true` hint.
+  Acceptance tests (schema exposure + real-CLI overwrite end-to-end) are in
+  plugin PR #332; requires a plugin release newer than #331.
 
 ### BREAKING CHANGES
 
