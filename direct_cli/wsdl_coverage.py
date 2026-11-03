@@ -293,7 +293,7 @@ def _assert_real_xsd(url: str, xml_text: str) -> None:
 
 def parse_wsdl_operations(wsdl_xml: str) -> list:
     """Extract unique API method names from WSDL XML."""
-    root = ET.fromstring(wsdl_xml)
+    root, _ = _parse_xml(wsdl_xml)
     ns = {"wsdl": "http://schemas.xmlsoap.org/wsdl/"}
     ops = set()
     for op in root.findall(".//wsdl:operation", ns):
@@ -411,15 +411,6 @@ def _local_name(qname: str | None) -> str | None:
     return qname.split(":", 1)[1] if ":" in qname else qname
 
 
-def _namespace_prefixes(xml_text: str) -> dict[str, str]:
-    """Return namespace URI by XML prefix for an XML document."""
-    prefixes: dict[str, str] = {}
-    for _, item in ET.iterparse(StringIO(xml_text), events=("start-ns",)):
-        prefix, namespace = item
-        prefixes[prefix or ""] = namespace
-    return prefixes
-
-
 def _qname_parts(
     qname: str | None, prefixes: dict[str, str], default_ns: str
 ) -> tuple[str, str] | None:
@@ -515,9 +506,25 @@ def _load_schema_contexts(wsdl_xml: str) -> dict[str, dict]:
     return contexts
 
 
+@lru_cache(maxsize=64)
 def _parse_xml(xml_text: str) -> tuple[ET.Element, dict[str, str]]:
-    """Parse XML and keep prefix-to-namespace declarations."""
-    return ET.fromstring(xml_text), _namespace_prefixes(xml_text)
+    """Parse each XML document once, retaining its namespace declarations.
+
+    The cache is keyed by content, so changed WSDL/XSD text is parsed afresh.
+    Only internal, read-only trees are shared: public schema/enum helpers still
+    build independent dicts and lists, and imported XSDs are resolved on each
+    call rather than hidden behind a cached operation schema.
+    """
+    prefixes: dict[str, str] = {}
+    root: ET.Element | None = None
+    for event, item in ET.iterparse(StringIO(xml_text), events=("start-ns", "end")):
+        if event == "start-ns":
+            prefix, namespace = item
+            prefixes[prefix or ""] = namespace
+        else:
+            root = item  # The last end event is the document root.
+    assert root is not None  # Empty/malformed documents raise ET.ParseError above.
+    return root, prefixes
 
 
 def _element_field(
