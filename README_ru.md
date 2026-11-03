@@ -28,15 +28,18 @@ Workflow `Build` в GitHub Actions собирает и проверяет wheel 
 веб-интерфейсе, и его нельзя путать с `UNIFIED_CAMPAIGN` (это отдельный тип
 кампании в v5 API, уже поддержанный через `campaigns add/get --type
 unified_campaign`). Браузерные команды используют сохранённую сессию,
-независимую от API-токена. Выполните `direct auth login --method browser --interactive`:
-откроется отдельное окно Chromium, принадлежащее CLI. Этот способ работает
-на macOS/Linux/Windows и не читает Chrome или Keychain.
+независимую от API-токена. Выполните `direct auth login browser`: команда
+headless, без окна, импортирует вашу живую сессию Chrome (macOS может один раз
+запросить доступ к Keychain). Чтобы войти вручную, выполните
+`direct auth login browser --source manual`: откроется отдельное окно
+Chromium, принадлежащее CLI; этот способ работает на macOS/Linux/Windows и не
+читает Chrome или Keychain.
 Требуется опциональный extra `browser`:
 
 ```bash
 pip install "direct-cli[browser]"
 playwright install chromium
-direct auth login --method browser --interactive
+direct auth login browser
 direct masters list
 direct masters list --status archived
 direct masters get 72349978
@@ -155,8 +158,8 @@ no-op, а вот конкретная позиция или content ID, кото
 этого опубликовать кампанию при сохранении, передайте `--launch`
 («Запустить кампанию»). На не-черновиковой кампании флаг не имеет эффекта.
 
-Для импорта существующей сессии Chrome выполните
-`direct auth login --method browser --source chrome --chrome-profile "Profile 1"`.
+Чтобы импортировать профиль Chrome, отличный от `Default`, выполните
+`direct auth login browser --source chrome --chrome-profile "Profile 1"`.
 Флаги профиля Chrome используются только при явном входе.
 
 Поскольку у этих данных нет API-контракта, парсер деградирует посекционно
@@ -236,15 +239,21 @@ API (та же цепочка приоритетов, что и у любой д
 
 **Браузерная авторизация:** ровно один файл сессии —
 `~/.direct-cli/playwright/session.json` (права `0600`). `direct auth login browser`
-открывает видимое окно один раз и ждёт ручного входа до `--timeout` секунд
-(по умолчанию 300); нужен терминал, явное исключение — `--allow-no-tty`.
-Итоговая сессия сохраняется сразу в этот файл — persistent-профиль не создаётся.
+копирует живую сессию из Chrome в этот файл headless (`--source chrome`, по
+умолчанию): окно не открывается, Keychain может один раз запросить доступ
+к ключу расшифровки. `--profile-dir` задаёт исходный каталог Chrome,
+`--chrome-profile` — подпапку профиля; оба флага требуют `--source chrome`.
+
+Для ручного входа выполните `direct auth login browser --source manual`: он
+один раз открывает видимое окно Chromium, принадлежащее CLI, и ждёт входа до
+`--timeout` секунд (по умолчанию 300); нужен терминал, явное исключение —
+`--allow-no-tty` (`--timeout` и `--allow-no-tty` относятся к `--source manual`).
+Итоговая сессия сохраняется сразу в тот же файл — persistent-профиль не
+создаётся. Окно открывается только по этому явному запросу, а не как побочный
+эффект другой команды.
 
 Любая browser-команда при отсутствии/повреждении/истечении файла сама
-копирует живую сессию из Chrome — headless, без окна (Keychain может один
-раз запросить доступ к ключу расшифровки). `--profile-dir` задаёт исходный
-каталог Chrome, `--chrome-profile` — подпапку профиля; оба флага требуют
-`--source chrome`.
+копирует живую сессию из Chrome — headless, без окна.
 
 `direct auth status browser` показывает сохранённое состояние без открытия
 браузера; наличие данных не гарантирует, что сессия всё ещё действительна
@@ -260,40 +269,50 @@ stdout сохранён.
 ### Авторизация
 
 Авторизация по умолчанию работает **headless, без интерактива**, в том числе
-в обычном терминале. `direct auth login` выводит URL авторизации API и не
-открывает браузер, не показывает меню и не задаёт вопросов. Код передаётся
-отдельным вызовом через `--code` или `--code -`; привязать сохранённый
-профиль к папке можно через `direct auth write --profile NAME`.
+в обычном терминале. Ничего не спрашивается, браузер и окно не открываются, а
+`.env` текущей папки не меняется, пока вы явно не попросите об этом флагом:
+
+- `direct auth login` (то же, что `direct auth login api`) выводит URL
+  авторизации API и сохраняет pending PKCE: браузер не открывается, меню и
+  вопросов нет. Код передаётся отдельным вызовом через `--code` или
+  `--code -`; привязать сохранённый профиль к папке можно через
+  `direct auth write --profile NAME`.
+- `direct auth login api --interactive` — явный запрос для человека в
+  терминале: предлагает сохранённый профиль (номером) или вход в новый
+  аккаунт, печатает URL, открывает браузер, читает код и сразу записывает
+  ссылку на профиль в `.env` текущей папки. Нужен терминал; несовместим с
+  `--format json`, `--start-pkce`, `--code -` и `--code-stdin`.
+- `direct auth login browser` импортирует сессию из Chrome headless: окно не
+  открывается, а ошибка проверки не включает видимое окно автоматически.
+- `direct auth login browser --source manual` — явный запрос видимого окна
+  входа. `--allow-no-tty` только снимает проверку терминала и сам по себе окно
+  не открывает.
+
 Запись в существующий профиль (включая `default`) требует явного `--force`.
 CLI никогда не заменяет сохранённые credentials, профили и браузерные сессии
 молча: замена — либо заявленное назначение команды (и она сообщает, что
 заменено), либо требует явного `--force`.
 
-Только `direct auth login --interactive` предлагает **API** или **Браузер**. Для API
-можно выбрать сохранённый профиль номером или войти в новый аккаунт.
-Выбор сразу записывается в `.env` текущей папки. Имя нового профиля берётся
-из логина аккаунта; при совпадении добавляется числовой суффикс.
-API-токены и браузерная сессия остаются независимыми и могут относиться
-к разным аккаунтам.
+Имя нового профиля берётся из логина аккаунта; при совпадении добавляется
+числовой суффикс. API-токены и браузерная сессия остаются независимыми и могут
+относиться к разным аккаунтам.
 
 ```bash
 direct auth login
-direct auth login --interactive
-direct auth login --method api
-direct auth login --method browser --interactive
-direct auth login --method browser --source chrome
-direct auth status --method all
+direct auth login api
+direct auth login api --interactive
+direct auth login browser
+direct auth login browser --source manual
+direct auth status
+direct auth status api
+direct auth status browser
 direct auth doctor
-direct auth logout --method api --profile agency1
-direct auth logout --method browser
+direct auth logout api --profile agency1
+direct auth logout browser
 ```
 
-Диалоги требуют `--interactive`. Видимое окно браузера требует
-`--interactive` или `--headful`; `--allow-no-tty` только снимает проверку
-терминала и сам по себе окно не открывает. Ручной браузерный вход без
-явного флага UI завершается ошибкой. Импорт Chrome по умолчанию headless;
-ошибка проверки не включает видимое окно автоматически. Обычные команды без авторизации
-завершаются понятной ошибкой даже в терминале. `direct` без аргументов
+Обычные команды без авторизации завершаются понятной ошибкой даже в
+терминале и никогда не начинают вход сами. `direct` без аргументов
 показывает справку. Выход из API удаляет указанный локальный профиль
 и API-данные из `.env` текущей папки; остальные настройки сохраняются.
 Удаляются также локальные ссылки на менеджеры секретов и настройка
@@ -301,10 +320,12 @@ direct auth logout --method browser
 Копии токена в других папках, внешнем окружении и менеджерах секретов
 не отзываются.
 
-`auth status` сохраняет прежний API-вывод по умолчанию. `--method browser`
-показывает браузерную сессию, `--method all` — оба состояния; общий JSON
-содержит разделы `api` и `browser`. Старые API-флаги и двухшаговый вход
-через PKCE/stdin продолжают работать без меню при автоматизации.
+`auth status` показывает оба домена (блоки `API:` и `Browser:`); общий JSON
+содержит разделы `api` и `browser`. `auth status api` и `auth status browser`
+выбирают один домен. Старые API-флаги и двухшаговый вход через PKCE/stdin
+продолжают работать без меню при автоматизации. Прежние флаги `--method` и
+`--headful` удалены без алиасов (`--interactive` — явный запрос `login api`):
+каждая старая форма завершается ошибкой с точной командой-заменой.
 
 ### Настройка
 
@@ -346,14 +367,14 @@ direct --profile agency1 campaigns get
 
 Примечания:
 - OAuth profiles сохраняют refresh token и автоматически обновляют access token.
-- В non-interactive shell сначала выполните `direct auth login --profile NAME`, затем завершите через `direct auth login --code - --profile NAME` и передайте browser code через stdin.
+- Сначала выполните `direct auth login --profile NAME` (headless, в том числе в терминале), затем завершите через `direct auth login --code - --profile NAME` и передайте browser code через stdin.
 - `direct auth login --code CODE --profile NAME` сохраняется для совместимости, но автоматизация должна использовать `--code -`, чтобы не раскрывать код в process arguments.
 - Если первый non-interactive шаг включает `--client-secret`, secret запоминается для последующего completion step.
 - Если profile уже хранит confidential OAuth client, `direct auth login --code CODE --profile NAME` использует сохраненные `client_id` и `client_secret`. Повторный вход в существующий профиль требует `--force`.
 - `direct auth login --oauth-token TOKEN` импортирует access token вручную и не включает auto-refresh.
-- Вход с `--interactive` сразу сохраняет выбранный API-профиль в `.env`
-  текущей папки. Headless-вход не спрашивает о записи; для явной привязки
-  используйте `direct auth write --profile NAME`.
+- `direct auth login api --interactive` сразу сохраняет выбранный API-профиль в
+  `.env` текущей папки. Headless-вход ничего не спрашивает и `.env` не
+  трогает; для явной привязки используйте `direct auth write --profile NAME`.
 
 Порядок выбора credentials:
 

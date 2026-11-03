@@ -41,6 +41,15 @@ jobs:
       - name: Pyright
         run: pyright
 
+      - name: Headless auth contract
+        # AGENTS.md "Authorization Execution Mode": login is headless and
+        # non-interactive by default, even in a terminal; dialogs and the login
+        # window only behind an explicit flag. Its own step so a regression
+        # shows up by name, and so deleting or emptying the contract file fails
+        # here (pytest exits 5 on "no tests collected") instead of vanishing
+        # from the full run below.
+        run: pytest tests/test_headless_auth_contract.py -v
+
       - name: Run offline tests
         # Offline default comes from pyproject addopts (skips the live-network
         # markers). integration_write stays in — it replays VCR cassettes offline.

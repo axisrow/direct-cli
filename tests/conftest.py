@@ -97,6 +97,27 @@ def _block_login_resolve_network(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _block_real_chrome_profile(monkeypatch, tmp_path):
+    """Keep offline tests away from the developer's real Chrome profile.
+
+    ``auth login browser`` imports the Chrome session by default (the headless
+    contract, AGENTS.md), so a test that forgets to mock the import would read
+    the machine's real cookie database and ask the Keychain for its key. The
+    default Chrome user-data-dir therefore points at a directory that does not
+    exist: such a test fails with "Chrome profile directory not found" instead
+    of touching anything. Tests that exercise the resolver or the diagnostics
+    patch it themselves (the later monkeypatch wins).
+    """
+    no_chrome = tmp_path / "no-chrome-here"
+    monkeypatch.setattr(
+        "direct_cli.browser.session.default_chrome_profile_dir", lambda: no_chrome
+    )
+    monkeypatch.setattr(
+        "direct_cli.browser.diagnostics.default_chrome_profile_dir", lambda: no_chrome
+    )
+
+
+@pytest.fixture(autouse=True)
 def _isolate_global_auth_store(request, monkeypatch, tmp_path):
     """Point ``AUTH_STORE_PATH`` at a per-test file for offline tests.
 

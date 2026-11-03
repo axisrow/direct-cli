@@ -79,9 +79,11 @@ text really reaches the Yandex Direct support team):
     asks for confirmation, or pass --yes. Use --dry-run to preview; verify the
     result in the chat itself.)
 
-Interactive human-in-the-loop login (opens a visible browser window and
-blocks waiting for a person to sign in -- cannot run unattended):
-  - direct auth login browser
+Interactive human-in-the-loop login (prompts, or opens a visible browser
+window and blocks waiting for a person to sign in -- cannot run unattended;
+both are explicit opt-ins, plain `direct auth login ...` is headless):
+  - direct auth login api --interactive
+  - direct auth login browser --source manual
 
 Production commands that are only allowed in automated smoke tests with --sandbox:
   - direct bids set ...
