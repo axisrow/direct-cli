@@ -88,12 +88,23 @@ def _block_login_resolve_network(monkeypatch):
     never depend on that round-trip or the Passport fallback, so neutralize
     both resolvers here. Tests
     that specifically exercise the resolver patch it themselves.
+
+    Patched in BOTH namespaces since the #961 track-6 split: the facade
+    (``direct_cli.auth``) — whose bindings back ``_resolve_profile_credentials``'s
+    migration call, which still lives in the facade — and
+    ``direct_cli._auth_network``, whose module globals back
+    ``resolve_account_login`` (called from ``commands/auth.py``). Patching only
+    one namespace would leave the other path making real network calls.
     """
-    monkeypatch.setattr(
-        "direct_cli.auth._resolve_client_login_via_api",
-        lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr("direct_cli.auth.resolve_login", lambda *_args, **_kwargs: None)
+    for namespace in ("direct_cli._auth_network", "direct_cli.auth"):
+
+        def _login_resolver_stub(*_args, **_kwargs):
+            return None
+
+        monkeypatch.setattr(
+            f"{namespace}._resolve_client_login_via_api", _login_resolver_stub
+        )
+        monkeypatch.setattr(f"{namespace}.resolve_login", _login_resolver_stub)
 
 
 @pytest.fixture(autouse=True)
@@ -114,7 +125,9 @@ def _isolate_global_auth_store(request, monkeypatch, tmp_path):
     for marker in _LIVE_MARKERS:
         if request.node.get_closest_marker(marker):
             return
-    monkeypatch.setattr("direct_cli._auth_store.AUTH_STORE_PATH", tmp_path / "auth.json")
+    monkeypatch.setattr(
+        "direct_cli._auth_store.AUTH_STORE_PATH", tmp_path / "auth.json"
+    )
 
 
 @pytest.fixture(autouse=True)
