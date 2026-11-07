@@ -12,23 +12,23 @@ from ._campaigns_base import _array_of_integer_option, _build_frequency_cap
 
 
 def build_add_block(
-    p, campaign_data, parsed_settings, counter_ids_obj, frequency_cap_obj
+    params, campaign_data, parsed_settings, counter_ids_obj, frequency_cap_obj
 ):
     """Compose ``campaign_data['CpmBannerCampaign']`` for ``campaigns add``.
 
-    ``p`` is a snapshot of every CLI parameter of the ``add`` command
-    (``dict(locals())``); only the CPM-relevant flags are pulled out below.
+    ``params`` is a snapshot of every CLI parameter of the ``add``
+    command; only the CPM-relevant flags are pulled out below.
     """
-    search_strategy = p["search_strategy"]
-    network_strategy = p["network_strategy"]
-    average_cpm = p["average_cpm"]
-    average_cpv = p["average_cpv"]
-    strategy_spend_limit = p["strategy_spend_limit"]
-    strategy_start_date = p["strategy_start_date"]
-    strategy_end_date = p["strategy_end_date"]
-    strategy_auto_continue = p["strategy_auto_continue"]
-    strategy_weekly_spend_limit = p["strategy_weekly_spend_limit"]
-    video_target = p["video_target"]
+    search_strategy = params.search_strategy
+    network_strategy = params.network_strategy
+    average_cpm = params.average_cpm
+    average_cpv = params.average_cpv
+    strategy_spend_limit = params.strategy_spend_limit
+    strategy_start_date = params.strategy_start_date
+    strategy_end_date = params.strategy_end_date
+    strategy_auto_continue = params.strategy_auto_continue
+    strategy_weekly_spend_limit = params.strategy_weekly_spend_limit
+    video_target = params.video_target
 
     cpm_builder = get_bidding_strategy_builder("CPM_BANNER_CAMPAIGN", "add", "full")
     if cpm_builder is not None:
@@ -65,26 +65,26 @@ def build_add_block(
     campaign_data["CpmBannerCampaign"] = cpm_campaign
 
 
-def build_update_block(p, sub_block):
+def build_update_block(params, sub_block):
     """Fill ``sub_block`` for the CpmBannerCampaign subtype of ``campaigns update``.
 
-    ``p`` is a snapshot of every CLI parameter of the ``update`` command.
+    ``params`` is a snapshot of every CLI parameter of the ``update`` command.
     """
-    search_strategy = p["search_strategy"]
-    network_strategy = p["network_strategy"]
-    average_cpm = p["average_cpm"]
-    average_cpv = p["average_cpv"]
-    strategy_spend_limit = p["strategy_spend_limit"]
-    strategy_start_date = p["strategy_start_date"]
-    strategy_end_date = p["strategy_end_date"]
-    strategy_auto_continue = p["strategy_auto_continue"]
-    strategy_weekly_spend_limit = p["strategy_weekly_spend_limit"]
-    settings = p["settings"]
-    counter_ids = p["counter_ids"]
-    frequency_cap_impressions = p["frequency_cap_impressions"]
-    frequency_cap_period_days = p["frequency_cap_period_days"]
-    frequency_cap_period_all = p["frequency_cap_period_all"]
-    video_target = p["video_target"]
+    search_strategy = params.search_strategy
+    network_strategy = params.network_strategy
+    average_cpm = params.average_cpm
+    average_cpv = params.average_cpv
+    strategy_spend_limit = params.strategy_spend_limit
+    strategy_start_date = params.strategy_start_date
+    strategy_end_date = params.strategy_end_date
+    strategy_auto_continue = params.strategy_auto_continue
+    strategy_weekly_spend_limit = params.strategy_weekly_spend_limit
+    settings = params.settings
+    counter_ids = params.counter_ids
+    frequency_cap_impressions = params.frequency_cap_impressions
+    frequency_cap_period_days = params.frequency_cap_period_days
+    frequency_cap_period_all = params.frequency_cap_period_all
+    video_target = params.video_target
 
     parsed_settings = parse_setting_specs(list(settings))
     if parsed_settings:

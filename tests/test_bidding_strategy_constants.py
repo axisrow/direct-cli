@@ -134,12 +134,28 @@ _EXPECTED_CALLABLE_NAMES = {"get_bidding_strategy_builder"}
 
 
 def _imported_bidding_strategy_names():
-    """Names campaigns.py imports from .._bidding_strategy (parsed from source)."""
-    tree = ast.parse(_CAMPAIGNS_PY.read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "_bidding_strategy":
-            return {alias.name for alias in node.names}
-    raise AssertionError("no `from .._bidding_strategy import (...)` in campaigns.py")
+    """Names the campaigns command family imports from _bidding_strategy.
+
+    Parsed from source. Since the #602/#961 per-campaign-type split, several
+    TEXT/UNIFIED subtype sets are consumed by the per-type builder modules
+    (``_campaigns_text.py`` / ``_campaigns_unified.py``) rather than
+    ``campaigns.py`` itself, so the import contract follows them; the union
+    across the family keeps the same two-sided drift guard as before.
+    """
+    modules = [_CAMPAIGNS_PY] + sorted(_CAMPAIGNS_PY.parent.glob("_campaigns_*.py"))
+    names = set()
+    for path in modules:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        found = {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+            and node.module == "_bidding_strategy"
+            for alias in node.names
+        }
+        assert found, f"no `from .._bidding_strategy import (...)` in {path.name}"
+        names |= found
+    return names
 
 
 def test_import_contract_every_imported_name_resolves():

@@ -9,31 +9,11 @@ from typing import Any
 import click
 
 from .._bidding_strategy import (
-    _TEXT_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE,
-    _TEXT_NETWORK_AVERAGE_CPA_SUBTYPES,
-    _TEXT_NETWORK_BID_CEILING_SUBTYPES,
-    _TEXT_NETWORK_CRR_SUBTYPES,
-    _TEXT_NETWORK_GOAL_ID_SUBTYPES,
-    _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS,
-    _TEXT_SEARCH_SUPPORTS_AVERAGE_CPA,
-    _TEXT_SEARCH_SUPPORTS_BID_CEILING,
-    _TEXT_SEARCH_SUPPORTS_CRR,
-    _TEXT_SEARCH_SUPPORTS_GOAL_ID,
     _UNIFIED_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE,
-    _UNIFIED_NETWORK_AVERAGE_CPA_SUBTYPES,
-    _UNIFIED_NETWORK_BID_CEILING_SUBTYPES,
-    _UNIFIED_NETWORK_CRR_SUBTYPES,
-    _UNIFIED_NETWORK_GOAL_ID_SUBTYPES,
     _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS,
     _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS,
-    _UNIFIED_SEARCH_SUPPORTS_AVERAGE_CPA,
-    _UNIFIED_SEARCH_SUPPORTS_BID_CEILING,
-    _UNIFIED_SEARCH_SUPPORTS_CRR,
-    _UNIFIED_SEARCH_SUPPORTS_GOAL_ID,
     BUDGET_TYPES,
-    TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
     UNIFIED_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE,
-    get_bidding_strategy_builder,
 )
 from .._flag_validation import reject_incompatible_flags
 from ..api import client_from_ctx, create_client
@@ -78,8 +58,7 @@ from ._campaigns_base import (
     _build_time_targeting,
     _deprecated_campaigns_structured_option,
     _parse_csv_option,
-    _priority_goals_update_items,
-    _route_cpa_flag,
+    campaign_params_dataclass,
     _text_network_strategy_options,
     _text_network_strategy_options_update,
     _text_search_strategy_options,
@@ -87,10 +66,10 @@ from ._campaigns_base import (
     _validate_max_length,
 )
 from ._batch import chunked
-from ._campaigns_dynamic import build_add_block as _build_dynamic_add_block
-from ._campaigns_text import build_add_block
 from ._execute import execute_request
 from ._lifecycle import register_lifecycle_commands
+from . import _campaigns_dynamic as dynamic  # noqa: E402,F401
+from . import _campaigns_text as text  # noqa: E402,F401
 from . import _campaigns_unified as unified  # noqa: E402,F401
 
 # Per-campaign-type payload builders (issue #602 per-type split). Each module
@@ -1579,10 +1558,10 @@ def add(
     dry_run,
 ):
     """Add new campaign"""
-    # Snapshot every CLI parameter once so the per-type payload builders can
-    # pull exactly the flags they need without a 200-argument call signature
-    # (issue #602 per-campaign-type split).
-    p = dict(locals())
+    # Typed snapshot of every CLI parameter for the per-type payload
+    # builders (issue #602 per-campaign-type split; #961 replaced the
+    # former dict(locals()) snapshot).
+    params = CampaignAddParams(**ctx.params)
     campaign_type_norm = (campaign_type or "TEXT_CAMPAIGN").upper().replace("-", "_")
     supported_types = {
         "TEXT_CAMPAIGN",
@@ -2695,12 +2674,10 @@ def add(
                 )
             )
 
-    p = dict(locals())
     campaign_data: dict[str, Any] = {"Name": name, "StartDate": start_date}
     parsed_settings = parse_setting_specs(list(settings))
-    p = dict(locals())
     if campaign_type_norm == "TEXT_CAMPAIGN":
-        build_add_block(
+        text.build_add_block(
             campaign_data=campaign_data,
             parsed_settings=parsed_settings,
             package_bidding_strategy_obj=package_bidding_strategy_obj,
@@ -2755,7 +2732,7 @@ def add(
         )
     elif campaign_type_norm == "UNIFIED_CAMPAIGN":
         unified.build_add_block(
-            p,
+            params,
             campaign_data,
             parsed_settings,
             counter_ids_obj,
@@ -2766,8 +2743,8 @@ def add(
             attribution_model,
         )
     elif campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN":
-        _build_dynamic_add_block(
-            p,
+        dynamic.build_add_block(
+            params,
             campaign_data,
             parsed_settings,
             counter_ids_obj,
@@ -2778,7 +2755,7 @@ def add(
         )
     elif campaign_type_norm == "SMART_CAMPAIGN":
         smart.build_add_block(
-            p,
+            params,
             campaign_data,
             parsed_settings,
             priority_goals_items,
@@ -2786,14 +2763,14 @@ def add(
         )
     elif campaign_type_norm == "MOBILE_APP_CAMPAIGN":
         mobile_app.build_add_block(
-            p,
+            params,
             campaign_data,
             parsed_settings,
             negative_keyword_shared_set_ids_obj,
         )
     elif campaign_type_norm == "CPM_BANNER_CAMPAIGN":
         cpm_banner.build_add_block(
-            p,
+            params,
             campaign_data,
             parsed_settings,
             counter_ids_obj,
@@ -4063,9 +4040,10 @@ def update(
     dry_run,
 ):
     """Update campaign"""
-    # Snapshot every CLI parameter once for the per-type payload builders
-    # (issue #602 per-campaign-type split).
-    p = dict(locals())
+    # Typed snapshot of every CLI parameter for the per-type payload
+    # builders (issue #602 per-campaign-type split; #961 replaced the
+    # former dict(locals()) snapshot).
+    params = CampaignUpdateParams(**ctx.params)
     campaign_data: dict[str, Any] = {"Id": campaign_id}
 
     if name:
@@ -4735,847 +4713,18 @@ def update(
                     )
                 )
         sub_block: dict[str, object] = {}
-        if campaign_type_norm in {
-            "TEXT_CAMPAIGN",
-            "UNIFIED_CAMPAIGN",
-            "DYNAMIC_TEXT_CAMPAIGN",
-        }:
-            is_unified = campaign_type_norm == "UNIFIED_CAMPAIGN"
-            is_dynamic = campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN"
-            package_label = (
-                "UnifiedCampaign"
-                if is_unified
-                else "DynamicTextCampaign" if is_dynamic else "TextCampaign"
-            )
-            parsed_settings = parse_setting_specs(list(settings))
-            if parsed_settings:
-                sub_block["Settings"] = parsed_settings
-            if is_dynamic:
-                dynamic_placement_types = _build_dynamic_placement_types(
-                    dynamic_placement_search_results,
-                    dynamic_placement_product_gallery,
-                )
-                if dynamic_placement_types is not None:
-                    sub_block["PlacementTypes"] = dynamic_placement_types
-            counter_ids_obj = _array_of_integer_option("--counter-ids", counter_ids)
-            if counter_ids_obj is not None:
-                sub_block["CounterIds"] = counter_ids_obj
-            priority_goals_items = _priority_goals_update_items(
-                parse_priority_goals_spec(priority_goals)
-            )
-            if priority_goals_items is not None:
-                sub_block["PriorityGoals"] = {"Items": priority_goals_items}
-            if not is_unified and not is_dynamic:
-                relevant_keywords_obj = _build_relevant_keywords(
-                    relevant_keywords_budget_percent,
-                    relevant_keywords_mode,
-                    relevant_keywords_optimize_goal_id,
-                    require_budget_percent=False,
-                )
-                if relevant_keywords_obj is not None:
-                    sub_block["RelevantKeywords"] = relevant_keywords_obj
-            if attribution_model:
-                sub_block["AttributionModel"] = attribution_model.upper()
-            package_bidding_strategy_obj = _build_package_bidding_strategy(
-                package_strategy_id,
-                package_strategy_from_campaign_id,
-                package_platform_search_result,
-                package_platform_product_gallery,
-                package_platform_maps,
-                package_platform_search_organization_list,
-                package_platform_network,
-                package_platform_dynamic_places,
-                campaign_label=package_label,
-                require_platforms=False,
-            )
-            if package_bidding_strategy_obj is not None:
-                package_incompatible: dict[str, object] = {}
-                # Issue #373: ``UnifiedCampaignUpdateItem.PriorityGoals``
-                # (WSDL ``tests/wsdl_cache/campaigns.xml`` line 2259) is a
-                # nillable sibling of ``UnifiedCampaignUpdateItem.
-                # PackageBiddingStrategy`` (line 2260-2262) on the same
-                # ``xsd:sequence`` (no ``xsd:choice``). Mirrors the
-                # SmartCampaign precedent (#369/#392). Other non-Smart
-                # package campaign types (TextCampaign,
-                # DynamicTextCampaign) keep the mutex until their own
-                # follow-up issues land.
-                if not is_unified:
-                    package_incompatible["--priority-goals"] = priority_goals
-                if not is_unified and not is_dynamic:
-                    package_incompatible.update(
-                        {
-                            "--search-strategy": search_strategy,
-                            "--search-placement-search-results": (
-                                search_placement_search_results
-                            ),
-                            "--search-placement-product-gallery": (
-                                search_placement_product_gallery
-                            ),
-                            "--search-placement-dynamic-places": (
-                                search_placement_dynamic_places
-                            ),
-                            # Issue #361: TextCampaign Search-strategy
-                            # detail flags and the legacy CPA flags must
-                            # also conflict with PackageBiddingStrategy
-                            # on update so user input is never silently
-                            # dropped.
-                            "--goal-id": goal_id,
-                            "--average-cpa": average_cpa,
-                            "--crr": crr,
-                            "--bid-ceiling": bid_ceiling,
-                            "--text-search-weekly-spend-limit": (
-                                text_search_weekly_spend_limit
-                            ),
-                            "--text-search-custom-period-spend-limit": (
-                                text_search_custom_period_spend_limit
-                            ),
-                            "--text-search-custom-period-start-date": (
-                                text_search_custom_period_start_date
-                            ),
-                            "--text-search-custom-period-end-date": (
-                                text_search_custom_period_end_date
-                            ),
-                            "--text-search-custom-period-auto-continue": (
-                                text_search_custom_period_auto_continue
-                            ),
-                            "--text-search-budget-type": (text_search_budget_type),
-                            "--text-search-average-cpc": (text_search_average_cpc),
-                            "--text-search-pay-cpa": text_search_pay_cpa,
-                            "--text-search-clicks-per-week": (
-                                text_search_clicks_per_week
-                            ),
-                            "--text-search-reserve-return": (
-                                text_search_reserve_return
-                            ),
-                            "--text-search-roi-coef": text_search_roi_coef,
-                            "--text-search-profitability": (text_search_profitability),
-                            "--text-search-exploration-min-budget": (
-                                text_search_exploration_min_budget
-                            ),
-                            "--text-search-exploration-is-custom": (
-                                text_search_exploration_is_custom
-                            ),
-                            # Issue #364: TextCampaign Network typed
-                            # flags must conflict with PackageBidding-
-                            # Strategy on update for the same reason.
-                            "--network-strategy": network_strategy,
-                            "--text-network-weekly-spend-limit": (
-                                text_network_weekly_spend_limit
-                            ),
-                            "--text-network-custom-period-spend-limit": (
-                                text_network_custom_period_spend_limit
-                            ),
-                            "--text-network-custom-period-start-date": (
-                                text_network_custom_period_start_date
-                            ),
-                            "--text-network-custom-period-end-date": (
-                                text_network_custom_period_end_date
-                            ),
-                            "--text-network-custom-period-auto-continue": (
-                                text_network_custom_period_auto_continue
-                            ),
-                            "--text-network-budget-type": (text_network_budget_type),
-                            "--text-network-average-cpc": (text_network_average_cpc),
-                            "--text-network-pay-cpa": text_network_pay_cpa,
-                            "--text-network-clicks-per-week": (
-                                text_network_clicks_per_week
-                            ),
-                            "--text-network-reserve-return": (
-                                text_network_reserve_return
-                            ),
-                            "--text-network-roi-coef": text_network_roi_coef,
-                            "--text-network-profitability": (
-                                text_network_profitability
-                            ),
-                            "--text-network-exploration-min-budget": (
-                                text_network_exploration_min_budget
-                            ),
-                            "--text-network-exploration-is-custom": (
-                                text_network_exploration_is_custom
-                            ),
-                            "--text-network-limit-percent": (
-                                text_network_limit_percent
-                            ),
-                        }
-                    )
-                if is_unified:
-                    package_incompatible.update(
-                        {
-                            "--counter-ids": counter_ids,
-                            "--attribution-model": attribution_model,
-                            # UnifiedCampaign.BiddingStrategy.Network
-                            # typed flags must conflict with
-                            # PackageBiddingStrategy on update (#366) —
-                            # mirror DynamicTextCampaign behavior.
-                            "--network-strategy": network_strategy,
-                            "--unified-network-weekly-spend-limit": (
-                                unified_network_weekly_spend_limit
-                            ),
-                            "--unified-network-custom-period-spend-limit": (
-                                unified_network_custom_period_spend_limit
-                            ),
-                            "--unified-network-custom-period-start-date": (
-                                unified_network_custom_period_start_date
-                            ),
-                            "--unified-network-custom-period-end-date": (
-                                unified_network_custom_period_end_date
-                            ),
-                            "--unified-network-custom-period-auto-continue": (
-                                unified_network_custom_period_auto_continue
-                            ),
-                            "--unified-network-average-cpc": (
-                                unified_network_average_cpc
-                            ),
-                            "--unified-network-cpa": unified_network_cpa,
-                            "--unified-network-exploration-min-budget": (
-                                unified_network_exploration_min_budget
-                            ),
-                            "--unified-network-exploration-is-custom": (
-                                unified_network_exploration_is_custom
-                            ),
-                            "--unified-network-budget-type": (
-                                unified_network_budget_type
-                            ),
-                            # UnifiedCampaign.BiddingStrategy.Search typed
-                            # flags (#363) — mutually exclusive with
-                            # PackageBiddingStrategy on update.
-                            "--search-strategy": search_strategy,
-                            "--search-placement-search-results": (
-                                search_placement_search_results
-                            ),
-                            "--search-placement-product-gallery": (
-                                search_placement_product_gallery
-                            ),
-                            "--search-placement-dynamic-places": (
-                                search_placement_dynamic_places
-                            ),
-                            "--goal-id": goal_id,
-                            "--average-cpa": average_cpa,
-                            "--crr": crr,
-                            "--bid-ceiling": bid_ceiling,
-                            "--unified-search-placement-maps": (
-                                unified_search_placement_maps
-                            ),
-                            "--unified-search-placement-search-organization-list": (
-                                unified_search_placement_search_organization_list
-                            ),
-                            "--unified-search-weekly-spend-limit": (
-                                unified_search_weekly_spend_limit
-                            ),
-                            "--unified-search-custom-period-spend-limit": (
-                                unified_search_custom_period_spend_limit
-                            ),
-                            "--unified-search-custom-period-start-date": (
-                                unified_search_custom_period_start_date
-                            ),
-                            "--unified-search-custom-period-end-date": (
-                                unified_search_custom_period_end_date
-                            ),
-                            "--unified-search-custom-period-auto-continue": (
-                                unified_search_custom_period_auto_continue
-                            ),
-                            "--unified-search-budget-type": (
-                                unified_search_budget_type
-                            ),
-                            "--unified-search-average-cpc": (
-                                unified_search_average_cpc
-                            ),
-                            "--unified-search-pay-cpa": unified_search_pay_cpa,
-                            "--unified-search-exploration-min-budget": (
-                                unified_search_exploration_min_budget
-                            ),
-                            "--unified-search-exploration-is-custom": (
-                                unified_search_exploration_is_custom
-                            ),
-                        }
-                    )
-                if is_dynamic:
-                    package_incompatible.update(
-                        {
-                            "--network-strategy": network_strategy,
-                            "--dyn-network-weekly-spend-limit": (
-                                dyn_network_weekly_spend_limit
-                            ),
-                            "--dyn-network-bid-ceiling": (dyn_network_bid_ceiling),
-                            "--dyn-network-custom-period-spend-limit": (
-                                dyn_network_custom_period_spend_limit
-                            ),
-                            "--dyn-network-custom-period-start-date": (
-                                dyn_network_custom_period_start_date
-                            ),
-                            "--dyn-network-custom-period-end-date": (
-                                dyn_network_custom_period_end_date
-                            ),
-                            "--dyn-network-custom-period-auto-continue": (
-                                dyn_network_custom_period_auto_continue
-                            ),
-                            "--dyn-network-average-cpc": (dyn_network_average_cpc),
-                            "--dyn-network-average-cpa": (dyn_network_average_cpa),
-                            "--dyn-network-cpa": dyn_network_cpa,
-                            "--dyn-network-goal-id": dyn_network_goal_id,
-                            "--dyn-network-crr": dyn_network_crr,
-                            "--dyn-network-clicks-per-week": (
-                                dyn_network_clicks_per_week
-                            ),
-                            "--dyn-network-limit-percent": (dyn_network_limit_percent),
-                            "--dyn-network-reserve-return": (
-                                dyn_network_reserve_return
-                            ),
-                            "--dyn-network-roi-coef": dyn_network_roi_coef,
-                            "--dyn-network-profitability": (dyn_network_profitability),
-                            "--dyn-network-exploration-budget": (
-                                dyn_network_exploration_budget
-                            ),
-                            "--dyn-network-exploration-budget-custom": (
-                                dyn_network_exploration_budget_custom
-                            ),
-                            "--dyn-network-budget-type": (dyn_network_budget_type),
-                            # DynamicTextCampaign Search typed flags (#362).
-                            "--search-strategy": search_strategy,
-                            "--search-placement-search-results": (
-                                search_placement_search_results
-                            ),
-                            "--search-placement-product-gallery": (
-                                search_placement_product_gallery
-                            ),
-                            "--search-placement-dynamic-places": (
-                                search_placement_dynamic_places
-                            ),
-                            "--dyn-search-weekly-spend-limit": (
-                                dyn_search_weekly_spend_limit
-                            ),
-                            "--dyn-search-bid-ceiling": dyn_search_bid_ceiling,
-                            "--dyn-search-custom-period-spend-limit": (
-                                dyn_search_custom_period_spend_limit
-                            ),
-                            "--dyn-search-custom-period-start-date": (
-                                dyn_search_custom_period_start_date
-                            ),
-                            "--dyn-search-custom-period-end-date": (
-                                dyn_search_custom_period_end_date
-                            ),
-                            "--dyn-search-custom-period-auto-continue": (
-                                dyn_search_custom_period_auto_continue
-                            ),
-                            "--dyn-search-average-cpc": dyn_search_average_cpc,
-                            "--dyn-search-average-cpa": dyn_search_average_cpa,
-                            "--dyn-search-cpa": dyn_search_cpa,
-                            "--dyn-search-goal-id": dyn_search_goal_id,
-                            "--dyn-search-crr": dyn_search_crr,
-                            "--dyn-search-clicks-per-week": (
-                                dyn_search_clicks_per_week
-                            ),
-                            "--dyn-search-reserve-return": (dyn_search_reserve_return),
-                            "--dyn-search-roi-coef": dyn_search_roi_coef,
-                            "--dyn-search-profitability": (dyn_search_profitability),
-                            "--dyn-search-exploration-budget": (
-                                dyn_search_exploration_budget
-                            ),
-                            "--dyn-search-exploration-budget-custom": (
-                                dyn_search_exploration_budget_custom
-                            ),
-                            "--dyn-search-budget-type": dyn_search_budget_type,
-                        }
-                    )
-                provided = [
-                    flag
-                    for flag, value in package_incompatible.items()
-                    if value is not None
-                ]
-                if provided:
-                    raise click.UsageError(
-                        t(
-                            "{package_label}.PackageBiddingStrategy cannot be "
-                            "combined with {arg0}"
-                        ).format(
-                            package_label=package_label,
-                            arg0=", ".join(sorted(provided)),
-                        )
-                    )
-                sub_block["PackageBiddingStrategy"] = package_bidding_strategy_obj
-            elif is_unified:
-                # UnifiedCampaign.BiddingStrategy update — Network (#366)
-                # and Search (#363). Shared legacy CPA flags are routed
-                # per-side based on which subtype actually accepts the
-                # WSDL field (mirrors the add path and TextCampaign
-                # update). include_default=False: with neither
-                # --network-strategy / --search-strategy nor any
-                # --unified-{network,search}-* / shared CPA flag the
-                # corresponding side is left untouched (returns None).
-                _u_search_subtype_for_routing_up = (
-                    _UNIFIED_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE.get(
-                        (search_strategy or "").upper()
-                    )
-                )
-                _u_network_subtype_for_routing_up = (
-                    UNIFIED_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE.get(
-                        (network_strategy or "").upper()
-                    )
-                )
-
-                def _u_route_update(
-                    value, search_support: set, network_support: set, default: str
-                ):
-                    """Route a shared CPA flag for UnifiedCampaign update (thin
-                    wrapper over the module-level ``_route_cpa_flag``, binding
-                    this block's Search/Network routing subtypes). Mirrors the
-                    add path (#544 C11)."""
-                    return _route_cpa_flag(
-                        value,
-                        _u_search_subtype_for_routing_up,
-                        _u_network_subtype_for_routing_up,
-                        search_support,
-                        network_support,
-                        default,
-                    )
-
-                _u_default_side_up = (
-                    "network"
-                    if network_strategy is not None and search_strategy is None
-                    else "search"
-                )
-                _u_search_goal_id_up, _u_network_goal_id_up = _u_route_update(
-                    goal_id,
-                    _UNIFIED_SEARCH_SUPPORTS_GOAL_ID,
-                    _UNIFIED_NETWORK_GOAL_ID_SUBTYPES,
-                    default=_u_default_side_up,
-                )
-                (
-                    _u_search_average_cpa_up,
-                    _u_network_average_cpa_up,
-                ) = _u_route_update(
-                    average_cpa,
-                    _UNIFIED_SEARCH_SUPPORTS_AVERAGE_CPA,
-                    _UNIFIED_NETWORK_AVERAGE_CPA_SUBTYPES,
-                    default=_u_default_side_up,
-                )
-                _u_search_crr_up, _u_network_crr_up = _u_route_update(
-                    crr,
-                    _UNIFIED_SEARCH_SUPPORTS_CRR,
-                    _UNIFIED_NETWORK_CRR_SUBTYPES,
-                    default=_u_default_side_up,
-                )
-                (
-                    _u_search_bid_ceiling_up,
-                    _u_network_bid_ceiling_up,
-                ) = _u_route_update(
-                    bid_ceiling,
-                    _UNIFIED_SEARCH_SUPPORTS_BID_CEILING,
-                    _UNIFIED_NETWORK_BID_CEILING_SUBTYPES,
-                    default=_u_default_side_up,
-                )
-
-                # PriorityGoals: route to whichever side accepts it
-                # for the chosen subtype. The Network builder writes
-                # via sub_campaign_block; the Search builder does
-                # not write on update (PriorityGoals placement on
-                # update is owned by #373).
-                _u_search_uses_pg_up = (
-                    _u_search_subtype_for_routing_up
-                    in _UNIFIED_SEARCH_REQUIRES_PRIORITY_GOALS
-                )
-                _u_network_uses_pg_up = (
-                    _u_network_subtype_for_routing_up
-                    in _UNIFIED_NETWORK_REQUIRES_PRIORITY_GOALS
-                )
-                if _u_search_uses_pg_up or _u_network_uses_pg_up:
-                    _u_search_pg_items_up = (
-                        priority_goals_items if _u_search_uses_pg_up else None
-                    )
-                    _u_network_pg_items_up = (
-                        priority_goals_items if _u_network_uses_pg_up else None
-                    )
-                else:
-                    _u_search_pg_items_up = None
-                    _u_network_pg_items_up = priority_goals_items
-
-                unified_network_builder = get_bidding_strategy_builder(
-                    "UNIFIED_CAMPAIGN", "update", "network"
-                )
-                if unified_network_builder is not None:
-                    unified_network_block = unified_network_builder(
-                        network_strategy=network_strategy,
-                        goal_id=_u_network_goal_id_up,
-                        average_cpa=_u_network_average_cpa_up,
-                        crr=_u_network_crr_up,
-                        bid_ceiling=_u_network_bid_ceiling_up,
-                        weekly_spend_limit=(unified_network_weekly_spend_limit),
-                        custom_period_spend_limit=(
-                            unified_network_custom_period_spend_limit
-                        ),
-                        custom_period_start_date=(
-                            unified_network_custom_period_start_date
-                        ),
-                        custom_period_end_date=(unified_network_custom_period_end_date),
-                        custom_period_auto_continue=(
-                            unified_network_custom_period_auto_continue
-                        ),
-                        budget_type=unified_network_budget_type,
-                        average_cpc=unified_network_average_cpc,
-                        cpa=unified_network_cpa,
-                        exploration_min_budget=(unified_network_exploration_min_budget),
-                        exploration_is_custom=(unified_network_exploration_is_custom),
-                        priority_goals_items=_u_network_pg_items_up,
-                        sub_campaign_block=sub_block,
-                        include_default=False,
-                        is_update=True,
-                    )
-                else:
-                    unified_network_block = (
-                        {"BiddingStrategyType": network_strategy.upper()}
-                        if network_strategy is not None
-                        else None
-                    )
-
-                unified_search_builder = get_bidding_strategy_builder(
-                    "UNIFIED_CAMPAIGN", "update", "search"
-                )
-                unified_search_block = None
-                if unified_search_builder is not None:
-                    unified_search_block = unified_search_builder(
-                        search_strategy=search_strategy,
-                        search_placement_search_results=(
-                            search_placement_search_results
-                        ),
-                        search_placement_product_gallery=(
-                            search_placement_product_gallery
-                        ),
-                        search_placement_dynamic_places=(
-                            search_placement_dynamic_places
-                        ),
-                        search_placement_maps=unified_search_placement_maps,
-                        search_placement_search_organization_list=(
-                            unified_search_placement_search_organization_list
-                        ),
-                        goal_id=_u_search_goal_id_up,
-                        average_cpa=_u_search_average_cpa_up,
-                        crr=_u_search_crr_up,
-                        bid_ceiling=_u_search_bid_ceiling_up,
-                        weekly_spend_limit=unified_search_weekly_spend_limit,
-                        custom_period_spend_limit=(
-                            unified_search_custom_period_spend_limit
-                        ),
-                        custom_period_start_date=(
-                            unified_search_custom_period_start_date
-                        ),
-                        custom_period_end_date=(unified_search_custom_period_end_date),
-                        custom_period_auto_continue=(
-                            unified_search_custom_period_auto_continue
-                        ),
-                        budget_type=unified_search_budget_type,
-                        average_cpc=unified_search_average_cpc,
-                        pay_cpa=unified_search_pay_cpa,
-                        exploration_min_budget=(unified_search_exploration_min_budget),
-                        exploration_is_custom=(unified_search_exploration_is_custom),
-                        priority_goals_items=_u_search_pg_items_up,
-                        sub_campaign_block=sub_block,
-                        include_default=False,
-                        is_update=True,
-                    )
-                else:
-                    unified_search_block = (
-                        {"BiddingStrategyType": search_strategy.upper()}
-                        if search_strategy is not None
-                        else None
-                    )
-
-                if (
-                    unified_network_block is not None
-                    or unified_search_block is not None
-                ):
-                    bs_u: dict[str, object] = {}
-                    if unified_search_block is not None:
-                        bs_u["Search"] = unified_search_block
-                    if unified_network_block is not None:
-                        bs_u["Network"] = unified_network_block
-                    sub_block["BiddingStrategy"] = bs_u
-            elif is_dynamic:
-                # DynamicTextCampaign.BiddingStrategy.Network update
-                # (#365). Build via shared builder; include_default
-                # is False so an absent --network-strategy with no
-                # detail flags leaves BiddingStrategy untouched.
-                dyn_network_builder = get_bidding_strategy_builder(
-                    "DYNAMIC_TEXT_CAMPAIGN", "update", "network"
-                )
-                if dyn_network_builder is not None:
-                    dyn_network_block = dyn_network_builder(
-                        network_strategy,
-                        dyn_network_weekly_spend_limit,
-                        dyn_network_bid_ceiling,
-                        dyn_network_custom_period_spend_limit,
-                        dyn_network_custom_period_start_date,
-                        dyn_network_custom_period_end_date,
-                        dyn_network_custom_period_auto_continue,
-                        dyn_network_average_cpc,
-                        dyn_network_average_cpa,
-                        dyn_network_cpa,
-                        dyn_network_goal_id,
-                        dyn_network_crr,
-                        dyn_network_clicks_per_week,
-                        dyn_network_limit_percent,
-                        dyn_network_reserve_return,
-                        dyn_network_roi_coef,
-                        dyn_network_profitability,
-                        dyn_network_exploration_budget,
-                        dyn_network_exploration_budget_custom,
-                        dyn_network_budget_type,
-                        include_default=False,
-                        is_update=True,
-                    )
-                else:
-                    dyn_network_block = (
-                        {"BiddingStrategyType": network_strategy.upper()}
-                        if network_strategy is not None
-                        else None
-                    )
-                # DynamicTextCampaign.BiddingStrategy.Search update
-                # (#362). The branch="search" builder owns the entire
-                # Search payload (PlacementTypes + subtype block).
-                # include_default=False: with neither --search-strategy
-                # nor any --dyn-search-* detail flag, Search is left
-                # untouched (returns None).
-                dyn_search_builder = get_bidding_strategy_builder(
-                    "DYNAMIC_TEXT_CAMPAIGN", "update", "search"
-                )
-                if dyn_search_builder is not None:
-                    dyn_search_block = dyn_search_builder(
-                        search_strategy,
-                        search_placement_search_results,
-                        search_placement_product_gallery,
-                        search_placement_dynamic_places,
-                        dyn_search_weekly_spend_limit,
-                        dyn_search_bid_ceiling,
-                        dyn_search_custom_period_spend_limit,
-                        dyn_search_custom_period_start_date,
-                        dyn_search_custom_period_end_date,
-                        dyn_search_custom_period_auto_continue,
-                        dyn_search_average_cpc,
-                        dyn_search_average_cpa,
-                        dyn_search_cpa,
-                        dyn_search_goal_id,
-                        dyn_search_crr,
-                        dyn_search_clicks_per_week,
-                        dyn_search_reserve_return,
-                        dyn_search_roi_coef,
-                        dyn_search_profitability,
-                        dyn_search_exploration_budget,
-                        dyn_search_exploration_budget_custom,
-                        dyn_search_budget_type,
-                        include_default=False,
-                        is_update=True,
-                    )
-                else:
-                    dyn_search_block = (
-                        {"BiddingStrategyType": search_strategy.upper()}
-                        if search_strategy is not None
-                        else None
-                    )
-                if dyn_network_block is not None or dyn_search_block is not None:
-                    bs: dict[str, object] = {}
-                    if dyn_search_block is not None:
-                        bs["Search"] = dyn_search_block
-                    if dyn_network_block is not None:
-                        bs["Network"] = dyn_network_block
-                    sub_block["BiddingStrategy"] = bs
-            elif not is_unified and not is_dynamic:
-                # Issue #361/#364: full typed-flag support for the 12
-                # strategy families on TextCampaign.BiddingStrategy on
-                # update. The branch="search" / branch="network"
-                # builders own each half of the Bidding Strategy. The
-                # shared legacy CPA flags and ``--priority-goals`` are
-                # routed per-side, per-flag against the actual WSDL
-                # field-support sets (mirrors the add path).
-                _search_subtype_for_routing = (
-                    _TEXT_CAMPAIGN_SEARCH_STRATEGY_TO_WSDL_SUBTYPE.get(
-                        (search_strategy or "").upper()
-                    )
-                )
-                _network_subtype_for_routing = (
-                    TEXT_CAMPAIGN_NETWORK_STRATEGY_TO_WSDL_SUBTYPE.get(
-                        (network_strategy or "").upper()
-                    )
-                )
-
-                def _route_update(
-                    value, search_support: set, network_support: set, default: str
-                ):
-                    """Route a shared CPA flag for TextCampaign update (thin
-                    wrapper over the module-level ``_route_cpa_flag``, binding
-                    this block's Search/Network routing subtypes). Mirrors the
-                    add path (#544 C11)."""
-                    return _route_cpa_flag(
-                        value,
-                        _search_subtype_for_routing,
-                        _network_subtype_for_routing,
-                        search_support,
-                        network_support,
-                        default,
-                    )
-
-                _search_goal_id, _network_goal_id = _route_update(
-                    goal_id,
-                    _TEXT_SEARCH_SUPPORTS_GOAL_ID,
-                    _TEXT_NETWORK_GOAL_ID_SUBTYPES,
-                    default="search",
-                )
-                _search_average_cpa, _network_average_cpa = _route_update(
-                    average_cpa,
-                    _TEXT_SEARCH_SUPPORTS_AVERAGE_CPA,
-                    _TEXT_NETWORK_AVERAGE_CPA_SUBTYPES,
-                    default="search",
-                )
-                _search_crr, _network_crr = _route_update(
-                    crr,
-                    _TEXT_SEARCH_SUPPORTS_CRR,
-                    _TEXT_NETWORK_CRR_SUBTYPES,
-                    default="search",
-                )
-                _search_bid_ceiling, _network_bid_ceiling = _route_update(
-                    bid_ceiling,
-                    _TEXT_SEARCH_SUPPORTS_BID_CEILING,
-                    _TEXT_NETWORK_BID_CEILING_SUBTYPES,
-                    default="search",
-                )
-
-                # PriorityGoals routing on update mirrors add: both
-                # sides may simultaneously belong to the multi-goals
-                # family and must each see the items for their own
-                # required-field check (the parent placement on update
-                # is handled by the dedicated PriorityGoalsUpdateSetting
-                # shape earlier in this branch, so the builders only
-                # validate scope without writing to sub_block here).
-                _multi_goal_subtypes = _TEXT_NETWORK_REQUIRES_PRIORITY_GOALS
-                _search_uses_priority_goals = (
-                    _search_subtype_for_routing in _multi_goal_subtypes
-                )
-                _network_uses_priority_goals = (
-                    _network_subtype_for_routing in _multi_goal_subtypes
-                )
-                if _search_uses_priority_goals or _network_uses_priority_goals:
-                    _search_priority_goals_items = (
-                        priority_goals_items if _search_uses_priority_goals else None
-                    )
-                    _network_priority_goals_items = (
-                        priority_goals_items if _network_uses_priority_goals else None
-                    )
-                else:
-                    _search_priority_goals_items = priority_goals_items
-                    _network_priority_goals_items = None
-
-                search_builder = get_bidding_strategy_builder(
-                    "TEXT_CAMPAIGN", "update", "search"
-                )
-                if search_builder is not None:
-                    text_search = search_builder(
-                        search_strategy=search_strategy,
-                        search_placement_search_results=(
-                            search_placement_search_results
-                        ),
-                        search_placement_product_gallery=(
-                            search_placement_product_gallery
-                        ),
-                        search_placement_dynamic_places=(
-                            search_placement_dynamic_places
-                        ),
-                        goal_id=_search_goal_id,
-                        average_cpa=_search_average_cpa,
-                        crr=_search_crr,
-                        bid_ceiling=_search_bid_ceiling,
-                        weekly_spend_limit=text_search_weekly_spend_limit,
-                        custom_period_spend_limit=(
-                            text_search_custom_period_spend_limit
-                        ),
-                        custom_period_start_date=(text_search_custom_period_start_date),
-                        custom_period_end_date=(text_search_custom_period_end_date),
-                        custom_period_auto_continue=(
-                            text_search_custom_period_auto_continue
-                        ),
-                        budget_type=text_search_budget_type,
-                        average_cpc=text_search_average_cpc,
-                        pay_cpa=text_search_pay_cpa,
-                        clicks_per_week=text_search_clicks_per_week,
-                        reserve_return=text_search_reserve_return,
-                        roi_coef=text_search_roi_coef,
-                        profitability=text_search_profitability,
-                        exploration_min_budget=(text_search_exploration_min_budget),
-                        exploration_is_custom=(text_search_exploration_is_custom),
-                        priority_goals_items=_search_priority_goals_items,
-                        sub_campaign_block=sub_block,
-                        include_default=False,
-                        is_update=True,
-                    )
-                else:
-                    text_search = (
-                        {"BiddingStrategyType": (search_strategy.upper())}
-                        if search_strategy is not None
-                        else None
-                    )
-
-                network_builder = get_bidding_strategy_builder(
-                    "TEXT_CAMPAIGN", "update", "network"
-                )
-                if network_builder is not None:
-                    text_network = network_builder(
-                        network_strategy=network_strategy,
-                        goal_id=_network_goal_id,
-                        average_cpa=_network_average_cpa,
-                        crr=_network_crr,
-                        bid_ceiling=_network_bid_ceiling,
-                        weekly_spend_limit=text_network_weekly_spend_limit,
-                        custom_period_spend_limit=(
-                            text_network_custom_period_spend_limit
-                        ),
-                        custom_period_start_date=(
-                            text_network_custom_period_start_date
-                        ),
-                        custom_period_end_date=(text_network_custom_period_end_date),
-                        custom_period_auto_continue=(
-                            text_network_custom_period_auto_continue
-                        ),
-                        budget_type=text_network_budget_type,
-                        average_cpc=text_network_average_cpc,
-                        pay_cpa=text_network_pay_cpa,
-                        clicks_per_week=text_network_clicks_per_week,
-                        reserve_return=text_network_reserve_return,
-                        roi_coef=text_network_roi_coef,
-                        profitability=text_network_profitability,
-                        exploration_min_budget=(text_network_exploration_min_budget),
-                        exploration_is_custom=(text_network_exploration_is_custom),
-                        limit_percent=text_network_limit_percent,
-                        priority_goals_items=_network_priority_goals_items,
-                        sub_campaign_block=sub_block,
-                        include_default=False,
-                        is_update=True,
-                    )
-                else:
-                    text_network = (
-                        {"BiddingStrategyType": (network_strategy.upper())}
-                        if network_strategy is not None
-                        else None
-                    )
-
-                bidding_strategy_block: dict[str, object] = {}
-                if text_search is not None:
-                    bidding_strategy_block["Search"] = text_search
-                if text_network is not None:
-                    bidding_strategy_block["Network"] = text_network
-                if bidding_strategy_block:
-                    sub_block["BiddingStrategy"] = bidding_strategy_block
-            negative_keyword_shared_set_ids_obj = _array_of_integer_option(
-                "--negative-keyword-shared-set-ids",
-                negative_keyword_shared_set_ids,
-                max_items=NEGATIVE_KEYWORD_SHARED_SET_IDS_MAX_ITEMS,
-            )
-            if negative_keyword_shared_set_ids_obj is not None:
-                sub_block["NegativeKeywordSharedSetIds"] = (
-                    negative_keyword_shared_set_ids_obj
-                )
+        if campaign_type_norm == "TEXT_CAMPAIGN":
+            text.build_update_block(params, sub_block)
+        elif campaign_type_norm == "UNIFIED_CAMPAIGN":
+            unified.build_update_block(params, sub_block)
+        elif campaign_type_norm == "DYNAMIC_TEXT_CAMPAIGN":
+            dynamic.build_update_block(params, sub_block)
         elif campaign_type_norm == "SMART_CAMPAIGN":
-            smart.build_update_block(p, sub_block)
+            smart.build_update_block(params, sub_block)
         elif campaign_type_norm == "MOBILE_APP_CAMPAIGN":
-            mobile_app.build_update_block(p, sub_block)
+            mobile_app.build_update_block(params, sub_block)
         elif campaign_type_norm == "CPM_BANNER_CAMPAIGN":
-            cpm_banner.build_update_block(p, sub_block)
+            cpm_banner.build_update_block(params, sub_block)
         if tracking_params:
             sub_block["TrackingParams"] = tracking_params
         if not sub_block:
@@ -5601,6 +4750,15 @@ def update(
     body = {"method": "update", "params": {"Campaigns": [campaign_data]}}
 
     execute_request(ctx, "campaigns", body, dry_run, create_client)
+
+
+# Typed parameter snapshots for the per-type payload builders (epic #961,
+# campaigns track: dict(locals()) replaced by frozen dataclasses derived
+# from the command signatures themselves, so the classes cannot drift from
+# the CLI surface). Defined after both commands because they are built from
+# the ``add``/``update`` signatures.
+CampaignAddParams = campaign_params_dataclass(add, "CampaignAddParams")
+CampaignUpdateParams = campaign_params_dataclass(update, "CampaignUpdateParams")
 
 
 register_lifecycle_commands(

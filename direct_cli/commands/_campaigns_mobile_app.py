@@ -15,48 +15,49 @@ from ._campaigns_base import (
 
 
 def build_add_block(
-    p,
+    params,
     campaign_data,
     parsed_settings,
     negative_keyword_shared_set_ids_obj,
 ):
     """Compose ``campaign_data['MobileAppCampaign']`` for ``campaigns add``.
 
-    ``p`` is a snapshot of every CLI parameter of the ``add`` command
-    (``dict(locals())``); only the mobile-app-relevant flags are pulled out
-    below.
+    ``params`` is a snapshot of every CLI parameter of the ``add``
+    command; only the mobile-app-relevant flags are pulled out below.
     """
-    search_strategy = p["search_strategy"]
-    network_strategy = p["network_strategy"]
-    mobile_search_weekly_spend_limit = p["mobile_search_weekly_spend_limit"]
-    mobile_search_bid_ceiling = p["mobile_search_bid_ceiling"]
-    mobile_search_custom_period_spend_limit = p[
-        "mobile_search_custom_period_spend_limit"
-    ]
-    mobile_search_custom_period_start_date = p["mobile_search_custom_period_start_date"]
-    mobile_search_custom_period_end_date = p["mobile_search_custom_period_end_date"]
-    mobile_search_custom_period_auto_continue = p[
-        "mobile_search_custom_period_auto_continue"
-    ]
-    mobile_search_average_cpc = p["mobile_search_average_cpc"]
-    mobile_search_average_cpi = p["mobile_search_average_cpi"]
-    mobile_search_clicks_per_week = p["mobile_search_clicks_per_week"]
-    mobile_network_weekly_spend_limit = p["mobile_network_weekly_spend_limit"]
-    mobile_network_bid_ceiling = p["mobile_network_bid_ceiling"]
-    mobile_network_custom_period_spend_limit = p[
-        "mobile_network_custom_period_spend_limit"
-    ]
-    mobile_network_custom_period_start_date = p[
-        "mobile_network_custom_period_start_date"
-    ]
-    mobile_network_custom_period_end_date = p["mobile_network_custom_period_end_date"]
-    mobile_network_custom_period_auto_continue = p[
-        "mobile_network_custom_period_auto_continue"
-    ]
-    mobile_network_average_cpc = p["mobile_network_average_cpc"]
-    mobile_network_average_cpi = p["mobile_network_average_cpi"]
-    mobile_network_clicks_per_week = p["mobile_network_clicks_per_week"]
-    mobile_network_limit_percent = p["mobile_network_limit_percent"]
+    search_strategy = params.search_strategy
+    network_strategy = params.network_strategy
+    mobile_search_weekly_spend_limit = params.mobile_search_weekly_spend_limit
+    mobile_search_bid_ceiling = params.mobile_search_bid_ceiling
+    mobile_search_custom_period_spend_limit = (
+        params.mobile_search_custom_period_spend_limit
+    )
+    mobile_search_custom_period_start_date = (
+        params.mobile_search_custom_period_start_date
+    )
+    mobile_search_custom_period_end_date = params.mobile_search_custom_period_end_date
+    mobile_search_custom_period_auto_continue = (
+        params.mobile_search_custom_period_auto_continue
+    )
+    mobile_search_average_cpc = params.mobile_search_average_cpc
+    mobile_search_average_cpi = params.mobile_search_average_cpi
+    mobile_search_clicks_per_week = params.mobile_search_clicks_per_week
+    mobile_network_weekly_spend_limit = params.mobile_network_weekly_spend_limit
+    mobile_network_bid_ceiling = params.mobile_network_bid_ceiling
+    mobile_network_custom_period_spend_limit = (
+        params.mobile_network_custom_period_spend_limit
+    )
+    mobile_network_custom_period_start_date = (
+        params.mobile_network_custom_period_start_date
+    )
+    mobile_network_custom_period_end_date = params.mobile_network_custom_period_end_date
+    mobile_network_custom_period_auto_continue = (
+        params.mobile_network_custom_period_auto_continue
+    )
+    mobile_network_average_cpc = params.mobile_network_average_cpc
+    mobile_network_average_cpi = params.mobile_network_average_cpi
+    mobile_network_clicks_per_week = params.mobile_network_clicks_per_week
+    mobile_network_limit_percent = params.mobile_network_limit_percent
 
     mobile_builder = get_bidding_strategy_builder("MOBILE_APP_CAMPAIGN", "add", "full")
     if mobile_builder is not None:
@@ -106,46 +107,48 @@ def build_add_block(
     campaign_data["MobileAppCampaign"] = mobile_campaign
 
 
-def build_update_block(p, sub_block):
+def build_update_block(params, sub_block):
     """Fill ``sub_block`` for the MobileAppCampaign subtype of ``campaigns update``.
 
-    ``p`` is a snapshot of every CLI parameter of the ``update`` command.
+    ``params`` is a snapshot of every CLI parameter of the ``update`` command.
     """
-    search_strategy = p["search_strategy"]
-    network_strategy = p["network_strategy"]
-    mobile_search_weekly_spend_limit = p["mobile_search_weekly_spend_limit"]
-    mobile_search_bid_ceiling = p["mobile_search_bid_ceiling"]
-    mobile_search_custom_period_spend_limit = p[
-        "mobile_search_custom_period_spend_limit"
-    ]
-    mobile_search_custom_period_start_date = p["mobile_search_custom_period_start_date"]
-    mobile_search_custom_period_end_date = p["mobile_search_custom_period_end_date"]
-    mobile_search_custom_period_auto_continue = p[
-        "mobile_search_custom_period_auto_continue"
-    ]
-    mobile_search_average_cpc = p["mobile_search_average_cpc"]
-    mobile_search_average_cpi = p["mobile_search_average_cpi"]
-    mobile_search_clicks_per_week = p["mobile_search_clicks_per_week"]
-    mobile_search_budget_type = p["mobile_search_budget_type"]
-    mobile_network_weekly_spend_limit = p["mobile_network_weekly_spend_limit"]
-    mobile_network_bid_ceiling = p["mobile_network_bid_ceiling"]
-    mobile_network_custom_period_spend_limit = p[
-        "mobile_network_custom_period_spend_limit"
-    ]
-    mobile_network_custom_period_start_date = p[
-        "mobile_network_custom_period_start_date"
-    ]
-    mobile_network_custom_period_end_date = p["mobile_network_custom_period_end_date"]
-    mobile_network_custom_period_auto_continue = p[
-        "mobile_network_custom_period_auto_continue"
-    ]
-    mobile_network_average_cpc = p["mobile_network_average_cpc"]
-    mobile_network_average_cpi = p["mobile_network_average_cpi"]
-    mobile_network_clicks_per_week = p["mobile_network_clicks_per_week"]
-    mobile_network_limit_percent = p["mobile_network_limit_percent"]
-    mobile_network_budget_type = p["mobile_network_budget_type"]
-    settings = p["settings"]
-    negative_keyword_shared_set_ids = p["negative_keyword_shared_set_ids"]
+    search_strategy = params.search_strategy
+    network_strategy = params.network_strategy
+    mobile_search_weekly_spend_limit = params.mobile_search_weekly_spend_limit
+    mobile_search_bid_ceiling = params.mobile_search_bid_ceiling
+    mobile_search_custom_period_spend_limit = (
+        params.mobile_search_custom_period_spend_limit
+    )
+    mobile_search_custom_period_start_date = (
+        params.mobile_search_custom_period_start_date
+    )
+    mobile_search_custom_period_end_date = params.mobile_search_custom_period_end_date
+    mobile_search_custom_period_auto_continue = (
+        params.mobile_search_custom_period_auto_continue
+    )
+    mobile_search_average_cpc = params.mobile_search_average_cpc
+    mobile_search_average_cpi = params.mobile_search_average_cpi
+    mobile_search_clicks_per_week = params.mobile_search_clicks_per_week
+    mobile_search_budget_type = params.mobile_search_budget_type
+    mobile_network_weekly_spend_limit = params.mobile_network_weekly_spend_limit
+    mobile_network_bid_ceiling = params.mobile_network_bid_ceiling
+    mobile_network_custom_period_spend_limit = (
+        params.mobile_network_custom_period_spend_limit
+    )
+    mobile_network_custom_period_start_date = (
+        params.mobile_network_custom_period_start_date
+    )
+    mobile_network_custom_period_end_date = params.mobile_network_custom_period_end_date
+    mobile_network_custom_period_auto_continue = (
+        params.mobile_network_custom_period_auto_continue
+    )
+    mobile_network_average_cpc = params.mobile_network_average_cpc
+    mobile_network_average_cpi = params.mobile_network_average_cpi
+    mobile_network_clicks_per_week = params.mobile_network_clicks_per_week
+    mobile_network_limit_percent = params.mobile_network_limit_percent
+    mobile_network_budget_type = params.mobile_network_budget_type
+    settings = params.settings
+    negative_keyword_shared_set_ids = params.negative_keyword_shared_set_ids
 
     parsed_settings = parse_setting_specs(list(settings))
     if parsed_settings:

@@ -20,8 +20,10 @@ Click group itself or the ``get``/``add``/``update`` command functions:
 is byte-for-byte identical.
 """
 
+import dataclasses
+import inspect
 import re
-from typing import Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import click
 
@@ -69,6 +71,30 @@ _DEPRECATED_CAMPAIGNS_STRUCTURED_OPTIONS = {
         "--consider-working-weekends, and --holidays-suspend-on-holidays."
     ),
 }
+
+
+def campaign_params_dataclass(command, name: str) -> type:
+    """Build a typed snapshot class of a campaigns CLI command's parameters.
+
+    The fields are derived from ``command``'s own Click callback signature
+    (minus ``ctx``), so the class can never drift from the CLI surface: a
+    field added to the command without the class — or vice versa — fails at
+    construction time (``TypeError``), instead of a ``dict(locals())``
+    snapshot silently carrying stale or stray entries (epic #961, campaigns
+    track). Per-type payload builders receive an instance and read typed
+    attributes (``params.counter_ids``), so a typo raises ``AttributeError``
+    rather than returning ``None`` like a mistyped dict key.
+    """
+    # ``@click.command()`` leaves the module-level name bound to the
+    # Command object; the callback carries the real (wraps-preserved)
+    # signature.
+    callback = getattr(command, "callback", command)
+    fields = [
+        (param, Any)
+        for param in inspect.signature(callback).parameters
+        if param != "ctx"
+    ]
+    return dataclasses.make_dataclass(name, fields, frozen=True)
 
 
 def _deprecated_campaigns_structured_option(ctx, param, value):
