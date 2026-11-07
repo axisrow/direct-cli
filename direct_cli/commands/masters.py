@@ -34,6 +34,7 @@ retry an operation under another session.
 """
 
 import contextlib
+import dataclasses
 import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional
@@ -1238,51 +1239,154 @@ def _normalize_master_update_row(row: Any, row_index: int) -> Dict[str, Any]:
     return item
 
 
-def _reject_conflicting_row_fields(item: Dict[str, Any], row_index: int) -> None:
-    """Re-apply the single-campaign cross-field guards to one batch row.
+@dataclasses.dataclass(frozen=True)
+class _MasterConflictVocabulary:
+    """Per-surface wording for the shared masters-update conflict validator.
 
-    These are the checks the flag path performs after parsing (goal/price
-    compatibility, a goal targeted twice, a slot both set and cleared). They
-    are duplicated per row rather than skipped because the underlying page
-    behaviour is identical in either mode — a conflict that is ambiguous
-    enough to refuse from the CLI is just as ambiguous inside a plan file.
+    The single-campaign flag path and the batch plan describe the same fields
+    in two vocabularies (``--goal-price`` vs ``GoalPrice``) and scope their
+    "in the same ..." clause differently (``call`` vs ``row``); the flag path
+    additionally appends a one-sentence pointer to the counterpart flag that
+    the batch vocabulary omits. Holding those words here lets ONE validator
+    enforce the cross-field conflicts for both inputs while every surface's
+    error text stays byte-identical to its pre-consolidation wording
+    (epic #961, track 4).
     """
-    promotion_goal = item.get("promotion_goal")
-    if item.get("goal_price") is not None and promotion_goal == "max-conversions":
-        raise _row_error(
-            row_index,
-            "GoalPrice has no effect under PromotionGoal 'max-conversions' — "
-            "that goal's price is set per-target-action via "
-            "TargetActionPrices instead.",
+
+    goal_price_flag: str  # "--goal-price" / "GoalPrice"
+    promotion_goal_flag: str  # "--promotion-goal" / "PromotionGoal"
+    quote_goal_value: bool  # batch quotes the goal value, the flags do not
+    ta_flags_triple: str  # the three target-action field names, "/"-joined
+    goal_price_trailer: str  # appended after the goal-price guard's "instead"
+    ta_trailer: str  # appended after the target-action guard's "instead"
+    ta_price_label: str  # "--target-action-price" / "TargetActionPrices"
+    ta_add_label: str  # "--add-target-action" / "AddTargetActions"
+    ta_remove_label: str  # "--remove-target-action" / "RemoveTargetActionGoalIds"
+    dup_scope: str  # "call" / "row"
+
+
+_MASTER_FLAG_VOCABULARY = _MasterConflictVocabulary(
+    goal_price_flag="--goal-price",
+    promotion_goal_flag="--promotion-goal",
+    quote_goal_value=False,
+    ta_flags_triple=(
+        "--target-action-price/--add-target-action/--remove-target-action"
+    ),
+    goal_price_trailer=(". --goal-price only applies to --promotion-goal max-clicks."),
+    ta_trailer=". They only apply to --promotion-goal max-conversions.",
+    ta_price_label="--target-action-price",
+    ta_add_label="--add-target-action",
+    ta_remove_label="--remove-target-action",
+    dup_scope="call",
+)
+
+_MASTER_BATCH_VOCABULARY = _MasterConflictVocabulary(
+    goal_price_flag="GoalPrice",
+    promotion_goal_flag="PromotionGoal",
+    quote_goal_value=True,
+    ta_flags_triple=("TargetActionPrices/AddTargetActions/RemoveTargetActionGoalIds"),
+    goal_price_trailer=".",
+    ta_trailer=".",
+    ta_price_label="TargetActionPrices",
+    ta_add_label="AddTargetActions",
+    ta_remove_label="RemoveTargetActionGoalIds",
+    dup_scope="row",
+)
+
+
+def _reject_master_update_goal_side_conflicts(
+    promotion_goal: Optional[str],
+    goal_price: Optional[float],
+    has_target_actions: bool,
+    vocabulary: _MasterConflictVocabulary,
+    error: Callable[[str], click.UsageError],
+) -> None:
+    """Shared goal-side compatibility guards (issues #696/#707/#717).
+
+    ``--goal-price`` only exists on the page under max-clicks and the
+    per-goal target-action fields only exist under max-conversions, so a
+    call pairing either field with the opposite goal is refused up front —
+    identically for the flag path and every batch row.
+    """
+    goal_value = "max-conversions"
+    if vocabulary.quote_goal_value:
+        goal_value = f"'{goal_value}'"
+    if goal_price is not None and promotion_goal == "max-conversions":
+        raise error(
+            f"{vocabulary.goal_price_flag} has no effect under "
+            f"{vocabulary.promotion_goal_flag} {goal_value} — that goal's "
+            "price is set per-target-action via "
+            f"{vocabulary.ta_price_label} instead"
+            f"{vocabulary.goal_price_trailer}"
         )
-    if promotion_goal == "max-clicks" and (
-        item.get("target_action_prices")
-        or item.get("add_target_actions")
-        or item.get("remove_target_action_goal_ids")
-    ):
-        raise _row_error(
-            row_index,
-            "TargetActionPrices/AddTargetActions/RemoveTargetActionGoalIds "
-            "have no effect under PromotionGoal 'max-clicks' — that goal's "
-            "price is set once for the whole campaign via GoalPrice instead.",
+    goal_value = "max-clicks"
+    if vocabulary.quote_goal_value:
+        goal_value = f"'{goal_value}'"
+    if promotion_goal == "max-clicks" and has_target_actions:
+        raise error(
+            f"{vocabulary.ta_flags_triple} have no effect under "
+            f"{vocabulary.promotion_goal_flag} {goal_value} — that goal's "
+            "price is set once for the whole campaign via "
+            f"{vocabulary.goal_price_flag} instead"
+            f"{vocabulary.ta_trailer}"
         )
 
+
+def _reject_multi_targeted_goal_ids(
+    target_action_prices,
+    add_target_actions,
+    remove_target_action_goal_ids,
+    vocabulary: _MasterConflictVocabulary,
+    error: Callable[[str], click.UsageError],
+) -> None:
+    """Shared guard against one Metrika goal id passed to more than one of
+    the three target-action fields in the same update."""
     seen_goals: "dict[int, str]" = {}
     for field, goals in (
-        ("TargetActionPrices", item.get("target_action_prices") or {}),
-        ("AddTargetActions", item.get("add_target_actions") or {}),
-        ("RemoveTargetActionGoalIds", item.get("remove_target_action_goal_ids") or []),
+        (vocabulary.ta_price_label, target_action_prices or {}),
+        (vocabulary.ta_add_label, add_target_actions or {}),
+        (vocabulary.ta_remove_label, remove_target_action_goal_ids or []),
     ):
         for goal_id in goals:
             if goal_id in seen_goals:
-                raise _row_error(
-                    row_index,
+                raise error(
                     f"Goal {goal_id} was passed to both {seen_goals[goal_id]} "
                     f"and {field} — a goal can only be targeted by one of "
-                    "TargetActionPrices/AddTargetActions/"
-                    "RemoveTargetActionGoalIds in the same row.",
+                    f"{vocabulary.ta_flags_triple} in the same "
+                    f"{vocabulary.dup_scope}."
                 )
             seen_goals[goal_id] = field
+
+
+def _reject_conflicting_row_fields(item: Dict[str, Any], row_index: int) -> None:
+    """Re-apply the single-campaign cross-field guards to one batch row.
+
+    The goal-side compatibility guards and the goal-id dedup are the SHARED
+    validator (epic #961, track 4) parameterized by the batch vocabulary;
+    only the slot set-and-clear overlap keeps its own row-scoped wording —
+    its text deliberately differs from the flag path's
+    ``_reject_overlapping_slots`` message, so it is not folded into the
+    shared validator.
+    """
+    error = lambda message: _row_error(row_index, message)  # noqa: E731
+    _reject_master_update_goal_side_conflicts(
+        item.get("promotion_goal"),
+        item.get("goal_price"),
+        bool(
+            item.get("target_action_prices")
+            or item.get("add_target_actions")
+            or item.get("remove_target_action_goal_ids")
+        ),
+        _MASTER_BATCH_VOCABULARY,
+        error,
+    )
+    _reject_multi_targeted_goal_ids(
+        item.get("target_action_prices"),
+        item.get("add_target_actions"),
+        item.get("remove_target_action_goal_ids"),
+        _MASTER_BATCH_VOCABULARY,
+        error,
+    )
 
     for set_field, clear_field, set_key, clear_key in (
         ("Headlines", "ClearHeadlines", "headlines", "clear_headlines"),
@@ -1673,6 +1777,182 @@ def _validate_image_files(paths: "tuple[str, ...]") -> None:
     accept. See ``_validate_image_path`` for the per-path check."""
     for raw_path in paths:
         _validate_image_path(raw_path, option_name="--image-file", context="")
+
+
+def _build_master_update_model(
+    campaign_id: int,
+    *,
+    weekly_budget,
+    promotion_goal,
+    goal_price,
+    target_action_prices,
+    add_target_actions,
+    remove_target_actions,
+    directs_helps,
+    name,
+    landing_url,
+    tracking_params,
+    headlines,
+    texts,
+    clear_headlines,
+    clear_texts,
+    images,
+    add_video,
+    add_video_url,
+    remove_videos,
+    gender,
+    age_from,
+    age_to,
+    devices,
+    add_audience_tags,
+    remove_audience_tags,
+    add_metrika_counters,
+    remove_metrika_counters,
+    add_sitelinks,
+    remove_sitelinks,
+    launch,
+) -> Dict[str, Any]:
+    """Parse the single-campaign flags into the SHARED update model (epic
+    #961, track 4).
+
+    The returned dict is exactly the shape a batch row from
+    :func:`_normalize_master_update_row` takes — the same keys
+    ``update_master`` consumes, "key absent" meaning "not requested", 0-based
+    slot indices, ``age_from_requested``/``age_to_requested`` present only
+    when the corresponding bound was given. One builder feeds the call, the
+    ``--dry-run`` report (via ``_batch_row_report``, the same renderer a
+    batch plan uses) and the shared conflict validator, so the CLI path no
+    longer keeps a hand-written copy of the mapping in three places.
+    """
+    from ..browser.masters import (
+        _HEADLINES_SLOT_COUNT,
+        _IMAGES_MAX_COUNT,
+        _TEXTS_SLOT_COUNT,
+    )
+
+    parsed_target_action_prices = _parse_target_action_price_options(
+        target_action_prices
+    )
+    parsed_add_target_actions = _parse_add_target_action_options(add_target_actions)
+    parsed_remove_target_actions = _parse_remove_target_action_options(
+        remove_target_actions
+    )
+    _reject_multi_targeted_goal_ids(
+        parsed_target_action_prices,
+        parsed_add_target_actions,
+        parsed_remove_target_actions,
+        _MASTER_FLAG_VOCABULARY,
+        click.UsageError,
+    )
+
+    parsed_headlines = _parse_repeating_slot_options(
+        "--headline", headlines, _HEADLINES_SLOT_COUNT
+    )
+    parsed_texts = _parse_repeating_slot_options("--text", texts, _TEXTS_SLOT_COUNT)
+    parsed_clear_headlines = _parse_clear_slot_options(
+        "--clear-headline", clear_headlines, _HEADLINES_SLOT_COUNT
+    )
+    parsed_clear_texts = _parse_clear_slot_options(
+        "--clear-text", clear_texts, _TEXTS_SLOT_COUNT
+    )
+    _reject_overlapping_slots(
+        parsed_headlines, parsed_clear_headlines, "--headline", "--clear-headline"
+    )
+    _reject_overlapping_slots(
+        parsed_texts, parsed_clear_texts, "--text", "--clear-text"
+    )
+    parsed_images = _parse_repeating_slot_options(
+        "--image",
+        images,
+        _IMAGES_MAX_COUNT,
+        value_label="path",
+        value_example="/path/to/image.jpg",
+        empty_hint=(
+            "which is not a valid image path. Removing an image without a "
+            "replacement is not supported — pass a replacement file, or "
+            "edit the campaign with --headful."
+        ),
+    )
+    _validate_image_paths(parsed_images)
+    _reject_add_video_and_add_video_url_together(add_video, add_video_url)
+    if add_video is not None:
+        _validate_video_path(add_video)
+
+    parsed_age_from = int(age_from) if age_from is not None else None
+    parsed_age_to = (
+        None if age_to == "unlimited" else (int(age_to) if age_to is not None else None)
+    )
+    parsed_remove_audience_tags = _parse_remove_audience_tag_options(
+        remove_audience_tags
+    )
+    parsed_remove_metrika_counters = _parse_remove_metrika_counter_options(
+        remove_metrika_counters
+    )
+    parsed_add_sitelinks = _parse_add_sitelink_options(add_sitelinks)
+    parsed_remove_sitelinks = _parse_remove_sitelink_options(remove_sitelinks)
+
+    model: Dict[str, Any] = {"campaign_id": campaign_id}
+    if weekly_budget is not None:
+        model["weekly_budget"] = weekly_budget
+    if promotion_goal is not None:
+        model["promotion_goal"] = promotion_goal
+    if goal_price is not None:
+        model["goal_price"] = goal_price
+    if parsed_target_action_prices:
+        model["target_action_prices"] = parsed_target_action_prices
+    if parsed_add_target_actions:
+        model["add_target_actions"] = parsed_add_target_actions
+    if parsed_remove_target_actions:
+        model["remove_target_action_goal_ids"] = parsed_remove_target_actions
+    if directs_helps is not None:
+        model["directs_helps"] = directs_helps
+    if name is not None:
+        model["name"] = name
+    if landing_url is not None:
+        model["landing_url"] = landing_url
+    if tracking_params is not None:
+        model["tracking_params"] = tracking_params
+    if parsed_headlines:
+        model["headlines"] = parsed_headlines
+    if parsed_texts:
+        model["texts"] = parsed_texts
+    if parsed_clear_headlines:
+        model["clear_headlines"] = parsed_clear_headlines
+    if parsed_clear_texts:
+        model["clear_texts"] = parsed_clear_texts
+    if parsed_images:
+        model["images"] = parsed_images
+    if add_video is not None:
+        model["add_video"] = add_video
+    if add_video_url is not None:
+        model["add_video_url"] = add_video_url
+    if remove_videos:
+        model["remove_videos"] = list(remove_videos)
+    if gender is not None:
+        model["gender"] = gender
+    if age_from is not None:
+        model["age_from"] = parsed_age_from
+        model["age_from_requested"] = True
+    if age_to is not None:
+        model["age_to"] = parsed_age_to
+        model["age_to_requested"] = True
+    if devices:
+        model["devices"] = set(devices)
+    if add_audience_tags:
+        model["add_audience_tags"] = list(add_audience_tags)
+    if parsed_remove_audience_tags:
+        model["remove_audience_tags"] = parsed_remove_audience_tags
+    if add_metrika_counters:
+        model["add_metrika_counters"] = list(add_metrika_counters)
+    if parsed_remove_metrika_counters:
+        model["remove_metrika_counters"] = parsed_remove_metrika_counters
+    if parsed_add_sitelinks:
+        model["add_sitelinks"] = parsed_add_sitelinks
+    if parsed_remove_sitelinks:
+        model["remove_sitelinks"] = parsed_remove_sitelinks
+    if launch:
+        model["launch"] = True
+    return model
 
 
 def _validate_video_path(raw_path: str) -> None:
@@ -2942,160 +3222,57 @@ def update(
             "--add-sitelink, --remove-sitelink."
         )
 
-    if goal_price is not None and promotion_goal == "max-conversions":
-        raise click.UsageError(
-            "--goal-price has no effect under --promotion-goal "
-            "max-conversions — that goal's price is set per-target-action "
-            "via --target-action-price instead. --goal-price only applies "
-            "to --promotion-goal max-clicks."
-        )
-
-    if (
-        target_action_prices or add_target_actions or remove_target_actions
-    ) and promotion_goal == "max-clicks":
-        raise click.UsageError(
-            "--target-action-price/--add-target-action/"
-            "--remove-target-action have no effect under --promotion-goal "
-            "max-clicks — that goal's price is set once for the whole "
-            "campaign via --goal-price instead. They only apply to "
-            "--promotion-goal max-conversions."
-        )
-
-    parsed_target_action_prices = _parse_target_action_price_options(
-        target_action_prices
-    )
-    parsed_add_target_actions = _parse_add_target_action_options(add_target_actions)
-    parsed_remove_target_actions = _parse_remove_target_action_options(
-        remove_target_actions
+    # Shared goal-side compatibility guards (epic #961, track 4): the
+    # same validator the batch rows run, with the flag vocabulary.
+    _reject_master_update_goal_side_conflicts(
+        promotion_goal,
+        goal_price,
+        bool(target_action_prices or add_target_actions or remove_target_actions),
+        _MASTER_FLAG_VOCABULARY,
+        click.UsageError,
     )
 
-    _target_action_goal_ids_seen: "dict[int, str]" = {}
-    for goal_id in parsed_target_action_prices:
-        _target_action_goal_ids_seen[goal_id] = "--target-action-price"
-    for goal_id in parsed_add_target_actions:
-        if goal_id in _target_action_goal_ids_seen:
-            raise click.UsageError(
-                f"Goal {goal_id} was passed to both "
-                f"{_target_action_goal_ids_seen[goal_id]} and "
-                "--add-target-action — a goal can only be targeted by one "
-                "of --target-action-price/--add-target-action/"
-                "--remove-target-action in the same call."
-            )
-        _target_action_goal_ids_seen[goal_id] = "--add-target-action"
-    for goal_id in parsed_remove_target_actions:
-        if goal_id in _target_action_goal_ids_seen:
-            raise click.UsageError(
-                f"Goal {goal_id} was passed to both "
-                f"{_target_action_goal_ids_seen[goal_id]} and "
-                "--remove-target-action — a goal can only be targeted by "
-                "one of --target-action-price/--add-target-action/"
-                "--remove-target-action in the same call."
-            )
-        _target_action_goal_ids_seen[goal_id] = "--remove-target-action"
-
-    # Slot counts come from the browser layer's own constants (imported here
-    # rather than at module load, matching this module's other deferred
-    # browser imports) so the CLI's bound can't drift from the page's.
-    from ..browser.masters import (
-        _HEADLINES_SLOT_COUNT,
-        _IMAGES_MAX_COUNT,
-        _TEXTS_SLOT_COUNT,
+    # One parse into the shared update model: the same normalized row a
+    # batch plan carries, consumed by the dry-run report, the conflict
+    # validator and the update_master call alike.
+    model = _build_master_update_model(
+        campaign_id,
+        weekly_budget=weekly_budget,
+        promotion_goal=promotion_goal,
+        goal_price=goal_price,
+        target_action_prices=target_action_prices,
+        add_target_actions=add_target_actions,
+        remove_target_actions=remove_target_actions,
+        directs_helps=directs_helps,
+        name=name,
+        landing_url=landing_url,
+        tracking_params=tracking_params,
+        headlines=headlines,
+        texts=texts,
+        clear_headlines=clear_headlines,
+        clear_texts=clear_texts,
+        images=images,
+        add_video=add_video,
+        add_video_url=add_video_url,
+        remove_videos=remove_videos,
+        gender=gender,
+        age_from=age_from,
+        age_to=age_to,
+        devices=devices,
+        add_audience_tags=add_audience_tags,
+        remove_audience_tags=remove_audience_tags,
+        add_metrika_counters=add_metrika_counters,
+        remove_metrika_counters=remove_metrika_counters,
+        add_sitelinks=add_sitelinks,
+        remove_sitelinks=remove_sitelinks,
+        launch=launch,
     )
-
-    parsed_headlines = _parse_repeating_slot_options(
-        "--headline", headlines, _HEADLINES_SLOT_COUNT
-    )
-    parsed_texts = _parse_repeating_slot_options("--text", texts, _TEXTS_SLOT_COUNT)
-    parsed_clear_headlines = _parse_clear_slot_options(
-        "--clear-headline", clear_headlines, _HEADLINES_SLOT_COUNT
-    )
-    parsed_clear_texts = _parse_clear_slot_options(
-        "--clear-text", clear_texts, _TEXTS_SLOT_COUNT
-    )
-    _reject_overlapping_slots(
-        parsed_headlines, parsed_clear_headlines, "--headline", "--clear-headline"
-    )
-    _reject_overlapping_slots(
-        parsed_texts, parsed_clear_texts, "--text", "--clear-text"
-    )
-    parsed_images = _parse_repeating_slot_options(
-        "--image",
-        images,
-        _IMAGES_MAX_COUNT,
-        value_label="path",
-        value_example="/path/to/image.jpg",
-        empty_hint=(
-            "which is not a valid image path. Removing an image without a "
-            "replacement is not supported — pass a replacement file, or "
-            "edit the campaign with --headful."
-        ),
-    )
-    _validate_image_paths(parsed_images)
-    _reject_add_video_and_add_video_url_together(add_video, add_video_url)
-    if add_video is not None:
-        _validate_video_path(add_video)
-
-    parsed_age_from = int(age_from) if age_from is not None else None
-    parsed_age_to = (
-        None if age_to == "unlimited" else (int(age_to) if age_to is not None else None)
-    )
-    parsed_remove_audience_tags = _parse_remove_audience_tag_options(
-        remove_audience_tags
-    )
-    parsed_remove_metrika_counters = _parse_remove_metrika_counter_options(
-        remove_metrika_counters
-    )
-    parsed_add_sitelinks = _parse_add_sitelink_options(add_sitelinks)
-    parsed_remove_sitelinks = _parse_remove_sitelink_options(remove_sitelinks)
 
     if dry_run:
-        # Same report shape as a batch plan of one, so a caller can preview a
-        # single command and a plan file with one reader (and so the batch
-        # renderer stays the only place the PascalCase mapping lives).
-        single_row = {
-            "campaign_id": campaign_id,
-            **{
-                key: value
-                for key, value in {
-                    "weekly_budget": weekly_budget,
-                    "promotion_goal": promotion_goal,
-                    "goal_price": goal_price,
-                    "target_action_prices": parsed_target_action_prices or None,
-                    "add_target_actions": parsed_add_target_actions or None,
-                    "remove_target_action_goal_ids": parsed_remove_target_actions
-                    or None,
-                    "directs_helps": directs_helps,
-                    "name": name,
-                    "landing_url": landing_url,
-                    "tracking_params": tracking_params,
-                    "headlines": parsed_headlines or None,
-                    "texts": parsed_texts or None,
-                    "clear_headlines": parsed_clear_headlines or None,
-                    "clear_texts": parsed_clear_texts or None,
-                    "images": parsed_images or None,
-                    "add_video": add_video,
-                    "add_video_url": add_video_url,
-                    "remove_videos": list(remove_videos) or None,
-                    "gender": gender,
-                    "devices": set(devices) if devices else None,
-                    "add_audience_tags": list(add_audience_tags) or None,
-                    "remove_audience_tags": parsed_remove_audience_tags or None,
-                    "add_metrika_counters": list(add_metrika_counters) or None,
-                    "remove_metrika_counters": parsed_remove_metrika_counters or None,
-                    "add_sitelinks": parsed_add_sitelinks or None,
-                    "remove_sitelinks": parsed_remove_sitelinks or None,
-                    "launch": launch or None,
-                }.items()
-                if value is not None
-            },
-        }
-        # An explicitly requested bound is reported even when it resolves to
-        # None ("unlimited"), matching what update_master would be told.
-        if age_from is not None:
-            single_row["age_from"] = parsed_age_from
-        if age_to is not None:
-            single_row["age_to"] = parsed_age_to
-        format_output(_batch_row_report(single_row), output_format, output)
+        # Same report shape as a batch plan of one, so a caller can preview
+        # a single command and a plan file with one reader — and the
+        # batch renderer stays the only place the PascalCase mapping lives.
+        format_output(_batch_row_report(model), output_format, output)
         return
 
     result = _with_session(
@@ -3106,40 +3283,11 @@ def update(
         lambda page: update_master(
             page,
             campaign_id,
-            weekly_budget=weekly_budget,
-            promotion_goal=promotion_goal,
-            goal_price=goal_price,
-            target_action_prices=parsed_target_action_prices,
-            add_target_actions=parsed_add_target_actions,
-            remove_target_action_goal_ids=parsed_remove_target_actions,
-            directs_helps=directs_helps,
-            name=name,
-            landing_url=landing_url,
-            tracking_params=tracking_params,
-            headlines=parsed_headlines,
-            texts=parsed_texts,
-            clear_headlines=parsed_clear_headlines or None,
-            clear_texts=parsed_clear_texts or None,
-            images=parsed_images,
-            add_video=add_video,
-            add_video_url=add_video_url,
-            remove_videos=list(remove_videos) or None,
-            gender=gender,
-            age_from=parsed_age_from,
-            age_from_requested=age_from is not None,
-            age_to=parsed_age_to,
-            age_to_requested=age_to is not None,
-            devices=set(devices) if devices else None,
-            add_audience_tags=list(add_audience_tags) or None,
-            remove_audience_tags=parsed_remove_audience_tags or None,
-            add_metrika_counters=list(add_metrika_counters) or None,
-            remove_metrika_counters=parsed_remove_metrika_counters or None,
-            add_sitelinks=parsed_add_sitelinks or None,
-            remove_sitelinks=parsed_remove_sitelinks or None,
-            launch=launch,
+            **{key: value for key, value in model.items() if key != "campaign_id"},
         ),
     )
 
+    format_output(result, output_format, output)
     format_output(result, output_format, output)
 
 
