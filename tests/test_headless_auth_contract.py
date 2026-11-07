@@ -36,9 +36,17 @@ AUTH_COMMANDS = Path(direct_cli.__file__).parent / "commands" / "auth.py"
 
 # The only functions allowed to prompt or to open a browser (issue #962).
 # Everything a user must answer or that opens a window lives here, behind
-# the explicit --interactive / --source manual opt-ins.
+# the explicit --interactive / --source manual opt-ins. `input` is the
+# builtin escape hatch — same hole class as the clock-guard denylist lesson
+# (CLAUDE.md): a name-based registry that misses it lets a dialog slip
+# straight back in.
 PROMPT_SITES = {"login_api", "_prompt_authorize_code", "_ask_copy_token"}
-PROMPT_CALL_NAMES = {"click.prompt", "click.confirm", "webbrowser.open"}
+PROMPT_CALL_NAMES = {
+    "click.prompt",
+    "click.confirm",
+    "webbrowser.open",
+    "input",
+}
 
 
 @pytest.fixture
@@ -355,6 +363,10 @@ class TestTerminalOnlyRefusesAstGuard:
             "def rogue() -> None:\n"
             "    click.prompt('code')\n"
         )
+        assert len(prompt_site_violations(ast.parse(source))) == 1
+
+    def test_guard_flags_the_builtin_input_outside_the_registry(self):
+        source = "def rogue() -> str:\n    return input('code: ')\n"
         assert len(prompt_site_violations(ast.parse(source))) == 1
 
     def test_guard_accepts_a_registered_prompt_site(self):
