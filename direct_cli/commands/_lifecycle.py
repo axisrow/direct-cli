@@ -16,14 +16,19 @@ unchanged: ``{"method": <method>, "params": {"SelectionCriteria": {<key>: [id]}}
 
 ``create_client`` is passed in by the calling module (not imported here) so that
 ``@patch("direct_cli.commands.<module>.create_client")`` keeps intercepting, the
-same patchability contract as :func:`direct_cli.api.client_from_ctx`.
+same patchability contract as :func:`direct_cli.api.client_from_ctx`. Because
+the factory captures the symbol at registration (import) time, the live path
+re-reads it from the module via
+:func:`direct_cli.api.resolve_module_create_client` — the same resolution the
+``get`` factory uses (epic #961, track 7); without it the closure would pin the
+import-time function and bypass the patch.
 """
 
 from __future__ import annotations
 
 import click
 
-from ..api import client_from_ctx
+from ..api import client_from_ctx, resolve_module_create_client
 from ..output import format_output, handle_api_errors
 
 
@@ -74,6 +79,7 @@ def make_lifecycle_command(
     # ad-image path keeps id_type=str (a hash is not an integer) and is
     # untouched.
     option_type = click.IntRange(min=1) if id_type is int else id_type
+    module_name = group.callback.__module__
 
     @group.command(name=method, help=help_text)
     @click.option(id_option, id_param, required=True, type=option_type, help=id_help)
@@ -91,7 +97,9 @@ def make_lifecycle_command(
             format_output(body, "json", None)
             return
 
-        client = client_from_ctx(ctx, create_client)
+        client = client_from_ctx(
+            ctx, resolve_module_create_client(module_name, create_client)
+        )
 
         result = getattr(client, service or group.name)().post(data=body)
         format_output(result().extract(), "json", None)
