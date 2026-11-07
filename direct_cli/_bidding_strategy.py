@@ -397,6 +397,161 @@ _DYN_SEARCH_BUDGET_TYPE_SUBTYPES = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Shared validation helpers (epic #961, track 3: centralized budget and
+# field-compatibility checks). Every helper reproduces the raise site's
+# message byte-for-byte via its parameters; the search/network and add/update
+# asymmetries that keep these from being ONE check are documented in the
+# block above ``apply_cpa_strategy_fields``.
+# ---------------------------------------------------------------------------
+
+
+def _reject_unsupported_strategy_fields(
+    normalized_strategy: str,
+    subtype: Optional[str],
+    field_support: Dict[str, tuple],
+) -> None:
+    """Per-subtype "supported field" enforcement — silent-data-loss
+    invariant #2 in ``test_wsdl_parity_gate``. ``field_support`` maps each
+    CLI flag to ``(value, supported_subtypes)``; a provided value whose
+    chosen strategy subtype does not declare the WSDL field raises instead
+    of being dropped."""
+    for flag, (value, supported_subtypes) in field_support.items():
+        if value is not None and subtype not in supported_subtypes:
+            raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
+
+
+def _reject_weekly_custom_period_mix(
+    weekly_spend_limit: Optional[int],
+    custom_period_present: bool,
+    *,
+    weekly_flag: str,
+    custom_period_flag: str,
+) -> None:
+    """One budget slice per subtype (Yandex docs): WeeklySpendLimit and
+    CustomPeriodBudget (or its network-side CP-spend-limit counterpart)
+    cannot be combined on the same strategy."""
+    if weekly_spend_limit is not None and custom_period_present:
+        raise click.UsageError(
+            f"{weekly_flag} cannot be combined with " f"{custom_period_flag}"
+        )
+
+
+def _reject_incomplete_custom_period(
+    section_label: str,
+    custom_period_values: Dict[str, object],
+) -> List[str]:
+    """CustomPeriodBudget is written as one all-or-nothing slice: listing
+    only some of its four flags cannot express a partial budget. Returns the
+    provided flag list for the caller's downstream checks."""
+    custom_period_flags = [
+        flag for flag, value in custom_period_values.items() if value is not None
+    ]
+    if custom_period_flags and len(custom_period_flags) != len(custom_period_values):
+        missing = [
+            flag for flag, value in custom_period_values.items() if value is None
+        ]
+        raise click.UsageError(
+            f"{section_label} requires all custom-period "
+            f"flags; missing {', '.join(sorted(missing))}"
+        )
+    return custom_period_flags
+
+
+def _reject_update_only_budget_type(
+    flag_label: str,
+    budget_type: Optional[str],
+    is_update: bool,
+) -> None:
+    """BudgetType is an update-only switch across every campaign family: on
+    add the budget slice is implied by which of WeeklySpendLimit /
+    CustomPeriodBudget is set (the Strategy*Add types do not declare the
+    field). ``flag_label`` includes the per-family prefix."""
+    if budget_type is not None and not is_update:
+        raise click.UsageError(f"{flag_label} is update-only")
+
+
+def _reject_unknown_budget_type(
+    flag_label: str,
+    normalized_budget_type: str,
+    allowed: List[str],
+) -> None:
+    if normalized_budget_type not in allowed:
+        raise click.UsageError(f"{flag_label} must be one of " f"{', '.join(allowed)}")
+
+
+def _reject_budget_type_slice_mismatch(
+    flag_label: str,
+    normalized_budget_type: str,
+    *,
+    weekly_spend_limit: Optional[int],
+    weekly_flag: str,
+    custom_period_present: bool,
+    cpb_requirement: str,
+) -> None:
+    """BudgetType selects which stored slice a later read reports; the two
+    presence checks keep the switch from contradicting the values supplied
+    in the same call (the alternate slice would be silently nullled out or
+    the request would reference a slice the user never provided)."""
+    if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_present:
+        raise click.UsageError(
+            f"{flag_label} CUSTOM_PERIOD_BUDGET requires " f"{cpb_requirement}"
+        )
+    if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
+        raise click.UsageError(f"{flag_label} WEEKLY_BUDGET requires " f"{weekly_flag}")
+
+
+# ---------------------------------------------------------------------------
+# Search/Network and Add/Update asymmetries (epic #961, track 3). The
+# builders below are intentionally NOT symmetric; these are the load-bearing
+# differences, each with its provenance. Do not "unify" them away.
+#
+# Add vs Update
+# - include_default=True on add: WSDL minOccurs=1 requires a
+#   BiddingStrategyType even when nothing else is set, so add emits the
+#   family default (Search HIGHEST_POSITION, Network SERVING_OFF, Smart
+#   network AVERAGE_CPC_PER_FILTER). Update passes include_default=False:
+#   with neither a strategy nor any detail flag the builder returns None and
+#   the section is left untouched (a partial update must not re-send the
+#   section).
+# - Required fields: on add every Strategy*Add minOccurs=1 leaf is enforced
+#   per subtype ("{strategy} requires {flag}" — see the required_map tables
+#   and the WSDL line references in each builder). Update omits that check:
+#   a partial update legitimately re-sends only the changed slice while the
+#   stored value keeps the required field satisfied.
+# - BudgetType is update-only everywhere (_reject_update_only_budget_type):
+#   the Strategy*Add types used on add do not declare it; it lives on the
+#   get-side Strategy* types the UpdateItem reuses. The slice-presence pair
+#   that follows it differs BY FAMILY on purpose:
+#   * TextCampaign (#388, doc-strict): enum check + both presence checks.
+#   * DynamicTextCampaign (#362): subtype-support check; the presence pair is
+#     gated behind config.budget_type_presence_checks — Search sets False
+#     (WSDL declares BudgetType as an independent optional element, Yandex
+#     rejects inconsistent combos at the wire; no tighter local contract).
+#   * SmartCampaign: dedicated _validate_smart_budget_type whose update-only
+#     message carries the WSDL provenance suffix (kept byte-identical).
+#   * UnifiedCampaign Search (#363/#388 divergence): presence checks INVERTED
+#     into cross-slice mutexes — selecting WEEKLY_BUDGET while supplying
+#     custom-period flags (or vice versa) would silently null the alternate
+#     slice, so the mismatch is rejected up-front instead.
+#
+# Search vs Network
+# - PlacementTypes (SearchResults/ProductGallery/DynamicPlaces) exists only
+#   on the Search side of Text/Unified/Dynamic; Network builders never take
+#   placement flags.
+# - LimitPercent is network-only (NetworkDefault subtype) in every family;
+#   search configs pass an empty support set.
+# - ExplorationBudget field names differ per side and are NOT aliases:
+#   Text/Unified search use MinimumExplorationBudget +
+#   IsMinimumExplorationBudgetCustom, while Dynamic/Smart network-side flags
+#   map to ExplorationBudget + ExplorationBudgetCustom.
+# - Smart network's cp-spend-limit is the network-side counterpart of the
+#   search-side custom-period budget; both share the one-slice-per-subtype
+#   mutex (_reject_weekly_custom_period_mix), which is why that helper takes
+#   the second flag's label as a parameter.
+# ---------------------------------------------------------------------------
+
+
 def apply_cpa_strategy_fields(
     bidding_strategy: dict,
     *,
@@ -856,27 +1011,20 @@ def build_mobile_app_search_strategy(
         "--mobile-search-custom-period-end-date": custom_period_end_date,
         "--mobile-search-custom-period-auto-continue": custom_period_auto_continue,
     }
-    custom_period_flags = [
-        flag for flag, value in custom_period_values.items() if value is not None
-    ]
-    if custom_period_flags and len(custom_period_flags) != len(custom_period_values):
-        missing = [
-            flag for flag, value in custom_period_values.items() if value is None
-        ]
-        raise click.UsageError(
-            "MobileAppCampaign CustomPeriodBudget requires all custom-period "
-            f"flags; missing {', '.join(sorted(missing))}"
-        )
+    custom_period_flags = _reject_incomplete_custom_period(
+        "MobileAppCampaign CustomPeriodBudget", custom_period_values
+    )
     if custom_period_flags and subtype not in MOBILE_APP_SEARCH_CUSTOM_PERIOD_SUBTYPES:
         raise click.UsageError(
             f"{normalized_strategy} does not accept MobileAppCampaign "
             "CustomPeriodBudget flags"
         )
-    if weekly_spend_limit is not None and custom_period_flags:
-        raise click.UsageError(
-            "--mobile-search-weekly-spend-limit cannot be combined with "
-            "--mobile-search-custom-period-spend-limit"
-        )
+    _reject_weekly_custom_period_mix(
+        weekly_spend_limit,
+        bool(custom_period_flags),
+        weekly_flag="--mobile-search-weekly-spend-limit",
+        custom_period_flag="--mobile-search-custom-period-spend-limit",
+    )
     if not is_update:
         required = {
             "HighestPosition": {},
@@ -900,23 +1048,28 @@ def build_mobile_app_search_strategy(
             )
 
     if budget_type is not None:
-        if not is_update:
-            raise click.UsageError("--mobile-search-budget-type is update-only")
-        if subtype not in MOBILE_APP_SEARCH_BUDGET_TYPE_SUBTYPES:
-            raise click.UsageError(
-                f"{normalized_strategy} does not accept --mobile-search-budget-type"
-            )
+        _reject_update_only_budget_type(
+            "--mobile-search-budget-type", budget_type, is_update
+        )
+        _reject_unsupported_strategy_fields(
+            normalized_strategy,
+            subtype,
+            {
+                "--mobile-search-budget-type": (
+                    budget_type,
+                    MOBILE_APP_SEARCH_BUDGET_TYPE_SUBTYPES,
+                ),
+            },
+        )
         normalized_budget_type = budget_type.upper()
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
-            raise click.UsageError(
-                "--mobile-search-budget-type CUSTOM_PERIOD_BUDGET requires "
-                "full CustomPeriodBudget flags"
-            )
-        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-            raise click.UsageError(
-                "--mobile-search-budget-type WEEKLY_BUDGET requires "
-                "--mobile-search-weekly-spend-limit"
-            )
+        _reject_budget_type_slice_mismatch(
+            "--mobile-search-budget-type",
+            normalized_budget_type,
+            weekly_spend_limit=weekly_spend_limit,
+            weekly_flag="--mobile-search-weekly-spend-limit",
+            custom_period_present=bool(custom_period_flags),
+            cpb_requirement="full CustomPeriodBudget flags",
+        )
     if (
         subtype == "WeeklyClickPackage"
         and average_cpc is not None
@@ -949,9 +1102,7 @@ def build_mobile_app_search_strategy(
             MOBILE_APP_SEARCH_CLICKS_PER_WEEK_SUBTYPES,
         ),
     }
-    for flag, (value, supported_subtypes) in field_support.items():
-        if value is not None and subtype not in supported_subtypes:
-            raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
+    _reject_unsupported_strategy_fields(normalized_strategy, subtype, field_support)
 
     block: dict = {}
     if weekly_spend_limit is not None:
@@ -1066,27 +1217,20 @@ def build_mobile_app_network_strategy(
         "--mobile-network-custom-period-end-date": custom_period_end_date,
         "--mobile-network-custom-period-auto-continue": custom_period_auto_continue,
     }
-    custom_period_flags = [
-        flag for flag, value in custom_period_values.items() if value is not None
-    ]
-    if custom_period_flags and len(custom_period_flags) != len(custom_period_values):
-        missing = [
-            flag for flag, value in custom_period_values.items() if value is None
-        ]
-        raise click.UsageError(
-            "MobileAppCampaign CustomPeriodBudget requires all custom-period "
-            f"flags; missing {', '.join(sorted(missing))}"
-        )
+    custom_period_flags = _reject_incomplete_custom_period(
+        "MobileAppCampaign CustomPeriodBudget", custom_period_values
+    )
     if custom_period_flags and subtype not in MOBILE_APP_NETWORK_CUSTOM_PERIOD_SUBTYPES:
         raise click.UsageError(
             f"{normalized_strategy} does not accept MobileAppCampaign "
             "CustomPeriodBudget flags"
         )
-    if weekly_spend_limit is not None and custom_period_flags:
-        raise click.UsageError(
-            "--mobile-network-weekly-spend-limit cannot be combined with "
-            "--mobile-network-custom-period-spend-limit"
-        )
+    _reject_weekly_custom_period_mix(
+        weekly_spend_limit,
+        bool(custom_period_flags),
+        weekly_flag="--mobile-network-weekly-spend-limit",
+        custom_period_flag="--mobile-network-custom-period-spend-limit",
+    )
     if not is_update:
         required = {
             "NetworkDefault": {},
@@ -1110,23 +1254,28 @@ def build_mobile_app_network_strategy(
             )
 
     if budget_type is not None:
-        if not is_update:
-            raise click.UsageError("--mobile-network-budget-type is update-only")
-        if subtype not in MOBILE_APP_NETWORK_BUDGET_TYPE_SUBTYPES:
-            raise click.UsageError(
-                f"{normalized_strategy} does not accept --mobile-network-budget-type"
-            )
+        _reject_update_only_budget_type(
+            "--mobile-network-budget-type", budget_type, is_update
+        )
+        _reject_unsupported_strategy_fields(
+            normalized_strategy,
+            subtype,
+            {
+                "--mobile-network-budget-type": (
+                    budget_type,
+                    MOBILE_APP_NETWORK_BUDGET_TYPE_SUBTYPES,
+                ),
+            },
+        )
         normalized_budget_type = budget_type.upper()
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and not custom_period_flags:
-            raise click.UsageError(
-                "--mobile-network-budget-type CUSTOM_PERIOD_BUDGET requires "
-                "full CustomPeriodBudget flags"
-            )
-        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-            raise click.UsageError(
-                "--mobile-network-budget-type WEEKLY_BUDGET requires "
-                "--mobile-network-weekly-spend-limit"
-            )
+        _reject_budget_type_slice_mismatch(
+            "--mobile-network-budget-type",
+            normalized_budget_type,
+            weekly_spend_limit=weekly_spend_limit,
+            weekly_flag="--mobile-network-weekly-spend-limit",
+            custom_period_present=bool(custom_period_flags),
+            cpb_requirement="full CustomPeriodBudget flags",
+        )
     if (
         subtype == "WeeklyClickPackage"
         and average_cpc is not None
@@ -1159,9 +1308,7 @@ def build_mobile_app_network_strategy(
             MOBILE_APP_NETWORK_CLICKS_PER_WEEK_SUBTYPES,
         ),
     }
-    for flag, (value, supported_subtypes) in field_support.items():
-        if value is not None and subtype not in supported_subtypes:
-            raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
+    _reject_unsupported_strategy_fields(normalized_strategy, subtype, field_support)
 
     block: dict = {}
     if limit_percent is not None:
@@ -1590,33 +1737,32 @@ def _build_text_strategy_block(
 
     # WeeklySpendLimit + CustomPeriodBudget conflict per Yandex docs:
     # the same subtype can carry only one budget slice.
-    if weekly_spend_limit is not None and custom_period is not None:
-        raise click.UsageError(
-            f"{prefix}weekly-spend-limit cannot be combined with "
-            f"{prefix}custom-period-spend-limit"
-        )
+    _reject_weekly_custom_period_mix(
+        weekly_spend_limit,
+        custom_period is not None,
+        weekly_flag=f"{prefix}weekly-spend-limit",
+        custom_period_flag=f"{prefix}custom-period-spend-limit",
+    )
 
     # BudgetType is an update-only switch; on add the budget slice is
     # implied by which of WeeklySpendLimit / CustomPeriodBudget is set.
+    # #388 doc-strict form: enum check + both presence checks (see the
+    # asymmetry block above ``apply_cpa_strategy_fields`` for the per-family
+    # divergence).
     if budget_type is not None:
-        if not is_update:
-            raise click.UsageError(f"{prefix}budget-type is update-only")
+        _reject_update_only_budget_type(f"{prefix}budget-type", budget_type, is_update)
         normalized_budget_type = budget_type.upper()
-        if normalized_budget_type not in config.budget_type_enum:
-            raise click.UsageError(
-                f"{prefix}budget-type must be one of "
-                f"{', '.join(config.budget_type_enum)}"
-            )
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and custom_period is None:
-            raise click.UsageError(
-                f"{prefix}budget-type CUSTOM_PERIOD_BUDGET requires the "
-                "full CustomPeriodBudget flag set"
-            )
-        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-            raise click.UsageError(
-                f"{prefix}budget-type WEEKLY_BUDGET requires "
-                f"{prefix}weekly-spend-limit"
-            )
+        _reject_unknown_budget_type(
+            f"{prefix}budget-type", normalized_budget_type, config.budget_type_enum
+        )
+        _reject_budget_type_slice_mismatch(
+            f"{prefix}budget-type",
+            normalized_budget_type,
+            weekly_spend_limit=weekly_spend_limit,
+            weekly_flag=f"{prefix}weekly-spend-limit",
+            custom_period_present=custom_period is not None,
+            cpb_requirement="the full CustomPeriodBudget flag set",
+        )
 
     # WeeklyClickPackage edge: WSDL declares AverageCpc + BidCeiling as
     # mutually exclusive in practice; mirror MobileApp WeeklyClickPackage.
@@ -2205,11 +2351,12 @@ def _build_dynamic_text_strategy_block(
             f"{normalized_strategy} does not accept DynamicTextCampaign "
             f"{side_label}CustomPeriodBudget flags"
         )
-    if weekly_spend_limit is not None and custom_period_flags:
-        raise click.UsageError(
-            f"{prefix}weekly-spend-limit cannot be combined with "
-            f"{prefix}custom-period-spend-limit"
-        )
+    _reject_weekly_custom_period_mix(
+        weekly_spend_limit,
+        bool(custom_period_flags),
+        weekly_flag=f"{prefix}weekly-spend-limit",
+        custom_period_flag=f"{prefix}custom-period-spend-limit",
+    )
 
     if limit_percent is not None:
         if limit_percent < 10 or limit_percent > 100 or limit_percent % 10 != 0:
@@ -2258,27 +2405,22 @@ def _build_dynamic_text_strategy_block(
             )
 
     if budget_type is not None:
-        if not is_update:
-            raise click.UsageError(f"{prefix}budget-type is update-only")
-        if subtype not in config.budget_type_subtypes:
-            raise click.UsageError(
-                f"{normalized_strategy} does not accept {prefix}budget-type"
-            )
+        _reject_update_only_budget_type(f"{prefix}budget-type", budget_type, is_update)
+        _reject_unsupported_strategy_fields(
+            normalized_strategy,
+            subtype,
+            {f"{prefix}budget-type": (budget_type, config.budget_type_subtypes)},
+        )
         if config.budget_type_presence_checks:
             normalized_budget_type = budget_type.upper()
-            if (
-                normalized_budget_type == "CUSTOM_PERIOD_BUDGET"
-                and not custom_period_flags
-            ):
-                raise click.UsageError(
-                    f"{prefix}budget-type CUSTOM_PERIOD_BUDGET requires "
-                    "full CustomPeriodBudget flags"
-                )
-            if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-                raise click.UsageError(
-                    f"{prefix}budget-type WEEKLY_BUDGET requires "
-                    f"{prefix}weekly-spend-limit"
-                )
+            _reject_budget_type_slice_mismatch(
+                f"{prefix}budget-type",
+                normalized_budget_type,
+                weekly_spend_limit=weekly_spend_limit,
+                weekly_flag=f"{prefix}weekly-spend-limit",
+                custom_period_present=bool(custom_period_flags),
+                cpb_requirement="full CustomPeriodBudget flags",
+            )
 
     # Per-subtype field support — silent-data-loss invariant #2 in
     # tests/test_wsdl_parity_gate.py. Each flag whose value is not None
@@ -2308,9 +2450,7 @@ def _build_dynamic_text_strategy_block(
             config.profitability_subtypes,
         ),
     }
-    for flag, (value, supported_subtypes) in field_support.items():
-        if value is not None and subtype not in supported_subtypes:
-            raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
+    _reject_unsupported_strategy_fields(normalized_strategy, subtype, field_support)
 
     # CustomPeriodBudget / ExplorationBudget block construction is delegated
     # to the shared TextCampaign-precedent helpers; the full-or-none checks
@@ -3065,16 +3205,14 @@ def _validate_smart_budget_type(
             "(WSDL BudgetType lives only on get-side Strategy*)"
         )
     normalized_budget_type = budget_type.upper()
-    if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and custom_period is None:
-        raise click.UsageError(
-            f"{flag_prefix}budget-type CUSTOM_PERIOD_BUDGET requires "
-            "full CustomPeriodBudget flags"
-        )
-    if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-        raise click.UsageError(
-            f"{flag_prefix}budget-type WEEKLY_BUDGET requires "
-            f"{flag_prefix}weekly-spend-limit"
-        )
+    _reject_budget_type_slice_mismatch(
+        f"{flag_prefix}budget-type",
+        normalized_budget_type,
+        weekly_spend_limit=weekly_spend_limit,
+        weekly_flag=f"{flag_prefix}weekly-spend-limit",
+        custom_period_present=custom_period is not None,
+        cpb_requirement="full CustomPeriodBudget flags",
+    )
 
 
 class _SmartStrategyConfig(NamedTuple):
@@ -3227,11 +3365,14 @@ def _build_smart_strategy_block(
             f"{normalized_strategy} does not accept SmartCampaign "
             f"{config.side_label} CustomPeriodBudget flags"
         )
-    if weekly_spend_limit is not None and custom_period is not None:
-        raise click.UsageError(
-            f"{prefix}weekly-spend-limit cannot be combined with "
-            f"{prefix}cp-spend-limit"
-        )
+    # cp-spend-limit is the network-side counterpart of the search-side
+    # custom-period budget — same one-slice-per-subtype mutex.
+    _reject_weekly_custom_period_mix(
+        weekly_spend_limit,
+        custom_period is not None,
+        weekly_flag=f"{prefix}weekly-spend-limit",
+        custom_period_flag=f"{prefix}cp-spend-limit",
+    )
 
     # ExplorationBudget: both subfields required together (WSDL
     # ExplorationBudget minOccurs=1). Same SmartCampaign flag-name + wording
@@ -3321,9 +3462,14 @@ def _build_smart_strategy_block(
         f"{prefix}profitability": ("Profitability", profitability),
         f"{prefix}crr": ("Crr", crr),
     }
-    for flag, (wsdl_field, value) in field_flags.items():
-        if value is not None and subtype not in config.field_support[wsdl_field]:
-            raise click.UsageError(f"{normalized_strategy} does not accept {flag}")
+    _reject_unsupported_strategy_fields(
+        normalized_strategy,
+        subtype,
+        {
+            flag: (value, config.field_support[wsdl_field])
+            for flag, (wsdl_field, value) in field_flags.items()
+        },
+    )
 
     _validate_smart_budget_type(
         flag_prefix=prefix,
@@ -4578,33 +4724,31 @@ def build_unified_campaign_network_strategy(
 
     # WeeklySpendLimit + CustomPeriodBudget conflict per shared
     # convention (mirrors TextCampaign / DynamicTextCampaign / SmartCampaign).
-    if weekly_spend_limit is not None and custom_period is not None:
-        raise click.UsageError(
-            "--unified-network-weekly-spend-limit cannot be combined with "
-            "--unified-network-custom-period-spend-limit"
-        )
+    _reject_weekly_custom_period_mix(
+        weekly_spend_limit,
+        custom_period is not None,
+        weekly_flag="--unified-network-weekly-spend-limit",
+        custom_period_flag="--unified-network-custom-period-spend-limit",
+    )
 
     # BudgetType is update-only (lives only on get-side Strategy*
     # — see _UNIFIED_NETWORK_BUDGET_TYPE_SUBTYPES comment above).
     if budget_type is not None:
-        if not is_update:
-            raise click.UsageError("--unified-network-budget-type is update-only")
+        _reject_update_only_budget_type(
+            "--unified-network-budget-type", budget_type, is_update
+        )
         normalized_budget_type = budget_type.upper()
-        if normalized_budget_type not in BUDGET_TYPES:
-            raise click.UsageError(
-                "--unified-network-budget-type must be one of "
-                f"{', '.join(BUDGET_TYPES)}"
-            )
-        if normalized_budget_type == "CUSTOM_PERIOD_BUDGET" and custom_period is None:
-            raise click.UsageError(
-                "--unified-network-budget-type CUSTOM_PERIOD_BUDGET requires the "
-                "full CustomPeriodBudget flag set"
-            )
-        if normalized_budget_type == "WEEKLY_BUDGET" and weekly_spend_limit is None:
-            raise click.UsageError(
-                "--unified-network-budget-type WEEKLY_BUDGET requires "
-                "--unified-network-weekly-spend-limit"
-            )
+        _reject_unknown_budget_type(
+            "--unified-network-budget-type", normalized_budget_type, BUDGET_TYPES
+        )
+        _reject_budget_type_slice_mismatch(
+            "--unified-network-budget-type",
+            normalized_budget_type,
+            weekly_spend_limit=weekly_spend_limit,
+            weekly_flag="--unified-network-weekly-spend-limit",
+            custom_period_present=custom_period is not None,
+            cpb_requirement="the full CustomPeriodBudget flag set",
+        )
 
     # PriorityGoals scope check. On add we place items onto the parent
     # ``UnifiedCampaignAddItem.PriorityGoals`` (WSDL campaigns.xml 2165) —
@@ -5179,11 +5323,12 @@ def build_unified_campaign_search_strategy(
 
     # WeeklySpendLimit + CustomPeriodBudget conflict per Yandex docs:
     # the same subtype can carry only one budget slice.
-    if weekly_spend_limit is not None and custom_period is not None:
-        raise click.UsageError(
-            "--unified-search-weekly-spend-limit cannot be combined with "
-            "--unified-search-custom-period-spend-limit"
-        )
+    _reject_weekly_custom_period_mix(
+        weekly_spend_limit,
+        custom_period is not None,
+        weekly_flag="--unified-search-weekly-spend-limit",
+        custom_period_flag="--unified-search-custom-period-spend-limit",
+    )
 
     # BudgetType is an update-only switch; on add the budget slice is
     # implied by which of WeeklySpendLimit / CustomPeriodBudget is set.
@@ -5191,16 +5336,19 @@ def build_unified_campaign_search_strategy(
     # BudgetType as an INDEPENDENT optional element — the field can be
     # patched standalone without re-supplying the stored budget values
     # (mirror the DynamicTextCampaign Search precedent, diverges from
-    # the doc-strict #388 TextCampaign behaviour).
+    # the doc-strict #388 TextCampaign behaviour). Unlike the other
+    # families the presence checks are INVERTED into cross-slice mutexes
+    # — see the asymmetry block above ``apply_cpa_strategy_fields``.
     if budget_type is not None:
-        if not is_update:
-            raise click.UsageError("--unified-search-budget-type is update-only")
+        _reject_update_only_budget_type(
+            "--unified-search-budget-type", budget_type, is_update
+        )
         normalized_budget_type = budget_type.upper()
-        if normalized_budget_type not in _UNIFIED_CAMPAIGN_SEARCH_BUDGET_TYPES:
-            raise click.UsageError(
-                "--unified-search-budget-type must be one of "
-                f"{', '.join(_UNIFIED_CAMPAIGN_SEARCH_BUDGET_TYPES)}"
-            )
+        _reject_unknown_budget_type(
+            "--unified-search-budget-type",
+            normalized_budget_type,
+            _UNIFIED_CAMPAIGN_SEARCH_BUDGET_TYPES,
+        )
         # Silent-data-loss guard: the alternate-slice nulling below would
         # discard a user-supplied budget value that contradicts the
         # selected BudgetType. Reject the mismatch up-front rather than
