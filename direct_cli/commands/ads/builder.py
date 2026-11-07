@@ -7,7 +7,7 @@ covers them; ``SMART_AD_BUILDER_AD`` is a separate WSDL type with its own pair.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Callable, Mapping, Optional
 
 import click
 
@@ -200,3 +200,78 @@ def _build_smart_ad_builder_ad_update(
         smart_ad_builder_ad["ErirAdDescription"] = erir_ad_description
 
     return smart_ad_builder_ad
+
+
+def ad_builder_ad_add_block(ad_type: str, container_name: str) -> Callable:
+    """Registry handler factory: one payload shape covers the six
+    ``*AdBuilderAd`` subtypes, which differ only in ``ad_type`` (destination
+    validation) and the container name (epic #961, track 5)."""
+
+    def _handler(
+        ad_data: dict[str, Any],
+        flags: Mapping[str, Any],
+        mobile: str,
+    ) -> None:
+        ad_data[container_name] = _build_ad_builder_add(
+            flags.get("creative_id"),
+            flags.get("erir_ad_description"),
+            flags.get("final_url"),
+            flags.get("href"),
+            flags.get("turbo_page_id"),
+            flags.get("tracking_url"),
+            flags.get("tracking_pixels"),
+            ad_type,
+            container_name,
+        )
+
+    return _handler
+
+
+def ad_builder_ad_update_block(container_name: str) -> Callable:
+    """Registry handler factory: the update counterpart of
+    :func:`ad_builder_ad_add_block`."""
+
+    def _handler(
+        ad_data: dict[str, Any],
+        flags: Mapping[str, Any],
+        precomputed: Mapping[str, Any],
+    ) -> None:
+        ad_builder_ad = _build_ad_builder_update(
+            flags.get("creative_id"),
+            flags.get("creative_erir_ad_description"),
+            flags.get("erir_ad_description"),
+            flags.get("final_url"),
+            flags.get("href"),
+            flags.get("turbo_page_id"),
+            flags.get("tracking_url"),
+            flags.get("tracking_pixels"),
+        )
+        if ad_builder_ad:
+            ad_data[container_name] = ad_builder_ad
+
+    return _handler
+
+
+def smart_ad_builder_ad_add_block(
+    ad_data: dict[str, Any],
+    flags: Mapping[str, Any],
+    mobile: str,
+) -> None:
+    """Compose ``ad_data["SmartAdBuilderAd"]`` for ``ads add`` (registry handler)."""
+    ad_data["SmartAdBuilderAd"] = _build_smart_ad_builder_ad_add(
+        flags.get("logo_extension_hash")
+    )
+
+
+def smart_ad_builder_ad_update_block(
+    ad_data: dict[str, Any],
+    flags: Mapping[str, Any],
+    precomputed: Mapping[str, Any],
+) -> None:
+    """Compose ``ad_data["SmartAdBuilderAd"]`` for ``ads update`` (registry handler)."""
+    smart_ad_builder_ad = _build_smart_ad_builder_ad_update(
+        flags.get("logo_extension_hash"),
+        flags.get("erir_ad_description"),
+    )
+    if smart_ad_builder_ad:
+        ad_data["SmartAdBuilderAd"] = smart_ad_builder_ad
