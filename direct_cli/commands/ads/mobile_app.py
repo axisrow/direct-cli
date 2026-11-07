@@ -131,7 +131,10 @@ def build_mobile_app_ad_add_block(
     mobile_app_ad = {
         "Title": title,
         "Text": text,
-        "Action": action.upper(),
+        # (action or "") restates the missing_fields guard above: mypy cannot
+        # narrow through that list comprehension, and on this path --action is
+        # always a non-empty string.
+        "Action": (action or "").upper(),
     }
     if image_hash:
         mobile_app_ad["AdImageHash"] = image_hash
