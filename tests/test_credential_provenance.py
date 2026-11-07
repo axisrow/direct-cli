@@ -411,7 +411,9 @@ class TestAuthWrite:
                 return_value=_fake_mutation_client(),
             ) as create_client,
         ):
-            result = CliRunner().invoke(cli, ["auth", "login", "api"], input="1\n\n")
+            result = CliRunner().invoke(
+                cli, ["auth", "login", "api", "--interactive"], input="1\n\n"
+            )
             assert result.exit_code == 0, result.output
             result = _invoke_set_bids()
 

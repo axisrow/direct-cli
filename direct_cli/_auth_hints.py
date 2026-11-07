@@ -9,13 +9,13 @@ used to print four contradictory suggestions). The AST guard in
 ``direct playwright login`` strings anywhere else in the package, so a new
 hint source fails CI instead of quietly disagreeing with these.
 
-These name the part-2 canonical surface (issue #924): the
-``auth login api|browser`` subcommands go live with the command
-restructuring that lands separately; until then ``auth login`` still
-takes ``--method``. Flipping nothing here — part 2 makes these exact
-strings executable.
+Canonical forms (issue #962): the plain login commands are headless;
+``--interactive`` and the visible login window exist only behind the
+explicit flags these constants spell out.
 """
 
 HINT_LOGIN_API = "direct auth login api"
+HINT_LOGIN_API_INTERACTIVE = "direct auth login api --interactive"
 HINT_LOGIN_BROWSER = "direct auth login browser"
 HINT_LOGIN_BROWSER_CHROME = "direct auth login browser --source chrome"
+HINT_LOGIN_BROWSER_MANUAL = "direct auth login browser --source manual"

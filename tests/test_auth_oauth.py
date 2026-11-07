@@ -419,6 +419,7 @@ class TestAuthOAuth:
                     "auth",
                     "login",
                     "api",
+                    "--interactive",
                     "--profile",
                     "agency1",
                     "--code",
@@ -1342,14 +1343,14 @@ class TestAuthOAuth:
         isolated_auth_store,
     ):
         runner = CliRunner()
-        # The terminal login binds this folder (issue #917): the link is
-        # re-exported into os.environ — keep it inside patch.dict so the
-        # next tests in this process never see it.
+        # The interactive terminal login binds this folder (issue #917): the
+        # link is re-exported into os.environ — keep it inside patch.dict so
+        # the next tests in this process never see it.
         with patch.dict(os.environ):
             with patch("direct_cli.commands.auth.webbrowser.open"):
                 result = runner.invoke(
                     cli,
-                    ["auth", "login", "--profile", "agency1"],
+                    ["auth", "login", "--profile", "agency1", "--interactive"],
                     input="abc123\n",
                 )
         assert result.exit_code == 0

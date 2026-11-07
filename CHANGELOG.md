@@ -4,6 +4,22 @@
 
 ### Added
 
+- **Headless auth contract, locked (#962).** `auth login` / `auth login api`
+  are always headless — in a terminal too: they print the authorize URL
+  (with pending PKCE), complete via `--code` / `--code -`, and never write
+  the folder `.env`. The dialog flow (profile menu, code prompt, browser
+  window, `.env` link) exists only behind explicit
+  `auth login api --interactive` (terminal required; incompatible with
+  `--format json`, `--start-pkce`, `--code -`, `--code-stdin`).
+  `auth login browser` defaults to the headless Chrome import; the visible
+  window requires explicit `--source manual` (terminal or `--allow-no-tty`).
+  A terminal check may now only cause a refusal: the new AST guard in
+  `tests/test_headless_auth_contract.py` enforces that, alongside the
+  defaults lock, a real-pty acceptance test, the prompt/browser registry,
+  doc-example parsing through live Click (`AGENTS.md` / `README.md` /
+  `README_ru.md` / `CLAUDE.md`), and the dedicated
+  `Headless auth contract` step in `quality.yml` (a meta-test asserts the
+  step exists).
 - **Cookie-only SSO probe: server-revoked sessions are named, not guessed (#954).**
   When Yandex revokes the SSO session server-side, every browser flow used to
   read as the #870 "login page instead of Direct" ambiguity while the cookies
@@ -46,6 +62,26 @@
   plugin PR #332; requires a plugin release newer than #331.
 
 ### BREAKING CHANGES
+
+**`auth login` is headless again — interactive only behind `--interactive`
+(#962).**
+
+`direct auth login` / `direct auth login api` no longer start a dialog in a
+terminal: no questions, no browser window, no `.env` write. They print the
+authorize URL (with pending PKCE); finish with `--code` / `--code -` and
+bind the folder explicitly with `direct auth write --profile NAME`. The
+dialog flow returns behind `direct auth login api --interactive` (needs a
+terminal; refuses `--format json` / `--start-pkce` / `--code -` /
+`--code-stdin`). `direct auth login browser` now imports the Chrome session
+headlessly by default; the visible login window is explicit
+`--source manual` (terminal or `--allow-no-tty`). `--headful` stays a
+removed stub naming `--source manual`.
+
+Migration: scripts that answered the terminal login prompts pass
+`--interactive` explicitly; CI/automation paths are unchanged (the headless
+flow was already the non-tty behavior). Folders that were bound as a side
+effect of a terminal login now bind explicitly via
+`direct auth write --profile NAME`.
 
 **One browser session: `~/.direct-cli/playwright/session.json`.**
 
