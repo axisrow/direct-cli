@@ -3288,7 +3288,6 @@ def update(
     )
 
     format_output(result, output_format, output)
-    format_output(result, output_format, output)
 
 
 @masters.command()
