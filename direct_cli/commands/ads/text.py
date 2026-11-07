@@ -338,7 +338,7 @@ def build_text_ad_update_block(
         image_hash,
         sitelink_set_id,
         callout_setting,
-        clear_image_hash=clear_image_hash,
+        clear_image_hash=bool(clear_image_hash),
     )
     if title:
         text_ad["Title"] = title
@@ -385,7 +385,7 @@ def build_dynamic_text_ad_update_block(
         flags.get("image_hash"),
         flags.get("sitelink_set_id"),
         precomputed["callout_setting"],
-        clear_image_hash=flags.get("clear_image_hash"),
+        clear_image_hash=bool(flags.get("clear_image_hash")),
     )
     text = flags.get("text")
     if text:
