@@ -816,7 +816,12 @@ def status(
     # a manual curl.
     browser = session_status_with_probe()
     if output_format == "json":
-        payload = {"api": api_status(ctx, profile), "browser": browser}
+        api = api_status(ctx, profile)
+        # Issue #969: the 4b541d9 split nested the payload under api/browser,
+        # but the MCP plugin reads has_token/login at the top level. Mirror
+        # the api fields flat next to the nested domains — both shapes stay
+        # valid, no consumer breaks.
+        payload = {**api, "api": api, "browser": browser}
         click.echo(json.dumps(payload, ensure_ascii=False))
         return
     click.echo("API:")

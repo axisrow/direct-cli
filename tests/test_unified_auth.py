@@ -634,10 +634,38 @@ def test_status_defaults_to_both_domains(auth_env):
     )
     assert api.exit_code == browser.exit_code == both.exit_code == 0
     assert json.loads(both.stdout) == {
+        **json.loads(api.stdout),
         "api": json.loads(api.stdout),
         "browser": json.loads(browser.stdout),
     }
     assert json.loads(browser.stdout)["owner_login"] is None
+
+
+def test_status_json_mirrors_api_fields_at_top_level(auth_env):
+    # Issue #969: the MCP plugin reads has_token/login at the top level of
+    # `auth status --format json`; the nested api/browser domains must keep
+    # their shape, with the api fields mirrored flat next to them.
+    save_profile()
+    result = CliRunner().invoke(
+        cli, ["auth", "status", "--profile", "account", "--format", "json"]
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["api"]["has_token"] is True
+    assert payload["has_token"] == payload["api"]["has_token"]
+    assert payload["login"] == payload["api"]["login"]
+    assert {"profile", "source"} <= set(payload)
+    assert set(payload["api"]) <= set(payload)
+
+
+def test_status_json_mirrors_no_token_state_at_top_level(auth_env):
+    # The unbound-folder "no token" api payload must read as has_token=false
+    # at the top level too — the pre-split flat contract (#969).
+    result = CliRunner().invoke(cli, ["auth", "status", "--format", "json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["has_token"] is False
+    assert payload["has_token"] == payload["api"]["has_token"]
 
 
 def test_api_logout_removes_only_a_link_that_names_the_removed_profile(auth_env):
