@@ -31,7 +31,7 @@ from direct_cli.cli import cli
 @pytest.fixture
 def isolated_auth_store(monkeypatch, tmp_path):
     store_path = tmp_path / "auth.json"
-    monkeypatch.setattr("direct_cli.auth.AUTH_STORE_PATH", store_path)
+    monkeypatch.setattr("direct_cli._auth_store.AUTH_STORE_PATH", store_path)
     monkeypatch.chdir(tmp_path)
     return store_path
 
@@ -2013,13 +2013,18 @@ class TestClientLoginResolution:
     """
 
     def test_resolve_account_login_prefers_v5_clients_get(self):
+        # resolve_account_login and its two resolvers moved to
+        # _auth_network (epic #961, track 6); the patches target that
+        # module's namespace — the facade import no longer intercepts calls
+        # between the moved functions.
         with (
             patch(
-                "direct_cli.auth._resolve_client_login_via_api",
+                "direct_cli._auth_network._resolve_client_login_via_api",
                 return_value="bare-login",
             ) as api,
             patch(
-                "direct_cli.auth.resolve_login", return_value="bare-login@yandex.ru"
+                "direct_cli._auth_network.resolve_login",
+                return_value="bare-login@yandex.ru",
             ) as passport,
         ):
             assert resolve_account_login("tok") == "bare-login"
@@ -2028,8 +2033,14 @@ class TestClientLoginResolution:
 
     def test_resolve_account_login_falls_back_to_passport_on_api_failure(self):
         with (
-            patch("direct_cli.auth._resolve_client_login_via_api", return_value=None),
-            patch("direct_cli.auth.resolve_login", return_value="passport-login"),
+            patch(
+                "direct_cli._auth_network._resolve_client_login_via_api",
+                return_value=None,
+            ),
+            patch(
+                "direct_cli._auth_network.resolve_login",
+                return_value="passport-login",
+            ),
         ):
             assert resolve_account_login("tok") == "passport-login"
 

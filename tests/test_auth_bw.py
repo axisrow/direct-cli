@@ -221,7 +221,7 @@ class TestCLIBwOptions:
     def test_auth_status_json_reports_bw_fallback(
         self, mock_bw_read, monkeypatch, tmp_path
     ):
-        monkeypatch.setattr("direct_cli.auth.AUTH_STORE_PATH", tmp_path / "auth.json")
+        monkeypatch.setattr("direct_cli._auth_store.AUTH_STORE_PATH", tmp_path / "auth.json")
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
         monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)

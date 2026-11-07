@@ -114,7 +114,7 @@ def _isolate_global_auth_store(request, monkeypatch, tmp_path):
     for marker in _LIVE_MARKERS:
         if request.node.get_closest_marker(marker):
             return
-    monkeypatch.setattr("direct_cli.auth.AUTH_STORE_PATH", tmp_path / "auth.json")
+    monkeypatch.setattr("direct_cli._auth_store.AUTH_STORE_PATH", tmp_path / "auth.json")
 
 
 @pytest.fixture(autouse=True)
