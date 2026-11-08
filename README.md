@@ -460,7 +460,9 @@ It does not revoke token copies in other folders, external environments, or
 secret managers. Browser logout removes both saved CLI sessions.
 
 `auth status` reports both domains (an `API:` and a `Browser:` block);
-combined JSON has `api` and `browser` sections. `auth status api` and
+combined JSON has `api` and `browser` sections plus the `api` fields
+mirrored at the top level (`has_token`, `login`, … — the pre-split flat
+contract, #969). `auth status api` and
 `auth status browser` select one domain. Existing API flags and two-step
 PKCE/stdin login remain supported in unattended workflows. The old
 `--method`/`--interactive`/`--headful` flags were removed without aliases:

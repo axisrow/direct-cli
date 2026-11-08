@@ -98,6 +98,17 @@ and reuse share one browser fingerprint.
 
 ### Fixed
 
+- **`auth status --format json` mirrors the API fields at the top level
+  again (#969).** The 4b541d9 split nested the bare `auth status` JSON
+  payload under `api`/`browser`, and consumers reading the old flat
+  contract — the MCP plugin's `_normalize_status_payload` reads
+  `has_token`/`login` at the top level — always saw
+  `not_authenticated`. The nested domains keep their shape (existing
+  consumers are untouched); the `api` fields (`profile`, `source`,
+  `has_token`, `login`, `expires_at`/`expires_in_seconds`, and the
+  no-token `global_*` keys) are mirrored flat next to them. `auth status
+  api --format json` is unchanged — the plugin-side fix is tracked in the
+  yandex-direct plugin repo.
 - **A live browser session is no longer reported expired because of a
   short-lived tracking cookie (#951 follow-up).** The saved-session
   `expired` flag — the gate that sends `open_session` to a Chrome import —
