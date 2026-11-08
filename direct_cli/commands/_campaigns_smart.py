@@ -20,7 +20,7 @@ from ._campaigns_base import (
 
 
 def build_add_block(
-    p,
+    params,
     campaign_data,
     parsed_settings,
     priority_goals_items,
@@ -28,52 +28,52 @@ def build_add_block(
 ):
     """Compose ``campaign_data['SmartCampaign']`` for ``campaigns add``.
 
-    ``p`` is a snapshot of every CLI parameter of the ``add`` command
-    (``dict(locals())``); only the Smart-relevant flags are pulled out below.
+    ``params`` is a snapshot of every CLI parameter of the ``add``
+    command; only the Smart-relevant flags are pulled out below.
     """
-    counter_id = p["counter_id"]
-    search_strategy = p["search_strategy"]
-    smart_search_average_cpc = p["smart_search_average_cpc"]
-    smart_search_filter_average_cpc = p["smart_search_filter_average_cpc"]
-    smart_search_average_cpa = p["smart_search_average_cpa"]
-    smart_search_filter_average_cpa = p["smart_search_filter_average_cpa"]
-    smart_search_cpa = p["smart_search_cpa"]
-    smart_search_goal_id = p["smart_search_goal_id"]
-    smart_search_weekly_spend_limit = p["smart_search_weekly_spend_limit"]
-    smart_search_bid_ceiling = p["smart_search_bid_ceiling"]
-    smart_search_reserve_return = p["smart_search_reserve_return"]
-    smart_search_roi_coef = p["smart_search_roi_coef"]
-    smart_search_profitability = p["smart_search_profitability"]
-    smart_search_crr = p["smart_search_crr"]
-    smart_search_cp_spend_limit = p["smart_search_cp_spend_limit"]
-    smart_search_cp_start_date = p["smart_search_cp_start_date"]
-    smart_search_cp_end_date = p["smart_search_cp_end_date"]
-    smart_search_cp_auto_continue = p["smart_search_cp_auto_continue"]
-    smart_search_exploration_min = p["smart_search_exploration_min"]
-    smart_search_exploration_min_custom = p["smart_search_exploration_min_custom"]
-    network_strategy = p["network_strategy"]
-    smart_network_average_cpc = p["smart_network_average_cpc"]
-    smart_network_filter_average_cpc = p["smart_network_filter_average_cpc"]
-    smart_network_average_cpa = p["smart_network_average_cpa"]
-    smart_network_filter_average_cpa = p["smart_network_filter_average_cpa"]
-    smart_network_cpa = p["smart_network_cpa"]
-    smart_network_goal_id = p["smart_network_goal_id"]
-    smart_network_weekly_spend_limit = p["smart_network_weekly_spend_limit"]
-    smart_network_bid_ceiling = p["smart_network_bid_ceiling"]
-    smart_network_reserve_return = p["smart_network_reserve_return"]
-    smart_network_roi_coef = p["smart_network_roi_coef"]
-    smart_network_profitability = p["smart_network_profitability"]
-    smart_network_crr = p["smart_network_crr"]
-    smart_network_limit_percent = p["smart_network_limit_percent"]
-    smart_network_cp_spend_limit = p["smart_network_cp_spend_limit"]
-    smart_network_cp_start_date = p["smart_network_cp_start_date"]
-    smart_network_cp_end_date = p["smart_network_cp_end_date"]
-    smart_network_cp_auto_continue = p["smart_network_cp_auto_continue"]
-    smart_network_exploration_min = p["smart_network_exploration_min"]
-    smart_network_exploration_min_custom = p["smart_network_exploration_min_custom"]
-    filter_average_cpc = p["filter_average_cpc"]
-    attribution_model = p["attribution_model"]
-    tracking_params = p["tracking_params"]
+    counter_id = params.counter_id
+    search_strategy = params.search_strategy
+    smart_search_average_cpc = params.smart_search_average_cpc
+    smart_search_filter_average_cpc = params.smart_search_filter_average_cpc
+    smart_search_average_cpa = params.smart_search_average_cpa
+    smart_search_filter_average_cpa = params.smart_search_filter_average_cpa
+    smart_search_cpa = params.smart_search_cpa
+    smart_search_goal_id = params.smart_search_goal_id
+    smart_search_weekly_spend_limit = params.smart_search_weekly_spend_limit
+    smart_search_bid_ceiling = params.smart_search_bid_ceiling
+    smart_search_reserve_return = params.smart_search_reserve_return
+    smart_search_roi_coef = params.smart_search_roi_coef
+    smart_search_profitability = params.smart_search_profitability
+    smart_search_crr = params.smart_search_crr
+    smart_search_cp_spend_limit = params.smart_search_cp_spend_limit
+    smart_search_cp_start_date = params.smart_search_cp_start_date
+    smart_search_cp_end_date = params.smart_search_cp_end_date
+    smart_search_cp_auto_continue = params.smart_search_cp_auto_continue
+    smart_search_exploration_min = params.smart_search_exploration_min
+    smart_search_exploration_min_custom = params.smart_search_exploration_min_custom
+    network_strategy = params.network_strategy
+    smart_network_average_cpc = params.smart_network_average_cpc
+    smart_network_filter_average_cpc = params.smart_network_filter_average_cpc
+    smart_network_average_cpa = params.smart_network_average_cpa
+    smart_network_filter_average_cpa = params.smart_network_filter_average_cpa
+    smart_network_cpa = params.smart_network_cpa
+    smart_network_goal_id = params.smart_network_goal_id
+    smart_network_weekly_spend_limit = params.smart_network_weekly_spend_limit
+    smart_network_bid_ceiling = params.smart_network_bid_ceiling
+    smart_network_reserve_return = params.smart_network_reserve_return
+    smart_network_roi_coef = params.smart_network_roi_coef
+    smart_network_profitability = params.smart_network_profitability
+    smart_network_crr = params.smart_network_crr
+    smart_network_limit_percent = params.smart_network_limit_percent
+    smart_network_cp_spend_limit = params.smart_network_cp_spend_limit
+    smart_network_cp_start_date = params.smart_network_cp_start_date
+    smart_network_cp_end_date = params.smart_network_cp_end_date
+    smart_network_cp_auto_continue = params.smart_network_cp_auto_continue
+    smart_network_exploration_min = params.smart_network_exploration_min
+    smart_network_exploration_min_custom = params.smart_network_exploration_min_custom
+    filter_average_cpc = params.filter_average_cpc
+    attribution_model = params.attribution_model
+    tracking_params = params.tracking_params
 
     # WSDL SmartCampaignAddItem.CounterId is minOccurs=1
     # (issue #198 H6).
@@ -256,60 +256,60 @@ def build_add_block(
     campaign_data["SmartCampaign"] = smart_campaign
 
 
-def build_update_block(p, sub_block):
+def build_update_block(params, sub_block):
     """Fill ``sub_block`` for the SmartCampaign subtype of ``campaigns update``.
 
-    ``p`` is a snapshot of every CLI parameter of the ``update`` command.
+    ``params`` is a snapshot of every CLI parameter of the ``update`` command.
     """
-    settings = p["settings"]
-    counter_id = p["counter_id"]
-    priority_goals = p["priority_goals"]
-    attribution_model = p["attribution_model"]
-    package_strategy_id = p["package_strategy_id"]
-    package_strategy_from_campaign_id = p["package_strategy_from_campaign_id"]
-    package_platform_search = p["package_platform_search"]
-    package_platform_network = p["package_platform_network"]
-    search_strategy = p["search_strategy"]
-    network_strategy = p["network_strategy"]
-    smart_search_average_cpc = p["smart_search_average_cpc"]
-    smart_search_filter_average_cpc = p["smart_search_filter_average_cpc"]
-    smart_search_average_cpa = p["smart_search_average_cpa"]
-    smart_search_filter_average_cpa = p["smart_search_filter_average_cpa"]
-    smart_search_cpa = p["smart_search_cpa"]
-    smart_search_goal_id = p["smart_search_goal_id"]
-    smart_search_weekly_spend_limit = p["smart_search_weekly_spend_limit"]
-    smart_search_bid_ceiling = p["smart_search_bid_ceiling"]
-    smart_search_reserve_return = p["smart_search_reserve_return"]
-    smart_search_roi_coef = p["smart_search_roi_coef"]
-    smart_search_profitability = p["smart_search_profitability"]
-    smart_search_crr = p["smart_search_crr"]
-    smart_search_cp_spend_limit = p["smart_search_cp_spend_limit"]
-    smart_search_cp_start_date = p["smart_search_cp_start_date"]
-    smart_search_cp_end_date = p["smart_search_cp_end_date"]
-    smart_search_cp_auto_continue = p["smart_search_cp_auto_continue"]
-    smart_search_exploration_min = p["smart_search_exploration_min"]
-    smart_search_exploration_min_custom = p["smart_search_exploration_min_custom"]
-    smart_search_budget_type = p["smart_search_budget_type"]
-    smart_network_average_cpc = p["smart_network_average_cpc"]
-    smart_network_filter_average_cpc = p["smart_network_filter_average_cpc"]
-    smart_network_average_cpa = p["smart_network_average_cpa"]
-    smart_network_filter_average_cpa = p["smart_network_filter_average_cpa"]
-    smart_network_cpa = p["smart_network_cpa"]
-    smart_network_goal_id = p["smart_network_goal_id"]
-    smart_network_weekly_spend_limit = p["smart_network_weekly_spend_limit"]
-    smart_network_bid_ceiling = p["smart_network_bid_ceiling"]
-    smart_network_reserve_return = p["smart_network_reserve_return"]
-    smart_network_roi_coef = p["smart_network_roi_coef"]
-    smart_network_profitability = p["smart_network_profitability"]
-    smart_network_crr = p["smart_network_crr"]
-    smart_network_limit_percent = p["smart_network_limit_percent"]
-    smart_network_cp_spend_limit = p["smart_network_cp_spend_limit"]
-    smart_network_cp_start_date = p["smart_network_cp_start_date"]
-    smart_network_cp_end_date = p["smart_network_cp_end_date"]
-    smart_network_cp_auto_continue = p["smart_network_cp_auto_continue"]
-    smart_network_exploration_min = p["smart_network_exploration_min"]
-    smart_network_exploration_min_custom = p["smart_network_exploration_min_custom"]
-    smart_network_budget_type = p["smart_network_budget_type"]
+    settings = params.settings
+    counter_id = params.counter_id
+    priority_goals = params.priority_goals
+    attribution_model = params.attribution_model
+    package_strategy_id = params.package_strategy_id
+    package_strategy_from_campaign_id = params.package_strategy_from_campaign_id
+    package_platform_search = params.package_platform_search
+    package_platform_network = params.package_platform_network
+    search_strategy = params.search_strategy
+    network_strategy = params.network_strategy
+    smart_search_average_cpc = params.smart_search_average_cpc
+    smart_search_filter_average_cpc = params.smart_search_filter_average_cpc
+    smart_search_average_cpa = params.smart_search_average_cpa
+    smart_search_filter_average_cpa = params.smart_search_filter_average_cpa
+    smart_search_cpa = params.smart_search_cpa
+    smart_search_goal_id = params.smart_search_goal_id
+    smart_search_weekly_spend_limit = params.smart_search_weekly_spend_limit
+    smart_search_bid_ceiling = params.smart_search_bid_ceiling
+    smart_search_reserve_return = params.smart_search_reserve_return
+    smart_search_roi_coef = params.smart_search_roi_coef
+    smart_search_profitability = params.smart_search_profitability
+    smart_search_crr = params.smart_search_crr
+    smart_search_cp_spend_limit = params.smart_search_cp_spend_limit
+    smart_search_cp_start_date = params.smart_search_cp_start_date
+    smart_search_cp_end_date = params.smart_search_cp_end_date
+    smart_search_cp_auto_continue = params.smart_search_cp_auto_continue
+    smart_search_exploration_min = params.smart_search_exploration_min
+    smart_search_exploration_min_custom = params.smart_search_exploration_min_custom
+    smart_search_budget_type = params.smart_search_budget_type
+    smart_network_average_cpc = params.smart_network_average_cpc
+    smart_network_filter_average_cpc = params.smart_network_filter_average_cpc
+    smart_network_average_cpa = params.smart_network_average_cpa
+    smart_network_filter_average_cpa = params.smart_network_filter_average_cpa
+    smart_network_cpa = params.smart_network_cpa
+    smart_network_goal_id = params.smart_network_goal_id
+    smart_network_weekly_spend_limit = params.smart_network_weekly_spend_limit
+    smart_network_bid_ceiling = params.smart_network_bid_ceiling
+    smart_network_reserve_return = params.smart_network_reserve_return
+    smart_network_roi_coef = params.smart_network_roi_coef
+    smart_network_profitability = params.smart_network_profitability
+    smart_network_crr = params.smart_network_crr
+    smart_network_limit_percent = params.smart_network_limit_percent
+    smart_network_cp_spend_limit = params.smart_network_cp_spend_limit
+    smart_network_cp_start_date = params.smart_network_cp_start_date
+    smart_network_cp_end_date = params.smart_network_cp_end_date
+    smart_network_cp_auto_continue = params.smart_network_cp_auto_continue
+    smart_network_exploration_min = params.smart_network_exploration_min
+    smart_network_exploration_min_custom = params.smart_network_exploration_min_custom
+    smart_network_budget_type = params.smart_network_budget_type
 
     parsed_settings = parse_setting_specs(list(settings))
     if parsed_settings:
