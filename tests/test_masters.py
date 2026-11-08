@@ -2051,6 +2051,7 @@ class TestOpenSessionAutoImport(unittest.TestCase):
                     ):
                         pass
 
+
 class TestWithSessionNoRetry(unittest.TestCase):
     """An authorization error never repeats a possibly side-effectful operation."""
 
@@ -2070,9 +2071,7 @@ class TestWithSessionNoRetry(unittest.TestCase):
         with (
             patch("direct_cli.commands.masters._open_session", saved),
             patch("direct_cli.browser.session.capture_storage_state") as capture,
-            patch(
-                "direct_cli.browser.session.login_manual_session"
-            ) as login_window,
+            patch("direct_cli.browser.session.login_manual_session") as login_window,
         ):
             with self.assertRaises(click.ClickException):
                 _with_session(click.Context(cli), False, None, "Default", operation)
@@ -3911,9 +3910,7 @@ class TestSuspendResumeMaster(unittest.TestCase):
             # modal skeleton is silently swallowed (its handler is not
             # attached yet), which is the failure mode that lost 2 of 3
             # campaigns on the first radio-aware live attempt.
-            state["radio_after_accept_wait"] = bool(
-                accept_handle.wait_for_timeouts
-            )
+            state["radio_after_accept_wait"] = bool(accept_handle.wait_for_timeouts)
 
         radio_handle = _FakeLocatorHandle(visible=True, on_click=_radio)
 
@@ -3931,12 +3928,16 @@ class TestSuspendResumeMaster(unittest.TestCase):
         )
         page.inner_text = lambda selector=None: state["status"]
 
-        with patch.object(
-            browser_masters, "_SUSPEND_CONFIRM_DIALOG_SELECTOR", "#test-dialog"
-        ), patch.object(
-            browser_masters, "_SUSPEND_CONFIRM_RADIO_SELECTOR", "#test-radio"
-        ), patch.object(
-            browser_masters, "_SUSPEND_CONFIRM_ACCEPT_SELECTOR", "#test-accept"
+        with (
+            patch.object(
+                browser_masters, "_SUSPEND_CONFIRM_DIALOG_SELECTOR", "#test-dialog"
+            ),
+            patch.object(
+                browser_masters, "_SUSPEND_CONFIRM_RADIO_SELECTOR", "#test-radio"
+            ),
+            patch.object(
+                browser_masters, "_SUSPEND_CONFIRM_ACCEPT_SELECTOR", "#test-accept"
+            ),
         ):
             result = browser_masters.suspend_master(page, 42)
 
@@ -3977,12 +3978,16 @@ class TestSuspendResumeMaster(unittest.TestCase):
         )
         page.inner_text = lambda selector=None: state["status"]
 
-        with patch.object(
-            browser_masters, "_SUSPEND_CONFIRM_DIALOG_SELECTOR", "#test-dialog"
-        ), patch.object(
-            browser_masters, "_SUSPEND_CONFIRM_RADIO_SELECTOR", "#test-radio"
-        ), patch.object(
-            browser_masters, "_SUSPEND_CONFIRM_ACCEPT_SELECTOR", "#test-accept"
+        with (
+            patch.object(
+                browser_masters, "_SUSPEND_CONFIRM_DIALOG_SELECTOR", "#test-dialog"
+            ),
+            patch.object(
+                browser_masters, "_SUSPEND_CONFIRM_RADIO_SELECTOR", "#test-radio"
+            ),
+            patch.object(
+                browser_masters, "_SUSPEND_CONFIRM_ACCEPT_SELECTOR", "#test-accept"
+            ),
         ):
             with self.assertRaises(BrowserSessionError) as ctx:
                 browser_masters.suspend_master(page, 42)
@@ -12407,9 +12412,9 @@ class TestMastersUpdateCommand(unittest.TestCase):
         args, kwargs = mock_update.call_args
         self.assertEqual(args[1], 42)
         self.assertEqual(kwargs["weekly_budget"], 95000)
-        self.assertIsNone(kwargs["promotion_goal"])
-        self.assertIsNone(kwargs["directs_helps"])
-        self.assertIsNone(kwargs["name"])
+        self.assertIsNone(kwargs.get("promotion_goal"))
+        self.assertIsNone(kwargs.get("directs_helps"))
+        self.assertIsNone(kwargs.get("name"))
 
     def test_passes_name_flag(self):
         with (
@@ -12577,7 +12582,7 @@ class TestMastersUpdateCommand(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertEqual(mock_update.call_args.kwargs["goal_price"], 300.0)
-        self.assertIsNone(mock_update.call_args.kwargs["promotion_goal"])
+        self.assertIsNone(mock_update.call_args.kwargs.get("promotion_goal"))
 
     def test_rejects_goal_price_with_max_conversions(self):
         result = self.runner.invoke(
@@ -12682,7 +12687,7 @@ class TestMastersUpdateCommand(unittest.TestCase):
             )
 
         self.assertEqual(result.exit_code, 0, result.output)
-        self.assertIsNone(mock_update.call_args.kwargs["promotion_goal"])
+        self.assertIsNone(mock_update.call_args.kwargs.get("promotion_goal"))
 
     def test_rejects_target_action_price_with_max_clicks(self):
         result = self.runner.invoke(
@@ -13439,8 +13444,8 @@ class TestMastersUpdateCommand(unittest.TestCase):
             )
 
         self.assertEqual(result.exit_code, 0, result.output)
-        self.assertIsNone(mock_update.call_args.kwargs["clear_headlines"])
-        self.assertIsNone(mock_update.call_args.kwargs["clear_texts"])
+        self.assertIsNone(mock_update.call_args.kwargs.get("clear_headlines"))
+        self.assertIsNone(mock_update.call_args.kwargs.get("clear_texts"))
 
     def test_documents_launch_flag(self):
         result = self.runner.invoke(cli, ["masters", "update", "--help"])
@@ -13458,7 +13463,7 @@ class TestMastersUpdateCommand(unittest.TestCase):
             )
 
         self.assertEqual(result.exit_code, 0, result.output)
-        self.assertFalse(mock_update.call_args.kwargs["launch"])
+        self.assertFalse(mock_update.call_args.kwargs.get("launch"))
 
     def test_passes_launch_flag(self):
         with (
@@ -13689,7 +13694,7 @@ class TestMastersUpdateCommand(unittest.TestCase):
 
                 self.assertEqual(result.exit_code, 0, result.output)
                 self.assertEqual(mock_update.call_args.kwargs["add_video"], f.name)
-                self.assertIsNone(mock_update.call_args.kwargs["remove_videos"])
+                self.assertIsNone(mock_update.call_args.kwargs.get("remove_videos"))
 
     def test_documents_add_video_url_flag(self):
         result = self.runner.invoke(cli, ["masters", "update", "--help"])
@@ -13718,7 +13723,7 @@ class TestMastersUpdateCommand(unittest.TestCase):
             mock_update.call_args.kwargs["add_video_url"],
             "https://a.test/library.mp4",
         )
-        self.assertIsNone(mock_update.call_args.kwargs["add_video"])
+        self.assertIsNone(mock_update.call_args.kwargs.get("add_video"))
 
     def test_add_video_url_does_not_require_a_local_file(self):
         # Unlike --add-video, --add-video-url takes an existing video's URL
@@ -13806,7 +13811,7 @@ class TestMastersUpdateCommand(unittest.TestCase):
             mock_update.call_args.kwargs["remove_videos"],
             ["https://a.test/1.mp4", "https://a.test/2.mp4"],
         )
-        self.assertIsNone(mock_update.call_args.kwargs["add_video"])
+        self.assertIsNone(mock_update.call_args.kwargs.get("add_video"))
 
 
 class TestMastersAdimagesCommand(unittest.TestCase):
@@ -14268,6 +14273,7 @@ class TestMastersStatusCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         with self.assertRaises(json.JSONDecodeError):
             json.loads(result.stdout)
+
 
 class TestCaptchaDetection(unittest.TestCase):
     def test_assert_not_captcha_raises_on_gate_markers(self):
