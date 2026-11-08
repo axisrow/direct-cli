@@ -101,9 +101,10 @@ def client_from_ctx(ctx, create_client_fn) -> YandexDirect:
 def resolve_module_create_client(module_name: str, fallback):
     """Return a command module's *current* ``create_client``, for patchability.
 
-    The command factories (:mod:`direct_cli.commands._get`, and eventually the
-    lifecycle factory) capture ``create_client`` as a closure value at import
-    time. That pins the original function and would bypass a later
+    The command factories (:mod:`direct_cli.commands._get`, the lifecycle
+    factory, and the set-bids factory) capture ``create_client`` as a closure
+    value at import time. That pins the original function and would bypass a
+    later
     ``patch.object("direct_cli.commands.<module>", "create_client", ...)`` — the
     patchability contract that unit tests and the coverage wire-payload capture
     (``scripts/build_api_coverage_report.py``) rely on. Re-reading the attribute

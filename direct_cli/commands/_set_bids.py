@@ -11,7 +11,11 @@ body — modeled on :func:`direct_cli.commands._lifecycle.make_lifecycle_command
 — so each module registers its ``set-bids`` with one call.
 
 ``create_client`` is passed in by the calling module (not imported here), the
-same contract as the lifecycle/get factories.
+same contract as the lifecycle/get factories. The live path re-reads it from
+the module via :func:`direct_cli.api.resolve_module_create_client` — the
+factory captures the symbol at registration (import) time, and without the
+re-resolution a later ``patch.object(<module>, "create_client", ...)`` would
+be bypassed (epic #961, track 7).
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from typing import NamedTuple
 import click
 
 from ._execute import execute_request
+from ..api import resolve_module_create_client
 from ..i18n import t
 from ..output import handle_api_errors
 
@@ -95,6 +100,7 @@ def make_set_bids_command(
         for field in bid_fields
     )
     all_fields = _SELECTOR_FIELDS + bid_fields
+    module_name = group.callback.__module__
 
     selector_keys = {field.wsdl_key for field in _SELECTOR_FIELDS}
     bid_keys = {field.wsdl_key for field in bid_fields}
@@ -116,7 +122,13 @@ def make_set_bids_command(
             raise click.UsageError(t(bid_error))
 
         body = {"method": "setBids", "params": {"Bids": [bid_data]}}
-        execute_request(ctx, service, body, dry_run, create_client)
+        execute_request(
+            ctx,
+            service,
+            body,
+            dry_run,
+            resolve_module_create_client(module_name, create_client),
+        )
 
     _command.__name__ = "set_bids"
     _command.__qualname__ = "set_bids"
