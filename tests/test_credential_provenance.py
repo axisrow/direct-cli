@@ -39,7 +39,7 @@ def unbound_folder(monkeypatch, tmp_path):
     Clears the suite-wide inheritance opt-in so the tests exercise the
     production default of the #904 gate.
     """
-    monkeypatch.setattr("direct_cli.auth.AUTH_STORE_PATH", tmp_path / "auth.json")
+    monkeypatch.setattr("direct_cli._auth_store.AUTH_STORE_PATH", tmp_path / "auth.json")
     monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
     monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
     monkeypatch.delenv("YANDEX_DIRECT_INHERIT_GLOBAL", raising=False)

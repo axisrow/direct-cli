@@ -7,7 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from direct_cli import auth
+from direct_cli import _auth_store, auth
+
+# load_env_file moved to the persistence module (epic #961, track 6); its
+# dotenv call is patched there.
+_load_dotenv_target = _auth_store
 
 
 def test_load_env_file_uses_cwd_dotenv_by_default(monkeypatch, tmp_path):
@@ -18,7 +22,7 @@ def test_load_env_file_uses_cwd_dotenv_by_default(monkeypatch, tmp_path):
         calls.append(Path(dotenv_path))
         return True
 
-    monkeypatch.setattr(auth, "load_dotenv", fake_load_dotenv)
+    monkeypatch.setattr(_load_dotenv_target, "load_dotenv", fake_load_dotenv)
     monkeypatch.chdir(tmp_path)
 
     auth.load_env_file()
@@ -35,7 +39,7 @@ def test_load_env_file_uses_explicit_path(monkeypatch, tmp_path):
         return True
 
     env_path = tmp_path / "custom.env"
-    monkeypatch.setattr(auth, "load_dotenv", fake_load_dotenv)
+    monkeypatch.setattr(_load_dotenv_target, "load_dotenv", fake_load_dotenv)
 
     auth.load_env_file(str(env_path))
 
@@ -96,7 +100,7 @@ def test_load_env_file_does_not_search_from_source_location(monkeypatch, tmp_pat
 
     monkeypatch.delenv("YANDEX_DIRECT_TOKEN", raising=False)
     monkeypatch.delenv("YANDEX_DIRECT_LOGIN", raising=False)
-    monkeypatch.setattr(auth, "load_dotenv", fake_load_dotenv)
+    monkeypatch.setattr(_load_dotenv_target, "load_dotenv", fake_load_dotenv)
     monkeypatch.chdir(run_dir)
 
     auth.load_env_file()
