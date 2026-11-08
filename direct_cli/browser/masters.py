@@ -331,6 +331,7 @@ side effect on the campaign itself.
 """
 
 import contextlib
+import dataclasses
 import difflib
 from collections import Counter
 import json
@@ -9164,6 +9165,143 @@ _RETRYABLE_VALUE_SET_PARAMS = frozenset(
 )
 
 
+@dataclasses.dataclass(frozen=True)
+class MasterUpdatePlan:
+    """The requested ``masters update`` change plan (epic #961, track 2).
+
+    One typed object describing everything a single ``update_master`` run
+    should change, replacing the 30-parameter kwargs fan-out between
+    ``update_master`` and ``_update_master_once``. Field defaults mirror the
+    former kwargs defaults exactly: every field is "not requested" until set,
+    and :meth:`is_empty` is the verbatim "nothing to update" guard that used
+    to be spelled out as a 30-condition ``and`` chain. ``launch`` is carried
+    here but deliberately NOT counted by ``is_empty`` — a bare ``--launch``
+    with no field to change is still a ``ValueError`` (publishing without an
+    edit is ``launch_master``'s job, mirroring the pre-refactor guard).
+    """
+
+    weekly_budget: Optional[int] = None
+    promotion_goal: Optional[str] = None
+    goal_price: Optional[float] = None
+    target_action_prices: Optional[Dict[int, float]] = None
+    add_target_actions: Optional[Dict[int, float]] = None
+    remove_target_action_goal_ids: Optional[List[int]] = None
+    directs_helps: Optional[bool] = None
+    name: Optional[str] = None
+    landing_url: Optional[str] = None
+    tracking_params: Optional[str] = None
+    headlines: Optional[Dict[int, str]] = None
+    texts: Optional[Dict[int, str]] = None
+    clear_headlines: Optional[List[int]] = None
+    clear_texts: Optional[List[int]] = None
+    images: Optional[Dict[int, str]] = None
+    add_video: Optional[str] = None
+    add_video_url: Optional[str] = None
+    remove_videos: Optional[List[str]] = None
+    gender: Optional[str] = None
+    age_from: Optional[int] = None
+    age_from_requested: bool = False
+    age_to: Optional[int] = None
+    age_to_requested: bool = False
+    devices: Optional[Set[str]] = None
+    add_audience_tags: Optional[List[str]] = None
+    remove_audience_tags: Optional[List[int]] = None
+    add_metrika_counters: Optional[List[str]] = None
+    remove_metrika_counters: Optional[List[int]] = None
+    add_sitelinks: Optional[List[Dict[str, str]]] = None
+    remove_sitelinks: Optional[List[int]] = None
+    launch: bool = False
+
+    def is_empty(self) -> bool:
+        """True when no field is requested — mirrors the pre-refactor guard
+        condition field for field (``*_requested`` flags count, bare
+        ``age_from``/``age_to`` values do not: they only matter when their
+        flag was actually requested)."""
+        return (
+            self.weekly_budget is None
+            and self.promotion_goal is None
+            and self.goal_price is None
+            and not self.target_action_prices
+            and not self.add_target_actions
+            and not self.remove_target_action_goal_ids
+            and self.directs_helps is None
+            and self.name is None
+            and self.landing_url is None
+            and self.tracking_params is None
+            and not self.headlines
+            and not self.texts
+            and not self.clear_headlines
+            and not self.clear_texts
+            and not self.images
+            and self.add_video is None
+            and self.add_video_url is None
+            and not self.remove_videos
+            and self.gender is None
+            and not self.age_from_requested
+            and not self.age_to_requested
+            and self.devices is None
+            and not self.add_audience_tags
+            and not self.remove_audience_tags
+            and not self.add_metrika_counters
+            and not self.remove_metrika_counters
+            and not self.add_sitelinks
+            and not self.remove_sitelinks
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class _PreservedSectionsSnapshot:
+    """Pre-mutation state snapshot of the sections the whole-form save can
+    silently drop (issue #836/#872) — the "снимок состояния" phase of
+    ``_update_master_once``.
+
+    Read ONCE, before any field mutation touches the page, so a later
+    re-render cannot corrupt the baseline (see the snapshot comment in
+    ``_update_master_once``). Preservation flags say whether the baseline
+    participates in the pre-click guard and post-save verification.
+    """
+
+    # Initial Metrika baseline read before any mutation; ``_apply_master_edits``
+    # may adopt the apply-helper's own baseline when this read returned None.
+    metrika_counters_before: Optional[List[str]]
+    metrika_preservation_requested: bool
+    target_actions_unchanged_expected: Optional[Dict[int, Optional[float]]]
+    target_actions_unchanged_requested: bool
+    target_actions_preservation_requested: bool
+    # The #756 certified pre-save target-action snapshot; read only on the
+    # unchanged-table path, ``None`` everywhere else (max-clicks campaigns,
+    # add/remove saves). Its {GoalId: Price} map is what _verify_saved compares
+    # the post-save table against to certify the #870 no-op save.
+    target_actions_at_load: Optional[List[Dict[str, Any]]]
+    # Settled Metrika read at load, ``None`` when the section is absent;
+    # feeds the cross-domain landing-URL warning.
+    counters_at_load: Optional[List[str]]
+
+
+@dataclasses.dataclass(frozen=True)
+class _MasterEditOutcome:
+    """What the "editing" phase of ``_update_master_once`` observed while
+    applying the plan (epic #961, track 2).
+
+    Carries every value the save-verification phase needs but can only learn
+    from the editing phase: pre-mutation baselines read right before each
+    section's mutations, the actually-observed rows for requested additions
+    (not the raw CLI input — see the sitelink observed-row comment), and the
+    certified target-action removal baseline. Pure data: no page handles.
+    """
+
+    metrika_counters_before: Optional[List[str]]
+    target_action_goal_ids_before: Optional[List[int]]
+    target_action_prices_before: Optional[Dict[int, Optional[float]]]
+    audience_tags_before: Optional[List[str]]
+    sitelinks_before: Optional[List[Dict[str, str]]]
+    add_sitelinks_observed: List[Dict[str, str]]
+    images_before_ids: List[str]
+    images_replaced_ids: Set[str]
+    videos_before_urls: List[str]
+    video_url_actually_added: bool
+
+
 def update_master(
     page: "Page",
     campaign_id: int,
@@ -9287,42 +9425,44 @@ def update_master(
     }
     retry_safe = not launch and requested <= _RETRYABLE_VALUE_SET_PARAMS
 
+    # The change plan is built once and passed to every attempt unchanged —
+    # the retry must re-run the EXACT same update (epic #961, track 2).
+    plan = MasterUpdatePlan(
+        weekly_budget=weekly_budget,
+        promotion_goal=promotion_goal,
+        goal_price=goal_price,
+        target_action_prices=target_action_prices,
+        add_target_actions=add_target_actions,
+        remove_target_action_goal_ids=remove_target_action_goal_ids,
+        directs_helps=directs_helps,
+        name=name,
+        landing_url=landing_url,
+        tracking_params=tracking_params,
+        headlines=headlines,
+        texts=texts,
+        clear_headlines=clear_headlines,
+        clear_texts=clear_texts,
+        images=images,
+        add_video=add_video,
+        add_video_url=add_video_url,
+        remove_videos=remove_videos,
+        gender=gender,
+        age_from=age_from,
+        age_from_requested=age_from_requested,
+        age_to=age_to,
+        age_to_requested=age_to_requested,
+        devices=devices,
+        add_audience_tags=add_audience_tags,
+        remove_audience_tags=remove_audience_tags,
+        add_metrika_counters=add_metrika_counters,
+        remove_metrika_counters=remove_metrika_counters,
+        add_sitelinks=add_sitelinks,
+        remove_sitelinks=remove_sitelinks,
+        launch=launch,
+    )
+
     def _attempt() -> Dict[str, Any]:
-        return _update_master_once(
-            page,
-            campaign_id,
-            weekly_budget=weekly_budget,
-            promotion_goal=promotion_goal,
-            goal_price=goal_price,
-            target_action_prices=target_action_prices,
-            add_target_actions=add_target_actions,
-            remove_target_action_goal_ids=remove_target_action_goal_ids,
-            directs_helps=directs_helps,
-            name=name,
-            landing_url=landing_url,
-            tracking_params=tracking_params,
-            headlines=headlines,
-            texts=texts,
-            clear_headlines=clear_headlines,
-            clear_texts=clear_texts,
-            images=images,
-            add_video=add_video,
-            add_video_url=add_video_url,
-            remove_videos=remove_videos,
-            gender=gender,
-            age_from=age_from,
-            age_from_requested=age_from_requested,
-            age_to=age_to,
-            age_to_requested=age_to_requested,
-            devices=devices,
-            add_audience_tags=add_audience_tags,
-            remove_audience_tags=remove_audience_tags,
-            add_metrika_counters=add_metrika_counters,
-            remove_metrika_counters=remove_metrika_counters,
-            add_sitelinks=add_sitelinks,
-            remove_sitelinks=remove_sitelinks,
-            launch=launch,
-        )
+        return _update_master_once(page, campaign_id, plan)
 
     if not retry_safe:
         return _attempt()
@@ -9381,38 +9521,7 @@ def update_master(
 def _update_master_once(
     page: "Page",
     campaign_id: int,
-    *,
-    weekly_budget: Optional[int] = None,
-    promotion_goal: Optional[str] = None,
-    goal_price: Optional[float] = None,
-    target_action_prices: Optional[Dict[int, float]] = None,
-    add_target_actions: Optional[Dict[int, float]] = None,
-    remove_target_action_goal_ids: Optional[List[int]] = None,
-    directs_helps: Optional[bool] = None,
-    name: Optional[str] = None,
-    landing_url: Optional[str] = None,
-    tracking_params: Optional[str] = None,
-    headlines: Optional[Dict[int, str]] = None,
-    texts: Optional[Dict[int, str]] = None,
-    clear_headlines: Optional[List[int]] = None,
-    clear_texts: Optional[List[int]] = None,
-    images: Optional[Dict[int, str]] = None,
-    add_video: Optional[str] = None,
-    add_video_url: Optional[str] = None,
-    remove_videos: Optional[List[str]] = None,
-    gender: Optional[str] = None,
-    age_from: Optional[int] = None,
-    age_from_requested: bool = False,
-    age_to: Optional[int] = None,
-    age_to_requested: bool = False,
-    devices: Optional[Set[str]] = None,
-    add_audience_tags: Optional[List[str]] = None,
-    remove_audience_tags: Optional[List[int]] = None,
-    add_metrika_counters: Optional[List[str]] = None,
-    remove_metrika_counters: Optional[List[int]] = None,
-    add_sitelinks: Optional[List[Dict[str, str]]] = None,
-    remove_sitelinks: Optional[List[int]] = None,
-    launch: bool = False,
+    plan: MasterUpdatePlan,
 ) -> Dict[str, Any]:
     """Run ONE update-and-save attempt for ``update_master``, no retry.
 
@@ -9656,36 +9765,42 @@ def _update_master_once(
     call; the CLI boundary rejects that combination before this function is
     reached, this function does not re-validate it.
     """
-    if (
-        weekly_budget is None
-        and promotion_goal is None
-        and goal_price is None
-        and not target_action_prices
-        and not add_target_actions
-        and not remove_target_action_goal_ids
-        and directs_helps is None
-        and name is None
-        and landing_url is None
-        and tracking_params is None
-        and not headlines
-        and not texts
-        and not clear_headlines
-        and not clear_texts
-        and not images
-        and add_video is None
-        and add_video_url is None
-        and not remove_videos
-        and gender is None
-        and not age_from_requested
-        and not age_to_requested
-        and devices is None
-        and not add_audience_tags
-        and not remove_audience_tags
-        and not add_metrika_counters
-        and not remove_metrika_counters
-        and not add_sitelinks
-        and not remove_sitelinks
-    ):
+    # Everything below reads the plan's fields as plain locals — the body of
+    # this function predates the plan object (epic #961, track 2) and is kept
+    # byte-identical, so the plan is destructured once at the top.
+    weekly_budget = plan.weekly_budget
+    promotion_goal = plan.promotion_goal
+    goal_price = plan.goal_price
+    target_action_prices = plan.target_action_prices
+    add_target_actions = plan.add_target_actions
+    remove_target_action_goal_ids = plan.remove_target_action_goal_ids
+    directs_helps = plan.directs_helps
+    name = plan.name
+    landing_url = plan.landing_url
+    tracking_params = plan.tracking_params
+    headlines = plan.headlines
+    texts = plan.texts
+    clear_headlines = plan.clear_headlines
+    clear_texts = plan.clear_texts
+    images = plan.images
+    add_video = plan.add_video
+    add_video_url = plan.add_video_url
+    remove_videos = plan.remove_videos
+    gender = plan.gender
+    age_from = plan.age_from
+    age_from_requested = plan.age_from_requested
+    age_to = plan.age_to
+    age_to_requested = plan.age_to_requested
+    devices = plan.devices
+    add_audience_tags = plan.add_audience_tags
+    remove_audience_tags = plan.remove_audience_tags
+    add_metrika_counters = plan.add_metrika_counters
+    remove_metrika_counters = plan.remove_metrika_counters
+    add_sitelinks = plan.add_sitelinks
+    remove_sitelinks = plan.remove_sitelinks
+    launch = plan.launch
+
+    if plan.is_empty():
         raise ValueError(
             "update_master requires at least one field to update "
             "(weekly_budget, promotion_goal, goal_price, "
@@ -9720,53 +9835,296 @@ def _update_master_once(
     # ``_wait_for_draft_status``'s docstring).
     was_draft = _wait_for_draft_status(page, campaign_id)
 
-    # Issue #836: a URL/UTM update still submits the WHOLE form (see this
-    # module's docstring) — and expanding the UTM spoiler is live-confirmed
-    # (issue #830, 4 campaigns, 100% reproduction) to re-render the
-    # surrounding form from server state. Nothing used to re-check these
-    # sections afterwards when they were not themselves mutated, so a
-    # re-render that dropped a counter or goal row could be saved and
-    # reported as a success. Snapshot each protected section so verification
-    # can assert the unchanged or explicitly requested final state.
-    #
-    # Taken HERE, before ``_set_tracking_params`` expands that spoiler,
-    # because a snapshot read after the re-render would capture the already
-    # corrupted state and certify the loss as the expected baseline.
-    #
-    # Issue #872: weekly-budget-only saves wiped TargetActions on 4 live
-    # campaigns (each stopped spending) — the same whole-form save
-    # resubmitted a mid-hydration target-action table. The protection
-    # therefore keys on the save itself, not on which field the call names:
-    # the ValueError guard above guarantees every call that reaches this
-    # point mutates at least one field, so EVERY update gets the same
-    # baselines, pre-save guard and post-save verification.
-    #
-    # The two protections are deliberately independent: mutating target
-    # actions must not disable preservation of Metrika counters, and vice
-    # versa. Switching the promotion goal to max-clicks is the one exception
-    # because that transition legitimately removes both sections.
-    # Only max-clicks intentionally removes these widgets. Re-selecting or
-    # switching to max-conversions must keep protection enabled: if the
-    # sections already exist, they still participate in the same whole-form
-    # save and remain vulnerable to the hydration race.
-    _preserve_metrika = promotion_goal != "max-clicks"
-    _preserve_target_actions = promotion_goal != "max-clicks"
+    # Snapshot each protected section so verification can assert the
+    # unchanged or explicitly requested final state (issues #836/#872 —
+    # see _snapshot_preserved_sections).
+    snapshot = _snapshot_preserved_sections(page, plan)
+
+    # --- Editing phase: apply every requested field mutation (epic #961,
+    # track 2). Saving (_click_save) and result verification (_verify_saved)
+    # run as separate phases below; nothing after this line mutates the
+    # form.
+    edits = _apply_master_edits(page, plan, snapshot)
+
+    # was_draft was captured right after _wait_for_edit_form, above — reused
+    # here rather than re-derived, for the same reason _click_save takes it
+    # as an explicit argument instead of re-querying the DOM itself.
+    if was_draft:
+        clicked_button_label = (
+            _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
+        )
+    else:
+        clicked_button_label = _SAVE_BUTTON_TEXT
+
+    def _validate_preserved_sections_before_click() -> None:
+        _assert_preserved_sections_before_save(
+            page,
+            metrika_counters_before=edits.metrika_counters_before,
+            metrika_preservation_requested=snapshot.metrika_preservation_requested,
+            add_metrika_counters=add_metrika_counters,
+            remove_metrika_counter_indices=remove_metrika_counters,
+            target_actions_unchanged_expected=(
+                snapshot.target_actions_unchanged_expected
+            ),
+            target_actions_preservation_requested=(
+                snapshot.target_actions_preservation_requested
+            ),
+            add_target_actions=add_target_actions,
+            remove_target_action_goal_ids=remove_target_action_goal_ids,
+            target_action_goal_ids_before=edits.target_action_goal_ids_before,
+            target_action_prices_before=edits.target_action_prices_before,
+            target_action_prices=target_action_prices,
+        )
+
+    _click_save(
+        page,
+        campaign_id,
+        is_draft=was_draft,
+        launch=launch,
+        before_click=(
+            _validate_preserved_sections_before_click
+            if (
+                snapshot.metrika_preservation_requested
+                or snapshot.target_actions_preservation_requested
+            )
+            else None
+        ),
+    )
+
+    # Read Yandex's inline rejection text BEFORE _verify_saved reloads the
+    # page away (issue #840) — these messages live only in the still-open
+    # form. Best-effort: used purely to enrich a failure message.
+    save_validation_errors = _read_save_validation_errors(page)
+
+    # The terminal-button click above already happened — irreversible, and
+    # for images NOT idempotent (a retry would re-snapshot the
+    # already-mutated set and replace DIFFERENT images than the ones the
+    # caller named; see _set_image's docstring). If the saved session is
+    # invalidated in exactly this window, _verify_saved's own
+    # assert_authenticated raises BrowserAuthError; letting that propagate
+    # as-is would make _with_session (direct_cli/commands/masters.py) retry
+    # this ENTIRE update_master call under a fresh session. Re-raise as a
+    # plain BrowserSessionError so that retry does not trigger — mirrors
+    # copy_master's identical guard around its own post-click verification.
+    # Merged into a single ``requested`` map for ``_verify_repeating_value_
+    # mismatches`` — a cleared slot must re-read as ``""``, exactly the
+    # expected value that map's plain equality check already compares
+    # against, so no separate verification path is needed for clear vs. set
+    # (see ``_clear_repeating_value``'s docstring for why they're still
+    # kept as distinct MUTATION operations up to this point).
+    verify_headlines = dict(headlines or {})
+    verify_headlines.update(dict.fromkeys(clear_headlines or [], ""))
+    verify_texts = dict(texts or {})
+    verify_texts.update(dict.fromkeys(clear_texts or [], ""))
+
+    try:
+        verified_target_actions = _verify_saved(
+            page,
+            campaign_id,
+            weekly_budget=weekly_budget,
+            promotion_goal=promotion_goal,
+            directs_helps=directs_helps,
+            name=name,
+            landing_url=landing_url,
+            tracking_params=tracking_params,
+            headlines=verify_headlines or None,
+            texts=verify_texts or None,
+            images_before_ids=edits.images_before_ids,
+            images_replaced_ids=edits.images_replaced_ids,
+            videos_before_urls=edits.videos_before_urls,
+            video_added=add_video is not None or edits.video_url_actually_added,
+            videos_removed=remove_videos,
+            goal_price=goal_price,
+            target_action_prices=target_action_prices,
+            add_target_actions=add_target_actions,
+            remove_target_action_goal_ids=remove_target_action_goal_ids,
+            target_action_goal_ids_before=edits.target_action_goal_ids_before,
+            target_actions_unchanged_expected=(
+                snapshot.target_actions_unchanged_expected
+            ),
+            target_actions_unchanged_requested=(
+                snapshot.target_actions_unchanged_requested
+            ),
+            target_actions_baseline=(
+                None
+                if snapshot.target_actions_at_load is None
+                else _target_action_price_map(snapshot.target_actions_at_load)
+            ),
+            gender=gender,
+            age_from_requested=age_from_requested,
+            age_from=age_from,
+            age_to_requested=age_to_requested,
+            age_to=age_to,
+            devices=devices,
+            audience_tags_before=edits.audience_tags_before,
+            add_audience_tags=add_audience_tags,
+            remove_audience_tag_indices=remove_audience_tags,
+            metrika_counters_before=edits.metrika_counters_before,
+            metrika_preservation_requested=snapshot.metrika_preservation_requested,
+            add_metrika_counters=add_metrika_counters,
+            remove_metrika_counter_indices=remove_metrika_counters,
+            sitelinks_before=edits.sitelinks_before,
+            add_sitelinks=edits.add_sitelinks_observed,
+            remove_sitelink_indices=remove_sitelinks,
+            clicked_button_label=clicked_button_label,
+            validation_errors=save_validation_errors,
+        )
+    except BrowserAuthError as exc:
+        raise BrowserSessionError(
+            f"Clicked '{clicked_button_label}' for campaign {campaign_id}, "
+            "but the session was invalidated while verifying the save — "
+            "the requested changes were likely already applied; check "
+            f"campaign {campaign_id} manually rather than retrying "
+            "(image/video replacements are not idempotent)."
+        ) from exc
+
+    result: Dict[str, Any] = {"CampaignId": campaign_id}
+    if verified_target_actions is not None:
+        # The unchanged-table check ran and verified these goals AND their
+        # prices survived the whole-form save (issues #872/#876) — surface
+        # them in the result row so a batch run shows the protected goals
+        # and bids, not just an implicit absence of failure.
+        result["TargetActions"] = verified_target_actions
+    if weekly_budget is not None:
+        result["WeeklyBudget"] = weekly_budget
+    if promotion_goal is not None:
+        result["PromotionGoal"] = promotion_goal
+    if goal_price is not None:
+        result["GoalPrice"] = goal_price
+    if target_action_prices:
+        result["TargetActionPrices"] = target_action_prices
+    if add_target_actions:
+        result["AddedTargetActions"] = add_target_actions
+    if remove_target_action_goal_ids:
+        result["RemovedTargetActionGoalIds"] = remove_target_action_goal_ids
+    if directs_helps is not None:
+        result["DirectsHelps"] = directs_helps
+    if name is not None:
+        result["Name"] = name
+    if landing_url is not None:
+        result["LandingUrl"] = landing_url
+    if tracking_params is not None:
+        result["TrackingParams"] = tracking_params
+    if headlines:
+        result["Headlines"] = headlines
+    if texts:
+        result["Texts"] = texts
+    if clear_headlines:
+        result["ClearedHeadlines"] = sorted(clear_headlines)
+    if clear_texts:
+        result["ClearedTexts"] = sorted(clear_texts)
+    if images:
+        result["Images"] = images
+    if add_video is not None:
+        result["AddedVideo"] = add_video
+    if edits.video_url_actually_added:
+        result["AddedVideoUrl"] = add_video_url
+    if remove_videos:
+        result["RemovedVideos"] = list(remove_videos)
+    if gender is not None:
+        result["Gender"] = gender
+    if age_from_requested:
+        result["AgeFrom"] = age_from
+    if age_to_requested:
+        result["AgeTo"] = age_to
+    if devices is not None:
+        result["Devices"] = sorted(devices)
+    if add_audience_tags:
+        result["AddedAudienceTags"] = add_audience_tags
+    if remove_audience_tags:
+        result["RemovedAudienceTagPositions"] = sorted(remove_audience_tags)
+    if add_metrika_counters:
+        result["AddedMetrikaCounters"] = add_metrika_counters
+    if remove_metrika_counters:
+        result["RemovedMetrikaCounterPositions"] = sorted(remove_metrika_counters)
+    if add_sitelinks:
+        result["AddedSitelinks"] = add_sitelinks
+    if remove_sitelinks:
+        result["RemovedSitelinkPositions"] = sorted(remove_sitelinks)
+    if was_draft and launch:
+        # Issue #721: the DRAFT edit page's launch click redirects away from
+        # /edit/ (already awaited by _click_draft_terminal_button inside
+        # _click_save above), but that redirect is not proof Yandex actually
+        # sent the campaign to moderation — it can land on the overview page
+        # mid-transition, same race launch_master's own recon hit (see
+        # module docstring). _verify_saved above already re-navigated the
+        # page back to WIZARD_EDIT_URL to check the touched fields, so this
+        # needs its own trip to the overview page (mirroring launch_master's
+        # own _goto_overview_page call) before _verify_launched_to_moderation
+        # can read its status text — closing the gap where update_master
+        # --launch previously reported "Launched": True purely off the
+        # click/redirect, with no check that the campaign didn't silently
+        # stay DRAFT.
+        #
+        # This trip is just as irreversible/non-idempotent as the click
+        # itself (see the guard above _verify_saved): if the session is
+        # invalidated in this window, letting BrowserAuthError propagate
+        # bare would make _with_session retry the ENTIRE update_master call
+        # under a fresh session, re-mutating any --image replacements a
+        # second time (found via adversarial review, cycle-review round 1
+        # of PR #727).
+        try:
+            _goto_overview_page(page, campaign_id)
+            _verify_launched_to_moderation(page, campaign_id)
+        except BrowserAuthError as exc:
+            raise BrowserSessionError(
+                f"Clicked '{_LAUNCH_BUTTON_TEXT}' for campaign {campaign_id}, "
+                "but the session was invalidated while confirming it reached "
+                "moderation — the requested changes were likely already "
+                f"applied and launched; check campaign {campaign_id} "
+                "manually rather than retrying (image replacements are not "
+                "idempotent)."
+            ) from exc
+        result["Launched"] = True
+    return result
+
+
+def _snapshot_preserved_sections(
+    page: "Page",
+    plan: MasterUpdatePlan,
+) -> _PreservedSectionsSnapshot:
+    """Read the pre-mutation baselines of the sections the whole-form save
+    can silently drop — the "снимок состояния" phase of ``_update_master_once``
+    (epic #961, track 2).
+
+    Issue #836: a URL/UTM update still submits the WHOLE form (see this
+    module's docstring) — and expanding the UTM spoiler is live-confirmed
+    (issue #830, 4 campaigns, 100% reproduction) to re-render the
+    surrounding form from server state. Nothing used to re-check these
+    sections afterwards when they were not themselves mutated, so a
+    re-render that dropped a counter or goal row could be saved and
+    reported as a success.
+
+    Taken BEFORE ``_set_tracking_params`` expands that spoiler (the caller
+    runs this before the editing phase starts), because a snapshot read
+    after the re-render would capture the already corrupted state and
+    certify the loss as the expected baseline.
+
+    Issue #872: weekly-budget-only saves wiped TargetActions on 4 live
+    campaigns (each stopped spending) — the same whole-form save
+    resubmitted a mid-hydration target-action table. The protection
+    therefore keys on the save itself, not on which field the call names:
+    the ``is_empty`` guard guarantees every call that reaches this point
+    mutates at least one field, so EVERY update gets the same baselines,
+    pre-save guard and post-save verification.
+
+    The two protections are deliberately independent: mutating target
+    actions must not disable preservation of Metrika counters, and vice
+    versa. Switching the promotion goal to max-clicks is the one exception
+    because that transition legitimately removes both sections.
+    Only max-clicks intentionally removes these widgets. Re-selecting or
+    switching to max-conversions must keep protection enabled: if the
+    sections already exist, they still participate in the same whole-form
+    save and remain vulnerable to the hydration race.
+    """
+    _preserve_metrika = plan.promotion_goal != "max-clicks"
+    _preserve_target_actions = plan.promotion_goal != "max-clicks"
     metrika_counters_before: Optional[List[str]] = None
     metrika_preservation_requested = False
     target_actions_unchanged_expected: Optional[Dict[int, Optional[float]]] = None
     target_actions_unchanged_requested = False
     target_actions_preservation_requested = False
-    # The #756 certified pre-save target-action snapshot; read only on the
-    # unchanged-table path below, ``None`` everywhere else (max-clicks
-    # campaigns, add/remove saves). Its {GoalId: Price} map is what
-    # _verify_saved compares the post-save table against to certify the
-    # #870 no-op save.
     target_actions_at_load: Optional[List[Dict[str, Any]]] = None
-    target_action_goal_ids_before: Optional[List[int]] = None
-    # Certified WITH the ids (same two-read snapshot): the pre-click guard
-    # compares the full {GoalId: Price} state on a certified removal
-    # (cycle-review PR #883).
-    target_action_prices_before: Optional[Dict[int, Optional[float]]] = None
     section_present = _metrika_counters_section_present(page)
     counters_at_load: Optional[List[str]] = None
     if section_present:
@@ -9778,15 +10136,15 @@ def _update_master_once(
                 "saved because an unreadable baseline could hide counter "
                 "loss; retry after the page has fully loaded."
             )
-    if landing_url is not None:
-        _warn_on_cross_domain_landing_url(page, landing_url, counters_at_load)
+    if plan.landing_url is not None:
+        _warn_on_cross_domain_landing_url(page, plan.landing_url, counters_at_load)
 
     if _preserve_metrika and section_present:
         metrika_counters_before = counters_at_load
         metrika_preservation_requested = True
 
     if _preserve_target_actions and (
-        add_target_actions or remove_target_action_goal_ids
+        plan.add_target_actions or plan.remove_target_action_goal_ids
     ):
         # Issue #877: the add/remove path keeps the pre-click guard too
         # (#873 had restricted the flag to unchanged-table saves, leaving
@@ -9822,10 +10180,75 @@ def _update_master_once(
             # did not set must survive too (issue #876).
             target_actions_unchanged_expected = {
                 **_target_action_price_map(target_actions_at_load),
-                **(target_action_prices or {}),
+                **(plan.target_action_prices or {}),
             }
             target_actions_unchanged_requested = True
             target_actions_preservation_requested = True
+
+    return _PreservedSectionsSnapshot(
+        metrika_counters_before=metrika_counters_before,
+        metrika_preservation_requested=metrika_preservation_requested,
+        target_actions_unchanged_expected=target_actions_unchanged_expected,
+        target_actions_unchanged_requested=target_actions_unchanged_requested,
+        target_actions_preservation_requested=target_actions_preservation_requested,
+        target_actions_at_load=target_actions_at_load,
+        counters_at_load=counters_at_load,
+    )
+
+
+def _apply_master_edits(
+    page: "Page",
+    plan: MasterUpdatePlan,
+    snapshot: _PreservedSectionsSnapshot,
+) -> _MasterEditOutcome:
+    """Apply every requested field mutation from ``plan`` to the edit form —
+    the "editing" phase of ``_update_master_once`` (epic #961, track 2).
+
+    Saving (``_click_save``) and result verification (``_verify_saved``) are
+    separate phases in the caller; this function only touches fields and
+    collects the pre-mutation baselines the verification phase needs.
+    Field application order is load-bearing and unchanged from the
+    pre-refactor body: UTM before landing URL (#830), Metrika counters
+    before target actions (#844), every list snapshot before its own
+    mutations.
+    """
+    weekly_budget = plan.weekly_budget
+    promotion_goal = plan.promotion_goal
+    goal_price = plan.goal_price
+    target_action_prices = plan.target_action_prices
+    add_target_actions = plan.add_target_actions
+    remove_target_action_goal_ids = plan.remove_target_action_goal_ids
+    directs_helps = plan.directs_helps
+    name = plan.name
+    landing_url = plan.landing_url
+    tracking_params = plan.tracking_params
+    headlines = plan.headlines
+    texts = plan.texts
+    clear_headlines = plan.clear_headlines
+    clear_texts = plan.clear_texts
+    images = plan.images
+    add_video = plan.add_video
+    add_video_url = plan.add_video_url
+    remove_videos = plan.remove_videos
+    gender = plan.gender
+    age_from = plan.age_from
+    age_from_requested = plan.age_from_requested
+    age_to = plan.age_to
+    age_to_requested = plan.age_to_requested
+    devices = plan.devices
+    add_audience_tags = plan.add_audience_tags
+    remove_audience_tags = plan.remove_audience_tags
+    add_metrika_counters = plan.add_metrika_counters
+    remove_metrika_counters = plan.remove_metrika_counters
+    add_sitelinks = plan.add_sitelinks
+    remove_sitelinks = plan.remove_sitelinks
+
+    metrika_counters_before = snapshot.metrika_counters_before
+    target_action_goal_ids_before: Optional[List[int]] = None
+    # Certified WITH the ids (same two-read snapshot): the pre-click guard
+    # compares the full {GoalId: Price} state on a certified removal
+    # (cycle-review PR #883).
+    target_action_prices_before: Optional[Dict[int, Optional[float]]] = None
 
     if name is not None:
         _set_campaign_name(page, name)
@@ -10254,228 +10677,18 @@ def _update_master_once(
             page, add_video_url, prior_removals=len(remove_videos or [])
         )
 
-    # was_draft was captured right after _wait_for_edit_form, above — reused
-    # here rather than re-derived, for the same reason _click_save takes it
-    # as an explicit argument instead of re-querying the DOM itself.
-    if was_draft:
-        clicked_button_label = (
-            _LAUNCH_BUTTON_TEXT if launch else _SAVE_DRAFT_BUTTON_TEXT
-        )
-    else:
-        clicked_button_label = _SAVE_BUTTON_TEXT
-
-    def _validate_preserved_sections_before_click() -> None:
-        _assert_preserved_sections_before_save(
-            page,
-            metrika_counters_before=metrika_counters_before,
-            metrika_preservation_requested=metrika_preservation_requested,
-            add_metrika_counters=add_metrika_counters,
-            remove_metrika_counter_indices=remove_metrika_counters,
-            target_actions_unchanged_expected=target_actions_unchanged_expected,
-            target_actions_preservation_requested=(
-                target_actions_preservation_requested
-            ),
-            add_target_actions=add_target_actions,
-            remove_target_action_goal_ids=remove_target_action_goal_ids,
-            target_action_goal_ids_before=target_action_goal_ids_before,
-            target_action_prices_before=target_action_prices_before,
-            target_action_prices=target_action_prices,
-        )
-
-    _click_save(
-        page,
-        campaign_id,
-        is_draft=was_draft,
-        launch=launch,
-        before_click=(
-            _validate_preserved_sections_before_click
-            if (metrika_preservation_requested or target_actions_preservation_requested)
-            else None
-        ),
+    return _MasterEditOutcome(
+        metrika_counters_before=metrika_counters_before,
+        target_action_goal_ids_before=target_action_goal_ids_before,
+        target_action_prices_before=target_action_prices_before,
+        audience_tags_before=audience_tags_before,
+        sitelinks_before=sitelinks_before,
+        add_sitelinks_observed=add_sitelinks_observed,
+        images_before_ids=images_before_ids,
+        images_replaced_ids=images_replaced_ids,
+        videos_before_urls=videos_before_urls,
+        video_url_actually_added=video_url_actually_added,
     )
-
-    # Read Yandex's inline rejection text BEFORE _verify_saved reloads the
-    # page away (issue #840) — these messages live only in the still-open
-    # form. Best-effort: used purely to enrich a failure message.
-    save_validation_errors = _read_save_validation_errors(page)
-
-    # The terminal-button click above already happened — irreversible, and
-    # for images NOT idempotent (a retry would re-snapshot the
-    # already-mutated set and replace DIFFERENT images than the ones the
-    # caller named; see _set_image's docstring). If the saved session is
-    # invalidated in exactly this window, _verify_saved's own
-    # assert_authenticated raises BrowserAuthError; letting that propagate
-    # as-is would make _with_session (direct_cli/commands/masters.py) retry
-    # this ENTIRE update_master call under a fresh session. Re-raise as a
-    # plain BrowserSessionError so that retry does not trigger — mirrors
-    # copy_master's identical guard around its own post-click verification.
-    # Merged into a single ``requested`` map for ``_verify_repeating_value_
-    # mismatches`` — a cleared slot must re-read as ``""``, exactly the
-    # expected value that map's plain equality check already compares
-    # against, so no separate verification path is needed for clear vs. set
-    # (see ``_clear_repeating_value``'s docstring for why they're still
-    # kept as distinct MUTATION operations up to this point).
-    verify_headlines = dict(headlines or {})
-    verify_headlines.update(dict.fromkeys(clear_headlines or [], ""))
-    verify_texts = dict(texts or {})
-    verify_texts.update(dict.fromkeys(clear_texts or [], ""))
-
-    try:
-        verified_target_actions = _verify_saved(
-            page,
-            campaign_id,
-            weekly_budget=weekly_budget,
-            promotion_goal=promotion_goal,
-            directs_helps=directs_helps,
-            name=name,
-            landing_url=landing_url,
-            tracking_params=tracking_params,
-            headlines=verify_headlines or None,
-            texts=verify_texts or None,
-            images_before_ids=images_before_ids,
-            images_replaced_ids=images_replaced_ids,
-            videos_before_urls=videos_before_urls,
-            video_added=add_video is not None or video_url_actually_added,
-            videos_removed=remove_videos,
-            goal_price=goal_price,
-            target_action_prices=target_action_prices,
-            add_target_actions=add_target_actions,
-            remove_target_action_goal_ids=remove_target_action_goal_ids,
-            target_action_goal_ids_before=target_action_goal_ids_before,
-            target_actions_unchanged_expected=target_actions_unchanged_expected,
-            target_actions_unchanged_requested=target_actions_unchanged_requested,
-            target_actions_baseline=(
-                None
-                if target_actions_at_load is None
-                else _target_action_price_map(target_actions_at_load)
-            ),
-            gender=gender,
-            age_from_requested=age_from_requested,
-            age_from=age_from,
-            age_to_requested=age_to_requested,
-            age_to=age_to,
-            devices=devices,
-            audience_tags_before=audience_tags_before,
-            add_audience_tags=add_audience_tags,
-            remove_audience_tag_indices=remove_audience_tags,
-            metrika_counters_before=metrika_counters_before,
-            metrika_preservation_requested=metrika_preservation_requested,
-            add_metrika_counters=add_metrika_counters,
-            remove_metrika_counter_indices=remove_metrika_counters,
-            sitelinks_before=sitelinks_before,
-            add_sitelinks=add_sitelinks_observed,
-            remove_sitelink_indices=remove_sitelinks,
-            clicked_button_label=clicked_button_label,
-            validation_errors=save_validation_errors,
-        )
-    except BrowserAuthError as exc:
-        raise BrowserSessionError(
-            f"Clicked '{clicked_button_label}' for campaign {campaign_id}, "
-            "but the session was invalidated while verifying the save — "
-            "the requested changes were likely already applied; check "
-            f"campaign {campaign_id} manually rather than retrying "
-            "(image/video replacements are not idempotent)."
-        ) from exc
-
-    result: Dict[str, Any] = {"CampaignId": campaign_id}
-    if verified_target_actions is not None:
-        # The unchanged-table check ran and verified these goals AND their
-        # prices survived the whole-form save (issues #872/#876) — surface
-        # them in the result row so a batch run shows the protected goals
-        # and bids, not just an implicit absence of failure.
-        result["TargetActions"] = verified_target_actions
-    if weekly_budget is not None:
-        result["WeeklyBudget"] = weekly_budget
-    if promotion_goal is not None:
-        result["PromotionGoal"] = promotion_goal
-    if goal_price is not None:
-        result["GoalPrice"] = goal_price
-    if target_action_prices:
-        result["TargetActionPrices"] = target_action_prices
-    if add_target_actions:
-        result["AddedTargetActions"] = add_target_actions
-    if remove_target_action_goal_ids:
-        result["RemovedTargetActionGoalIds"] = remove_target_action_goal_ids
-    if directs_helps is not None:
-        result["DirectsHelps"] = directs_helps
-    if name is not None:
-        result["Name"] = name
-    if landing_url is not None:
-        result["LandingUrl"] = landing_url
-    if tracking_params is not None:
-        result["TrackingParams"] = tracking_params
-    if headlines:
-        result["Headlines"] = headlines
-    if texts:
-        result["Texts"] = texts
-    if clear_headlines:
-        result["ClearedHeadlines"] = sorted(clear_headlines)
-    if clear_texts:
-        result["ClearedTexts"] = sorted(clear_texts)
-    if images:
-        result["Images"] = images
-    if add_video is not None:
-        result["AddedVideo"] = add_video
-    if video_url_actually_added:
-        result["AddedVideoUrl"] = add_video_url
-    if remove_videos:
-        result["RemovedVideos"] = list(remove_videos)
-    if gender is not None:
-        result["Gender"] = gender
-    if age_from_requested:
-        result["AgeFrom"] = age_from
-    if age_to_requested:
-        result["AgeTo"] = age_to
-    if devices is not None:
-        result["Devices"] = sorted(devices)
-    if add_audience_tags:
-        result["AddedAudienceTags"] = add_audience_tags
-    if remove_audience_tags:
-        result["RemovedAudienceTagPositions"] = sorted(remove_audience_tags)
-    if add_metrika_counters:
-        result["AddedMetrikaCounters"] = add_metrika_counters
-    if remove_metrika_counters:
-        result["RemovedMetrikaCounterPositions"] = sorted(remove_metrika_counters)
-    if add_sitelinks:
-        result["AddedSitelinks"] = add_sitelinks
-    if remove_sitelinks:
-        result["RemovedSitelinkPositions"] = sorted(remove_sitelinks)
-    if was_draft and launch:
-        # Issue #721: the DRAFT edit page's launch click redirects away from
-        # /edit/ (already awaited by _click_draft_terminal_button inside
-        # _click_save above), but that redirect is not proof Yandex actually
-        # sent the campaign to moderation — it can land on the overview page
-        # mid-transition, same race launch_master's own recon hit (see
-        # module docstring). _verify_saved above already re-navigated the
-        # page back to WIZARD_EDIT_URL to check the touched fields, so this
-        # needs its own trip to the overview page (mirroring launch_master's
-        # own _goto_overview_page call) before _verify_launched_to_moderation
-        # can read its status text — closing the gap where update_master
-        # --launch previously reported "Launched": True purely off the
-        # click/redirect, with no check that the campaign didn't silently
-        # stay DRAFT.
-        #
-        # This trip is just as irreversible/non-idempotent as the click
-        # itself (see the guard above _verify_saved): if the session is
-        # invalidated in this window, letting BrowserAuthError propagate
-        # bare would make _with_session retry the ENTIRE update_master call
-        # under a fresh session, re-mutating any --image replacements a
-        # second time (found via adversarial review, cycle-review round 1
-        # of PR #727).
-        try:
-            _goto_overview_page(page, campaign_id)
-            _verify_launched_to_moderation(page, campaign_id)
-        except BrowserAuthError as exc:
-            raise BrowserSessionError(
-                f"Clicked '{_LAUNCH_BUTTON_TEXT}' for campaign {campaign_id}, "
-                "but the session was invalidated while confirming it reached "
-                "moderation — the requested changes were likely already "
-                f"applied and launched; check campaign {campaign_id} "
-                "manually rather than retrying (image replacements are not "
-                "idempotent)."
-            ) from exc
-        result["Launched"] = True
-    return result
 
 
 def _open_images_editor(page: "Page", campaign_id: int) -> Tuple[List[str], bool]:
