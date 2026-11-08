@@ -36,7 +36,7 @@ Naming rules:
 ### Input Rules
 
 - In default headless mode, all user-facing input must be passed only through typed CLI flags.
-- Authentication input prompts require explicit `direct auth login --interactive`.
+- Authentication input prompts require explicit `direct auth login api --interactive`.
 - `--json` is not part of the public CLI contract.
 - User-facing parameters must not be passed through `--json`.
 - The CLI must not accept `SelectionCriteria`, nested payloads, update payloads, bidding rules, or any other user-facing command input through `--json`.
@@ -45,13 +45,15 @@ Naming rules:
 
 ### Authorization Execution Mode
 
-- Authorization is headless and non-interactive by default, including when stdin and stdout are terminals. TTY detection must never enable login dialogs or browser UI by itself.
-- `direct auth login` defaults to the headless API flow: print the authorization URL and accept the completion code later through typed flags or explicit stdin input.
-- Login menus and OAuth code prompts require `direct auth login --interactive`.
-- Manual browser login requires explicit `--interactive` or `--headful`. `--allow-no-tty` only overrides the terminal check; it does not authorize browser UI by itself.
+- Authorization is headless and non-interactive by default, including when stdin and stdout are terminals. TTY detection must never enable login dialogs or browser UI by itself; the only thing a terminal check may do is refuse.
+- `direct auth login` and `direct auth login api` are always headless: print the authorization URL (with pending PKCE) and complete later through `--code` or `--code -`. A login never writes the folder `.env`; bind a folder explicitly with `direct auth write`.
+- Login menus, OAuth code prompts, opening the browser and `.env` binding require explicit `direct auth login api --interactive`. It needs a terminal and refuses to combine with `--format json`, `--start-pkce`, `--code -` or `--code-stdin`.
+- `direct auth login browser` is a headless import of the Chrome session (`--source chrome` is the default). The visible login window requires explicit `--source manual` (a terminal, or `--allow-no-tty`, which overrides only the terminal check).
+- `--method` and `--headful` stay removed stubs naming the exact replacement; `--headful` names `--source manual`.
 - Chrome import is headless by default. Failed headless verification must not retry in a visible browser automatically.
 - Missing or expired credentials in ordinary commands produce an actionable error, never an implicit login.
 - Saving credentials into an existing profile requires explicit `--force`; the headless completion and token import refuse to overwrite otherwise.
+- The contract is locked by `tests/test_headless_auth_contract.py` (defaults, real-pty behavior, the terminal-may-only-refuse AST guard, the prompt/browser registry, doc examples parsed by live Click) and the `Headless auth contract` step in `quality.yml`.
 
 ### Data Safety — No Silent Overwrites
 

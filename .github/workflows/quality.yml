@@ -45,3 +45,9 @@ jobs:
         # Offline default comes from pyproject addopts (skips the live-network
         # markers). integration_write stays in — it replays VCR cassettes offline.
         run: pytest
+
+      - name: Headless auth contract
+        # The issue #962 lock: the auth contract is guarded by its own step,
+        # and a meta-test in the same file asserts this step exists, so
+        # removing either half fails CI.
+        run: pytest tests/test_headless_auth_contract.py
