@@ -185,6 +185,53 @@ class TestSessionStatus(unittest.TestCase):
         status = store.session_status(now=5000.0)
         self.assertTrue(status["expired"])
 
+    def test_short_lived_tracking_cookie_does_not_expire_a_live_session(self):
+        # `_ym_isad` (Metrica) lives ~20h; the SSO pair lives a year. Judging by
+        # the earliest cookie flagged a live session expired within hours, and
+        # open_session then found no usable tier (#983).
+        store.save_session(
+            {
+                "cookies": [
+                    {"name": "_ym_isad", "value": "1", "expires": 1000.0},
+                    {"name": "Session_id", "value": "2", "expires": 9000.0},
+                    {"name": "sessionid2", "value": "3", "expires": 8000.0},
+                ],
+                "origins": [],
+            }
+        )
+        status = store.session_status(now=2000.0)
+        self.assertEqual(status["expires_at"], 8000.0)
+        self.assertFalse(status["expired"])
+
+    def test_expired_sso_cookie_expires_the_session_despite_fresh_tracking(self):
+        store.save_session(
+            {
+                "cookies": [
+                    {"name": "yandexuid", "value": "1", "expires": 9000.0},
+                    {"name": "Session_id", "value": "2", "expires": 1000.0},
+                    {"name": "sessionid2", "value": "3", "expires": 9000.0},
+                ],
+                "origins": [],
+            }
+        )
+        status = store.session_status(now=2000.0)
+        self.assertEqual(status["expires_at"], 1000.0)
+        self.assertTrue(status["expired"])
+
+    def test_session_only_sso_cookies_leave_expiry_unknown_not_expired(self):
+        store.save_session(
+            {
+                "cookies": [
+                    {"name": "_ym_isad", "value": "1", "expires": 1000.0},
+                    {"name": "Session_id", "value": "2", "expires": -1},
+                ],
+                "origins": [],
+            }
+        )
+        status = store.session_status(now=2000.0)
+        self.assertIsNone(status["expires_at"])
+        self.assertIsNone(status["expired"])
+
     def test_age_seconds_computed_from_created_at(self):
         store.save_session({"cookies": [], "origins": []})
         envelope = store.read_session_envelope()
