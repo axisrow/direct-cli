@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.6 — 2026-11-11
+
+### Fixed
+
+- **A live browser session is no longer reported expired because of a
+  short-lived tracking cookie (#983, backport from main).** The
+  saved-session `expired` flag — the gate `open_session` uses to pick the
+  saved-session tier — took the earliest expiry across *all* cookies, so a
+  tracking cookie (Metrica's `_ym_isad` lives ~20h) flagged a live session
+  expired within hours although `Session_id`/`sessionid2` were good for a
+  year; `masters`/`history` then refused to run until a fresh
+  `direct auth login browser`. Freshness is now judged by the SSO pair
+  alone; a jar without those cookies keeps the earliest-cookie rule, and
+  session-only SSO cookies leave the expiry unknown instead of expired.
+
 ## 0.5.5 — 2026-10-27
 
 ### BREAKING CHANGES
