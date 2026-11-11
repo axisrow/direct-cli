@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.5.7 — 2026-11-11
+
+### Fixed
+
+- **A live browser session is no longer reported expired because of a
+  short-lived tracking cookie (#966).** Saved-session freshness is judged by
+  the SSO pair (`Session_id`/`sessionid2`) alone; a jar without those
+  cookies keeps the earliest-cookie rule, and session-only SSO cookies leave
+  the expiry unknown instead of expired. This is the main-line change that
+  the 0.5.6 hotfix (#984) backported onto the 0.5.x release line.
 
 ### Added
 
