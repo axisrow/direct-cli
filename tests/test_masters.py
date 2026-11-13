@@ -23426,9 +23426,11 @@ class TestMastersUpdateBatch(unittest.TestCase):
         self.assertNotIn("Error", payload[2])
 
     def test_stale_session_retry_does_not_resave_completed_campaign(self):
-        """The critical mutation-safety requirement: `_with_session` replays
-        the WHOLE operation on BrowserAuthError, so a campaign already saved
-        must be skipped rather than saved a second time."""
+        """Mutation-safety harness for a possible future replay: IF
+        `_with_session` ever replays the WHOLE operation on BrowserAuthError
+        again, a campaign already saved must be skipped rather than saved a
+        second time. Production does not replay today — see
+        TestWithSessionNoRetry; the replaying stub below is explicit."""
         saved = []
         raised = {"done": False}
 
@@ -23443,8 +23445,13 @@ class TestMastersUpdateBatch(unittest.TestCase):
             try:
                 return fn(_BatchPacingPage())
             except BrowserAuthError:
-                # Same self-heal `_with_session` performs: re-run the WHOLE
-                # operation under a fresh session.
+                # Deliberate replay HARNESS, not production behavior: the
+                # real `_with_session` runs the operation exactly once
+                # (pinned by TestWithSessionNoRetry). These tests exercise
+                # the batch bookkeeping (completed/outcomes, the pending
+                # moderation marker) against a replaying wrapper so it
+                # stays correct if a whole-operation replay is ever
+                # (re)introduced.
                 return fn(_BatchPacingPage())
 
         with self.runner.isolated_filesystem() as tmp:
@@ -23491,8 +23498,13 @@ class TestMastersUpdateBatch(unittest.TestCase):
             try:
                 return fn(_BatchPacingPage())
             except BrowserAuthError:
-                # Same self-heal `_with_session` performs: re-run the WHOLE
-                # operation under a fresh session.
+                # Deliberate replay HARNESS, not production behavior: the
+                # real `_with_session` runs the operation exactly once
+                # (pinned by TestWithSessionNoRetry). These tests exercise
+                # the batch bookkeeping (completed/outcomes, the pending
+                # moderation marker) against a replaying wrapper so it
+                # stays correct if a whole-operation replay is ever
+                # (re)introduced.
                 return fn(_BatchPacingPage())
 
         with self.runner.isolated_filesystem() as tmp:

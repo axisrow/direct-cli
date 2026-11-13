@@ -1404,10 +1404,14 @@ def _reject_conflicting_row_fields(item: Dict[str, Any], row_index: int) -> None
 def _reject_duplicate_campaign_ids(rows: List[Dict[str, Any]]) -> None:
     """Refuse a plan naming the same campaign twice.
 
-    Two rows for one campaign would mean two full edit-page saves, and the
-    retry bookkeeping in :func:`_run_update_file_batch` keys completion by
-    campaign id — so a duplicate is also the one input that could make a
-    replay skip a row that never ran. Merge the rows instead.
+    Two rows for one campaign would mean two full edit-page saves of the
+    same campaign. The ``completed`` bookkeeping in
+    :func:`_run_update_file_batch` keys completion by campaign id as a
+    deliberate defensive harness for a possible future whole-operation
+    replay (production never replays: ``_with_session`` runs the operation
+    exactly once, pinned by ``TestWithSessionNoRetry``) — a duplicate is
+    also the one input that could make such a replay skip a row that never
+    ran. Merge the rows instead.
     """
     seen: "dict[int, int]" = {}
     for index, row in enumerate(rows, start=1):
@@ -1484,9 +1488,13 @@ def _parse_update_inline_rows(value: str) -> List[Dict[str, Any]]:
 
 #: Placeholder left in a row's report when the campaign WAS saved but the
 #: follow-up ``--moderation-statuses`` read could not complete (the session
-#: went stale mid-read, and the save is not replayed on retry). Reporting the
-#: save with an explicit "not read" beats omitting the key, which reads as
-#: "nothing to report" for a campaign that was in fact mutated.
+#: went stale mid-read; the save itself is kept as-is and never
+#: re-attempted). Reporting the save with an explicit "not read" beats
+#: omitting the key, which reads as "nothing to report" for a campaign
+#: that was in fact mutated. The marker is observable only under a
+#: replaying wrapper — see the batch bookkeeping harness note in
+#: ``tests/test_masters.py``; production ``_with_session`` runs the
+#: operation exactly once.
 _MODERATION_READ_INTERRUPTED = (
     "not read — session expired after this campaign was saved; "
     "re-read with `masters get --moderation-statuses`"
@@ -1557,16 +1565,23 @@ def _run_update_file_batch(
                 result = update_master(page, campaign_id, **kwargs)
                 # Record the save as both done AND reportable before the
                 # optional moderation read: that read navigates again and can
-                # raise BrowserAuthError, and a save already applied in
-                # production must neither be replayed nor vanish from the
-                # report just because the follow-up read failed.
+                # raise BrowserAuthError, and the bookkeeping of a save
+                # already applied in production must be committed first —
+                # never rolled back just because the follow-up read failed.
+                # (``completed`` is also what a future whole-operation
+                # replay would key on; today ``_with_session`` runs the
+                # operation exactly once, so within one run this is plain
+                # bookkeeping.)
                 completed.add(campaign_id)
                 outcomes[campaign_id] = result
                 if moderation_statuses:
-                    # Marked pending first so that if this read is what raises
-                    # BrowserAuthError, the retry (which skips the completed
-                    # save) still reports WHY the statuses are missing rather
-                    # than silently omitting the key.
+                    # Marked pending first so the key can never silently go
+                    # missing: ``result`` is the same dict object stored in
+                    # ``outcomes``, so a replaying wrapper (the batch harness
+                    # tests; production ``_with_session`` runs the operation
+                    # exactly once) sees WHY the statuses are absent — the
+                    # first-pass read raised BrowserAuthError — instead of an
+                    # omitted key.
                     result["ModerationStatuses"] = _MODERATION_READ_INTERRUPTED
                     result["ModerationStatuses"] = fetch_master_moderation_statuses(
                         page, campaign_id
