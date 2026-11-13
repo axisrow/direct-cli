@@ -1991,7 +1991,9 @@ class TestOpenSessionAutoImport(unittest.TestCase):
 
     def test_auth_error_from_saved_session_enter_propagates_uncaught(self):
         """BrowserAuthError raised on open_saved_session's __enter__ propagates
-        (the retry lives one level up, in _with_session)."""
+        uncaught: neither `_open_session` nor `_with_session` retries — the
+        operation runs exactly once (pinned by TestWithSessionNoRetry) and
+        the auth error surfaces to the CLI layer."""
         import contextlib
 
         from direct_cli.browser.session import BrowserAuthError
@@ -6769,15 +6771,15 @@ class TestCopyMaster(unittest.TestCase):
         # The clone/terminal-button click has ALREADY happened (irreversible,
         # not idempotent) by the time verification runs. If the saved session
         # is invalidated exactly in that window, fetch_masters_list's own
-        # assert_authenticated raises BrowserAuthError -- which _with_session
-        # (direct_cli/commands/masters.py) would otherwise catch and retry
-        # the WHOLE copy_master call under a fresh session, re-clicking
-        # Клонировать and the terminal button and creating a SECOND copy (or,
-        # with --launch, a second live campaign spending real budget). This
-        # must surface as a plain BrowserSessionError (not BrowserAuthError),
-        # so _with_session's retry-on-BrowserAuthError does not fire, and the
-        # error message must reference NEW_ID so the caller can check
-        # manually instead of losing track of the clone that already exists.
+        # assert_authenticated raises BrowserAuthError. Nothing auto-retries
+        # (TestWithSessionNoRetry pins `_with_session` to a single call), but
+        # a raw auth error reads as "no session, nothing happened" and
+        # invites a manual re-click of Клонировать and the terminal button —
+        # a SECOND copy (or, with --launch, a second live campaign spending
+        # real budget). This must surface as a plain BrowserSessionError
+        # (not BrowserAuthError) carrying the honest "check NEW_ID manually
+        # rather than retrying" text, so the caller can check the clone that
+        # already exists instead of losing track of it.
         page = self._page(
             menu_trigger=_FakeLocatorHandle(),
             clone_item=_FakeLocatorHandle(),
@@ -8924,9 +8926,12 @@ class TestUpdateMasterDraftSupport(unittest.TestCase):
         # if --image was also passed, any image replacement is NOT
         # idempotent either. If the session is invalidated while
         # _goto_overview_page/_verify_launched_to_moderation confirm
-        # MODERATION, letting BrowserAuthError propagate bare would make
-        # _with_session retry the ENTIRE update_master call under a fresh
-        # session, re-mutating already-applied changes.
+        # MODERATION, a bare BrowserAuthError would read as "no session,
+        # nothing happened" and invite a blind retry that re-mutates
+        # already-applied changes — so the guard surfaces a plain
+        # BrowserSessionError with the honest "likely already applied and
+        # launched; check manually" text instead (nothing auto-retries:
+        # TestWithSessionNoRetry).
         slot = _FakeContentEditableHandle(text="Старый заголовок")
         selector = (
             f"[data-testid="
@@ -12021,18 +12026,18 @@ class TestUpdateMaster(unittest.TestCase):
         — irreversible from here, and NOT idempotent for images the way
         ``_set_repeating_value`` is for headlines/texts (replacement always
         appends to the end of the set — see ``_set_image``'s docstring), so
-        a positional re-application on retry would replace DIFFERENT images
-        than the ones the caller named. If the saved session is invalidated
-        in exactly this window, ``_verify_saved``'s own
-        ``assert_authenticated`` raises ``BrowserAuthError`` — letting that
-        propagate as-is would make ``_with_session``
-        (``direct_cli/commands/masters.py``) retry this ENTIRE
-        ``update_master`` call under a fresh session, re-snapshotting the
-        now-already-mutated image set and removing further, untouched
-        images. This must surface as a plain ``BrowserSessionError`` (not
-        ``BrowserAuthError``), so ``_with_session``'s retry-on-auth-error
-        does not fire — found via adversarial review (Codex) in
-        cycle-review round 2 of PR #672.
+        a positional re-application would replace DIFFERENT images than the
+        ones the caller named. If the saved session is invalidated in
+        exactly this window, ``_verify_saved``'s own
+        ``assert_authenticated`` raises ``BrowserAuthError`` — nothing
+        auto-retries it (``_with_session`` runs the call exactly once,
+        pinned by ``TestWithSessionNoRetry``), but a bare auth error would
+        read as "no session, nothing happened" and invite a retry that
+        re-snapshots the now-already-mutated image set and removes further,
+        untouched images. This must surface as a plain ``BrowserSessionError``
+        (not ``BrowserAuthError``) carrying the honest "likely already
+        applied; check manually" text — found via adversarial review (Codex)
+        in cycle-review round 2 of PR #672.
         """
         page_save_clicks = []
         save_handle = _FakeTextLocatorHandle(
@@ -23268,13 +23273,21 @@ class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
         self.assertEqual([row["CampaignId"] for row in payload], [1, 2])
         self.assertTrue(all("Error" in row for row in payload))
 
-    def test_mid_batch_auth_error_triggers_with_session_retry(self):
+    def test_mid_batch_auth_error_propagates_out_of_per_id_loop(self):
         """Issue #816 follow-up (Codex, cycle-review PR #818): BrowserAuthError
-        must propagate to ``_with_session``'s stale-session self-heal retry,
-        not be swallowed as a per-campaign error -- ``BrowserAuthError`` is a
-        ``BrowserSessionError`` subclass, so a bare ``except
-        (BrowserSessionError, PlaywrightError)`` in ``_all`` catches it too
-        and defeats the retry ``_with_session`` is built around.
+        must propagate out of ``_run_per_id`` instead of being swallowed as a
+        per-campaign error -- ``BrowserAuthError`` is a ``BrowserSessionError``
+        subclass, so a bare ``except (BrowserSessionError, PlaywrightError)``
+        in ``_all`` would catch it too, reporting a dead session as an
+        ordinary row error and running every remaining ID against it. Auth
+        failures stop the batch by policy; nothing auto-retries them (see
+        TestWithSessionNoRetry).
+
+        The stub below replays once, as the old self-heal design did -- a
+        deliberate HARNESS, not production behavior: with the real
+        ``_with_session`` this batch aborts non-zero instead of
+        self-healing. The stub keeps exercising the propagate-out contract
+        under a replay.
         """
         call_count = {"n": 0}
         auth_error_raised = {"done": False}
@@ -23284,6 +23297,9 @@ class TestMastersGetPerCampaignFailureIsolation(unittest.TestCase):
             try:
                 return fn(object())
             except BrowserAuthError:
+                # Deliberate replay HARNESS, not production behavior (see
+                # TestWithSessionNoRetry): simulates the old whole-operation
+                # retry so the propagate-out contract is exercised under it.
                 if call_count["n"] > 1:
                     raise
                 return fn(object())
