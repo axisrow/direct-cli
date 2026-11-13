@@ -2902,6 +2902,385 @@ class TestFetchMastersList(unittest.TestCase):
             browser_masters.fetch_masters_list(page, status="bogus")
 
 
+class TestFetchGridCampaigns(unittest.TestCase):
+    """`campaigns list`'s engine (issue #982): the SAME GridCampaigns capture
+    `fetch_masters_list` uses, WITHOUT the Мастер-only source filter.
+
+    The sanitized live fixture already proves the point the issue asked to
+    check first: one captured grid response carries every campaign type —
+    here 4 Мастера (source "UAC": TEXT, CPM_BANNER) AND 2 ordinary campaigns
+    (source "DC": UNIFIED/ЕПК) — so no second source (API `campaigns.get`)
+    is needed and rows cannot duplicate across sources.
+    """
+
+    _GRID_REQUEST_BODY = {
+        "operationName": "GridCampaigns",
+        "variables": {
+            "login": "ksamatadirect",
+            "campaignInput": {
+                "filter": {},
+                "limitOffset": {"offset": 0, "limit": 200},
+            },
+        },
+        "query": "query GridCampaigns { ... }",
+    }
+
+    def _grid_response(self, post_data=None, status=200):
+        return _FakeGridResponse(
+            url=(
+                f"{browser_masters.GRID_API_URL}"
+                f"?operationName={browser_masters._GRID_CAMPAIGNS_OPERATION}"
+            ),
+            status=status,
+            post_data=post_data or json.dumps(self._GRID_REQUEST_BODY),
+        )
+
+    def _page(self, api_pages, grid_post_data=None):
+        return FakePage(
+            grid_response=self._grid_response(post_data=grid_post_data),
+            api_request=_FakeApiRequestContext(pages=api_pages),
+        )
+
+    def _fixture_row_with(self, **overrides):
+        row = {
+            "id": "999000001",
+            "name": "ТГО из грида",
+            "type": "TEXT",
+            "metaType": "DEFAULT_",
+            "source": "DC",
+            "__typename": "GdTextCampaign",
+            "status": {"primaryStatus": "ACTIVE"},
+            "startDate": "2025-01-01",
+        }
+        row.update(overrides)
+        return row
+
+    def _fixture_with_extra_row(self, row):
+        fixture = _load_grid_campaigns_fixture()
+        fixture["data"]["client"]["campaigns"]["rowset"].append(row)
+        fixture["data"]["client"]["campaigns"]["totalCount"] += 1
+        return fixture
+
+    def test_returns_all_types_and_sources_without_filtering(self):
+        fixture = _load_grid_campaigns_fixture()
+        page = self._page([fixture])
+
+        result = browser_masters.fetch_grid_campaigns(page, status="all")
+
+        ids = {row["CampaignId"] for row in result}
+        # Every fixture row, Мастера ("UAC") and ordinary campaigns ("DC")
+        # alike — fetch_masters_list's exact complement.
+        self.assertEqual(
+            ids, {72349978, 107707079, 77501358, 100571135, 75071838, 74773845}
+        )
+        by_id = {row["CampaignId"]: row for row in result}
+        epk = by_id[74773845]
+        self.assertEqual(epk["Type"], "UNIFIED")
+        self.assertEqual(epk["Source"], "DC")
+        master = by_id[72349978]
+        self.assertEqual(master["Type"], "TEXT")
+        self.assertEqual(master["Source"], "UAC")
+
+    def test_status_and_raw_status_mapping(self):
+        fixture = _load_grid_campaigns_fixture()
+        page = self._page([fixture])
+
+        result = browser_masters.fetch_grid_campaigns(page, status="all")
+
+        by_id = {row["CampaignId"]: row for row in result}
+        # STOPPED maps to the unified "stopped" label; RawStatus keeps the
+        # grid's own word either way.
+        stopped = by_id[72349978]
+        self.assertEqual(stopped["Status"], "stopped")
+        self.assertEqual(stopped["RawStatus"], "STOPPED")
+        active = by_id[74773845]
+        self.assertEqual(active["Status"], "launched")
+        self.assertEqual(active["RawStatus"], "ACTIVE")
+        archived = by_id[77501358]
+        self.assertEqual(archived["Status"], "archived")
+        self.assertEqual(archived["RawStatus"], "ARCHIVED")
+
+    def test_launched_includes_temporarily_paused(self):
+        # The exact #982 live finding: a Мастер with Status TEMPORARILY_PAUSED
+        # (StartDate in the future) sits in the grid's «Запущенные», while
+        # `masters list --status active` misses it.
+        fixture = self._fixture_with_extra_row(
+            self._fixture_row_with(
+                id="999000001",
+                name="Мастер на отсрочке",
+                source="UAC",
+                type="TEXT",
+                status={"primaryStatus": "TEMPORARILY_PAUSED"},
+            )
+        )
+        page = self._page([fixture])
+
+        result = browser_masters.fetch_grid_campaigns(page, status="launched")
+
+        by_id = {row["CampaignId"]: row for row in result}
+        self.assertIn(999000001, by_id)
+        self.assertEqual(by_id[999000001]["Status"], "launched")
+        self.assertEqual(by_id[999000001]["RawStatus"], "TEMPORARILY_PAUSED")
+        self.assertEqual(by_id[999000001]["Source"], "UAC")
+        # ...and the filter still excludes what «Запущенные» does.
+        self.assertNotIn(72349978, by_id)  # STOPPED
+        self.assertNotIn(77501358, by_id)  # ARCHIVED
+        self.assertNotIn(75071838, by_id)  # ARCHIVED ЕПК
+
+    def test_launched_matches_launch_statuses_from_the_default_grid_filter(self):
+        # ACTIVE / TEMPORARILY_PAUSED / RUN_WARN — the three launch-side
+        # primaryStatus values the grid's own default filterStatusIn carries.
+        for primary, present in (
+            ("ACTIVE", True),
+            ("TEMPORARILY_PAUSED", True),
+            ("RUN_WARN", True),
+            ("STOPPED", False),
+            ("DRAFT", False),
+            ("ARCHIVED", False),
+            ("MODERATION", False),
+        ):
+            fixture = self._fixture_with_extra_row(
+                self._fixture_row_with(
+                    id="999000002", status={"primaryStatus": primary}
+                )
+            )
+            page = self._page([fixture])
+
+            result = browser_masters.fetch_grid_campaigns(page, status="launched")
+
+            ids = {row["CampaignId"] for row in result}
+            self.assertEqual(
+                999000002 in ids,
+                present,
+                f"primaryStatus {primary}: got {sorted(ids)}",
+            )
+
+    def test_unknown_primary_status_passes_through_raw(self):
+        # MODERATION (and any future enum value) must stay visible under its
+        # own name under --status all, never silently folded into one of the
+        # four labels.
+        fixture = self._fixture_with_extra_row(
+            self._fixture_row_with(
+                id="999000003", status={"primaryStatus": "MODERATION"}
+            )
+        )
+        page = self._page([fixture])
+
+        result = browser_masters.fetch_grid_campaigns(page, status="all")
+
+        row = next(r for r in result if r["CampaignId"] == 999000003)
+        self.assertEqual(row["Status"], "MODERATION")
+        self.assertEqual(row["RawStatus"], "MODERATION")
+
+    def test_status_filters_stopped_draft_archived(self):
+        for status, expected_ids in (
+            ("stopped", {72349978, 107707079}),
+            ("draft", set()),
+            ("archived", {77501358, 100571135, 75071838}),
+            ("all", {72349978, 107707079, 77501358, 100571135, 75071838, 74773845}),
+        ):
+            page = self._page([_load_grid_campaigns_fixture()])
+
+            result = browser_masters.fetch_grid_campaigns(page, status=status)
+
+            self.assertEqual(
+                {row["CampaignId"] for row in result},
+                expected_ids,
+                f"status={status}",
+            )
+
+    def test_archived_widens_filter_status_in_before_replaying(self):
+        # Same #730 server-side exclusion as fetch_masters_list: without
+        # widening, ARCHIVED rows never reach rowset at all.
+        fixture = _load_grid_campaigns_fixture()
+        body = dict(self._GRID_REQUEST_BODY)
+        body["variables"] = dict(body["variables"])
+        body["variables"]["campaignInput"] = dict(body["variables"]["campaignInput"])
+        body["variables"]["campaignInput"]["filter"] = {
+            "filterStatusIn": [
+                "ACTIVE",
+                "DRAFT",
+                "MODERATION",
+                "MODERATION_DENIED",
+                "RUN_WARN",
+                "STOPPED",
+                "TEMPORARILY_PAUSED",
+            ]
+        }
+        page = self._page([fixture], grid_post_data=json.dumps(body))
+
+        browser_masters.fetch_grid_campaigns(page, status="archived")
+
+        posted_body = json.loads(page.request.calls[0][1])
+        status_in = posted_body["variables"]["campaignInput"]["filter"][
+            "filterStatusIn"
+        ]
+        self.assertIn("ARCHIVED", status_in)
+
+    def test_launched_does_not_widen_filter_status_in(self):
+        fixture = _load_grid_campaigns_fixture()
+        body = {
+            "operationName": "GridCampaigns",
+            "variables": {
+                "login": "ksamatadirect",
+                "campaignInput": {
+                    "filter": {"filterStatusIn": ["ACTIVE", "STOPPED"]},
+                    "limitOffset": {"offset": 0, "limit": 200},
+                },
+            },
+            "query": "query GridCampaigns { ... }",
+        }
+        page = self._page([fixture], grid_post_data=json.dumps(body))
+
+        browser_masters.fetch_grid_campaigns(page, status="launched")
+
+        posted_body = json.loads(page.request.calls[0][1])
+        status_in = posted_body["variables"]["campaignInput"]["filter"][
+            "filterStatusIn"
+        ]
+        self.assertEqual(status_in, ["ACTIVE", "STOPPED"])
+
+    def test_unknown_status_filter_raises_value_error(self):
+        page = self._page([_load_grid_campaigns_fixture()])
+        with self.assertRaises(ValueError):
+            browser_masters.fetch_grid_campaigns(page, status="not-archived")
+
+    def test_empty_result_is_a_valid_outcome_without_warning(self):
+        # An account with zero launched campaigns is a normal answer for the
+        # all-types list — unlike fetch_masters_list, no API-change warning:
+        # the empty result cannot be distinguished from "none matching".
+        empty = {"data": {"client": {"campaigns": {"totalCount": 0, "rowset": []}}}}
+        page = self._page([empty])
+
+        with patch("direct_cli.browser.masters.print_warning") as warn:
+            result = browser_masters.fetch_grid_campaigns(page, status="launched")
+
+        self.assertEqual(result, [])
+        warn.assert_not_called()
+
+    def test_row_without_parseable_id_is_skipped(self):
+        fixture = self._fixture_with_extra_row(self._fixture_row_with(id="not-an-int"))
+        page = self._page([fixture])
+
+        result = browser_masters.fetch_grid_campaigns(page, status="all")
+
+        self.assertNotIn("not-an-int", {r["CampaignId"] for r in result})
+
+
+class TestCampaignsListCommand(unittest.TestCase):
+    """`direct campaigns list` — the #982 CLI surface over fetch_grid_campaigns.
+
+    Lives in this module (not a campaigns test file) because its engine is
+    the grid capture whose FakePage replay harness is defined here.
+    """
+
+    def setUp(self):
+        self.runner = CliRunner()
+
+    def test_registered_with_unified_status_choices(self):
+        result = self.runner.invoke(cli, ["campaigns", "list", "--help"])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("--status", result.output)
+        for choice in ("launched", "stopped", "draft", "archived", "all"):
+            self.assertIn(choice, result.output)
+
+    def test_rejects_masters_vocabulary_status(self):
+        # The whole point of #982 is ONE vocabulary — the masters-only
+        # "not-archived"/"active" names must not sneak back in here.
+        result = self.runner.invoke(cli, ["campaigns", "list", "--status", "active"])
+        self.assertNotEqual(result.exit_code, 0)
+
+    def test_forwards_status_and_timeout_to_browser_layer(self):
+        captured = {}
+
+        def _fake_fetch(page, status="launched", capture_timeout_ms=None):
+            captured["status"] = status
+            captured["capture_timeout_ms"] = capture_timeout_ms
+            return []
+
+        with (
+            patch(
+                "direct_cli.browser.masters.fetch_grid_campaigns",
+                side_effect=_fake_fetch,
+            ),
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(
+                cli, ["campaigns", "list", "--status", "stopped", "--timeout", "45"]
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(captured["status"], "stopped")
+        self.assertEqual(captured["capture_timeout_ms"], 45_000)
+
+    def test_default_status_is_launched(self):
+        captured = {}
+
+        def _fake_fetch(page, status="launched", capture_timeout_ms=None):
+            captured["status"] = status
+            return []
+
+        with (
+            patch(
+                "direct_cli.browser.masters.fetch_grid_campaigns",
+                side_effect=_fake_fetch,
+            ),
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["campaigns", "list"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(captured["status"], "launched")
+
+    def test_outputs_rows_as_json_by_default(self):
+        rows = [
+            {
+                "CampaignId": 72349978,
+                "Name": "Мастер",
+                "Type": "TEXT",
+                "Source": "UAC",
+                "Status": "launched",
+                "RawStatus": "TEMPORARILY_PAUSED",
+                "StartDate": "2026-11-09",
+                "EndDate": None,
+            }
+        ]
+
+        def _fake_fetch(page, status="launched", capture_timeout_ms=None):
+            return rows
+
+        with (
+            patch(
+                "direct_cli.browser.masters.fetch_grid_campaigns",
+                side_effect=_fake_fetch,
+            ),
+            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+        ):
+            mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
+            result = self.runner.invoke(cli, ["campaigns", "list"])
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(json.loads(result.output), rows)
+
+    def test_needs_no_api_credentials(self):
+        # The #904 bind gate must not demand an API token from a
+        # browser-only leaf: without any credentials the command reaches the
+        # browser layer's own playwright-missing error, not the bind hint.
+        with (
+            patch.dict(
+                "sys.modules", {"playwright": None, "playwright.sync_api": None}
+            ),
+            patch.dict("os.environ", {"YANDEX_DIRECT_TOKEN": ""}, clear=False),
+        ):
+            result = self.runner.invoke(cli, ["campaigns", "list"])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("playwright", result.output.lower())
+        self.assertIn("pip install", result.output)
+        self.assertNotIn("No credentials bound", result.output)
+
+
 class TestFetchMaster(unittest.TestCase):
     """Overview-page parsing: title, status, landing URL, stat tiles."""
 

@@ -41,6 +41,8 @@ direct auth login browser
 direct auth login browser --source manual
 direct masters list
 direct masters list --status archived
+direct campaigns list
+direct campaigns list --status stopped
 direct masters get 72349978
 direct masters suspend 72349978
 direct masters resume 72349978
@@ -68,6 +70,21 @@ direct masters copy 72349978 --launch
 `not-archived`). Команда всегда читает свой собственный кабинет, в котором
 авторизован браузер — доступа к обслуживаемым клиентам (`--login`/агентство)
 нет.
+
+`campaigns list` читает тот же грид-захват для **кампаний всех типов** —
+Мастера и обычные кампании (TEXT_CAMPAIGN, ЕПК/UNIFIED, ...) возвращаются
+одним списком без дублей и с единым словарём статусов (issue #982):
+`--status launched|stopped|draft|archived|all` (по умолчанию `launched`).
+`launched` повторяет фильтр «Запущенные» веб-грида и потому включает
+кампании в `TEMPORARILY_PAUSED` (например, с датой старта в будущем),
+которые упускает `masters list --status active`. Каждая строка несёт
+`Type`/`Source` как в гриде (`Source == "UAC"` — Мастер кампаний),
+единый `Status` и исходный `RawStatus` грида (например,
+`TEMPORARILY_PAUSED`; неизвестное значение вроде `MODERATION` проходит
+как есть и совпадает только с `--status all`), а также
+`StartDate`/`EndDate`. Как и `masters`, команда работает через браузер:
+нужна сохранённая сессия, а не API-токен, и читается только тот кабинет,
+в котором авторизован браузер (`--login`/агентство не поддерживается).
 
 `masters update` редактирует настройки одного «Мастера кампаний». Пока
 поддерживаются простые скалярные поля (Этап A поэтапного плана — см.

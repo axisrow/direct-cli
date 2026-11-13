@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`campaigns list`: one grid-filter command for campaigns of ALL types
+  (#982).** The captured GridCampaigns response already carries every
+  campaign type — Мастера (`Source: "UAC"`) and ordinary campaigns
+  (TEXT_CAMPAIGN, ЕПК/UNIFIED, `Source: "DC"`, ...) — so the new command
+  reads the same browser grid capture `masters list` uses, without the
+  Мастер-only source filter, and needs no API token. One unified status
+  vocabulary replaces the old two-command splice: `--status
+  launched|stopped|draft|archived|all` (default `launched`), where
+  `launched` mirrors the web grid's «Запущенные» filter and includes
+  `TEMPORARILY_PAUSED` campaigns (e.g. a Мастер with a future StartDate)
+  that `masters list --status active` misses. Each row keeps the grid's own
+  words: `RawStatus` (verbatim `primaryStatus`), unified `Status` (unknown
+  values like `MODERATION` pass through verbatim, matched only by `all`),
+  verbatim `Type`/`Source`, `StartDate`/`EndDate`. The command opts out of
+  the #904 API-credential bind gate per leaf (`browser_session_only`) —
+  the `campaigns` group's API commands still require credentials.
+  `masters list` itself is unchanged.
+
 ## 0.5.7 — 2026-11-11
 
 ### Fixed

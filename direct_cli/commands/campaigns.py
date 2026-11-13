@@ -68,6 +68,12 @@ from ._campaigns_base import (
 from ._batch import chunked
 from ._execute import execute_request
 from ._lifecycle import register_lifecycle_commands
+
+# `campaigns list` (issue #982) is browser-backed and reads the SAME grid
+# capture `masters list` does, so it shares that group's saved-session
+# opener and option decorator rather than growing a second copy.
+from .masters import _masters_browser_options, _with_session
+
 from . import _campaigns_dynamic as dynamic  # noqa: E402,F401
 from . import _campaigns_text as text  # noqa: E402,F401
 from . import _campaigns_unified as unified  # noqa: E402,F401
@@ -100,6 +106,94 @@ def _order_chunk_results(items: list, id_order: list) -> list:
     """
     position = {campaign_id: idx for idx, campaign_id in enumerate(id_order)}
     return sorted(items, key=lambda item: position.get(item.get("Id"), len(position)))
+
+
+_GRID_STATUS_CHOICES = ("launched", "stopped", "draft", "archived", "all")
+
+
+@campaigns.command(name="list")
+@click.option(
+    "--status",
+    type=click.Choice(_GRID_STATUS_CHOICES),
+    default="launched",
+    help=(
+        "Filter like the web grid's own chips (default: launched). "
+        "'launched' mirrors «Запущенные» and so includes campaigns that "
+        "are TEMPORARILY_PAUSED (e.g. a future StartDate), which "
+        "`masters list --status active` misses."
+    ),
+)
+@click.option(
+    "--timeout",
+    "capture_timeout_seconds",
+    type=click.IntRange(min=1),
+    default=None,
+    help=(
+        "Seconds to wait for the grid's data request per capture attempt "
+        "(two attempts are made — this budget, then double it — before the "
+        "command fails). Raise on slow connections."
+    ),
+)
+@_masters_browser_options
+@click.pass_context
+@handle_api_errors
+def list_campaigns(
+    ctx,
+    status,
+    capture_timeout_seconds,
+    headful,
+    profile_dir,
+    chrome_profile,
+    output_format,
+    output,
+):
+    """List campaigns of ALL types exactly as the web grid shows them
+
+    One read of the campaigns grid's own JSON data call — the same capture
+    `masters list` uses — but WITHOUT filtering to Мастер кампаний rows, so
+    Мастера (Source "UAC") and ordinary campaigns (TEXT_CAMPAIGN, ЕПК/UNIFIED,
+    ...) come back in one deduplicated list with a single status vocabulary
+    (issue #982). This command is browser-backed (like `masters`), not an
+    API `campaigns.get` call: it needs the saved browser session (set it up
+    under `direct auth`; see `auth --help`) and the `browser` extra, never
+    the API token, and reads only the logged-in account — no `--login`/agency
+    support (see `masters --help`).
+
+    Each row: CampaignId, Name, Type (the grid's verbatim campaign type),
+    Source (verbatim; "UAC" = Мастер кампаний), Status (unified grid-chip
+    vocabulary: launched/stopped/draft/archived — anything the grid reports
+    outside that map, e.g. MODERATION, passes through verbatim and matches
+    only --status all), RawStatus (the grid's verbatim primaryStatus,
+    e.g. TEMPORARILY_PAUSED), StartDate, EndDate. The grid's data response
+    carries no human status text; read it per-campaign with `masters get`.
+    """
+    from ..browser.masters import fetch_grid_campaigns
+
+    result = _with_session(
+        ctx,
+        headful,
+        profile_dir,
+        chrome_profile,
+        lambda page: fetch_grid_campaigns(
+            page,
+            status,
+            capture_timeout_ms=(
+                capture_timeout_seconds * 1000
+                if capture_timeout_seconds is not None
+                else None
+            ),
+        ),
+    )
+
+    format_output(result, output_format, output)
+
+
+# Authorizes off the saved browser session only (like every `masters`
+# command) — the #904 credential bind gate must not demand an API token
+# before this body can run; see cli.py::_ensure_credentials_bound.
+list_campaigns.browser_session_only = (  # pyright: ignore[reportAttributeAccessIssue]
+    True
+)
 
 
 @campaigns.command()

@@ -4,6 +4,7 @@
   "Output file": "Файл для вывода",
   "Output format": "Формат вывода",
   "Show request without sending": "Показать запрос без отправки",
+  "Show the browser window (for debugging)": "Показать окно браузера (для отладки)",
   "Provide at least one field to update": "Укажите хотя бы одно поле для обновления",
   "--status and --statuses are mutually exclusive": "--status и --statuses взаимоисключающи",
   "Provide a target selector (--id, --adgroup-id, or --campaign-id)": "Укажите селектор цели (--id, --adgroup-id или --campaign-id)",

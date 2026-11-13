@@ -151,6 +151,15 @@ INTENTIONAL_EXTRA_METHODS = {
         "emulates 'resume the group' via ads.get + ads.resume; see its "
         "--help for the resulting resume-everything limitation."
     ),
+    ("campaigns", "list"): (
+        "Browser-backed grid read (issue #982): the campaigns WSDL declares "
+        "no list RPC. The command replays the web grid's own GridCampaigns "
+        "data call (the same capture `masters list` uses) WITHOUT the "
+        "Мастер-only source filter, so one read returns every campaign type "
+        "-- including Мастер кампаний, which `campaigns get` never reports "
+        "and the Management API has no surface for. Sends no Direct API "
+        "request at all."
+    ),
     ("dictionaries", "getRetargetingGoals"): (
         "Issue #852: undocumented/internal v5 method (not declared in the "
         "dictionaries WSDL) that Direct Commander uses to resolve a site/app "

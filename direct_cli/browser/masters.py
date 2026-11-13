@@ -422,6 +422,37 @@ STATUS_FILTERS = {
 # (fetch_master's status-text parser already produces "SUSPENDED"/"ACTIVE").
 _PRIMARY_STATUS_TO_CLI_STATUS = {"STOPPED": "SUSPENDED"}
 
+# Unified status vocabulary for `campaigns list` (issue #982) — the grid's
+# «Запущенные»/«Остановленные»/«Черновики»/«Архив» filters over ALL campaign
+# types. `launched` deliberately includes TEMPORARILY_PAUSED (a Мастер with a
+# future StartDate sits in the grid's «Запущенные» while its primaryStatus is
+# TEMPORARILY_PAUSED — the exact drift #982 exists for) and RUN_WARN (running
+# with warnings; not live-confirmed against the grid chip yet — see the PR).
+# primaryStatus values the unified «Запущенные» filter counts as launched.
+_LAUNCHED_PRIMARY_STATUSES = frozenset({"ACTIVE", "TEMPORARILY_PAUSED", "RUN_WARN"})
+
+GRID_STATUS_FILTERS = {
+    "launched": lambda s: s in _LAUNCHED_PRIMARY_STATUSES,
+    "stopped": lambda s: s == "STOPPED",
+    "draft": lambda s: s == "DRAFT",
+    "archived": lambda s: s == "ARCHIVED",
+    "all": lambda s: True,  # noqa: ARG005 - intentional constant-true predicate
+}
+
+# primaryStatus -> unified `campaigns list` Status label. Anything absent
+# (MODERATION, MODERATION_DENIED, a future enum value) passes through
+# verbatim and is only ever matched by `--status all` — an unknown value
+# must stay visible under its own name, never silently folded into one of
+# the four labels above.
+_GRID_UNIFIED_STATUS_MAP = {
+    "ACTIVE": "launched",
+    "TEMPORARILY_PAUSED": "launched",
+    "RUN_WARN": "launched",
+    "STOPPED": "stopped",
+    "DRAFT": "draft",
+    "ARCHIVED": "archived",
+}
+
 # GridCampaigns' primaryStatus value for an archived campaign (issue #730,
 # live-confirmed 2026-08-04 against campaign 713277109 — see
 # ``_widen_filter_status_for_archived``).
@@ -2418,6 +2449,25 @@ def _fetch_grid_campaigns_page(
         ) from exc
 
 
+def _fetch_all_grid_rows(page: "Page", request: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Paginate the captured GridCampaigns request through EVERY row.
+
+    ``GRID_PAGE_LIMIT`` rows per replay (the server-side page size), until
+    the accumulated offset reaches ``totalCount`` or a page comes back
+    empty. Shared by ``fetch_masters_list`` and ``fetch_grid_campaigns``.
+    """
+    all_rows: List[Dict[str, Any]] = []
+    offset = 0
+    while True:
+        campaigns = _fetch_grid_campaigns_page(page, request, offset)
+        rowset = campaigns.get("rowset") or []
+        all_rows.extend(rowset)
+        offset += len(rowset)
+        if not rowset or offset >= campaigns.get("totalCount", offset):
+            break
+    return all_rows
+
+
 def fetch_masters_list(
     page: "Page",
     status: str = "not-archived",
@@ -2450,15 +2500,7 @@ def fetch_masters_list(
     if status in _ARCHIVE_INCLUDING_STATUSES:
         _widen_filter_status_for_archived(request)
 
-    all_rows: List[Dict[str, Any]] = []
-    offset = 0
-    while True:
-        campaigns = _fetch_grid_campaigns_page(page, request, offset)
-        rowset = campaigns.get("rowset") or []
-        all_rows.extend(rowset)
-        offset += len(rowset)
-        if not rowset or offset >= campaigns.get("totalCount", offset):
-            break
+    all_rows = _fetch_all_grid_rows(page, request)
 
     masters: List[Dict[str, Any]] = []
     for row in all_rows:
@@ -2507,6 +2549,73 @@ def fetch_masters_list(
             f"{MASTERS_SOURCE!r} in {_GRID_CAMPAIGNS_OPERATION})."
         )
     return masters
+
+
+def fetch_grid_campaigns(
+    page: "Page",
+    status: str = "launched",
+    capture_timeout_ms: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    """Return EVERY campaign in the account's grid, all types (#982).
+
+    The captured ``GridCampaigns`` response already carries every campaign
+    type — TEXT, UNIFIED, CPM_BANNER, ..., both Мастера (``source ==
+    MASTERS_SOURCE``) and ordinary campaigns (any other source; sanitized
+    fixture shows ``DC``) — so one grid read replaces the old manual splice
+    of ``masters list`` (Мастера only) and ``campaigns get`` (API, no
+    Мастера). Rows are unique by construction: one source, one row each.
+
+    ``status`` filters by the unified vocabulary of the grid's own chips
+    (``GRID_STATUS_FILTERS``): ``launched`` mirrors «Запущенные» (and so
+    includes TEMPORARILY_PAUSED masters, which ``masters list --status
+    active`` misses), ``stopped``/``draft``/``archived``/``all`` the rest.
+    ``archived``/``all`` widen the replayed request's ``filterStatusIn``
+    exactly like ``fetch_masters_list`` (issue #730) — the grid's default
+    view excludes ARCHIVED server-side.
+
+    Each row keeps the grid's own words: ``RawStatus`` is the verbatim
+    ``primaryStatus`` and ``Status`` its unified label
+    (``_GRID_UNIFIED_STATUS_MAP``; an unknown value passes through raw).
+    ``Type``/``Source`` are the grid's verbatim ``type``/``source`` — a
+    Мастер кампаний is ``Source == "UAC"`` (no campaign-type field
+    distinguishes one; see ``MASTERS_SOURCE``). The grid response carries
+    no human status text («Показы начнутся …») — that lives in the UI, not
+    in this payload; ``masters get`` reads it per-campaign off the overview
+    page.
+    """
+    status_predicate = GRID_STATUS_FILTERS.get(status)
+    if status_predicate is None:
+        raise ValueError(
+            f"Unknown status filter {status!r}; expected one of "
+            f"{sorted(GRID_STATUS_FILTERS)}."
+        )
+
+    request = _capture_grid_campaigns_request(page, timeout_ms=capture_timeout_ms)
+    if status in _ARCHIVE_INCLUDING_STATUSES:
+        _widen_filter_status_for_archived(request)
+
+    campaigns: List[Dict[str, Any]] = []
+    for row in _fetch_all_grid_rows(page, request):
+        primary_status = (row.get("status") or {}).get("primaryStatus") or ""
+        if not status_predicate(primary_status):
+            continue
+        try:
+            campaign_id = int(row["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        campaigns.append(
+            {
+                "CampaignId": campaign_id,
+                "Name": row.get("name", ""),
+                "Type": row.get("type"),
+                "Source": row.get("source"),
+                "Status": _GRID_UNIFIED_STATUS_MAP.get(primary_status, primary_status),
+                "RawStatus": primary_status,
+                "StartDate": row.get("startDate"),
+                "EndDate": row.get("endDate"),
+            }
+        )
+    return campaigns
 
 
 def _read_overview_title_text(page: "Page") -> "Optional[str]":

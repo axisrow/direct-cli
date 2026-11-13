@@ -41,6 +41,11 @@ SMOKE_MATRIX = {
         "bids.get",
         "businesses.get",
         "campaigns.get",
+        # Read-only: the same grid capture `masters list` uses (the grid's
+        # own JSON data call), minus the Мастер-only source filter — every
+        # type, statuses only read, nothing on any page it opens is ever
+        # saved (issue #982).
+        "campaigns.list",
         "changes.check",
         "changes.check-campaigns",
         "changes.check-dictionaries",
