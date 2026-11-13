@@ -5336,17 +5336,18 @@ class TestArchiveMaster(unittest.TestCase):
         self.assertIn("landed", str(ctx.exception))
         self.assertIn("HTTP 500", str(ctx.exception))
 
-    def test_verify_loop_reraises_auth_error_for_with_sessions_auto_heal(self):
+    def test_verify_loop_reraises_auth_error_instead_of_generic_timeout(self):
         # cycle-review finding on issue #797: unlike copy_master (not
         # idempotent -- a retried click would create a SECOND campaign, so
         # it deliberately keeps BrowserAuthError wrapped as a plain
         # BrowserSessionError), archive_master IS idempotent (see the
-        # already-ARCHIVED early return). _poll_master_row_tolerant
-        # tolerates every BrowserSessionError including BrowserAuthError
-        # (issue #797 Finding 2), so without this re-raise a session that
-        # expires mid-poll would surface as a generic timeout instead of
-        # letting _with_session (direct_cli/commands/masters.py) retry the
-        # whole idempotent call under a fresh session.
+        # already-ARCHIVED early return) and safe to re-run by hand.
+        # _poll_master_row_tolerant tolerates every BrowserSessionError
+        # including BrowserAuthError (issue #797 Finding 2), so without
+        # this re-raise a session that expires mid-poll would surface as a
+        # generic timeout -- the re-raise surfaces the real auth failure
+        # instead. Nothing auto-retries it: _with_session runs the call
+        # exactly once (pinned by TestWithSessionNoRetry).
         page = self._page_with_menu(
             menu_trigger=_FakeLocatorHandle(),
             archive_item=_FakeLocatorHandle(),
