@@ -3203,7 +3203,11 @@ class TestCampaignsListCommand(unittest.TestCase):
                 "direct_cli.browser.masters.fetch_grid_campaigns",
                 side_effect=_fake_fetch,
             ),
-            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+            # The command resolves _with_session from campaigns.py's own
+            # module globals (it imports the name), so patch THAT binding —
+            # patching commands/masters.py leaves the real opener in place
+            # and the test silently depends on a usable Chrome session.
+            patch("direct_cli.commands.campaigns._with_session") as mock_with_session,
         ):
             mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
             result = self.runner.invoke(
@@ -3226,7 +3230,8 @@ class TestCampaignsListCommand(unittest.TestCase):
                 "direct_cli.browser.masters.fetch_grid_campaigns",
                 side_effect=_fake_fetch,
             ),
-            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+            # Same binding note as test_forwards_status_and_timeout above.
+            patch("direct_cli.commands.campaigns._with_session") as mock_with_session,
         ):
             mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
             result = self.runner.invoke(cli, ["campaigns", "list"])
@@ -3256,7 +3261,8 @@ class TestCampaignsListCommand(unittest.TestCase):
                 "direct_cli.browser.masters.fetch_grid_campaigns",
                 side_effect=_fake_fetch,
             ),
-            patch("direct_cli.commands.masters._with_session") as mock_with_session,
+            # Same binding note as test_forwards_status_and_timeout above.
+            patch("direct_cli.commands.campaigns._with_session") as mock_with_session,
         ):
             mock_with_session.side_effect = lambda ctx, hf, pd, cp, op: op(object())
             result = self.runner.invoke(cli, ["campaigns", "list"])
