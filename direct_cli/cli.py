@@ -168,6 +168,14 @@ def _ensure_credentials_bound(ctx: click.Context) -> None:
     obj = ctx.obj or {}
     if obj.get("credential_gate") is False or obj.get("token"):
         return
+    # A browser-backed leaf inside an API group (issue #982: `campaigns
+    # list` reads the same grid capture `masters` does) authorizes off the
+    # saved browser session, never off a token. The root callback exempts
+    # whole GROUPS via _NO_CREDENTIALS_GROUPS; the `campaigns` group's API
+    # commands still need credentials, so the opt-out is per command — a
+    # truthy `browser_session_only` attribute on the leaf.
+    if getattr(ctx.command, "browser_session_only", False):
+        return
     raise click.UsageError(_bind_hints())
 
 

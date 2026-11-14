@@ -41,6 +41,8 @@ direct auth login browser
 direct auth login browser --source manual
 direct masters list
 direct masters list --status archived
+direct campaigns list
+direct campaigns list --status stopped
 direct masters get 72349978
 direct masters suspend 72349978
 direct masters resume 72349978
@@ -72,6 +74,20 @@ page request: `Strategy` (the grid's raw enum — `OPTIMIZE_CLICKS` /
 `OPTIMIZE_CONVERSIONS`), `WeeklyBudget`, and, where the strategy has them,
 `AvgCpa` / `GoalId` / `PayForConversion` / `IsAutoBudget` (plus `EndDate`);
 rows without a strategy (e.g. drafts) report these as `null`.
+
+`campaigns list` reads the SAME grid capture for **all campaign types** —
+Мастера and ordinary campaigns (TEXT_CAMPAIGN, ЕПК/UNIFIED, ...) come back
+in one deduplicated list with one status vocabulary (issue #982): `--status
+launched|stopped|draft|archived|all` (default `launched`). `launched`
+mirrors the web grid's «Запущенные» filter and so includes campaigns that
+are `TEMPORARILY_PAUSED` (e.g. a future StartDate), which `masters list
+--status active` misses. Each row carries `Type`/`Source` verbatim from the
+grid (`Source == "UAC"` = Мастер кампаний), the unified `Status`, the grid's
+own `RawStatus` (e.g. `TEMPORARILY_PAUSED`; an unknown value like
+`MODERATION` passes through verbatim and matches only `--status all`),
+`StartDate`/`EndDate`. Like `masters`, it is browser-backed: it needs the
+saved browser session, not the API token, and reads only the logged-in
+account (no `--login`/agency support).
 
 `masters add` creates a new Мастер кампаний. Besides `--headline`/`--text`
 and one of `--region`/`--region-id`, it **requires `--add-target-action`**
